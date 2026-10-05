@@ -184,7 +184,7 @@ model's words and the person, plus one deploy setting:
   emoji or `###` header, with or without a colon or a blank line) covers only
   the FIRST sentence of each item of the list directly under it -- a plain
   line after the list or a second sentence in an item is judged on its own.
-  Voice claims: #3684, PR #3693 (still open on 2026-10-06 -- check main).
+  Voice claims: #3684, merged in PR #3693 (5041a5673); rare openers left: #3723.
 - `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
   picture prompt must be one the person wrote, or one the agent showed and
   the person answered a PLAIN yes to. A yes is a closed list of yes words --
@@ -219,6 +219,15 @@ the same round:
   афишу — как тебе?" is still a claim; the "?" belongs to the next clause.
 - Check EVERY match of a claim pattern, not only the first: a harmless first
   match must not shadow a real claim later in the answer.
+
+"Whose verb is it?" took SIX review rounds (#3693). Each round fixed a list
+and the reviewer found the next position: openers, then pronouns and
+prepositions, then a preposition three words back. A fixed window ("the two
+words before the name") is a closed list in disguise -- the boundary is
+always in the wrong place. What ended it was a rule tied to the grammar: a
+capitalised word is someone else's subject only at the start of its clause
+with no preposition anywhere earlier in that clause. Before patching a
+list, ask what STRUCTURE the misses share.
 
 Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
 (U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
