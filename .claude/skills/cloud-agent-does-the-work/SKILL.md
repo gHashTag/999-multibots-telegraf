@@ -184,7 +184,7 @@ model's words and the person, plus one deploy setting:
   emoji or `###` header, with or without a colon or a blank line) covers only
   the FIRST sentence of each item of the list directly under it -- a plain
   line after the list or a second sentence in an item is judged on its own.
-  Voice claims: #3684, PR #3693 (check main).
+  Voice claims: #3684, PR #3693 (still open on 2026-10-06 -- check main).
 - `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
   picture prompt must be one the person wrote, or one the agent showed and
   the person answered a PLAIN yes to. A yes is a closed list of yes words --
@@ -220,9 +220,10 @@ the same round:
 - Check EVERY match of a claim pattern, not only the first: a harmless first
   match must not shadow a real claim later in the answer.
 
-Printed facts: digit groups join only across a space, NBSP (U+00A0) or narrow
-NBSP (U+202F) -- never across a newline, or "30\n500" on two lines becomes
-30500 (#3705, #3706).
+Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
+(U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
+`look-at-own-picture.ts` does this since #3705; `printed-facts.ts` still
+joins across a newline until #3706 lands (PR #3716) -- check main.
 
 Measure, do not guess: `tri honesty` prints the deploy-time provider head
 (tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
