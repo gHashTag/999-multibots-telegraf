@@ -51,6 +51,12 @@ export const GENERATION_REFUSALS: Record<string, { en: string; ru: string }> = {
     en: "The generation didn't go through — try again or pick another model",
     ru: 'Генерация не получилась — попробуй ещё раз или другую модель', // cyrillic-ok: the russian sentence
   },
+  // Paid, failed, and the tokens are back: the server sets this code only
+  // after the refund went through (render generation-refusal.ts).
+  generation_failed_refunded: {
+    en: "The generation didn't go through — your tokens are back on your balance. Try again",
+    ru: 'Генерация не получилась — токены вернулись на баланс. Попробуй ещё раз', // cyrillic-ok: the russian sentence
+  },
 }
 
 /** Codes for failures the caller can fix; their detail may stand alone. */
