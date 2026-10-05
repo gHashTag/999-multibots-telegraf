@@ -273,6 +273,13 @@ export interface ToolContext {
    * files the client's fault under this owner.
    */
   dmSeller?: string
+  /**
+   * What a picture may print (printed-facts.ts, #3661): the person's own
+   * words in this conversation, plus the agent's last answer if they said yes
+   * to it. Set by the chat route from the request's history; absent for
+   * sweeps and MCP calls, which then print without the check.
+   */
+  heard?: string
 }
 
 export interface AgentTool {
@@ -1284,6 +1291,7 @@ import {
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
+import { confirmFirst, unconfirmedFacts } from './printed-facts'
 
 export const TOOLS: AgentTool[] = [
   {
@@ -1860,6 +1868,9 @@ export const TOOLS: AgentTool[] = [
       // Each img2img model is sold at its own cost x markup: nano-banana-edit
       // is `image_edit` (billing-shared), no longer the text-to-image price.
       const op = isGptImage25Edit(model) ? 'gpt_image_edit' : 'image_edit'
+      // A date, time or price nobody confirmed is not printed (#3661).
+      const unsaid = unconfirmedFacts(String(args.prompt ?? ''), ctx.heard)
+      if (unsaid.length) return { done: false, reason: confirmFirst(unsaid) }
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           done: false,
@@ -2093,6 +2104,13 @@ export const TOOLS: AgentTool[] = [
       // does not cover (src/agent/flat-price-model.ts).
       const refused = imageModelRefusal(args.model)
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      // A date, time or price nobody confirmed is not printed (#3661).
+      const unsaid = unconfirmedFacts(String(args.prompt ?? ''), ctx.heard)
+      if (unsaid.length)
+        return {
+          сделано: false, // cyrillic-ok: the tool's own response fields
+          причина: confirmFirst(unsaid), // cyrillic-ok: the tool's own response fields
+        }
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
