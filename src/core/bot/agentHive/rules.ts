@@ -100,3 +100,81 @@ export function mentions(
   }
   return false
 }
+
+// ---- spec v2: typing, one speaker on the all tag, follow-ups, /stop, /mute ----
+
+/** Telegram shows "typing" for ~5 s; a turn takes up to a minute. */
+export const typingDue = (sinceLastMs: number): boolean =>
+  sinceLastMs >= SPEC.TYPING_REFRESH_MS
+
+/** rank: the agent's place in the best-fit order for this message, from 0. */
+export const speaksOnAll = (rank: number): boolean =>
+  rank < SPEC.ALL_FIRST_SPEAKERS
+
+/** A person's next message in the same topic goes to the last agent, untagged. */
+export const followsUp = (
+  fromBot: boolean,
+  samePerson: boolean,
+  sameThread: boolean,
+  ageMs: number
+): boolean =>
+  !fromBot && samePerson && sameThread && ageMs < SPEC.FOLLOW_UP_WINDOW_MS
+
+export const stopped = (sinceStopMs: number): boolean =>
+  sinceStopMs < SPEC.STOP_WINDOW_MS
+
+/** A stop cuts bot-to-bot turns only; a person is always heard. */
+export const mayAnswerAfterStop = (
+  fromBot: boolean,
+  sinceStopMs: number
+): boolean => !fromBot || !stopped(sinceStopMs)
+
+export const muted = (sinceMuteMs: number): boolean =>
+  sinceMuteMs < SPEC.MUTE_MS
+
+/** A muted agent still answers its own tag. */
+export const heardWhileMuted = (
+  tagged: boolean,
+  sinceMuteMs: number
+): boolean => tagged || !muted(sinceMuteMs)
+
+// ---- spec v3: reactions, briefs, a deleted topic, /summary ----
+
+/** The answer counts whether or not the chat accepts reactions. */
+export const turnOk = (answerSent: boolean, _reactionOk: boolean): boolean =>
+  answerSent
+
+/** A failed turn takes the "seen" mark away. */
+export const keepsSeenMark = (answerSent: boolean): boolean => answerSent
+
+/** 0 none, 1 the group's brief, 2 the topic's. The narrower one wins. */
+export function briefSource(
+  hasTopicBrief: boolean,
+  hasGroupBrief: boolean
+): 0 | 1 | 2 {
+  if (hasTopicBrief) return 2
+  if (hasGroupBrief) return 1
+  return 0
+}
+
+/** An empty brief fits: it clears the brief. */
+export const briefFits = (chars: number): boolean =>
+  chars <= SPEC.MAX_BRIEF_CHARS
+
+export const maySetBrief = (isAdmin: boolean, fromBot: boolean): boolean =>
+  isAdmin && !fromBot
+
+/** A missing or stale topic is recreated, at most once per cooldown. */
+export const recreateTopic = (
+  stored: boolean,
+  threadFound: boolean,
+  sinceLastTryMs: number
+): boolean =>
+  (!stored || !threadFound) && sinceLastTryMs >= SPEC.TOPIC_RECREATE_COOLDOWN_MS
+
+/** How many logged messages a /summary reads. */
+export function summaryCount(asked: number): number {
+  if (asked === 0) return SPEC.SUMMARY_DEFAULT
+  if (asked > SPEC.SUMMARY_LOG_SIZE) return SPEC.SUMMARY_LOG_SIZE
+  return asked
+}
