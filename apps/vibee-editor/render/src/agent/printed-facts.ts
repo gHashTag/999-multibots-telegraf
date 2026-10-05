@@ -82,18 +82,23 @@ const HOURS = new RegExp(
   'giu'
 )
 /*
- * A number with optional thousands groups ("1 500", "1,500", "1.500") and
- * optional cents; `amount` reads it.
- */
-/*
- * "$5k", "$5 тыс": a multiplier after a sign-first amount. Without it "$5k"
+ * "$5k", "$5 тыс", "1,5 млн": a multiplier after the amount. Without it "$5k"
  * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686).
  */
-const KILO = '(?:k|к|тыс(?:яч[аи]?|\\.)?)(?![\\p{L}])'
-const NUM =
-  '(\\d{1,3}(?:[\\s,.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)'
+const KILO = '(?:k|к|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])' // cyrillic-ok: multiplier words
+/**
+ * The spaces that join digit groups, as a regex character-class body: a
+ * space, a no-break space, a narrow no-break space. A CLOSED list, never
+ * `\s` -- a line break glued a poster's "ENTRY 1" over "500" into 1500
+ * (#3706) and "11:30" over "500" into 30500 (#3699). The one home of the
+ * rule; look-at-own-picture reads it too.
+ */
+export const DIGIT_JOINERS = ' \\u00A0\\u202F'
+/* A number with optional thousands groups ("1 500", "1,500", "1.500") and
+ * optional cents; `amount` reads it. */
+const NUM = `(\\d{1,3}(?:[${DIGIT_JOINERS},.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)`
 const PRICE = new RegExp(
-  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM}(?:\\s?${KILO})?)|(?:${L}${NUM}(?:\\s?k)?\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс(?:яч[аи]?|\\.)?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
+  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM}(?:\\s?${KILO})?)|(?:${L}${NUM}(?:\\s?(?:[kк]|млн\\.?|mln|million))?\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс(?:яч[аи]?|\\.)?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
   'giu'
 )
 
@@ -125,21 +130,40 @@ function amount(raw: string): string {
 
 /* "2 тыс. руб", "10 тысяч рублей", "$5k" are thousands: "$2" does not confirm them. */
 const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k(?![a-z])|к(?![а-яё]))', 'iu')
+const MILLIONS = new RegExp('\\d\\s?(?:млн|mln|million)', 'iu')
 
 /*
- * The digits of a price, scaled when it names thousands. Before a thousands
- * marker the decimal is part of the amount, not cents: "1.5k" and "1,5 тыс"
- * are 1500, so "$1k" does not confirm "$1.5k" (#3697).
+ * The readings of a price, scaled when it names thousands or millions.
+ * Before a multiplier the decimal is part of the amount, not cents: "1.5k"
+ * and "1,5 тыс" are 1500, so "$1k" does not confirm "$1.5k" (#3697), and
+ * "1,5 млн" is 1 500 000 (#3709). One separator before exactly three digits
+ * ("$1.500k") reads both ways -- a decimal (1500, like "$1.5k") or a
+ * thousands group (1 500 000) -- and either reading the person wrote confirms
+ * it, the same way "08.10" is a date or a time. Without a multiplier cents
+ * are dropped: "$2.50" is 2, which a person's "$2.50" or "$2" confirms.
  */
-function priceDigits(raw: string, matched: string): string {
-  if (!THOUSANDS.test(matched)) return amount(raw)
-  const dec = raw.trim().match(/^(.*\d)[.,](\d{1,2})$/)
+function priceReadings(raw: string, matched: string): string[] {
+  const zeros = MILLIONS.test(matched) ? 6 : THOUSANDS.test(matched) ? 3 : 0
+  if (!zeros) {
+    const digits = amount(raw)
+    return digits ? [digits] : []
+  }
+  const scale = 10 ** zeros
+  const t = raw.trim()
+  const ambiguous = t.match(/^(\d{1,3})[.,](\d{3})$/)
+  if (ambiguous) {
+    const asDecimal =
+      Number(ambiguous[1]) * scale + Number(ambiguous[2].padEnd(zeros, '0'))
+    const asGroup = Number(ambiguous[1] + ambiguous[2]) * scale
+    return [String(asDecimal), String(asGroup)]
+  }
+  const dec = t.match(/^(.*\d)[.,](\d{1,2})$/)
   if (!dec) {
     const digits = amount(raw)
-    return digits && digits + '000'
+    return digits ? [String(Number(digits) * scale)] : []
   }
   const whole = Number(dec[1].replace(/\D/g, ''))
-  return String(whole * 1000 + Number(dec[2].padEnd(3, '0')))
+  return [String(whole * scale + Number(dec[2].padEnd(zeros, '0')))]
 }
 
 /*
@@ -236,18 +260,23 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    const digits = priceDigits(m[1] ?? m[2] ?? '', m[0])
-    if (digits)
+    const readings = priceReadings(m[1] ?? m[2] ?? '', m[0])
+    if (readings.length)
       add({
         kind: 'price',
         text: m[0].trim(),
-        keys: [`p${digits}`],
+        keys: readings.map(d => `p${d}`),
         currency: currencyOf(m[0]),
       })
   }
   for (const m of text.matchAll(BARE_PRICE)) {
-    const digits = priceDigits(m[1] ?? '', m[0])
-    if (digits) add({ kind: 'price', text: m[0].trim(), keys: [`p${digits}`] })
+    const readings = priceReadings(m[1] ?? '', m[0])
+    if (readings.length)
+      add({
+        kind: 'price',
+        text: m[0].trim(),
+        keys: readings.map(d => `p${d}`),
+      })
   }
   return out
 }

@@ -128,6 +128,15 @@ describe('no false "missing" for a fact that is on the picture (#3699)', () => {
     expect(asReadable('room 4h30x')).toBe('room 4h30x')
   })
 
+  it('"11.30 ч" over "500 THB" leaves the price 500 (#3710)', () => {
+    const prices = factsIn(asReadable('11.30 ч\n500 THB')).filter(
+      f => f.kind === 'price'
+    )
+    expect(prices.map(f => f.keys)).toEqual([['p500']])
+    // the shared joiner list: a no-break space joins, as in the fact reader
+    expect(shown('entry 1 500 THB', 'ENTRY 1\u00a0500')).toEqual([true])
+  })
+
   it('the note says what vision could not find and asks before a redraw', () => {
     const note = missingFactsNote({ seen: 'x', missing: ['11:30'] })
     expect(note).toContain('не нашло') // cyrillic-ok: the tool's answer text

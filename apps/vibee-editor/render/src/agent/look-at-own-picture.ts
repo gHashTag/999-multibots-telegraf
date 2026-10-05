@@ -13,7 +13,7 @@
  * hits). It never blocks delivery: vision off, slow, or failing -> seen null,
  * missing [], and the picture goes out exactly as before.
  */
-import { factsIn, type Fact } from './printed-facts'
+import { DIGIT_JOINERS, factsIn, type Fact } from './printed-facts'
 import { askVision, shrinkJpeg, visionConfig } from './media-vision'
 
 export const READ_TEXT_PROMPT = 'Quote all visible text verbatim, nothing else.'
@@ -71,15 +71,13 @@ export const liveRead = (deps: VisionDeps = {}): ReadText | null => {
 
 /*
  * Digits of a number, separators dropped: "1 500" and "1,500" -> "1500".
- * Only a space or a thin/no-break space joins digit groups: a line break
- * glued "11:30\n500" into "30500" and hid the price (#3699).
+ * Groups join only across DIGIT_JOINERS (or a comma or a dot), the rule the
+ * fact reader uses: a line break glued "11:30\n500" into "30500" and hid the
+ * price (#3699).
  */
+const DIGIT_RUN = new RegExp(`\\d(?:[${DIGIT_JOINERS}.,]?\\d)*`, 'g')
 const digitRuns = (text: string): Set<string> =>
-  new Set(
-    (text.match(/\d(?:[ \u00a0\u202f.,]?\d)*/g) ?? []).map(n =>
-      n.replace(/\D/g, '')
-    )
-  )
+  new Set((text.match(DIGIT_RUN) ?? []).map(n => n.replace(/\D/g, '')))
 
 /* Russian short month on a poster ("8 OKT.") -> the English short word the
  * fact reader knows. Strings, not a regex literal: the Cyrillic guard reads

@@ -495,3 +495,55 @@ describe('a decimal before a thousands marker is part of the amount (#3697)', ()
     expect(keys('fee $5k')).toEqual(['p5000'])
   })
 })
+
+describe('digit groups join only across a space, never a line break (#3706)', () => {
+  it('"ENTRY 1" over "500" is not a price of 1500', () => {
+    expect(keys('ENTRY 1\n500')).toEqual([])
+    expect(keys('вход 1\n500 ₽')).toEqual(['p500'])
+    expect(keys('1\n500 THB')).toEqual(['p500'])
+  })
+
+  it('a space, a no-break space and a narrow no-break space still join', () => {
+    expect(keys('1 500 ₽')).toEqual(['p1500'])
+    expect(keys('1\u00A0500 ₽')).toEqual(['p1500'])
+    expect(keys('1\u202F500 ₽')).toEqual(['p1500'])
+    expect(keys('вход 1 500')).toEqual(['p1500'])
+    expect(keys('вход 1\u00A0500')).toEqual(['p1500'])
+    expect(keys('вход 1\t500 ₽')).toEqual(['p500'])
+  })
+
+  it('a time or a lone digit over a price stays apart (#3710)', () => {
+    const prices = (text: string) =>
+      factsIn(text)
+        .filter(f => f.kind === 'price')
+        .map(f => f.keys.join('|'))
+    expect(prices('11:30\n500 THB')).toEqual(['p500'])
+    expect(prices('1\n500 THB')).toEqual(['p500'])
+  })
+})
+
+describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
+  it('reads "10.5к ₽" as 10500 and "1,5 млн руб" as 1 500 000', () => {
+    expect(keys('10.5к ₽')).toEqual(['p10500'])
+    expect(keys('1,5 млн руб')).toEqual(['p1500000'])
+    expect(keys('цена 1,5 млн')).toEqual(['p1500000'])
+    expect(keys('prize €2 million')).toEqual(['p2000000'])
+  })
+
+  it('"10.5к ₽" is not confirmed by "10 ₽" or "10к ₽"', () => {
+    expect(unconfirmedFacts('вход 10.5к ₽', 'вход 10 ₽').length).toBe(1)
+    expect(unconfirmedFacts('вход 10.5к ₽', 'вход 10к ₽').length).toBe(1)
+    expect(unconfirmedFacts('вход 10.5к ₽', 'вход 10 500 ₽')).toEqual([])
+  })
+
+  it('"$1.500k" reads both ways: $1.5k and $1 500k each confirm it', () => {
+    expect(keys('$1.500k')).toEqual(['p1500|p1500000'])
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1.5k')).toEqual([])
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1 500 000')).toEqual([])
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1k').length).toBe(1)
+  })
+
+  it('a preposition "к" with no currency is not a price', () => {
+    expect(keys('500 к ужину')).toEqual([])
+  })
+})
