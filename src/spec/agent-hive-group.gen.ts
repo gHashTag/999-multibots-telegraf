@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "agent-hive-group" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 3 satisfies number;
 export const MAX_BOT_DEPTH = 3 satisfies number;
 export const BOT_REPLY_COOLDOWN_MS = 5000 satisfies number;
 export const CLAIM_TTL_MS = 900000 satisfies number;
@@ -18,6 +18,38 @@ export const BOT_USERNAME_SUFFIX = "_bot" satisfies string;
 // t27c gen-ts: fn cooled was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_answer was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn claim_fresh was not emitted -- this backend lowers declarations, not bodies.
+export const TYPING_REFRESH_MS = 4000 satisfies number;
+export const ALL_FIRST_SPEAKERS = 1 satisfies number;
+export const FOLLOW_UP_WINDOW_MS = 120000 satisfies number;
+export const STOP_WINDOW_MS = 600000 satisfies number;
+export const MUTE_MS = 3600000 satisfies number;
+// t27c gen-ts: fn typing_due was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn speaks_on_all was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn follows_up was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn stopped was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_answer_after_stop was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn muted was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn heard_while_muted was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn turn_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn keeps_seen_mark was not emitted -- this backend lowers declarations, not bodies.
+export const MAX_BRIEF_CHARS = 1000 satisfies number;
+// t27c gen-ts: fn brief_source was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn brief_fits was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_set_brief was not emitted -- this backend lowers declarations, not bodies.
+export const TOPIC_RECREATE_COOLDOWN_MS = 600000 satisfies number;
+// t27c gen-ts: fn recreate_topic was not emitted -- this backend lowers declarations, not bodies.
+export const SUMMARY_LOG_SIZE = 200 satisfies number;
+export const SUMMARY_DEFAULT = 50 satisfies number;
+// t27c gen-ts: fn summary_count was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -28,7 +60,7 @@ export const BOT_USERNAME_SUFFIX = "_bot" satisfies string;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "MAX_BOT_DEPTH", "BOT_REPLY_COOLDOWN_MS", "CLAIM_TTL_MS", "ALL_TAG", "BOT_USERNAME_PREFIX", "BOT_USERNAME_SUFFIX"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "MAX_BOT_DEPTH", "BOT_REPLY_COOLDOWN_MS", "CLAIM_TTL_MS", "ALL_TAG", "BOT_USERNAME_PREFIX", "BOT_USERNAME_SUFFIX", "TYPING_REFRESH_MS", "ALL_FIRST_SPEAKERS", "FOLLOW_UP_WINDOW_MS", "STOP_WINDOW_MS", "MUTE_MS", "MAX_BRIEF_CHARS", "TOPIC_RECREATE_COOLDOWN_MS", "SUMMARY_LOG_SIZE", "SUMMARY_DEFAULT"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
