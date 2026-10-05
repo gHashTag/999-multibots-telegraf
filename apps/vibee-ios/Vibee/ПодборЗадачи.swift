@@ -83,6 +83,7 @@ enum GenerationRefusal {
     "unavailable": ("The service is busy — try again in a minute", "Сервис занят — попробуй через минуту"),  // ru-only-ok: the russian sentence
     "too_long": ("Too long for this model — trim it and try again", "Слишком длинно для этой модели — обрежь и попробуй снова"),  // ru-only-ok: the russian sentence
     "generation_failed": ("The generation didn't go through — try again or pick another model", "Генерация не получилась — попробуй ещё раз или другую модель"),  // ru-only-ok: the russian sentence
+    "generation_failed_refunded": ("The generation didn't go through — your tokens are back on your balance. Try again", "Генерация не получилась — токены вернулись на баланс. Попробуй ещё раз"),  // ru-only-ok: the russian sentence
   ]
 
   /// Failures the caller can fix; their detail may stand alone.

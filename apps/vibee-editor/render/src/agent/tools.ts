@@ -1004,6 +1004,22 @@ async function ownerVoiceViaOurClone(
 }
 
 /**
+ * What a failed lipsync tells the person about the money, and only what is
+ * true: "returned" when the refund went through, "nothing was charged" when
+ * nothing was (the house, a delivery paid later), and the failure of the
+ * refund when it failed -- the line used to say "returned" in all three.
+ */
+export function lipsyncRefundWords(
+  charged: number | undefined,
+  refunded: boolean
+): string {
+  if (!charged) return 'Ничего не списано.'
+  return refunded
+    ? `Токены возвращены (${charged}).`
+    : `Возврат ${charged} ток. не прошёл — это видно в журнале, его вернут вручную.`
+}
+
+/**
  * ВОЗВРАТ токенов, если работа не сделана.
  *
  * ЦЕНА ОТСУТСТВИЯ, ИЗМЕРЕННАЯ. Списание стояло ПЕРЕД вызовом провайдера, а
@@ -2867,7 +2883,7 @@ export const TOOLS: AgentTool[] = [
             charge['потрачено']
           )
         } catch (e) {
-          await refundTokens(
+          const refunded = await refundTokens(
             ctx,
             'lipsync_generate',
             'липсинк не сделан',
@@ -2875,7 +2891,7 @@ export const TOOLS: AgentTool[] = [
           )
           return {
             done: false,
-            reason: `липсинк не сделан: ${String(e instanceof Error ? e.message : e).slice(0, 240)}. Токены возвращены.`,
+            reason: `липсинк не сделан: ${String(e instanceof Error ? e.message : e).slice(0, 240)}. ${lipsyncRefundWords(charge['потрачено'], refunded)}`,
           }
         }
       } finally {
