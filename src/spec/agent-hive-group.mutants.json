@@ -1,0 +1,32 @@
+[
+  {
+    "name": "the chain never closes at the limit",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "depth < SPEC.MAX_BOT_DEPTH",
+    "to": "depth <= SPEC.MAX_BOT_DEPTH"
+  },
+  {
+    "name": "a bot wakes the whole hive with the all tag",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "(!a.fromBot && (a.allTag || a.ownTopic))",
+    "to": "(a.allTag || a.ownTopic)"
+  },
+  {
+    "name": "a bot answers a bot without waiting",
+    "file": "core/bot/agentHive/rules.ts",
+    "from": "chainOpen(depth) && cooled(sinceLastMs)",
+    "to": "chainOpen(depth)"
+  },
+  {
+    "name": "a bot message is never deeper than its parent",
+    "file": "core/bot/agentHive/chain.ts",
+    "from": "return (parent ?? 0) + 1",
+    "to": "return parent ?? 1"
+  },
+  {
+    "name": "a stale claim still names the agent",
+    "file": "core/bot/agentHive/claims.ts",
+    "from": "if (claim && claimFresh(now - claim.at)) return claim.agentId",
+    "to": "if (claim) return claim.agentId"
+  }
+]

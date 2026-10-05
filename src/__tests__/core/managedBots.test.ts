@@ -172,7 +172,8 @@ describe('the managed_bots table keeps no token', () => {
       't27ai_bot'
     )
     expect(calls[0].sql).toBe(MANAGED_BOTS_TABLE)
-    expect(calls[1].params).toEqual([
+    // The schema runs first (table, agent columns, hive table), then the upsert.
+    expect(calls.find(c => c.sql === UPSERT_MANAGED_BOT)?.params).toEqual([
       created.id,
       'playra_agent_bot',
       'Dmitrii agent',
@@ -195,7 +196,8 @@ describe('the managed_bots table keeps no token', () => {
   it('a new bot gets the trial on insert, and a token rotation gives no new one', () => {
     const [insert, onConflict] = UPSERT_MANAGED_BOT.split('ON CONFLICT')
     expect(insert).toMatch(/paid_until/)
-    expect(onConflict).not.toMatch(/paid_until|media/)
+    // RETURNING reads media back; only the SET clause must leave it alone.
+    expect(onConflict.split('RETURNING')[0]).not.toMatch(/paid_until|media/)
     expect(TRIAL_DAYS).toBeGreaterThan(0)
   })
 })
