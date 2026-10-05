@@ -486,7 +486,9 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   if (clause[clause.lastIndexOf(before) - 1] === '@') return false
   if (before[0] === low[0]) return true
   const at = words.length - 1
-  const lead = words.slice(Math.max(0, at - 2), at)
+  // A preposition anywhere earlier in the clause makes the capital oblique:
+  // a name three words after "for" is still oblique (#3693 round 5).
+  const lead = words.slice(0, at)
   if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
   /*
    * Every claim verb here is masculine or feminine past, so a neuter "-o"

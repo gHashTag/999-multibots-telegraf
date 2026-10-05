@@ -571,6 +571,30 @@ describe('a name is the subject only at its clause start, not after a prepositio
   }
 })
 
+describe('a preposition anywhere earlier in the clause, not only two words back (#3693 round 5)', () => {
+  for (const said of [
+    'По заказу клиентки Анны нарисовала постер.', // cyrillic-ok: test input
+    'В новом стиле Нуар сделала афишу.', // cyrillic-ok: test input
+    'Специально для твоего канала Vibee сделала видео.', // cyrillic-ok: test input
+    'По твоей просьбе Kie сгенерировала картинку.', // cyrillic-ok: test input
+    'По просьбе твоей подруги Марии сделала афишу.', // cyrillic-ok: test input
+    'Для твоего нового клиента Анны сделала афишу.', // cyrillic-ok: test input
+    'Для нашего общего друга Ивана нарисовала постер.', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'По словам Анны, клиент прислал фото.', // cyrillic-ok: test input
+    'Вчера Ольга прислала видео.', // cyrillic-ok: test input
+  ]) {
+    it(`a comma ends the clause, someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname
