@@ -84,8 +84,23 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { structuredContent: result } }))
   })
 })
-server.listen(0, '127.0.0.1', () => fs.writeFileSync(portFile, String(server.address().port)))
+// Write then rename: the parent polls for the file, and a plain write can be
+// seen half-done -- an empty port and a base URL with no port at all.
+server.listen(0, '127.0.0.1', () => {
+  fs.writeFileSync(portFile + '.tmp', String(server.address().port))
+  fs.renameSync(portFile + '.tmp', portFile)
+})
 `
+
+/*
+ * Each case spawns tsx, which compiles and runs the real script: real work,
+ * so the budget is a real number, not a fake clock. A case used to give up at
+ * 30 s while spawnSync itself allowed 60 s, so under load a run still inside
+ * its own budget was reported as a timeout (#3720). Every case below now
+ * waits 70_000: RUN_MS plus room for the assertions.
+ */
+const RUN_MS = 60_000
+const STUB_START_MS = 18_000
 
 let stub: ChildProcess
 let stubDir = ''
@@ -102,12 +117,15 @@ beforeAll(async () => {
   stub = spawn(process.execPath, [stubFile, portFile, callsFile], {
     stdio: 'ignore',
   })
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) {
+  // Poll for the hook's whole budget, not a fixed 100 naps: a node start on a
+  // loaded Mac (load 40-148 on 8 cores, #3720) can take longer than 5 s.
+  const deadline = Date.now() + STUB_START_MS
+  while (!fs.existsSync(portFile) && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 50))
   }
   if (!fs.existsSync(portFile)) throw new Error('stub server never started')
   baseUrl = `http://127.0.0.1:${fs.readFileSync(portFile, 'utf8').trim()}`
-}, 20_000)
+}, STUB_START_MS + 2_000)
 
 afterAll(() => {
   stub?.kill('SIGKILL')
@@ -141,7 +159,7 @@ function run(env: Record<string, string>, faceSource?: unknown) {
     const r = spawnSync(TSX, [SCRIPT], {
       cwd: HERE,
       encoding: 'utf8',
-      timeout: 60_000,
+      timeout: RUN_MS,
       env: {
         ...process.env,
         AGENT_KEYS: 'test-key:1',
@@ -173,13 +191,13 @@ describe('the face switch is off unless it is turned on', () => {
     expect(r.status).toBe(0)
     expect(renderCall()?.args.compositionId).toBe('TrinityBlogReel')
     expect(r.out).not.toContain('--face')
-  }, 30_000)
+  }, 70_000)
 
   it('with the switch on, the request carries SplitTalkingHead', () => {
     const r = run({ AUTOPILOT_FACE: '1' }, VALID_SOURCE)
     expect(r.status).toBe(0)
     expect(renderCall()?.args.compositionId).toBe('SplitTalkingHead')
-  }, 30_000)
+  }, 70_000)
 
   it('the props it sends are the validated ones, in frames', () => {
     run({ AUTOPILOT_FACE: '1' }, VALID_SOURCE)
@@ -192,7 +210,7 @@ describe('the face switch is off unless it is turned on', () => {
     // b-roll layer of the one face reel this factory ever published.
     expect(segments[1].startFrame).toBe(6 * 30)
     expect((props.captions as unknown[]).length).toBe(2)
-  }, 30_000)
+  }, 70_000)
 
   it('it publishes under the source title, not under the queued topic', () => {
     // Otherwise the same fixed clip would go out again and again wearing a new
@@ -201,7 +219,7 @@ describe('the face switch is off unless it is turned on', () => {
     const pub = calls().find(c => c.name === 'feed_publish')
     expect(pub?.args.name).toBe(VALID_SOURCE.title)
     expect(String(pub?.args.description)).toContain(VALID_SOURCE.description)
-  }, 30_000)
+  }, 70_000)
 })
 
 describe('a face source that cannot be used is refused out loud', () => {
@@ -210,7 +228,7 @@ describe('a face source that cannot be used is refused out loud', () => {
     expect(r.status).toBe(0)
     expect(r.out).toContain('владелец')
     expect(renderCall()?.args.compositionId).toBe('TrinityBlogReel')
-  }, 30_000)
+  }, 70_000)
 
   it('bare-string captions: every reason is printed, cycle still finishes', () => {
     const r = run(
@@ -221,7 +239,7 @@ describe('a face source that cannot be used is refused out loud', () => {
     expect(r.out).toContain('{text,startMs,endMs}')
     expect(r.out).toContain('голая строка')
     expect(renderCall()?.args.compositionId).toBe('TrinityBlogReel')
-  }, 30_000)
+  }, 70_000)
 
   it('a relative clip path is refused, not silently rendered as a 404', () => {
     const r = run(
@@ -230,12 +248,12 @@ describe('a face source that cannot be used is refused out loud', () => {
     )
     expect(r.out).toContain('staticFile')
     expect(renderCall()?.args.compositionId).toBe('TrinityBlogReel')
-  }, 30_000)
+  }, 70_000)
 
   it('unparsable JSON does not stop the factory', () => {
     const r = run({ AUTOPILOT_FACE: '1' }, '{ not json at all')
     expect(r.status).toBe(0)
     expect(r.out).toContain('JSON')
     expect(renderCall()?.args.compositionId).toBe('TrinityBlogReel')
-  }, 30_000)
+  }, 70_000)
 })
