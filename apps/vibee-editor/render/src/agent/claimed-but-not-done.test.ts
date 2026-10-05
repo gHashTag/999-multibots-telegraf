@@ -5,6 +5,8 @@ import {
   HONESTY_NOTE,
   MEDIA_HONESTY_NOTE,
   MEDIA_TOOLS,
+  VOICE_HONESTY_NOTE,
+  VOICE_TOOLS,
   browserCalls,
   claimsBrowserWork,
   honestyLogFields,
@@ -272,6 +274,94 @@ describe('a header across a blank line, an emoji header, bold marks (#3680 round
     })
 })
 
+describe('a claimed voice message needs the call that makes it (#3684)', () => {
+  for (const said of [
+    'Записал тебе голосовое, послушай.', // cyrillic-ok: test input
+    'Отправила вам голосовое сообщение.', // cyrillic-ok: test input
+    'Скинул аудио с ответом.', // cyrillic-ok: test input
+    'Озвучил текст поста.', // cyrillic-ok: test input
+    'Голосовое сообщение готово!', // cyrillic-ok: test input
+    'Вот твоё голосовое.', // cyrillic-ok: test input
+    "I've recorded a voice note for you.",
+    'I sent you a voice message.',
+    'I voiced it in your clone.',
+    'Your voice note is ready.',
+  ])
+    it(`flags an unbacked voice claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['voice'])
+      expect(honestyNote(said, [])).toBe(VOICE_HONESTY_NOTE)
+    })
+
+  for (const tool of ['audio_generate', 'voice_clone_speak', 'tg_send_voice'])
+    it(`${tool} backs the voice claim`, () => {
+      expect(
+        honestyNote('Записал тебе голосовое.', [call(tool)]) // cyrillic-ok: test input
+      ).toBe('')
+    })
+
+  it('a picture call does not back a voice claim', () => {
+    expect(
+      unbackedKinds('Записал тебе голосовое.', [call('image_generate')]) // cyrillic-ok: test input
+    ).toEqual(['voice'])
+  })
+
+  // The person's voice, a request, a mode, a negation: no claim of ours.
+  for (const said of [
+    'Голосовой режим включается кнопкой с микрофоном.', // cyrillic-ok: test input
+    'Ответь голосом?', // cyrillic-ok: test input
+    'В голосовом ты сказал, что нужна афиша.', // cyrillic-ok: test input
+    'Ты записал голосовое — я его послушал.', // cyrillic-ok: test input
+    'Я не записал голосовое: нет клона.', // cyrillic-ok: test input
+    'Запишу тебе голосовое, когда будет клон.', // cyrillic-ok: test input
+    'Озвучил вопрос про цену.', // cyrillic-ok: test input
+    'You sent me a voice note.',
+    'Shall I record a voice message?',
+  ])
+    it(`no voice claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  // Quotes and back-references are excused as for pictures.
+  for (const said of [
+    'Ты просил: «запиши голосовое». Записал голосовое выше.', // cyrillic-ok: test input
+    'Вы написали: «я записал голосовое».', // cyrillic-ok: test input
+    'Выше я:\n- записал голосовое\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`excuses a quoted or earlier voice: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  it('names both kinds in the log, media first', () => {
+    const said = 'Сделал афишу и записал голосовое.' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media', 'voice'])
+    expect(honestyLogFields(said, []).claim).toBe('media+voice')
+    expect(honestyNote(said, [])).toBe(MEDIA_HONESTY_NOTE + VOICE_HONESTY_NOTE)
+  })
+})
+
+describe('the rare false note and the unpinned rules of #3689', () => {
+  // Clean on main, flagged by #3680: a header right under a list item.
+  for (const said of [
+    '- Готово\nВыше я:\n\n- сделал афишу', // cyrillic-ok: test input
+    'Привет! Вот итоги:\n- текст поста\nВыше я:\n\n- сделал афишу', // cyrillic-ok: test input
+  ])
+    it(`a header under a list item heads its list: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  it('a straight pair closing before a letter is not a quote', () => {
+    // an inch mark opens, a quote glued to a suffix "closes": no pair
+    const said = 'Формат 50 "x70. Сделал афишу и скинул "PNG"шкой.' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+
+  it('an emoji after a full stop starts a new sentence', () => {
+    // the header excuses the first sentence of the item, not the second
+    const said = 'Выше я:\n- выложил пост. 🎨 сделал афишу' // cyrillic-ok: test input
+    expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+})
+
 /*
  * The next media tool must not reopen the false note. Every registered tool
  * whose name says it makes or sends media backs the media claims, or is
@@ -285,9 +375,225 @@ const NOT_A_MEDIA_RESULT: Record<string, string> = {
   reel_analyze: 'reads a reel, makes none',
   mail_send: 'e-mail, not a chat picture',
   tokens_invoice: 'an invoice',
-  audio_generate: 'sound; no claim pattern reads sound yet',
-  voice_clone_speak: 'sound; no claim pattern reads sound yet',
 }
+
+describe('whose verb, a plan, a question (#3693 review)', () => {
+  for (const said of [
+    'Анна записала голосовое: просит перенести встречу на пятницу.', // cyrillic-ok: test input
+    'Клиент прислал голосовое на 2 минуты, вот расшифровка.', // cyrillic-ok: test input
+    'Мария отправила голосовое в 14:02.', // cyrillic-ok: test input
+    'Иван скинул войс с адресом.', // cyrillic-ok: test input
+    'Он озвучил текст для ролика вчера.', // cyrillic-ok: test input
+    'Шаги:\n1. Записал голосовое\n2. Отправил клиенту', // cyrillic-ok: test input
+    'Я отправил аудиофайл? Нет, пока только текст.', // cyrillic-ok: test input
+    'Твоё голосовое готово к расшифровке? Пришли его сюда.', // cyrillic-ok: test input
+    'Мария отправила фото чека.', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb, a plan or a question is no claim: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+  for (const [said, note] of [
+    ['Записала голосовое, держи.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Озвучила текст, отправляю.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Я уже записала тебе голосовое.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Анна, я записала голосовое.', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Готово, отправила фото.', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Записала голосовое, отправить?', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ["Here's the audio.", VOICE_HONESTY_NOTE],
+    ['Here is your voice note.', VOICE_HONESTY_NOTE],
+    ['Done, voice message sent.', VOICE_HONESTY_NOTE],
+  ] as const) {
+    it(`the agent's own claim is still flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe(note)
+    })
+  }
+  it('a plan header excuses only its own list', () => {
+    const said = 'План:\n- Записал голосовое\n\nЗаписала голосовое.' // cyrillic-ok: test input
+    expect(honestyNote(said, [])).toBe(VOICE_HONESTY_NOTE)
+  })
+})
+
+describe('own clause, any subject, every match (#3693 round 2)', () => {
+  for (const [said, note] of [
+    ['Сделала афишу — как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу – как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Нарисовала постер (нравится?)', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу\nКак тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу 🔥 как тебе?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу нравится?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала тебе видео — глянешь?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Отправила тебе фото — получил?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['I made the poster — like it?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Here is your poster — like it?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Записала голосовое — послушаешь?', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Короче сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Ну сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['В общем сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Теперь сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Наконец сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Наконец-то сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Специально для тебя сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['По твоей просьбе сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Быстро сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Снова сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Заново сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Анна прислала фото, а я отправила тебе афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    [
+      'Анна прислала голосовое, а я записала голосовое в ответ',
+      VOICE_HONESTY_NOTE,
+    ], // cyrillic-ok: test input
+    ['Готово! Сделала афишу, держи', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Вот, нарисовала постер', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Отлично, записала голосовое', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['✅ Записала голосовое', VOICE_HONESTY_NOTE], // cyrillic-ok: test input
+    ['🎨 Нарисовала постер для тебя!', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Итак, я сделала афишу', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Сделала афишу, нравится?', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+    ['Мария, отправила тебе фото.', MEDIA_HONESTY_NOTE], // cyrillic-ok: test input
+  ] as const) {
+    it(`the agent's own claim is flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe(note)
+    })
+  }
+  for (const said of [
+    'Записал голосовое?', // cyrillic-ok: test input
+    'Я отправил аудиофайл? Нет, пока только текст.', // cyrillic-ok: test input
+    'Анна записала голосовое', // cyrillic-ok: test input
+    'Мария отправила фото чека', // cyrillic-ok: test input
+    'Вчера Анна записала голосовое.', // cyrillic-ok: test input
+    'Короче, Анна прислала фото.', // cyrillic-ok: test input
+    'Клиентка прислала голосовое.', // cyrillic-ok: test input
+    'Кто-то скинул видео в чат.', // cyrillic-ok: test input
+    'Вчера клиент прислал голосовое.', // cyrillic-ok: test input
+    'Потом он озвучил текст для ролика.', // cyrillic-ok: test input
+  ]) {
+    it(`a question or someone else's verb is no claim: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
+describe("a capitalised opener with no comma is the agent's (#3693 round 3)", () => {
+  for (const said of [
+    'Ага сделала афишу', // cyrillic-ok: test input
+    'Ой сделала афишу', // cyrillic-ok: test input
+    'Ура сделала афишу', // cyrillic-ok: test input
+    'Вуаля сделала афишу', // cyrillic-ok: test input
+    'Пожалуйста сделала афишу', // cyrillic-ok: test input
+    'Держи сделала афишу', // cyrillic-ok: test input
+    'Лови сделала афишу', // cyrillic-ok: test input
+    'Смотри сделала афишу', // cyrillic-ok: test input
+    'Подожди сделала афишу', // cyrillic-ok: test input
+    'Минутку сделала афишу', // cyrillic-ok: test input
+    'Почти сделала афишу', // cyrillic-ok: test input
+    'Еле сделала афишу', // cyrillic-ok: test input
+    'Мигом сделала афишу', // cyrillic-ok: test input
+    'Только-только сделала афишу', // cyrillic-ok: test input
+    'Оперативно сделала афишу', // cyrillic-ok: test input
+    'Аккуратно сделала афишу', // cyrillic-ok: test input
+    'Красиво сделала афишу', // cyrillic-ok: test input
+    'Заодно сделала афишу', // cyrillic-ok: test input
+    'Параллельно сделала афишу', // cyrillic-ok: test input
+    'Дополнительно сделала афишу', // cyrillic-ok: test input
+    'Trinity сделала афишу', // cyrillic-ok: test input
+    'Мигом записала голосовое', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    '@anna прислала голосовое.', // cyrillic-ok: test input
+    '@Anna прислала фото.', // cyrillic-ok: test input
+    'Ольга прислала видео', // cyrillic-ok: test input
+    'Менеджер отправил фото', // cyrillic-ok: test input
+    'Сегодня Анна прислала фото чека', // cyrillic-ok: test input
+    'Агентство прислало видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
+describe('a name is the subject only at its clause start, not after a preposition (#3693 round 4)', () => {
+  // Flagged on main, quiet at round 3: a capital that is oblique, the
+  // addressee, or the agent itself. "Бруно прислал" is the documented price // cyrillic-ok: quoted input
+  // of the "-o" adverb rule and keeps its note.
+  for (const said of [
+    'Тебе отправила видео.', // cyrillic-ok: test input
+    'Тебе сделала афишу.', // cyrillic-ok: test input
+    'Вам сделала афишу.', // cyrillic-ok: test input
+    'Для Вас сделала афишу.', // cyrillic-ok: test input
+    'Для Анны сделала афишу.', // cyrillic-ok: test input
+    'Специально для Ольги нарисовала постер.', // cyrillic-ok: test input
+    'По просьбе Марии сделала афишу.', // cyrillic-ok: test input
+    'Для Instagram сделала видео.', // cyrillic-ok: test input
+    'В Instagram отправила видео.', // cyrillic-ok: test input
+    'В Telegram отправила видео.', // cyrillic-ok: test input
+    'Для Reels сделала видео', // cyrillic-ok: test input
+    'Под Reels сделала видео.', // cyrillic-ok: test input
+    'В Canva сделала афишу.', // cyrillic-ok: test input
+    'На Kie сделала видео.', // cyrillic-ok: test input
+    'Через Kie сгенерировала картинку.', // cyrillic-ok: test input
+    'В стиле Нуар сделала афишу', // cyrillic-ok: test input
+    'Для канала Vibee сделала афишу', // cyrillic-ok: test input
+    'Агент отправил видео.', // cyrillic-ok: test input
+    'Бот отправил видео.', // cyrillic-ok: test input
+    'Нейросеть сделала афишу.', // cyrillic-ok: test input
+    'Тебе записала голосовое.', // cyrillic-ok: test input
+    'Вам записала голосовое.', // cyrillic-ok: test input
+    'Блин сделала афишу', // cyrillic-ok: test input
+    'Эх сделала афишу', // cyrillic-ok: test input
+    'Хоп сделала афишу', // cyrillic-ok: test input
+    'Бац сделала афишу', // cyrillic-ok: test input
+    'Ладушки сделала афишу', // cyrillic-ok: test input
+    'Бруно прислал видео.', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'Анна записала голосовое', // cyrillic-ok: test input
+    'Мария отправила фото чека', // cyrillic-ok: test input
+    'Ольга прислала видео', // cyrillic-ok: test input
+    'Клиент прислал фото', // cyrillic-ok: test input
+    'Иван сделал афишу.', // cyrillic-ok: test input
+    'Клиентка Мария прислала фото.', // cyrillic-ok: test input
+    'Елена Петровна отправила видео.', // cyrillic-ok: test input
+    'Сегодня Анна записала голосовое.', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
+describe('a preposition anywhere earlier in the clause, not only two words back (#3693 round 5)', () => {
+  for (const said of [
+    'По заказу клиентки Анны нарисовала постер.', // cyrillic-ok: test input
+    'В новом стиле Нуар сделала афишу.', // cyrillic-ok: test input
+    'Специально для твоего канала Vibee сделала видео.', // cyrillic-ok: test input
+    'По твоей просьбе Kie сгенерировала картинку.', // cyrillic-ok: test input
+    'По просьбе твоей подруги Марии сделала афишу.', // cyrillic-ok: test input
+    'Для твоего нового клиента Анны сделала афишу.', // cyrillic-ok: test input
+    'Для нашего общего друга Ивана нарисовала постер.', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'По словам Анны, клиент прислал фото.', // cyrillic-ok: test input
+    'Вчера Ольга прислала видео.', // cyrillic-ok: test input
+  ]) {
+    it(`a comma ends the clause, someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
 
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
@@ -305,7 +611,10 @@ describe('the media backing list covers the tool registry', () => {
     )
     expect(media.length).toBeGreaterThan(10)
     const loose = media.filter(
-      n => !MEDIA_TOOLS.includes(n) && !(n in NOT_A_MEDIA_RESULT)
+      n =>
+        !MEDIA_TOOLS.includes(n) &&
+        !VOICE_TOOLS.includes(n) &&
+        !(n in NOT_A_MEDIA_RESULT)
     )
     expect(loose).toEqual([])
   })
