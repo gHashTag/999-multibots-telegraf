@@ -165,6 +165,7 @@ tri — оболочка Trinity S³AI
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
   tri deps       вылечить node_modules: npm ci, а не install
+  tri wt-deps [tree]   a linked worktree's node_modules: root by symlink, render by APFS clone (#3674)
   tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
   tri blind <файл> <было> <стало> <тест>
                  сломать код и посмотреть, покраснеет ли тест
@@ -2000,6 +2001,10 @@ PYEOF
     rm -rf /tmp/dd
     [ "$built" = "1" ] || echo "СБОРКА НЕ ПРОШЛА — на симулятор ничего не ставил"
     df -k /System/Volumes/Data | awk '{if(NR==2) printf "убрано за сборкой, свободно %d МБ\n", $4/1024}' ;;
+  wt-deps)
+    # A linked worktree's node_modules, ready for the gates (#3674).
+    shift
+    exec bash "$ROOT/bin/helpers/wt-deps.sh" "$@" ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
     #

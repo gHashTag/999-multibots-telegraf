@@ -1,0 +1,80 @@
+#!/bin/bash
+# tri wt-deps [tree] -- make a linked worktree's node_modules ready for gates.
+#
+# WHY. A fresh `git worktree add` has no render node_modules (or a symlink
+# to the main checkout's). The pre-push related-tests gate then fails three
+# render suites -- "Cannot find package 'undici'", "Cannot find module
+# '@vibee/atoms'" -- and blames the change. 2026-10-06 it blocked three
+# pushes in one night; the cure each time was the same hand-made clone (#3674).
+#
+#   root   node_modules -> symlink to the main checkout (never a root install
+#          in a linked tree: it writes through the symlink)
+#   render node_modules -> a REAL directory: a symlink is removed (atoms
+#          would resolve into the other tree); a missing one is an APFS clone
+#          (`cp -c`, near-free) from a donor whose render/package-lock.json
+#          is byte-identical -- the main checkout first, then any sibling
+#          worktree; with no donor, `npm ci` in render only.
+#
+# rc 0 = ready, 1 = still broken. Seam: TRI_WT_MAIN (the main checkout).
+set -u
+TREE=$(cd "${1:-.}" && git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "wt-deps: ${1:-.} is not inside a git tree"
+  exit 1
+}
+MAIN=${TRI_WT_MAIN:-$(dirname "$(cd "$TREE" && git rev-parse --path-format=absolute --git-common-dir)")}
+R=apps/vibee-editor/render
+if [ "$TREE" = "$MAIN" ]; then
+  echo "wt-deps: $TREE is the main checkout -- use \`tri deps\` there"
+  exit 1
+fi
+
+if [ ! -e "$TREE/node_modules" ] && [ -d "$MAIN/node_modules" ]; then
+  ln -s "$MAIN/node_modules" "$TREE/node_modules"
+  echo "  root    linked to the main checkout"
+else
+  echo "  root    present"
+fi
+
+if [ -L "$TREE/$R/node_modules" ]; then
+  rm "$TREE/$R/node_modules"
+  echo "  render  was a symlink into another tree -- removed"
+fi
+
+if [ ! -d "$TREE/$R/node_modules" ]; then
+  lock=$(shasum -a 256 <"$TREE/$R/package-lock.json" | cut -c1-16)
+  donor=""
+  for t in "$MAIN" $(cd "$TREE" && git worktree list --porcelain | sed -n 's/^worktree //p'); do
+    [ "$t" = "$TREE" ] && continue
+    [ -d "$t/$R/node_modules" ] && [ ! -L "$t/$R/node_modules" ] || continue
+    [ -d "$t/$R/node_modules/undici" ] || continue
+    [ "$(shasum -a 256 <"$t/$R/package-lock.json" 2>/dev/null | cut -c1-16)" = "$lock" ] || continue
+    donor=$t
+    break
+  done
+  if [ -n "$donor" ]; then
+    cp -cR "$donor/$R/node_modules" "$TREE/$R/node_modules" &&
+      echo "  render  cloned (APFS) from $donor"
+  else
+    echo "  render  no donor with this lock -- npm ci in render only"
+    (cd "$TREE/$R" && npm ci --no-audit --no-fund >/dev/null 2>&1) ||
+      echo "  render  npm ci FAILED"
+  fi
+else
+  echo "  render  present"
+fi
+
+# The proof is resolution from inside this tree, not a directory listing.
+fail=0
+for pkg in undici @vibee/atoms; do
+  where=$(cd "$TREE/$R" && node -e "console.log(require.resolve('$pkg'))" 2>/dev/null)
+  if [ -z "$where" ]; then
+    echo "  FAIL    $pkg does not resolve from $R"
+    fail=1
+  fi
+done
+atoms=$(cd "$TREE/$R/node_modules/@vibee/atoms" 2>/dev/null && pwd -P)
+case "$fail:$atoms" in
+  0:"$(cd "$TREE" && pwd -P)"/*) echo "  ok      undici and @vibee/atoms resolve; atoms is this tree's" ;;
+  0:*) echo "  FAIL    @vibee/atoms points outside this tree: ${atoms:-nowhere}"; fail=1 ;;
+esac
+exit "$fail"
