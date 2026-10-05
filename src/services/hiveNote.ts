@@ -29,6 +29,8 @@ export type HiveNote = {
     | 'sweep-idle'
     | 'sweep-card'
     | 'sweep-failed'
+    /** A busy provider: the client was deferred to the next tick. */
+    | 'sweep-deferred'
     | 'sweep-held'
     | 'card-pressed'
     /** A card that left under AUTO, with nobody pressing anything. */
@@ -154,6 +156,15 @@ export function noteForSweep(
       // this one (reportSweepOutcome); an alarm here would ring twice.
       return {
         kind: 'sweep-failed',
+        who: owner,
+        what: withTook(prefix + r.why, r.ms, r.model),
+        severity: 'attention',
+      }
+    // A busy provider: the client waits for the next tick. Counted under its
+    // own kind so it is neither a failure nor silent.
+    case 'deferred':
+      return {
+        kind: 'sweep-deferred',
         who: owner,
         what: withTook(prefix + r.why, r.ms, r.model),
         severity: 'attention',
