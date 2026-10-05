@@ -222,8 +222,8 @@ the same round:
 
 Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
 (U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
-`look-at-own-picture.ts` does this since #3705; `printed-facts.ts` still
-joins across a newline until #3706 lands (PR #3716) -- check main.
+Both readers share `DIGIT_JOINERS`: `look-at-own-picture.ts` since #3705,
+`printed-facts.ts` since #3716 (79c96bd84).
 
 Measure, do not guess: `tri honesty` prints the deploy-time provider head
 (tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
