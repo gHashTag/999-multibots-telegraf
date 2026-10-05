@@ -172,6 +172,27 @@ omnihuman), хотя вопрос каждый раз был «работает 
 Python и отвечает «не запускалось», а не выдумывает вывод. Из сессии тот же
 прогон — `tri code [--lang ts|js] ФАЙЛ` (нужен Deno на PATH; в образе есть).
 
+## The agent says only what it did (2026-10-06)
+
+Three guards stand between the model's words and the person, all in
+`apps/vibee-editor/render/src/agent/`:
+
+- `claimed-but-not-done.ts` (#3658): an answer that claims a picture, video
+  or voice with no matching tool call in the same turn gets an honesty note.
+  Quoted text and a back-reference ("earlier", "above") are not claims; the
+  tighter scope for both is PR #3680 (#3677), in review on 2026-10-06.
+- `printed-facts.ts` (#3661, PR #3679, in review on 2026-10-06 -- check it
+  is on main before relying on it): a date, time or price going into a picture
+  prompt must be one the person wrote, or one the agent showed and the person
+  answered yes to. Otherwise `image_generate` / `image_edit` refuse BEFORE the
+  charge and name the facts, so the agent asks one confirm question.
+- A provider head with no tool support narrates work it cannot do (memory
+  `agent-provider-ollama-has-no-tools`).
+
+Measure, do not guess: `tri honesty` prints the deploy-time provider head
+(tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
+any flag or a toolless head (#3670).
+
 ## Related Resources
 
 - `mcp-owner-access` — ключ агента и `/mcp`

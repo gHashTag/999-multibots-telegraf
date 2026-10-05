@@ -1086,7 +1086,12 @@ tri waiting     # что лежит в открытом PR: деньги / ви�
    `git worktree add`: on 2026-10-03 such a tree blocked its own push on
    render tests dying with "Cannot find package 'undici'", which looked
    exactly like a regression. A tree made some other way: `./tri deps` before
-   the first commit.
+   the first commit. If the pre-push related-tests still fail on render with
+   "Cannot find module '@vibee/atoms'" or a red `atoms-resolve-in-tree`, the
+   render node_modules is a link into another tree: `tri wt-deps <tree>`
+   replaces it with an APFS clone from a donor with the same lock and proves
+   `undici` and `@vibee/atoms` resolve from inside the tree (rc 1 otherwise,
+   #3675).
 3. PR на main в конце витка. Маленький PR, который можно слить сегодня,
    ценнее большого, который ждёт слова владельца третью неделю.
 4. Длинная ветка не «накапливает ценность» — она её запирает.
