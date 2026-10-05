@@ -18,6 +18,7 @@ import { telegramClientOptionsFor } from '@/services/telegramApi'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import type { ManagedBotAccess, ManagedBotRow } from './store'
 import { forgetAgentBot, registerAgentBot } from '@/core/bot/agentHive/answer'
+import { actionForTool, keepTyping } from '@/helpers/telegramLongAnswer'
 
 /** What the runner needs from the outside, injectable for tests. */
 export interface RunnerDeps {
@@ -28,7 +29,9 @@ export interface RunnerDeps {
     fallback: () => Promise<string>,
     seller: string,
     /** No media tools: the Manager Agent is a text model for the CRM. */
-    textOnly: boolean
+    textOnly: boolean,
+    /** The tool the agent is running now, null when it ends (#3683). */
+    onTool?: (name: string | null) => void
   ) => Promise<string>
   /** Tell the owner something, through the manager bot they started. */
   tellOwner: (ownerId: number, text: string) => Promise<void>
@@ -123,7 +126,8 @@ export async function replyToClient(
     manager: string
   },
   msg: IncomingText,
-  now = Date.now()
+  now = Date.now(),
+  onTool?: (name: string | null) => void
 ): Promise<string> {
   const copy = isRu(msg.language) ? COPY.ru : COPY.en
   const text = msg.text?.trim()
@@ -159,7 +163,8 @@ export async function replyToClient(
       return copy.busy
     },
     String(bot.ownerId),
-    !access.media
+    !access.media,
+    onTool
   )
 }
 
@@ -260,8 +265,12 @@ export async function launchManagedBot(
       }
     }
     if (!m.from) return
+    // Repeated, and switched to "sending a photo…" while a picture is drawn:
+    // sent once it went dark five seconds into a 30-second turn (#3683).
+    const typing = keepTyping({
+      sendChatAction: async action => ctx.sendChatAction(action),
+    })
     try {
-      await ctx.sendChatAction('typing').catch(() => undefined)
       const reply = await replyToClient(
         deps,
         { ...row, manager: managerUsername },
@@ -271,14 +280,19 @@ export async function launchManagedBot(
           fromUsername: m.from.username,
           language: m.from.language_code,
           text: m.text ?? m.caption,
-        }
+        },
+        Date.now(),
+        name => typing.setAction(actionForTool(name))
       )
+      typing()
       if (reply) await ctx.reply(reply)
     } catch (error) {
       logger.error('[managed-bots] a client message went unanswered', {
         bot: row.botUsername,
         error: error instanceof Error ? error.message : String(error),
       })
+    } finally {
+      typing()
     }
   })
   bot.catch(error => {
