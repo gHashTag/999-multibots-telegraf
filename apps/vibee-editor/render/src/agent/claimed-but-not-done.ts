@@ -15,10 +15,42 @@
  *
  * Deliberately narrow: first-person present or past actions IN the browser.
  * "I will open", "shall I open?" and "open it yourself" are not claims.
+ *
+ * MEDIA, 2026-10-05: in the owner's bot chat a tools-less model answered
+ * "made the poster with your photo" and sent nothing; on the next turn a
+ * real model described a poster it never looked at. A finished picture,
+ * video or sent file is a claim too, backed only by the tool that makes or
+ * sends it. Same narrowness: "I will make", "shall I make?" are not claims.
  */
 
-/* Claimed browser actions, each with the tool(s) that would have done it. */
-const CLAIMS: Array<{ re: RegExp; tools: string[] }> = [
+type ClaimKind = 'browser' | 'media'
+
+const IMAGE_TOOLS = [
+  'image_generate',
+  'image_edit',
+  'crm_deliver_photo',
+  'agent_avatars_make',
+  'crm_portrait_rescue',
+]
+const VIDEO_TOOLS = [
+  'video_generate',
+  'lipsync_generate',
+  'reel_render',
+  'split_reel',
+  'story_reel',
+  'crm_story_reel',
+  'my_story_reel',
+]
+const SEND_TOOLS = [
+  'tg_send',
+  'tg_send_album',
+  'tg_send_document',
+  'tg_send_video',
+  'tg_send_voice',
+]
+
+/* Claimed actions, each with the tool(s) that would have done it. */
+const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   {
     re: /(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+(страниц|сайт|вкладк|linkedin|x\.com|google)/i, // cyrillic-ok: matched text
     tools: ['browser_open'],
@@ -53,7 +85,58 @@ const CLAIMS: Array<{ re: RegExp; tools: string[] }> = [
     re: /\b(I'm |I am |I )(taking|took) a screenshot\b/i,
     tools: ['browser_screenshot'],
   },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    tools: IMAGE_TOOLS,
+    kind: 'media',
+  },
+  {
+    re: /(^|[\s.,:;—-])вот\s+(тво[яй]|ваш[аи]?|готов[аяы]{1,2})\s+(афиш|картинк|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    tools: IMAGE_TOOLS,
+    kind: 'media',
+  },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
+    tools: VIDEO_TOOLS,
+    kind: 'media',
+  },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
+    tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
+    kind: 'media',
+  },
+  {
+    re: /\bI(?:'ve| have)? (made|created|generated|drew) (the |a |an |your )?(poster|image|picture|banner|cover|video)\b/i,
+    tools: [...IMAGE_TOOLS, ...VIDEO_TOOLS],
+    kind: 'media',
+  },
+  {
+    re: /\bhere(?:'s| is) (the |your )(poster|image|picture|banner|cover)\b/i,
+    tools: IMAGE_TOOLS,
+    kind: 'media',
+  },
 ]
+
+/** Every tool that backs a media claim; the registry test reads it. */
+export const MEDIA_TOOLS: readonly string[] = [
+  ...IMAGE_TOOLS,
+  ...VIDEO_TOOLS,
+  ...SEND_TOOLS,
+]
+
+const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
+
+/*
+ * Words inside quotes are someone else's: "Вы написали: «я сделал афишу»"
+ * repeats the person, it claims nothing for us.
+ */
+const QUOTED = /«[^»]*»|"[^"]*"|„[^“]*“/g
+
+/*
+ * "I sent you the poster above" points at an earlier turn, whose call is
+ * not among this turn's events. A false note there is worse than none.
+ */
+const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
 
 function calledTools(events: Array<Record<string, unknown>>): string[] {
   return events
@@ -65,7 +148,7 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  return CLAIMS.some(c => c.re.test(text))
+  return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(text))
 }
 
 /** How many browser tools the turn really called, from its events. Pure. */
@@ -78,10 +161,25 @@ export function unbackedClaims(
   text: string,
   events: Array<Record<string, unknown>>
 ): string[] {
+  return unbacked(text, events).map(c => c.tools[0])
+}
+
+function unbacked(raw: string, events: Array<Record<string, unknown>>) {
+  const text = raw.replace(QUOTED, ' ')
   const called = new Set(calledTools(events))
+  const back = REFERS_BACK.test(text)
   return CLAIMS.filter(c => c.re.test(text))
+    .filter(c => !(back && kindOf(c) === 'media'))
     .filter(c => !c.tools.some(t => called.has(t)))
-    .map(c => c.tools[0])
+}
+
+/** Which kinds of claim no call backs, browser first. Pure. */
+export function unbackedKinds(
+  text: string,
+  events: Array<Record<string, unknown>>
+): ClaimKind[] {
+  const kinds = new Set(unbacked(text, events).map(kindOf))
+  return (['browser', 'media'] as ClaimKind[]).filter(k => kinds.has(k))
 }
 
 /**
@@ -95,8 +193,14 @@ export function unbackedClaims(
 export function honestyLogFields(
   text: string,
   events: Array<Record<string, unknown>>
-): { unbacked: string[]; browserCalls: number; toolCalls: number } {
+): {
+  claim: string
+  unbacked: string[]
+  browserCalls: number
+  toolCalls: number
+} {
   return {
+    claim: unbackedKinds(text, events).join('+'),
     unbacked: unbackedClaims(text, events),
     browserCalls: browserCalls(events),
     toolCalls: calledTools(events).length,
@@ -108,10 +212,22 @@ export const HONESTY_NOTE =
   'выполнил их — часть описанного не происходила. Попросите его ' + // cyrillic-ok
   'повторить, и он сделает это по-настоящему.' // cyrillic-ok
 
+export const MEDIA_HONESTY_NOTE =
+  '\n\n⚠️ Проверка: в этом ответе агент написал, что сделал или отправил ' + // cyrillic-ok: shown to the person
+  'картинку или видео, но не вызвал инструмент, который это делает, — ' + // cyrillic-ok
+  'файла нет. Попросите повторить, и он сделает это по-настоящему.' // cyrillic-ok
+
+const NOTES: Record<ClaimKind, string> = {
+  browser: HONESTY_NOTE,
+  media: MEDIA_HONESTY_NOTE,
+}
+
 /** The note to append, or '' when every claimed action really ran. Pure. */
 export function honestyNote(
   text: string,
   events: Array<Record<string, unknown>>
 ): string {
-  return unbackedClaims(text, events).length ? HONESTY_NOTE : ''
+  return unbackedKinds(text, events)
+    .map(k => NOTES[k])
+    .join('')
 }
