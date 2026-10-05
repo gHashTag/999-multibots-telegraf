@@ -471,3 +471,27 @@ describe('mutants that survived #3691 (#3692)', () => {
       expect(unconfirmedFacts('8 октября 11:30', heard).length).toBe(2)
     })
 })
+
+describe('a decimal before a thousands marker is part of the amount (#3697)', () => {
+  it('reads "1.5k", "1,5 тыс руб" and "$2.25k" as 1500, 1500 and 2250', () => {
+    expect(keys('fee $1.5k')).toEqual(['p1500'])
+    expect(keys('вход 1,5 тыс руб')).toEqual(['p1500'])
+    expect(keys('prize $2.25k')).toEqual(['p2250'])
+    expect(keys('цена 1.5к')).toEqual(['p1500'])
+  })
+
+  it('"$1k" no longer confirms "$1.5k", "$1 500" does', () => {
+    expect(unconfirmedFacts('fee $1.5k', 'fee $1k').length).toBe(1)
+    expect(unconfirmedFacts('fee $1.5k', 'fee $1 500')).toEqual([])
+  })
+
+  it('"$2.5k" does not confirm a printed "$2 000", "$2 500" does', () => {
+    expect(unconfirmedFacts('prize $2 000', 'prize $2.5k').length).toBe(1)
+    expect(unconfirmedFacts('prize $2 500', 'prize $2.5k')).toEqual([])
+  })
+
+  it('cents with no thousands marker are still dropped', () => {
+    expect(keys('$2.50')).toEqual(['p2'])
+    expect(keys('fee $5k')).toEqual(['p5000'])
+  })
+})
