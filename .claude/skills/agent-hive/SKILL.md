@@ -61,7 +61,7 @@ src/__tests__/core/agentHive/*      spec vectors, install, edges, relay -- lines
 - `npx vitest run src/__tests__/core/agentHive --coverage --coverage.include='src/core/bot/agentHive/**'`
 - Mutant: commit first, break one guard by `sed`, see the named test go red, `git checkout --` the file.
 - A worktree push whose related-tests run locally: memory `worktree-gates-need-linked-deps`
-  (atoms-resolve trap).
+  (atoms-resolve trap). The cure is one command: `tri wt-deps <tree>` (#3675).
 
 ## The "only t27" rule (owner, 2026-10-05)
 
