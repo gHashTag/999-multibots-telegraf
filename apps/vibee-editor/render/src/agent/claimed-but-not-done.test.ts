@@ -595,6 +595,60 @@ describe('a preposition anywhere earlier in the clause, not only two words back 
   }
 })
 
+describe("a capital is someone else only in a person's shape (#3723)", () => {
+  // Quiet on main: an opener the adverb list lacked. A rare name the name
+  // list lacks ("Милослава") gets a needless note -- the safe side. // cyrillic-ok: quoted input
+  for (const said of [
+    'Утром сделала афишу', // cyrillic-ok: test input
+    'Вечером отправила видео', // cyrillic-ok: test input
+    'Ночью сделала афишу', // cyrillic-ok: test input
+    'Днём сделала афишу', // cyrillic-ok: test input
+    'Сперва сделала афишу', // cyrillic-ok: test input
+    'Вновь сделала афишу', // cyrillic-ok: test input
+    'Даже сделала афишу!', // cyrillic-ok: test input
+    'Вдобавок сделала афишу', // cyrillic-ok: test input
+    'Плюс сделала афишу', // cyrillic-ok: test input
+    'Пока сделала афишу', // cyrillic-ok: test input
+    'Вообще сделала афишу', // cyrillic-ok: test input
+    'Типа сделала афишу', // cyrillic-ok: test input
+    'Значит сделала афишу', // cyrillic-ok: test input
+    'Вроде сделала афишу', // cyrillic-ok: test input
+    'Кажется сделала афишу', // cyrillic-ok: test input
+    'Похоже сделала афишу', // cyrillic-ok: test input
+    'Наверное сделала афишу', // cyrillic-ok: test input
+    'Разумеется сделала афишу', // cyrillic-ok: test input
+    'Впрочем сделала афишу', // cyrillic-ok: test input
+    'Хм сделала афишу', // cyrillic-ok: test input
+    'Эээ сделала афишу', // cyrillic-ok: test input
+    'Готово. Утром сделала афишу', // cyrillic-ok: test input
+    'Канва сделала афишу', // cyrillic-ok: test input
+    'Милослава прислала фото', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'Саша прислал фото', // cyrillic-ok: test input
+    'Наташа прислала фото', // cyrillic-ok: test input
+    'Ксюша записала голосовое', // cyrillic-ok: test input
+    'Артём прислал фото', // cyrillic-ok: test input
+    'Ксюша Петрова прислала фото', // cyrillic-ok: test input
+    'Клиент Милослава прислала фото', // cyrillic-ok: test input
+    'Anna прислала фото', // cyrillic-ok: test input
+    'John отправил видео', // cyrillic-ok: test input
+    'Kate сделала афишу', // cyrillic-ok: test input
+    'Курьер привёз фото', // cyrillic-ok: test input
+    'Дизайнер сделал афишу', // cyrillic-ok: test input
+    'Фотограф прислал фото', // cyrillic-ok: test input
+    'Подруга Милослава прислала видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

@@ -334,6 +334,28 @@ const OTHER_SUBJECT = new Set([
   'он',
   'она',
   'они', // cyrillic-ok: matched words
+  // roles a CRM line names as the subject (#3723: no capital makes them a name)
+  'менеджер',
+  'администратор',
+  'админ',
+  'мастер',
+  'курьер',
+  'партнёр',
+  'партнер',
+  'коллега',
+  'подруга',
+  'друг',
+  'муж',
+  'жена',
+  'мама',
+  'папа',
+  'владелец',
+  'владелица',
+  'дизайнер',
+  'фотограф',
+  'client',
+  'customer',
+  'manager',
   'кто-то',
   'кто-нибудь', // cyrillic-ok: matched words
 ])
@@ -401,75 +423,56 @@ const PREPOSITION = new Set([
 ])
 /*
  * A capital before the verb is ambiguous: "Анна записала" names someone,
- * "Короче сделала" opens the agent's sentence. Only for a capitalised word
- * is a closed list of sentence adverbs read as the agent's; any other
- * capitalised word is a name. A lowercase word is never a name.
+ * "Утром сделала" opens the agent's sentence. Rounds 2-6 of #3693 and #3723
+ * closed the list on the agent's side -- sentence adverbs read as the
+ * agent's, any other capital as a name -- and every round found one more
+ * opener the list missed, each a silent miss. So the list is closed on the
+ * OTHER side (#3723): a capital is someone else's only when it has a
+ * person's shape (personShaped). A name this list lacks gets a needless note
+ * -- the safe side of a miss.
  */
-const LEAD_ADVERB = new Set([
-  'короче',
-  'ну',
-  'теперь',
-  'наконец',
-  'наконец-то', // cyrillic-ok: matched words
-  'быстро',
-  'снова',
-  'заново',
-  'опять',
-  'сразу',
-  'уже', // cyrillic-ok: matched words
-  'вот',
-  'итак',
-  'готово',
-  'отлично',
-  'хорошо',
-  'супер', // cyrillic-ok: matched words
-  'сейчас',
-  'сегодня',
-  'вчера',
-  'только',
-  'тоже',
-  'также',
-  'ещё',
-  'еще', // cyrillic-ok: matched words
-  'всё',
-  'так',
-  'да',
-  'ок',
-  'окей',
-  'ok',
-  'конечно',
-  'кстати',
-  'просто', // cyrillic-ok: matched words
-  'сначала',
-  'потом',
-  'затем',
-  'тут',
-  'здесь',
-  'ладно',
-  'сама',
-  'сам',
-  'специально', // cyrillic-ok: matched words
-  // interjections and imperatives that open the agent's line (#3693 round 3)
-  'ага',
-  'ой',
-  'ура',
-  'вуаля',
-  'пожалуйста', // cyrillic-ok: matched words
-  'держи',
-  'лови',
-  'смотри',
-  'подожди',
-  'минутку', // cyrillic-ok: matched words
-  'почти',
-  'еле',
-  'мигом', // cyrillic-ok: matched words
-  // interjections an LLM writes without a comma (#3693 round 4)
-  'блин',
-  'эх',
-  'хоп',
-  'бац',
-  'ладушки', // cyrillic-ok: matched words
-])
+export const FIRST_NAMES: ReadonlySet<string> = new Set(
+  [
+    // Russian, full and everyday forms, nominative (a subject is nominative)
+    'александр александра алексей алёна алена алина алиса алла анастасия анатолий',
+    'андрей анжела анна антон арина арсений артём артем борис вадим валентин',
+    'валентина валерий валерия варвара василий вера вероника виктор виктория',
+    'виталий владимир владислав галина георгий глеб григорий даниил дарья денис',
+    'диана дмитрий евгений евгения егор екатерина елена елизавета жанна захар',
+    'зоя иван игорь илья инна ирина карина кирилл кристина ксения лариса лев',
+    'леонид лидия лилия любовь людмила максим маргарита марина мария матвей',
+    'милана михаил надежда наталья наталия никита николай нина оксана олег',
+    'ольга павел полина роман руслан светлана семён семен сергей софия софья',
+    'станислав степан тамара татьяна тимофей тимур ульяна фёдор федор эдуард',
+    'элина юлия юрий яна ярослав ярослава',
+    'саша маша даша паша миша гриша наташа катя лена таня оля аня ира юля',
+    'света настя ксюша женя дима серёжа сережа лёша леша вова костя толя',
+    'коля петя вася витя ваня рома влад стас макс лиза соня поля вика',
+    'кристи лера алёша алеша марго',
+    // English and Latin-script names a Russian line carries as written
+    'anna maria olga elena ivan alex alexander alexey andrew anton boris daniel',
+    'david dmitry elizabeth emily emma george helen jack james jane john julia',
+    'kate kevin laura linda mark mary michael mike nick nina oliver paul peter',
+    'robert sam sarah sergey sophia tom victor william',
+  ]
+    .join(' ')
+    .split(' ')
+)
+
+/*
+ * Someone else's subject: a known first name, a capital right after a
+ * capital ("Елена Петровна", "Ксюша Петрова"), or a capital right after a
+ * role word ("Клиентка Мария"). Anything else capitalised -- "Утром",
+ * "Значит", "Оперативно", "Канва" -- reads as the agent's.
+ */
+function personShaped(words: string[], at: number): boolean {
+  if (FIRST_NAMES.has(words[at].toLowerCase())) return true
+  const prev = words[at - 1]
+  if (!prev) return false
+  const low = prev.toLowerCase()
+  if (OTHER_SUBJECT.has(low)) return true
+  return prev[0] !== low[0] && !AGENT_SELF.has(low)
+}
 // a clause starts after a comma, a colon, a dash, a bracket or "and"
 const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
 
@@ -490,15 +493,7 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   // a name three words after "for" is still oblique (#3693 round 5).
   const lead = words.slice(0, at)
   if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
-  /*
-   * Every claim verb here is masculine or feminine past, so a neuter "-o"
-   * word cannot be its subject: "Оперативно", "Красиво", "Заодно" are
-   * adverbs, a whole family closed with no list (#3693 round 3). The price:
-   * a foreign masculine name in "-o" ("Бруно прислал") reads as the agent's
-   * and gets a needless note -- the safe side of a miss.
-   */
-  if (/о$/u.test(low)) return true // cyrillic-ok: matched letter
-  return LEAD_ADVERB.has(low)
+  return !personShaped(words, at)
 }
 
 /*
