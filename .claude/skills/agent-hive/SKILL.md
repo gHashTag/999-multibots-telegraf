@@ -21,7 +21,7 @@ src/core/bot/agentHive/rules.ts     addressed / chainOpen / cooled / callsAll / 
 src/core/bot/agentHive/chain.ts     in-memory depth + origin per message, 5000 kept, cooldown per bot
 src/core/bot/agentHive/claims.ts    "the next bot this owner creates is agent X", fallback by t27_<id>_bot name
 src/core/bot/managedBots/*          Bot API 9.6 managed bots: store (managed_bots table), runner, protocol
-apps/vibee-editor/render/src/spec/agent-hive-group.t27 (+ .gen.ts)   MAX_BOT_DEPTH 3, cooldown 5 s, @all
+src/spec/agent-hive-group.t27 (+ .gen.ts, .test.ts, .mutants.json)   MAX_BOT_DEPTH 3, cooldown 5 s, @all
 src/__tests__/core/agentHive/*      spec vectors, install, edges, relay -- lines 100% since #3645
 ```
 
@@ -73,4 +73,4 @@ improvement loop: `~/.local/state/agent-hive/ledger.md`.
 ## Related Resources
 
 - Epic #3641; PRs #3636 (hive), #3645 (double tap, token, coverage); t27 #6430 (spec).
-- Skills `t27-spec-first`, `telegram-scene-builder`; memory `managed-bots-mode-off`.
+- Skills `t27-spec-first`, `telegram-bot-expert`; memory `managed-bots-mode-off`.
