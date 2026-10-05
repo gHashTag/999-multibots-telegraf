@@ -185,6 +185,20 @@ describe('a claimed picture or video needs the call that makes it', () => {
       expect(unbackedKinds(text, [])).toEqual([])
     })
 
+  it('an abbreviation before a capital does not end the sentence', () => {
+    // "that is" abbreviated, before a name: without the list it splits off the back-reference
+    expect(
+      unbackedKinds('Ранее, т.е. Пётр просил, я сделал афишу.', []) // cyrillic-ok: test input
+    ).toEqual([])
+  })
+
+  it('an unlisted abbreviation before a small letter does not end it either', () => {
+    // the "year" abbreviation is not in the list; the small letter after it keeps the sentence whole
+    expect(
+      unbackedKinds('Ранее, ещё в 2025 г. я сделал тебе афишу.', []) // cyrillic-ok: test input
+    ).toEqual([])
+  })
+
   // A line break inside a sentence does not end it.
   for (const text of ['Я сделал\nафишу для тебя.', 'Вот твоя\nафиша.']) // cyrillic-ok: test input
     it(`a wrapped claim is still a claim: ${JSON.stringify(text)}`, () => {
