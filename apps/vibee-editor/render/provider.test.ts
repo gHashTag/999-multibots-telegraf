@@ -66,15 +66,18 @@ describe('who is in the chain', () => {
     expect(ours.context).toBe(4096)
   })
 
-  it('AGENT_PROVIDER=ollama puts our model first, with the paid one still behind it', async () => {
+  it('AGENT_PROVIDER=ollama orders our model first; without tools it answers behind the paid one (#3659)', async () => {
     process.env.GLM_API_KEY = 'g' // secret-guard-ok: invented for this test
     process.env.OLLAMA_BASE_URL = 'http://ollama.local:11434/v1/'
     process.env.AGENT_PROVIDER = 'ollama'
     const m = await load()
+    expect(m.providerOrder()[0]).toBe('ollama')
     const ids = m.allProviders().map(p => p.id)
-    expect(ids.slice(0, 2)).toEqual(['ollama', 'zai'])
-    expect(m.resolveProvider().id).toBe('ollama')
-    expect(m.resolveProvider().base).toBe('http://ollama.local:11434/v1')
+    expect(ids.slice(0, 2)).toEqual(['zai', 'ollama'])
+    expect(m.resolveProvider().id).toBe('zai')
+    expect(m.allProviders().find(p => p.id === 'ollama')?.base).toBe(
+      'http://ollama.local:11434/v1'
+    )
   })
 
   it('AGENT_MODEL renames the paid model, never the Ollama tag; OLLAMA_MODEL does', async () => {
@@ -84,10 +87,12 @@ describe('who is in the chain', () => {
     process.env.OLLAMA_MODEL = 'qwen3:8b'
     process.env.AGENT_PROVIDER = 'ollama'
     let m = await load()
-    expect(m.allProviders()[0]).toMatchObject({
-      id: 'ollama',
+    expect(m.allProviders().find(p => p.id === 'ollama')).toMatchObject({
       model: 'qwen3:8b',
     })
+    expect(m.allProviders().find(p => p.id === 'zai')?.model).not.toBe(
+      'qwen3:8b'
+    )
     vi.resetModules()
     process.env.AGENT_PROVIDER = 'zai'
     m = await load()
@@ -107,7 +112,9 @@ describe('who is in the chain', () => {
     const first = m.allProviders()[0]
     expect(first.id).toBe('nemotron')
     expect(first.model).toBe('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')
-    expect(m.allProviders().find(p => p.id === 'zai')?.model).toBe('glm-4.7-flash')
+    expect(m.allProviders().find(p => p.id === 'zai')?.model).toBe(
+      'glm-4.7-flash'
+    )
     choice.forgetProviderChoiceForTests()
   })
 
