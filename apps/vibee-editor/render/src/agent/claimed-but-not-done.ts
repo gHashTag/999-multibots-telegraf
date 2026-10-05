@@ -21,9 +21,14 @@
  * real model described a poster it never looked at. A finished picture,
  * video or sent file is a claim too, backed only by the tool that makes or
  * sends it. Same narrowness: "I will make", "shall I make?" are not claims.
+ *
+ * VOICE, 2026-10-06 (#3684): "recorded you a voice note" with no audio call
+ * is the same false claim with sound. Only a first-person recorded, sent or
+ * voiced message counts: "voice mode", "answer by voice?" and "in your voice
+ * note you said" name the person's voice, not ours.
  */
 
-type ClaimKind = 'browser' | 'media'
+type ClaimKind = 'browser' | 'media' | 'voice'
 
 const IMAGE_TOOLS = [
   'image_generate',
@@ -48,6 +53,7 @@ const SEND_TOOLS = [
   'tg_send_video',
   'tg_send_voice',
 ]
+const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
 
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
@@ -115,6 +121,36 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(голосов|аудио|войс)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(текст|пост|сценари|ответ|сообщени|письм)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /(^|[\s.,:;—-])(вот\s+(тво[её]|ваше)\s+голосовое|голосовое\s+(сообщение\s+)?готово)/i, // cyrillic-ok: matched text
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /\bI(?:'ve| have)? (recorded|sent)( you)? (a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /\bI(?:'ve| have)? voiced (it|this|the|your)\b|\b(?:your |the )?voice (?:note|message) is ready\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
+  {
+    re: /\bhere(?:'s| is) (the |your )(audio|voice (?:note|message|reply))\b|\b(?:voice|audio) (?:note|message|reply) (?:is |has been )?sent\b/i,
+    tools: AUDIO_TOOLS,
+    kind: 'voice',
+  },
 ]
 
 /** Every tool that backs a media claim; the registry test reads it. */
@@ -123,6 +159,9 @@ export const MEDIA_TOOLS: readonly string[] = [
   ...VIDEO_TOOLS,
   ...SEND_TOOLS,
 ]
+
+/** Every tool that backs a voice claim; the registry test reads it too. */
+export const VOICE_TOOLS: readonly string[] = AUDIO_TOOLS
 
 const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 
@@ -140,7 +179,7 @@ const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
- * It excuses the media claims of ITS OWN sentence only (#3677): one
+ * It excuses the media and voice claims of ITS OWN sentence only (#3677): one
  * "ранее" elsewhere in the answer used to switch the check off for all.
  */
 const REFERS_BACK = /(выше|ранее|в прошлом сообщении|\babove\b|\bearlier\b)/i // cyrillic-ok: matched text
@@ -194,6 +233,12 @@ const SENTENCE_END =
  * refers back and does not end a sentence of its own.
  */
 const HEADER_MAX = 60
+/*
+ * A plan's list is not a report either (#3693 review): "Steps:\n1. Recorded
+ * a voice note" lists what will be done. Closed list of plan headers.
+ */
+const PLAN_HEADER =
+  /^(?:шаги|план|по шагам|что (?:я )?сделаю|что нужно сделать|steps|plan|to ?do)$/i // cyrillic-ok: matched text
 function isHeader(line: string): boolean {
   const bare = line
     .replace(/^\s*#+\s*/, '')
@@ -204,7 +249,7 @@ function isHeader(line: string): boolean {
     bare.length > 0 &&
     bare.length <= HEADER_MAX &&
     !/[.!?]$/.test(bare) &&
-    REFERS_BACK.test(bare)
+    (REFERS_BACK.test(bare) || PLAN_HEADER.test(bare))
   )
 }
 
@@ -215,16 +260,21 @@ function isHeader(line: string): boolean {
  * a further sentence inside an item is judged on its own.
  *
  * A blank line ends an item, but not a header's reach: models put a blank
- * line after a heading, so a header alone in its paragraph still covers the
+ * line after a heading, so a header still covers the
  * list that opens the next one (#3680 round 5). An emoji-led line that is
  * itself a referring header ("<pin emoji> Above I:") is a header, not an item.
+ *
+ * A header right under a list item reaches too (#3689): "- Done\nAbove I:\n\n
+ * - made the poster" heads the second list. The old "alone in its
+ * paragraph" rule only ever failed for that case, since a plain line after
+ * a plain line joins it.
  */
 function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   const clean = raw
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Array<{ text: string; back: boolean }> = []
-  const items: Array<{ text: string; listed: boolean; opens: boolean }> = []
+  const items: Array<{ text: string; listed: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
     const first = items.length
     for (const line of block.split('\n')) {
@@ -233,15 +283,12 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
       if (continues) last.text += ' ' + line
-      else items.push({ text: line, listed, opens: items.length === first })
+      else items.push({ text: line, listed })
     }
   }
   // a header reaches the list right under it, or across one blank line
-  // when it is alone in its paragraph
   const headsList = (i: number) =>
-    items[i + 1]?.listed === true &&
-    (!items[i + 1].opens || (items[i].opens && items[i + 1].opens)) &&
-    isHeader(items[i].text)
+    items[i + 1]?.listed === true && isHeader(items[i].text)
   const EMOJI_LED = /^\s*\p{Extended_Pictographic}/u
   // an emoji-led referring header followed by a list heads it
   items.forEach((item, i) => {
@@ -264,12 +311,237 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   return out
 }
 
+/*
+ * Whose verb is it (#3693 review)? "Anna recorded a voice note" and "the
+ * client sent a photo" describe someone else; in the CRM the agent says that all
+ * day. A list of what may stand before the agent's own verb never ends
+ * ("Короче", "Наконец", "По твоей просьбе" ...), so the check is inverted
+ * (#3693 round 2): the verb is someone else's only when a non-agent subject
+ * stands right before it in its clause -- a word of OTHER_SUBJECT, or a
+ * capitalised word that is not the agent's own name and is not governed by a
+ * preposition (round 4). Anything else is the agent's, and the claim is
+ * checked.
+ */
+const OTHER_SUBJECT = new Set([
+  'клиент',
+  'клиентка',
+  'клиенты', // cyrillic-ok: matched words
+  'заказчик',
+  'заказчица',
+  'покупатель',
+  'покупательница', // cyrillic-ok: matched words
+  'пользователь',
+  'он',
+  'она',
+  'они', // cyrillic-ok: matched words
+  'кто-то',
+  'кто-нибудь', // cyrillic-ok: matched words
+])
+// the agent naming itself, or the person it talks to, is not someone else
+const AGENT_SELF = new Set([
+  'я',
+  'мы',
+  'тринити',
+  'trinity',
+  'агент',
+  'бот',
+  'нейросеть',
+  'ассистент', // cyrillic-ok: matched words
+  'agent',
+  'bot',
+  'assistant',
+  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4) // cyrillic-ok: quoted input
+  'тебе',
+  'тебя',
+  'вам',
+  'вас',
+  'нам',
+  'мне', // cyrillic-ok: matched words
+  'you',
+  'me',
+])
+/*
+ * A name governed by a preposition is not the subject (#3693 round 4):
+ * "Для Анны сделала", "По просьбе Марии сделала", "Через Kie сгенерировала",
+ * "В стиле Нуар сделала". Each list fix of rounds 2-3 uncovered one more
+ * POSITION a capital can stand in, so this is positional, not a list of
+ * names: a preposition among the two words before the capital makes it
+ * oblique. The price: "в чате Анна прислала" reads as the agent's and gets
+ * a needless note -- the safe side of a miss.
+ */
+const PREPOSITION = new Set([
+  'для',
+  'по',
+  'в',
+  'во',
+  'на',
+  'через',
+  'от',
+  'у',
+  'к',
+  'ко',
+  'с',
+  'со', // cyrillic-ok: matched words
+  'из',
+  'про',
+  'под',
+  'при',
+  'за',
+  'о',
+  'об', // cyrillic-ok: matched words
+  'for',
+  'in',
+  'on',
+  'via',
+  'from',
+  'to',
+  'with',
+  'at',
+  'by',
+])
+/*
+ * A capital before the verb is ambiguous: "Анна записала" names someone,
+ * "Короче сделала" opens the agent's sentence. Only for a capitalised word
+ * is a closed list of sentence adverbs read as the agent's; any other
+ * capitalised word is a name. A lowercase word is never a name.
+ */
+const LEAD_ADVERB = new Set([
+  'короче',
+  'ну',
+  'теперь',
+  'наконец',
+  'наконец-то', // cyrillic-ok: matched words
+  'быстро',
+  'снова',
+  'заново',
+  'опять',
+  'сразу',
+  'уже', // cyrillic-ok: matched words
+  'вот',
+  'итак',
+  'готово',
+  'отлично',
+  'хорошо',
+  'супер', // cyrillic-ok: matched words
+  'сейчас',
+  'сегодня',
+  'вчера',
+  'только',
+  'тоже',
+  'также',
+  'ещё',
+  'еще', // cyrillic-ok: matched words
+  'всё',
+  'так',
+  'да',
+  'ок',
+  'окей',
+  'ok',
+  'конечно',
+  'кстати',
+  'просто', // cyrillic-ok: matched words
+  'сначала',
+  'потом',
+  'затем',
+  'тут',
+  'здесь',
+  'ладно',
+  'сама',
+  'сам',
+  'специально', // cyrillic-ok: matched words
+  // interjections and imperatives that open the agent's line (#3693 round 3)
+  'ага',
+  'ой',
+  'ура',
+  'вуаля',
+  'пожалуйста', // cyrillic-ok: matched words
+  'держи',
+  'лови',
+  'смотри',
+  'подожди',
+  'минутку', // cyrillic-ok: matched words
+  'почти',
+  'еле',
+  'мигом', // cyrillic-ok: matched words
+  // interjections an LLM writes without a comma (#3693 round 4)
+  'блин',
+  'эх',
+  'хоп',
+  'бац',
+  'ладушки', // cyrillic-ok: matched words
+])
+// a clause starts after a comma, a colon, a dash, a bracket or "and"
+const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
+
+function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
+  const verbAt = (m.index ?? 0) + (m[1] ?? '').length
+  const clause = sentence.slice(0, verbAt).split(CLAUSE_BREAK).pop() ?? ''
+  const words = clause.match(/\p{L}+(?:-\p{L}+)*/gu) ?? []
+  const before = words.at(-1)
+  if (!before) return true
+  const low = before.toLowerCase()
+  if (AGENT_SELF.has(low)) return true
+  if (OTHER_SUBJECT.has(low)) return false
+  // "@anna" is a handle, someone else's however it is cased
+  if (clause[clause.lastIndexOf(before) - 1] === '@') return false
+  if (before[0] === low[0]) return true
+  const at = words.length - 1
+  // A preposition anywhere earlier in the clause makes the capital oblique:
+  // a name three words after "for" is still oblique (#3693 round 5).
+  const lead = words.slice(0, at)
+  if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
+  /*
+   * Every claim verb here is masculine or feminine past, so a neuter "-o"
+   * word cannot be its subject: "Оперативно", "Красиво", "Заодно" are
+   * adverbs, a whole family closed with no list (#3693 round 3). The price:
+   * a foreign masculine name in "-o" ("Бруно прислал") reads as the agent's
+   * and gets a needless note -- the safe side of a miss.
+   */
+  if (/о$/u.test(low)) return true // cyrillic-ok: matched letter
+  return LEAD_ADVERB.has(low)
+}
+
+/*
+ * "Did I send the audio file?" asks: the claim's OWN clause ends in a
+ * question mark (#3693 round 2). A dash, a bracket, a newline or an emoji
+ * ends the clause first, so "Сделала афишу — как тебе?" still claims. A
+ * verb-led claim asks only when the "?" closes the matched word itself
+ * ("Записал голосовое?"), so "Сделала афишу нравится?" claims too.
+ */
+const CLAUSE_END = /\n|[^\p{L}\p{N} \t'’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
+
+function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
+  const rest = sentence.slice((m.index ?? 0) + m[0].length)
+  const end = rest.search(CLAUSE_END)
+  if (end < 0 || rest[end] !== '?') return false
+  return !verbLed || /^\p{L}*$/u.test(rest.slice(0, end))
+}
+
+/* A verb-led Russian claim: its group 1 is the boundary before the verb. */
+const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
+
+// every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
+function claimedIn(
+  c: (typeof CLAIMS)[number],
+  s: { text: string; back: boolean }
+) {
+  if (kindOf(c) === 'browser') return c.re.test(s.text)
+  if (s.back) return false
+  const verbLed = VERB_LED(c)
+  const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
+  for (const m of s.text.matchAll(all)) {
+    if (asked(s.text, m, verbLed)) continue
+    if (!verbLed || ownVerb(s.text, m)) return true
+  }
+  return false
+}
+
 function unbacked(raw: string, events: Array<Record<string, unknown>>) {
   const sentences = sentencesOf(raw)
   const called = new Set(calledTools(events))
-  return CLAIMS.filter(c =>
-    sentences.some(s => c.re.test(s.text) && !(kindOf(c) === 'media' && s.back))
-  ).filter(c => !c.tools.some(t => called.has(t)))
+  return CLAIMS.filter(c => sentences.some(s => claimedIn(c, s))).filter(
+    c => !c.tools.some(t => called.has(t))
+  )
 }
 
 /** Which kinds of claim no call backs, browser first. Pure. */
@@ -278,7 +550,9 @@ export function unbackedKinds(
   events: Array<Record<string, unknown>>
 ): ClaimKind[] {
   const kinds = new Set(unbacked(text, events).map(kindOf))
-  return (['browser', 'media'] as ClaimKind[]).filter(k => kinds.has(k))
+  return (['browser', 'media', 'voice'] as ClaimKind[]).filter(k =>
+    kinds.has(k)
+  )
 }
 
 /**
@@ -316,9 +590,15 @@ export const MEDIA_HONESTY_NOTE =
   'картинку или видео, но не вызвал инструмент, который это делает, — ' + // cyrillic-ok
   'файла нет. Попросите повторить, и он сделает это по-настоящему.' // cyrillic-ok
 
+export const VOICE_HONESTY_NOTE =
+  '\n\n⚠️ Проверка: в этом ответе агент написал, что записал или отправил ' + // cyrillic-ok: shown to the person
+  'голосовое, но не вызвал инструмент, который это делает, — записи нет. ' + // cyrillic-ok
+  'Попросите повторить, и он сделает это по-настоящему.' // cyrillic-ok
+
 const NOTES: Record<ClaimKind, string> = {
   browser: HONESTY_NOTE,
   media: MEDIA_HONESTY_NOTE,
+  voice: VOICE_HONESTY_NOTE,
 }
 
 /** The note to append, or '' when every claimed action really ran. Pure. */
