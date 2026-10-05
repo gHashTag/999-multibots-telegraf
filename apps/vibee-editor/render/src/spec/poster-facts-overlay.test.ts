@@ -255,3 +255,56 @@ describe('poster-facts-overlay.t27 against the host', () => {
     expect(laid(FOUR).plate.opacity).toBe(SPEC.PLATE_OPACITY_PERMILLE / 1000)
   })
 })
+
+/**
+ * Host-only rows: the spec's rules exercised at their edges, where the spec
+ * has no vector of its own.
+ */
+describe('poster-facts-layout at the edges of the spec rules', () => {
+  it('"refused, never cut": a fact that fits only AT its floor is laid out at the floor', () => {
+    // Square: content 676 px, detail floor 21 px; 53 chars per line at 21 px,
+    // 51 at 22 px -- so the 53-char venue fits on one line at 21 px only.
+    const contentW = SQUARE.width - 2 * marginPx(SQUARE.width, SQUARE.height)
+    const floor = fontPx(SQUARE.height, SPEC.SQUARE_MIN_PERMILLE)
+    expect(floor).toBe(21)
+    expect(charsPerLine(contentW, floor)).toBe(53)
+    expect(charsPerLine(contentW, floor + 1)).toBe(51)
+    const l = laid({ venue: 'B'.repeat(53) }, SQUARE)
+    expect(l.lines).toHaveLength(1)
+    expect(l.lines[0].fontPx).toBe(floor)
+    // One char more and it is refused, not cut.
+    expect(layoutPosterFacts({ venue: 'B'.repeat(54) }, SQUARE)).toEqual({
+      fits: false,
+      refused: 'venue',
+    })
+  })
+
+  it('no facts: no lines and no plate, so nothing dark is drawn', () => {
+    for (const facts of [{}, { title: '  ', price: '\n' }] as PosterFacts[]) {
+      const l = laid(facts)
+      expect(l.lines).toEqual([])
+      expect(l.plate.height).toBe(0)
+      expect(l.plate.y).toBe(TALL.height)
+    }
+    // One fact brings the plate back.
+    expect(laid({ price: '500 RUB' }).plate.height).toBeGreaterThan(0)
+  })
+
+  it('a no-break space is never a wrap point; a plain one is', () => {
+    const contentW = SQUARE.width - 2 * marginPx(SQUARE.width, SQUARE.height)
+    const start = fontPx(SQUARE.height, SPEC.SQUARE_DETAIL_PERMILLE)
+    const perLine = charsPerLine(contentW, start)
+    // The first line is exactly full at "...19", so a breakable space after
+    // 19 would send "000" alone to the next line.
+    const head = `${'A'.repeat(perLine - 3)} 19`
+    expect(head).toHaveLength(perLine)
+    const plain = laid({ venue: `${head} 000 RUB` }, SQUARE)
+    expect(plain.lines.map(x => x.text)).toEqual([head, '000 RUB'])
+    for (const nb of ['\u00A0', '\u202F', '\u2007']) {
+      const l = laid({ venue: `${head}${nb}000 RUB` }, SQUARE)
+      const texts = l.lines.map(x => x.text)
+      expect(texts.some(t => t.endsWith('19'))).toBe(false)
+      expect(texts.some(t => t.includes(`19${nb}000`))).toBe(true)
+    }
+  })
+})

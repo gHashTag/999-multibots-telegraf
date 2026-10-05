@@ -50,6 +50,11 @@ export type PosterLayout =
 
 const PER_MILLE = 1000
 
+// Whitespace that collapses to one breakable space: everything except the
+// no-break spaces. "19\u00A0000 RUB" keeps 19\u00A0000 as one word and never wraps between
+// 19 and 000 (U+00A0 no-break, U+202F narrow no-break, U+2007 figure space).
+const BREAKABLE_RUN = /[^\S\u00A0\u202F\u2007]+/g
+
 // ---- Mirrors of the spec's fns ------------------------------------------------
 
 export function rowFor(w: number, h: number): 'tall' | 'square' {
@@ -183,7 +188,7 @@ export function layoutPosterFacts(
 
   const groups: { kind: LineKind; fontPx: number; lines: string[] }[] = []
   for (const kind of LINE_ORDER) {
-    const text = (facts[kind] ?? '').replace(/\s+/g, ' ').trim()
+    const text = (facts[kind] ?? '').replace(BREAKABLE_RUN, ' ').trim()
     if (!text) continue
     const isTitle = kind === 'title'
     const permille = isTitle
@@ -203,6 +208,17 @@ export function layoutPosterFacts(
     if (!fit) return { fits: false, refused: kind }
     groups.push({ kind, ...fit })
   }
+
+  // No fact at all: nothing to print, so no plate either -- a drawer must not
+  // paint an empty dark band over the picture (host rule; the spec is silent).
+  if (!groups.length)
+    return {
+      fits: true,
+      row,
+      margin,
+      plate: { x: 0, y: h, width: w, height: 0, opacity: 0 },
+      lines: [],
+    }
 
   const gap = Math.floor((second * SPEC.GROUP_GAP_PERMILLE) / PER_MILLE)
   const titleGap = groups[0]?.kind === 'title' && groups.length > 1 ? gap : 0

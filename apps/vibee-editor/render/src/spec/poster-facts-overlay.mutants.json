@@ -166,5 +166,23 @@
     "file": "src/agent/poster-facts-layout.ts",
     "from": ".replace(/\\s+/g, ' ').trim()",
     "to": ".trim()"
+  },
+  {
+    "name": "the floor font itself is refused",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "font >= floor && font > 0",
+    "to": "font > floor && font > 0"
+  },
+  {
+    "name": "no facts still get a plate",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": "  if (!groups.length)\n",
+    "to": "  if (false)\n"
+  },
+  {
+    "name": "a no-break space is a wrap point",
+    "file": "src/agent/poster-facts-layout.ts",
+    "from": ".replace(BREAKABLE_RUN, ' ')",
+    "to": ".replace(/\\s+/g, ' ')"
   }
 ]
