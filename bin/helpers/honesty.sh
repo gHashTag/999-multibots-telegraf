@@ -4,43 +4,81 @@
 # WHY. 2026-10-05: AGENT_PROVIDER=ollama put a model without tools at the
 # head of every chat turn; it answered "made the poster with your photo" and
 # sent nothing. Nothing measured it -- the owner found it by hand. Two probes:
-#   1. head  -- the deploy-time AGENT_PROVIDER on vibee-render, and whether
-#               that model can call tools at all (ollama cannot)
+#   1. head  -- head_note from the live GET /api/agent/provider (#3722). The
+#               render applies the head rule itself (#3659, spec
+#               agent-provider-chain.t27) and says what it did; this probe
+#               prints that note instead of re-deriving the head from
+#               AGENT_PROVIDER, which missed the owner's /model pick.
 #   2. log   -- [agent:honesty] lines (an answer that claimed an action no
 #               tool call backed) over every render deploy in the window, by
 #               claim kind and by the tool that should have run. Counts only:
 #               no telegram ids, no words of anyone's conversation.
-# rc 0 = clean, 1 = a tools-less head or honesty flags, 2 = could not measure.
-# Test seams: TRI_AGENT_PROVIDER (skip Railway for 1), TRI_HONESTY_LOG (a file
-# of log lines instead of Railway for 2).
+# rc 0 = clean, 1 = a flagged head or honesty flags, 2 = could not measure.
+# Test seams: TRI_PROVIDER_JSON (a file standing in for the endpoint's body;
+# no key is read and no request is made), TRI_HONESTY_LOG (a file of log
+# lines instead of Railway for 2).
 set -u
 . "$(dirname "${BASH_SOURCE[0]}")/rail.sh"
 HOURS="${1:-24}"
 case "$HOURS" in '' | *[!0-9]*) HOURS=24 ;; esac
 rc=0
+BASE="${RENDER_BASE_URL:-https://vibee-render-production.up.railway.app}"
+OWNER=144022504
 
-# Providers whose model cannot call tools (render provider.ts CATALOG).
-TOOLLESS="ollama"
-
-if [ -n "${TRI_AGENT_PROVIDER+x}" ]; then
-  head="$TRI_AGENT_PROVIDER"
-else
-  vars=$(rvars vibee-render) || { echo "  ??    head: Railway did not answer -- NOT measured"; rc=2; }
-  head=$(printf '%s\n' "${vars:-}" | grep -E '^AGENT_PROVIDER=' | cut -d= -f2-)
-fi
-# provider.ts lower-cases the variable; so does this probe.
-head=$(printf '%s' "$head" | tr 'A-Z' 'a-z')
-if [ "$rc" -ne 2 ]; then
-  if [ -z "$head" ]; then
-    echo "  ok    head: AGENT_PROVIDER unset -- default chain, zai first"
-  elif printf ' %s ' $TOOLLESS | grep -q " $head "; then
-    echo "  FAIL  head: AGENT_PROVIDER=$head -- a model WITHOUT tools answers first;"
-    echo "        it will narrate posters and clicks it never made (05.10)."
-    echo "        fix: railway variables --set AGENT_PROVIDER=zai (vibee-render)"
-    rc=1
-  else
-    echo "  ok    head: AGENT_PROVIDER=$head (calls tools)"
+# The body of GET /api/agent/provider, or nothing. The route is owner-only:
+# the server key plus the owner's id named explicitly (resolveIdentity). The
+# key goes to curl on stdin (-H @-), so it is in no argv, log or output.
+provider_body() {
+  if [ -n "${TRI_PROVIDER_JSON+x}" ]; then
+    cat "$TRI_PROVIDER_JSON" 2>/dev/null
+    return
   fi
+  local key
+  key=$(rvars vibee-render | grep -E '^RENDER_API_KEY=' | cut -d= -f2-)
+  [ -n "$key" ] || return 0
+  printf 'X-Api-Key: %s\n' "$key" |
+    curl -sf --max-time 15 -H @- -H 'Accept: application/json' \
+      "$BASE/api/agent/provider?telegram_id=$OWNER" 2>/dev/null
+}
+
+# Prints the head lines, then "rc N" last. A body without a head_note field
+# is an older render or an error page: not measured, never "ok".
+headout=$(provider_body | python3 -c '
+import json, sys
+try:
+    s = json.load(sys.stdin)
+    assert isinstance(s, dict) and "head_note" in s
+except Exception:
+    print("  ??    head: /api/agent/provider did not answer with a head_note -- not measured")
+    print("rc 2")
+    sys.exit()
+note = s.get("head_note") or ""
+cur = (s.get("current") or {}).get("id") or "none"
+ans = (s.get("answering") or {}).get("id") or "none"
+env = s.get("env") or "unset"
+pick = s.get("chosen") or "none"
+fixes = {
+    "demoted: no tools": "AGENT_PROVIDER=%s cannot call tools; the render moved it back. fix: set AGENT_PROVIDER=zai on vibee-render" % env,
+    "owner pick: no tools": "the /model pick %s cannot call tools and answers first. fix: /model zai in the bot" % pick,
+    "no provider in the chain calls tools": "every chat turn will narrate actions it never made. fix: configure zai (its key) on vibee-render",
+}
+if not note:
+    print("  ok    head: %s calls tools (answering %s)" % (cur, ans))
+    print("rc 0")
+else:
+    print("  FAIL  head: %s -- head %s, answering %s" % (note, cur, ans))
+    print("        " + fixes.get(note, "unknown head_note: read GET /api/agent/provider"))
+    print("rc 1")
+') || headout=""
+case "$(printf '%s\n' "$headout" | tail -1)" in
+  "rc 0") ;;
+  "rc 1") rc=1 ;;
+  *) rc=2 ;;
+esac
+if [ -n "$headout" ]; then
+  printf '%s\n' "$headout" | sed '$d'
+else
+  echo "  ??    head: the head_note reader failed -- not measured"
 fi
 
 if [ -n "${TRI_HONESTY_LOG:-}" ]; then
