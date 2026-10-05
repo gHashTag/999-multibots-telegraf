@@ -16,7 +16,7 @@ import {
 } from '@/core/bot/agentHive/rules'
 import {
   clearChain,
-  depthOfIncoming,
+  placeOfIncoming,
   noteSent,
 } from '@/core/bot/agentHive/chain'
 import {
@@ -64,35 +64,28 @@ describe('agent-hive-group.t27', () => {
 
     // human -> A -> B -> C: C's message stands at depth 3, nobody answers it.
     const chat = -1001
-    expect(
-      depthOfIncoming({ chatId: chat, messageId: 1, fromBot: false })
-    ).toBe(0)
-    noteSent(chat, 2, 1)
-    const b = depthOfIncoming({
-      chatId: chat,
-      messageId: 2,
-      fromBot: true,
-      replyToMessageId: 1,
-    })
-    expect(b).toBe(1)
-    noteSent(chat, 3, b + 1)
-    noteSent(chat, 4, 3)
-    const c = depthOfIncoming({
-      chatId: chat,
-      messageId: 4,
-      fromBot: true,
-      replyToMessageId: 3,
-    })
-    expect(chainOpen(c)).toBe(false)
-    // An unknown bot message replying to a known one sits one deeper.
-    expect(
-      depthOfIncoming({
+    const place = (
+      messageId: number,
+      fromBot: boolean,
+      replyToMessageId?: number
+    ) =>
+      placeOfIncoming({
         chatId: chat,
-        messageId: 9,
-        fromBot: true,
-        replyToMessageId: 3,
+        messageId,
+        fromBot,
+        fromId: 5,
+        replyToMessageId,
       })
-    ).toBe(3)
+    expect(place(1, false)).toEqual({ depth: 0, origin: 5 })
+    noteSent(chat, 2, 1, 5)
+    expect(place(2, true, 1)).toEqual({ depth: 1, origin: 5 })
+    noteSent(chat, 3, 2, 5)
+    noteSent(chat, 4, 3, 5)
+    expect(chainOpen(place(4, true, 3).depth)).toBe(false)
+    // An unknown bot message replying to a known one sits one deeper, same person.
+    expect(place(9, true, 3)).toEqual({ depth: 3, origin: 5 })
+    // One replying to nothing we know belongs to nobody.
+    expect(place(10, true)).toEqual({ depth: 1, origin: null })
   })
 
   it('a bot waits out the cooldown before answering a bot', () => {
