@@ -215,6 +215,37 @@ describe('a claimed picture or video needs the call that makes it', () => {
   })
 })
 
+describe('a referring header in any style, and nothing past its list (#3680 round 4)', () => {
+  // Clean on main, flagged by the colon-only header test of round 3.
+  for (const text of [
+    '**Выше я:**\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    '### Что я сделал ранее\n- Сделал афишу\n- Отправил файл', // cyrillic-ok: test input
+    'Выше я\n- сделал афишу\n- отправил файл', // cyrillic-ok: test input
+    'Ранее я —\n- сделал афишу', // cyrillic-ok: test input
+    'Выше я...\n- сделал афишу', // cyrillic-ok: test input
+    'Выше я:\n- сделал афишу\n  и отправил файл', // cyrillic-ok: test input
+  ])
+    it(`excuses its list: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual([])
+    })
+
+  // The header's excuse used to leak onto these new claims.
+  for (const text of [
+    'Выше я:\n- сделал афишу\nА сейчас отправил файл.', // cyrillic-ok: test input
+    'Выше я:\n- сделал афишу. Сейчас отправил файл.', // cyrillic-ok: test input
+    'Выше я:\n✅ сделал афишу\nСейчас отправил файл.', // cyrillic-ok: test input
+  ])
+    it(`still flags the new claim: ${JSON.stringify(text)}`, () => {
+      expect(unbackedKinds(text, [])).toEqual(['media'])
+    })
+
+  it('a sentence that only mentions the past is not a header', () => {
+    expect(
+      unbackedKinds('Ранее мы обсуждали афишу.\n- Сделал афишу', []) // cyrillic-ok: test input
+    ).toEqual(['media'])
+  })
+})
+
 /*
  * The next media tool must not reopen the false note. Every registered tool
  * whose name says it makes or sends media backs the media claims, or is

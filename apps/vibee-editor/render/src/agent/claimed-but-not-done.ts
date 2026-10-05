@@ -182,12 +182,37 @@ const ABBREV = new RegExp(
   '(?<![\\p{L}])(?:т\\.е|т\\.д|т\\.п|см|п|напр|i\\.e|e\\.g|etc)\\.',
   'giu'
 )
-const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s/u
-const SENTENCE_END = /(?<=[.!?…])\s+(?=[\p{Lu}«"„(]|[-*•]\s|\d+[.)]\s)/u
+const LIST_ITEM = /^\s*(?:[-*•+]|\d+[.)]|\p{Extended_Pictographic}\uFE0F?)\s/u
+const SENTENCE_END =
+  /(?<=[.!?…])\s+(?=[\p{Lu}«"„(]|[-*•]\s|\d+[.)]\s|\p{Extended_Pictographic})/u
+
+/*
+ * A header that refers back covers the list right under it (#3680 round 4):
+ * "Выше я:", "**Выше я:**", "### Что я сделал ранее", "Ранее я —",
+ * "Выше я...". Markdown marks and the closing punctuation are style, not the
+ * signal, so they are stripped first; what is left must be a short line that
+ * refers back and does not end a sentence of its own.
+ */
+const HEADER_MAX = 60
+function isHeader(line: string): boolean {
+  const bare = line
+    .replace(/^\s*#+\s*/, '')
+    .replace(/[*_]+/g, '')
+    .replace(/(?:\s|[:—–-]|…|\.{2,})+$/u, '')
+    .trim()
+  return (
+    bare.length > 0 &&
+    bare.length <= HEADER_MAX &&
+    !/[.!?]$/.test(bare) &&
+    REFERS_BACK.test(bare)
+  )
+}
 
 /**
- * The answer's sentences, each with whether it refers back. A header line
- * that refers back and ends with ":" ("Выше я:") covers the list under it.
+ * The answer's sentences, each with whether it refers back. A back-referring
+ * header excuses the FIRST sentence of each list item under it, and nothing
+ * past the list: an unindented line without a marker starts a new item,
+ * a further sentence inside an item is judged on its own.
  */
 function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
   const clean = raw
@@ -195,18 +220,29 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Array<{ text: string; back: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
-    const items: string[] = []
-    for (const line of block.split('\n'))
-      if (items.length === 0 || LIST_ITEM.test(line)) items.push(line)
-      else items[items.length - 1] += ' ' + line
-    let header = false
-    for (const item of items) {
-      const listed = LIST_ITEM.test(item)
-      if (!listed) header = false
-      for (const text of item.split(SENTENCE_END))
-        out.push({ text, back: (listed && header) || REFERS_BACK.test(text) })
-      if (!listed && /:\s*$/.test(item) && REFERS_BACK.test(item)) header = true
+    const items: Array<{ text: string; listed: boolean }> = []
+    for (const line of block.split('\n')) {
+      const listed = LIST_ITEM.test(line)
+      const last = items[items.length - 1]
+      // a plain line continues plain text, or an item it is indented under
+      const continues = last && !listed && (!last.listed || /^\s/.test(line))
+      if (continues) last.text += ' ' + line
+      else items.push({ text: line, listed })
     }
+    let header = false
+    items.forEach((item, i) => {
+      if (!item.listed) header = false
+      // the marker goes first: "1. Made it" must not split after "1."
+      const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
+      body.split(SENTENCE_END).forEach((text, k) =>
+        out.push({
+          text,
+          back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
+        })
+      )
+      if (!item.listed && items[i + 1]?.listed && isHeader(item.text))
+        header = true
+    })
   }
   return out
 }
