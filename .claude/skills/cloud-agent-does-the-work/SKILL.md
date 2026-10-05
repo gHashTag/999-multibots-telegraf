@@ -212,6 +212,25 @@ Measure, do not guess: `tri honesty` prints the deploy-time provider head
 (tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
 any flag or a toolless head (#3670).
 
+Can the agent read its own picture? `tri vision-bench` runs the render's own
+vision (llama.cpp, Qwen3-VL-2B, ONE slot) inside vibee-render and prints a row
+per read: ms, hits, and whether the slot was busy just before. Measured
+2026-10-06, vision idle:
+
+- synthetic posters (four lines, fonts 26-72 px at 1536): 4/4 facts at every
+  size; a 448 px height reads in ~1.2 s, 768 px in ~2.4 s. 448 is enough.
+- the SAME JPEG bytes a second time read in ~0.45 s at any size: llama.cpp
+  reused its cached image prompt. The bench draws a fresh background every run
+  so the number is a cold read; a bench that repeats a picture measures the
+  cache, not the model.
+- a real `agent-image` "poster" of 2026-10-05 (prompt: title, "8 October ·
+  11:30", venue) read as `© pollinations.ai` and nothing else -- and it is
+  right: the picture is a stock portrait with no text at all. That is the
+  case the self-check (#3660) exists for; a reading of 0/N is a finding about
+  the picture before it is a finding about vision.
+
+`--image URL --expect "11:30,500"` scores any real picture; rc 1 on a miss.
+
 ## Related Resources
 
 - `mcp-owner-access` — ключ агента и `/mcp`

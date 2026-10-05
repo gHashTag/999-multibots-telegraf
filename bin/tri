@@ -56,6 +56,7 @@ tri — оболочка Trinity S³AI
   tri ball [show|push [--dry] [owner/repo ...]]  доска «где мяч»: CRM + почта + открытые PR и баги по клиентам (specs/automation/ball-board.t27)
   tri growth                              следующий шаг к заработку от Королевы, только чтение (specs/automation/queen-growth.t27)
   tri honesty [часы]                      врёт ли агент чата: голова AGENT_PROVIDER без инструментов и флаги [agent:honesty] по видам, только счёт
+  tri vision-bench [--sizes 448,768] [--image URL --expect "11:30,500"]  читает ли зрение рендера текст на картинке и за сколько мс (своё зрение, слот занят?)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
@@ -1191,6 +1192,10 @@ sys.stderr.write(str(len(ts)))
     # Does the chat agent claim what it did not do? The deploy-time provider
     # head (tools or not) and [agent:honesty] flags by kind, counts only.
     bash "$ROOT/bin/helpers/honesty.sh" "${2:-24}" ;;
+  vision-bench)
+    # Can the render's own vision read the text on a picture, how fast, and
+    # was its single slot busy? Synthetic posters or --image URL (#3660).
+    shift; bash "$ROOT/bin/helpers/vision-bench.sh" "$@" ;;
   relays-watch)
     # `tri relays` every hour from launchd: a dead render is redeployed once
     # per 6 h and reported with the result; a key or code break is reported
