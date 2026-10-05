@@ -12,6 +12,7 @@ import {
   ACCESS_OF_BOT,
   EXTEND_MANAGED_BOT,
   MANAGED_BOTS_TABLE,
+  MANAGED_BOTS_PACKAGE_COLUMN,
   TRIAL_DAYS,
   UPSERT_MANAGED_BOT,
   clearManagedBotAccessCache,
@@ -24,15 +25,25 @@ import {
 } from '@/core/bot/managedBots/store'
 import {
   COPY,
+  applyPackageProfile,
   clearPausedNotices,
   renewUrl,
   replyToClient,
 } from '@/core/bot/managedBots/runner'
 import {
+  CHANNEL_ADMIN_RIGHTS,
   MANAGER_COPY,
+  clearCapabilityReports,
+  clearIntents,
+  ensureChannelAdminRights,
+  mybotPackage,
   ownedLine,
+  packageOfCreation,
   parseAgentBotArgs,
+  rememberIntent,
+  reportManagedBotCapabilities,
 } from '@/core/bot/managedBots/install'
+import { logger } from '@/utils/logger'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 
 const owner = {
@@ -117,6 +128,25 @@ describe('what we suggest in the creation sheet', () => {
     )
   })
 
+  it('a TRI DEV bot is suggested as <name>_tri_dev_bot, within 32', () => {
+    expect(suggestBotUsername({ id: 1, username: 'playra' }, 'tridev')).toBe(
+      'playra_tri_dev_bot'
+    )
+    for (const p of [
+      { id: 5, username: 'a'.repeat(32) },
+      { id: 4 },
+      { id: 3, username: '_9x' },
+    ]) {
+      const name = suggestBotUsername(p, 'tridev')
+      expect(name, JSON.stringify(p)).toMatch(BOT_USERNAME_RE)
+      expect(name.length).toBeLessThanOrEqual(32)
+      expect(name.endsWith('_tri_dev_bot')).toBe(true)
+    }
+    expect(suggestBotUsername({ id: 1, username: 'playra' }, 'manager')).toBe(
+      'playra_agent_bot'
+    )
+  })
+
   it('the button is the documented request_managed_bot field', () => {
     const markup = requestManagedBotKeyboard('Create', {
       username: 'playra_agent_bot',
@@ -172,7 +202,8 @@ describe('the managed_bots table keeps no token', () => {
       't27ai_bot'
     )
     expect(calls[0].sql).toBe(MANAGED_BOTS_TABLE)
-    expect(calls[1].params).toEqual([
+    expect(calls[1].sql).toBe(MANAGED_BOTS_PACKAGE_COLUMN)
+    expect(calls[2].params).toEqual([
       created.id,
       'playra_agent_bot',
       'Dmitrii agent',
@@ -180,6 +211,7 @@ describe('the managed_bots table keeps no token', () => {
       'playra',
       't27ai_bot',
       TRIAL_DAYS,
+      null,
     ])
     expect(await liveManagedBots('t27ai_bot')).toEqual([
       {
@@ -240,6 +272,7 @@ describe('who pays for a managed bot', () => {
       'x_agent_bot',
       30,
       true,
+      null,
     ])
     await managedBotAccess(42, 31_000)
     expect(query.mock.calls.filter(c => c[0] === ACCESS_OF_BOT)).toHaveLength(2)
@@ -283,6 +316,12 @@ describe('the team switches a bot on with /agentbot', () => {
       botUsername: 'x_agent_bot',
       days: 30,
       media: true,
+    })
+    expect(parseAgentBotArgs('/agentbot @x_tri_dev_bot 30 tridev')).toEqual({
+      botUsername: 'x_tri_dev_bot',
+      days: 30,
+      media: false,
+      packageId: 'tridev',
     })
   })
 
@@ -495,5 +534,249 @@ describe('a 409 at launch is waited out, for the farm and the managed bots', () 
       ])
     ).toBe(false)
     expect(launch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a TRI DEV bot is recognised at creation', () => {
+  afterEach(() => clearIntents())
+
+  it('/mybot tridev is the intent, and only tridev is', () => {
+    expect(mybotPackage('/mybot tridev')).toBe('tridev')
+    expect(mybotPackage('/mybot@t27ai_bot TriDev')).toBe('tridev')
+    expect(mybotPackage('/mybot')).toBeUndefined()
+    expect(mybotPackage('/mybot blogger')).toBeUndefined()
+  })
+
+  it('the intent wins for an hour, then the suggested name decides', () => {
+    rememberIntent(7, 'tridev', 0)
+    expect(
+      packageOfCreation({ ownerId: 7, botUsername: 'any_bot' }, 1000)
+    ).toBe('tridev')
+    expect(
+      packageOfCreation({ ownerId: 7, botUsername: 'any_bot' }, 2 * 3600_000)
+    ).toBeUndefined()
+    expect(
+      packageOfCreation({ ownerId: 8, botUsername: 'Playra_Tri_Dev_bot' })
+    ).toBe('tridev')
+    expect(
+      packageOfCreation({ ownerId: 8, botUsername: 'playra_agent_bot' })
+    ).toBeUndefined()
+  })
+
+  it('the remembered package survives a re-sent update and comes back from the upsert', async () => {
+    const [, onConflict] = UPSERT_MANAGED_BOT.split('ON CONFLICT')
+    expect(onConflict).toMatch(
+      /package = coalesce\(managed_bots\.package, EXCLUDED\.package\)/
+    )
+    expect(MANAGED_BOTS_PACKAGE_COLUMN).toBe(
+      'ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS package text'
+    )
+    setManagedBotsDbForTests({
+      query: async (sql: string) =>
+        sql === UPSERT_MANAGED_BOT
+          ? { rows: [{ package: 'tridev' }] }
+          : { rows: [] },
+    })
+    try {
+      expect(
+        await rememberManagedBot(
+          readManagedBotUpdate({ managed_bot: { user: owner, bot: created } })!,
+          't27ai_bot',
+          'tridev'
+        )
+      ).toBe('tridev')
+    } finally {
+      setManagedBotsDbForTests(null)
+    }
+  })
+
+  it('a paused TRI DEV bot renews TRI DEV', () => {
+    expect(renewUrl('t27ai_bot', false, 'tridev')).toBe(
+      'https://t.me/t27ai_bot?start=agentpkg_tridev'
+    )
+    expect(renewUrl('t27ai_bot', true)).toBe(
+      'https://t.me/t27ai_bot?start=agentpkg_twin'
+    )
+    expect(renewUrl('t27ai_bot', false)).toBe(
+      'https://t.me/t27ai_bot?start=agentpkg_manager'
+    )
+  })
+})
+
+describe('a manager bot at boot', () => {
+  afterEach(() => {
+    clearCapabilityReports()
+    vi.restoreAllMocks()
+  })
+
+  it('logs can_manage_bots once per bot', () => {
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => logger)
+    expect(
+      reportManagedBotCapabilities({
+        username: 't27ai_bot',
+        can_manage_bots: true,
+      })
+    ).toBe(true)
+    expect(
+      reportManagedBotCapabilities({
+        username: 't27ai_bot',
+        can_manage_bots: true,
+      })
+    ).toBe(true)
+    expect(reportManagedBotCapabilities({ username: 'other_bot' })).toBe(false)
+    const lines = info.mock.calls.map(c => String(c[0]))
+    expect(lines).toEqual([
+      '[managed-bots] can_manage_bots=true bot=t27ai_bot',
+      '[managed-bots] can_manage_bots=false bot=other_bot',
+    ])
+  })
+
+  const telegramWith = (current: unknown) => {
+    const calls: { method: string; payload: Record<string, unknown> }[] = []
+    return {
+      calls,
+      telegram: {
+        async callApi(method: string, payload: Record<string, unknown>) {
+          calls.push({ method, payload })
+          if (method === 'getMyDefaultAdministratorRights') return current
+          return true
+        },
+      },
+    }
+  }
+
+  it('writes the channel admin rights when they differ, for channels', async () => {
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => logger)
+    const { calls, telegram } = telegramWith({ is_anonymous: false })
+    expect(
+      await ensureChannelAdminRights(telegram, {
+        username: 't27ai_bot',
+        can_manage_bots: true,
+      })
+    ).toEqual({ changed: true })
+    expect(calls).toEqual([
+      {
+        method: 'getMyDefaultAdministratorRights',
+        payload: { for_channels: true },
+      },
+      {
+        method: 'setMyDefaultAdministratorRights',
+        payload: { rights: { ...CHANNEL_ADMIN_RIGHTS }, for_channels: true },
+      },
+    ])
+    const rights = calls[1].payload.rights as Record<string, boolean>
+    for (const k of [
+      'can_manage_chat',
+      'can_post_messages',
+      'can_edit_messages',
+      'can_delete_messages',
+      'can_post_stories',
+      'can_edit_stories',
+      'can_delete_stories',
+    ])
+      expect(rights[k], k).toBe(true)
+    for (const k of [
+      'is_anonymous',
+      'can_manage_video_chats',
+      'can_restrict_members',
+      'can_promote_members',
+      'can_change_info',
+      'can_invite_users',
+      'can_pin_messages',
+      'can_manage_topics',
+    ])
+      expect(rights[k], k).toBe(false)
+    const line = info.mock.calls
+      .map(c => String(c[0]))
+      .find(l => l.startsWith('[managed-bots] channel_admin_rights='))
+    expect(line).toMatch(/changed=true/)
+    expect(line).toMatch(/can_post_messages:true/)
+    expect(line).toMatch(/is_anonymous:false/)
+  })
+
+  it('leaves the rights alone when they already match', async () => {
+    vi.spyOn(logger, 'info').mockImplementation(() => logger)
+    const { calls, telegram } = telegramWith({ ...CHANNEL_ADMIN_RIGHTS })
+    expect(
+      await ensureChannelAdminRights(telegram, { can_manage_bots: true })
+    ).toEqual({ changed: false })
+    expect(calls.map(c => c.method)).toEqual([
+      'getMyDefaultAdministratorRights',
+    ])
+  })
+
+  it('swallows a failure, and does nothing for a bot that cannot manage', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+    const failing = {
+      callApi: async () => {
+        throw new Error('Bad Request')
+      },
+    }
+    await expect(
+      ensureChannelAdminRights(failing, { can_manage_bots: true })
+    ).resolves.toBeNull()
+    expect(warn).toHaveBeenCalled()
+    const { calls, telegram } = telegramWith({})
+    expect(await ensureChannelAdminRights(telegram, {})).toBeNull()
+    expect(calls).toEqual([])
+  })
+})
+
+describe('a package writes its menu into the bot', () => {
+  const recorder = () => {
+    const calls: unknown[][] = []
+    const rec =
+      (name: string) =>
+      async (...a: unknown[]) => {
+        calls.push([name, ...a])
+        return true
+      }
+    return {
+      calls,
+      telegram: {
+        setMyCommands: rec('setMyCommands'),
+        setMyDescription: rec('setMyDescription'),
+        setMyShortDescription: rec('setMyShortDescription'),
+      },
+    }
+  }
+
+  it('TRI DEV gets /task, /status, /help in ru and en', async () => {
+    const { calls, telegram } = recorder()
+    expect(await applyPackageProfile(telegram, 'tridev')).toBe(true)
+    const commands = calls.filter(c => c[0] === 'setMyCommands')
+    expect(commands.map(c => (c[2] as any)?.language_code)).toEqual([
+      'ru',
+      'en',
+      undefined,
+    ])
+    for (const c of commands)
+      expect((c[1] as { command: string }[]).map(x => x.command)).toEqual([
+        'task',
+        'status',
+        'help',
+      ])
+    expect(
+      calls.filter(c => c[0] === 'setMyDescription').map(c => c[2])
+    ).toEqual(['ru', 'en', undefined])
+    expect(
+      calls.filter(c => c[0] === 'setMyShortDescription').map(c => c[2])
+    ).toEqual(['ru', 'en', undefined])
+  })
+
+  it('a client-facing package keeps the owner profile, and a failure is swallowed', async () => {
+    const { calls, telegram } = recorder()
+    expect(await applyPackageProfile(telegram, 'manager')).toBe(false)
+    expect(await applyPackageProfile(telegram, undefined)).toBe(false)
+    expect(calls).toEqual([])
+    vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+    const failing = {
+      ...telegram,
+      setMyCommands: async () => {
+        throw new Error('429')
+      },
+    }
+    expect(await applyPackageProfile(failing, 'tridev')).toBe(false)
+    vi.restoreAllMocks()
   })
 })

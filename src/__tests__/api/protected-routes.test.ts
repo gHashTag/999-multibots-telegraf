@@ -52,6 +52,11 @@ const MUST_STAY_OPEN: Record<string, string> = {
     'закрыт requireInternalKey НА САМОМ РОУТЕ (см. отдельный тест ниже и ' +
     'github-autofixer.routes.ts) — роутер остаётся открытым ради подписанного вебхука',
   competitorRouter: 'отвечает 501, данных не отдаёт',
+  agentPackagesRouter:
+    'каталог пакетов агентов для сайта: цены и ссылки, ни секретов, ни записи',
+  triDevCallbackRouter:
+    'обратный вызов раннера TRI DEV; проверяет TRI_DEV_CALLBACK_SECRET сам, ' +
+    'без секрета отвечает 503',
 }
 
 function mounts(): Array<{ mount: string; guarded: boolean; varName: string }> {

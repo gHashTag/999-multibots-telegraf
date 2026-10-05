@@ -6,6 +6,8 @@ import kieAiWebhookRouter, {
   setBotInstance,
 } from './routes/kie-ai-webhook.routes'
 import aiReelsCallbackRouter from './routes/ai-reels-callback.routes'
+import agentPackagesRouter from './routes/agent-packages.routes'
+import triDevCallbackRouter from './routes/tri-dev-callback.routes'
 import replicateWebhookRouter from './routes/replicate-webhook.routes'
 import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
@@ -124,6 +126,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // MUST stay ABOVE the requireInternalKey mounts below — see the ordering
   // note there.
   app.use('/api', competitorRouter)
+
+  // The agent package catalogue, public (CORS *): the site reads the price
+  // here. The TRI DEV runner's callback, self-authenticated by a shared
+  // secret. Both MUST stay ABOVE the requireInternalKey mounts below.
+  app.use('/api', agentPackagesRouter)
+  app.use('/api', triDevCallbackRouter)
 
   // White-label B2B config endpoints
   app.get('/api/whitelabel/landing', (_req: any, res: any) => {

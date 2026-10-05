@@ -33,6 +33,10 @@ const KNOWN_PUBLIC: Record<string, string> = {
   replicateWebhookRouter:
     'no signature yet (webhook secret is owner/infra) but rejects unknown replicate_training_id before inngest.send; the consumer function is unregistered today',
   competitorRouter: 'endpoints are 501 stubs; no side effects',
+  agentPackagesRouter:
+    'GET/OPTIONS only: the agent package catalogue (ids, titles, Stars, derived USD, order links) from a constant; reads no secret, writes nothing',
+  triDevCallbackRouter:
+    'TRI DEV runner callback self-auths with TRI_DEV_CALLBACK_SECRET (timing-safe, 503 when unset = fail closed); may only message the owner of a TRI DEV bot running here, with t27.ai/term and github.com PR links only',
   inngestStatusRouter:
     'GET/OPTIONS only (design inngest-spec-first §3.8: the t27.ai Functions tab reads it); read-only manifest × Inngest GraphQL counters, 30 s cache, CORS allow-list; no mutation is reachable. Residual disclosure, named: run ids, last-error event names and the internal gqlUrl are visible to anyone',
 }

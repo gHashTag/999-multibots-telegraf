@@ -3,6 +3,7 @@ import {
   AGENT_PACKAGES,
   agentPackageById,
   agentPackageStars,
+  agentPackageUsd,
 } from '../agent-packages'
 import {
   monthOutcome,
@@ -42,7 +43,7 @@ describe('the sales script', () => {
     for (const pkg of AGENT_PACKAGES) {
       const offer = salesSteps(pkg).find(s => s.id === 'offer')!
       for (const lang of ['en', 'ru'] as const) {
-        expect(offer.say[lang]).toContain(`$${pkg.monthlyUsd}`)
+        expect(offer.say[lang]).toContain(`$${agentPackageUsd(pkg)}`)
         expect(offer.say[lang]).toContain(
           agentPackageStars(pkg).toLocaleString(
             lang === 'ru' ? 'ru-RU' : 'en-US'
@@ -58,7 +59,7 @@ describe('the sales script', () => {
     const reels = reelsIn(monthTokens(blogger.allowanceUsd))
     expect(monthOutcome(blogger).en).toContain(`≈${reels} reels`)
     expect(perReel(blogger)).toBe(
-      Math.round((blogger.monthlyUsd / reels) * 100) / 100
+      Math.round((agentPackageUsd(blogger) / reels) * 100) / 100
     )
     expect(monthOutcome(blogger).en).toContain(`$${perReel(blogger)}`)
   })

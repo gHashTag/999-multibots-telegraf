@@ -36,6 +36,7 @@ const LEVEL_OF_PACKAGE: Record<AgentPackageId, UserLevel> = {
   blogger: 'blogger',
   // The catalogue id stays `twin`: payloads already minted carry it.
   twin: 'developer',
+  tridev: 'developer',
 }
 
 export function levelOfPackage(id: AgentPackageId): UserLevel {

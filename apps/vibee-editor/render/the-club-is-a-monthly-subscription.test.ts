@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   CLUB_STARS,
   CLUB_PERIOD_S,
@@ -8,6 +8,7 @@ import {
   clubStatus,
   handleClub,
   isClubCharge,
+  isUnclaimedSubscriptionCharge,
   sweepClubRenewals,
   sweepClubGrants,
   bookGrantPeriod,
@@ -19,6 +20,11 @@ import {
   МАКС_ЗВЁЗД_ПОДПИСКА as SUB_MAX, // cyrillic-ok: pre-existing export name
   ПЕРИОД_ПОДПИСКИ_С as SUB_PERIOD, // cyrillic-ok: pre-existing export name
 } from './src/agent/token-packs' // cyrillic-ok: pre-existing export names
+import { packageChargeOf } from './src/agent/agent-package-sale'
+import {
+  AGENT_SUBSCRIPTION,
+  STARS_SUBSCRIPTION_MAX,
+} from '../packages/vibee-atoms/src/agent-packages'
 
 /**
  * THE CLUB: 10 000 STARS EVERY 30 DAYS, THIRTY PERCENT BACK IN TOKENS.
@@ -143,6 +149,7 @@ function charge(
       type: 'user',
       user: { id: user },
       subscription_period: CLUB_PERIOD_S,
+      invoice_payload: `club:${amount}:${user}`,
     },
   }
 }
@@ -215,7 +222,7 @@ describe('the invoice is a subscription', () => {
 })
 
 describe('recognising a club charge', () => {
-  it('needs the amount, the period and a user', () => {
+  it('needs the club payload, the amount, the period and a user', () => {
     expect(isClubCharge(charge('a', 1))).toBe(true)
     expect(isClubCharge(charge('a', 1), '1')).toBe(true)
     expect(isClubCharge(charge('a', 1), '2')).toBe(false)
@@ -224,6 +231,80 @@ describe('recognising a club charge', () => {
     delete oneOff.source!.subscription_period
     expect(isClubCharge(oneOff)).toBe(false)
     expect(isClubCharge({ id: 'x', amount: 10_000, date: T0 })).toBe(false)
+    const noPayload = charge('a', 1)
+    delete noPayload.source!.invoice_payload
+    expect(isClubCharge(noPayload)).toBe(false)
+  })
+})
+
+describe('the club and the agent packages share a price, never a charge', () => {
+  // Every agent package is also 10000 Stars per 30 days on the same cashier,
+  // so only the payload tells a club month from a package month.
+  const shaped = (id: string, payload: string | undefined): StarTx => {
+    const t = charge(id, 144022504)
+    if (payload === undefined) delete t.source!.invoice_payload
+    else t.source!.invoice_payload = payload
+    return t
+  }
+
+  it('the package price and the club price are the same measured cap', () => {
+    expect(AGENT_SUBSCRIPTION.stars).toBe(CLUB_STARS)
+    expect(AGENT_SUBSCRIPTION.stars).toBe(STARS_SUBSCRIPTION_MAX)
+    expect(AGENT_SUBSCRIPTION.periodSeconds).toBe(CLUB_PERIOD_S)
+  })
+
+  it('a club charge is the club only', () => {
+    const t = shaped('c1', 'club:10000:144022504')
+    expect(isClubCharge(t)).toBe(true)
+    expect(packageChargeOf(t)).toBeNull()
+    expect(isUnclaimedSubscriptionCharge(t)).toBe(false)
+  })
+
+  it('an agent package charge at 10000 / 30 days is the package only, never a club month', async () => {
+    for (const id of ['manager', 'blogger', 'twin', 'tridev']) {
+      const t = shaped(`p-${id}`, `agentpkg:${id}:month:144022504`)
+      expect(isClubCharge(t), id).toBe(false)
+      expect(packageChargeOf(t)?.pkg.id, id).toBe(id)
+      expect(isUnclaimedSubscriptionCharge(t), id).toBe(false)
+    }
+    const pool = fakePool()
+    const { credits, fn } = fakeCredit()
+    const booked = await bookClubPeriods(
+      pool,
+      [shaped('p1', 'agentpkg:tridev:month:144022504')],
+      fn
+    )
+    expect(booked).toEqual([])
+    expect(credits).toEqual([])
+  })
+
+  it('an unknown payload at 10000 / 30 days is neither, and is logged once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const unknown = [
+        shaped('u1', 'something:else'),
+        shaped('u2', undefined),
+        shaped('u3', 'club:10000:'),
+      ]
+      for (const t of unknown) {
+        expect(isClubCharge(t), String(t.id)).toBe(false)
+        expect(packageChargeOf(t), String(t.id)).toBeNull()
+        expect(isUnclaimedSubscriptionCharge(t), String(t.id)).toBe(true)
+      }
+      const pool = fakePool()
+      const { credits, fn } = fakeCredit()
+      expect(await bookClubPeriods(pool, unknown, fn)).toEqual([])
+      expect(await bookClubPeriods(pool, unknown, fn)).toEqual([])
+      expect(credits).toEqual([])
+      const lines = warn.mock.calls.map(c => String(c[0]))
+      for (const id of ['u1', 'u2', 'u3'])
+        expect(
+          lines.filter(l => l.endsWith(`tx=${id}`)),
+          id
+        ).toHaveLength(1)
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 
@@ -569,6 +650,7 @@ describe('bot owners and keepers enter without paying', () => {
         type: 'user',
         user: { id: Number(who) },
         subscription_period: CLUB_PERIOD_S,
+        invoice_payload: `club:${CLUB_STARS}:${who}`,
       },
     }
     await bookClubPeriods(pool, [tx], fakeCredit().fn, who)

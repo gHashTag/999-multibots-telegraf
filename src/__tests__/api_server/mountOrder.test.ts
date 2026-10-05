@@ -47,6 +47,15 @@ describe('api_server mount order', () => {
     )
   })
 
+  it('the agent package catalogue and the TRI DEV callback are mounted before any keyed mount', () => {
+    expect(lineOf(/app\.use\('\/api', agentPackagesRouter\)/)).toBeLessThan(
+      firstGuard
+    )
+    expect(lineOf(/app\.use\('\/api', triDevCallbackRouter\)/)).toBeLessThan(
+      firstGuard
+    )
+  })
+
   it('public whitelabel endpoints are mounted before any keyed mount', () => {
     expect(lineOf(/app\.get\('\/api\/whitelabel\/landing'/)).toBeLessThan(
       firstGuard

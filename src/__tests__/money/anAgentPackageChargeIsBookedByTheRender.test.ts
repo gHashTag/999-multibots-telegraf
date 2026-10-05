@@ -171,7 +171,7 @@ describe('an agent package charge', () => {
       10000,
       verdict(1)
     )
-    expect(extend).toHaveBeenCalledWith('my_agent_bot', 30, true)
+    expect(extend).toHaveBeenCalledWith('my_agent_bot', 30, true, 'blogger')
     expect(team).toContain('@my_agent_bot paid until 2026-10-31')
   })
 
@@ -179,7 +179,16 @@ describe('an agent package charge', () => {
     botsOf.mockResolvedValue([{ botUsername: 'crm_bot', status: 'live' }])
     extend.mockResolvedValue(null)
     await pay(`agentpkg:manager:month:${PAYER}`, 6250, verdict(1, 'manager'))
-    expect(extend).toHaveBeenCalledWith('crm_bot', 30, false)
+    expect(extend).toHaveBeenCalledWith('crm_bot', 30, false, 'manager')
+  })
+
+  it('TRI DEV is text only and switches the bot to the developer agent', async () => {
+    botsOf.mockResolvedValue([
+      { botUsername: 'dev_tri_dev_bot', status: 'live' },
+    ])
+    extend.mockResolvedValue(null)
+    await pay(`agentpkg:tridev:month:${PAYER}`, 10000, verdict(1, 'tridev'))
+    expect(extend).toHaveBeenCalledWith('dev_tri_dev_bot', 30, false, 'tridev')
   })
 
   it('does not extend twice: a charge the sweep booked first goes to the team', async () => {

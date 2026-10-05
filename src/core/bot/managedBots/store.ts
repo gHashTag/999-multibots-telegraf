@@ -30,10 +30,19 @@ export const MANAGED_BOTS_TABLE = `CREATE TABLE IF NOT EXISTS managed_bots (
   manager_bot text NOT NULL,
   status text NOT NULL DEFAULT 'live',
   media boolean NOT NULL DEFAULT false,
+  package text,
   paid_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 )`
+
+/*
+ * A table made before the package column existed gains it here: CREATE TABLE
+ * IF NOT EXISTS leaves an existing table as it is. Null is a bot made before
+ * packages were remembered -- it keeps answering as it did.
+ */
+export const MANAGED_BOTS_PACKAGE_COLUMN =
+  'ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS package text'
 
 /**
  * THE TRIAL A NEW BOT ANSWERS FOR, before anybody has paid for it.
@@ -51,20 +60,23 @@ export const TRIAL_DAYS = 3
  * owner changes: the newest owner wins, and a bot that was paused stays paused
  * -- a token rotation is not a reason to switch an agent back on. Nor is it a
  * reason for a new trial: `paid_until` and `media` are written on the first
- * insert only.
+ * insert only. The package is written when the row has none, so a re-sent
+ * update never switches a bot from one package to another.
  */
 export const UPSERT_MANAGED_BOT = `INSERT INTO managed_bots
-  (bot_id, bot_username, bot_name, owner_id, owner_username, manager_bot, paid_until)
-  VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(days => $7))
+  (bot_id, bot_username, bot_name, owner_id, owner_username, manager_bot, paid_until, package)
+  VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(days => $7), $8)
   ON CONFLICT (bot_id) DO UPDATE SET
     bot_username = EXCLUDED.bot_username,
     bot_name = EXCLUDED.bot_name,
     owner_id = EXCLUDED.owner_id,
     owner_username = EXCLUDED.owner_username,
     manager_bot = EXCLUDED.manager_bot,
-    updated_at = now()`
+    package = coalesce(managed_bots.package, EXCLUDED.package),
+    updated_at = now()
+  RETURNING package`
 
-export const LIVE_FOR_MANAGER = `SELECT bot_id, bot_username, bot_name, owner_id, owner_username, media
+export const LIVE_FOR_MANAGER = `SELECT bot_id, bot_username, bot_name, owner_id, owner_username, media, package
   FROM managed_bots
   WHERE manager_bot = $1 AND status = 'live'
   ORDER BY created_at`
@@ -81,10 +93,11 @@ export const BOTS_OF_OWNER = `SELECT bot_id, bot_username, status, paid_until
 export const EXTEND_MANAGED_BOT = `UPDATE managed_bots SET
     paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(days => $2),
     media = coalesce($3, media),
+    package = coalesce($4, package),
     status = 'live',
     updated_at = now()
   WHERE lower(bot_username) = lower($1)
-  RETURNING bot_id, bot_username, owner_id, media, paid_until`
+  RETURNING bot_id, bot_username, owner_id, media, package, paid_until`
 
 export const ACCESS_OF_BOT = `SELECT media, paid_until > now() AS paid
   FROM managed_bots
@@ -101,6 +114,12 @@ export interface ManagedBotRow {
    * model for the CRM, and the render is told to hand it no media tool.
    */
   media?: boolean
+  /**
+   * The package the bot was made or paid for (agent-packages.ts ids), when
+   * known. 'tridev' turns the bot into the developer agent: its owner gives it
+   * tasks, and nobody else is answered.
+   */
+  package?: string
 }
 
 let pool: Pool | null = null
@@ -135,6 +154,7 @@ function ensureSchema(d: Db): Promise<void> {
   if (schemaReady) return schemaReady
   schemaReady = d
     .query(MANAGED_BOTS_TABLE)
+    .then(() => d.query(MANAGED_BOTS_PACKAGE_COLUMN))
     .then(() => undefined)
     .catch(error => {
       // A failed attempt must not latch: the next call retries.
@@ -159,13 +179,16 @@ async function run(sql: string, params: unknown[]): Promise<any[]> {
 /**
  * Remember a bot. THROWS when it cannot: the caller tells the owner the bot
  * was made but is not yet answering, rather than promising an agent that will
- * be gone after the next deploy.
+ * be gone after the next deploy. Answers the package the row now holds -- an
+ * earlier one wins over the one given -- or undefined when it holds none.
  */
 export async function rememberManagedBot(
   event: ManagedBotEvent,
-  managerBot: string
-): Promise<void> {
-  await run(UPSERT_MANAGED_BOT, [
+  managerBot: string,
+  /** The package the owner asked for in /mybot, when one was named. */
+  packageId?: string
+): Promise<string | undefined> {
+  const [r] = await run(UPSERT_MANAGED_BOT, [
     event.botId,
     event.botUsername,
     event.botName,
@@ -173,7 +196,9 @@ export async function rememberManagedBot(
     event.ownerUsername ?? null,
     managerBot,
     TRIAL_DAYS,
+    packageId ?? null,
   ])
+  return r?.package ? String(r.package) : undefined
 }
 
 const toRow = (r: any): ManagedBotRow => ({
@@ -183,6 +208,7 @@ const toRow = (r: any): ManagedBotRow => ({
   ownerId: Number(r.owner_id),
   ...(r.owner_username ? { ownerUsername: String(r.owner_username) } : {}),
   media: r.media === true,
+  ...(r.package ? { package: String(r.package) } : {}),
 })
 
 /** The bots to bring up at boot for this manager. */
@@ -245,23 +271,26 @@ export interface ExtendedBot {
   botUsername: string
   ownerId: number
   media: boolean
+  package?: string
   paidUntil: Date
 }
 
 /**
  * Pay a bot forward by `days` (the team's /agentbot, after the owner paid).
- * `media` switches the package when given and is left alone when not.
- * Null when no bot has that username.
+ * `media` and `packageId` switch the package when given and are left alone
+ * when not. Null when no bot has that username.
  */
 export async function extendManagedBot(
   botUsername: string,
   days: number,
-  media?: boolean
+  media?: boolean,
+  packageId?: string
 ): Promise<ExtendedBot | null> {
   const [r] = await run(EXTEND_MANAGED_BOT, [
     botUsername.replace(/^@/, ''),
     days,
     media ?? null,
+    packageId ?? null,
   ])
   if (!r) return null
   const botId = Number(r.bot_id)
@@ -271,6 +300,7 @@ export async function extendManagedBot(
     botUsername: String(r.bot_username),
     ownerId: Number(r.owner_id),
     media: r.media === true,
+    ...(r.package ? { package: String(r.package) } : {}),
     paidUntil: new Date(r.paid_until),
   }
 }
