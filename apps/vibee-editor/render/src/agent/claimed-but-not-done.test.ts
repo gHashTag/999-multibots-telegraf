@@ -642,6 +642,8 @@ describe("a capital is someone else only in a person's shape (#3723)", () => {
     'Дизайнер сделал афишу', // cyrillic-ok: test input
     'Фотограф прислал фото', // cyrillic-ok: test input
     'Подруга Милослава прислала видео', // cyrillic-ok: test input
+    'Сегодня клиентка Милослава прислала фото', // cyrillic-ok: test input
+    'Вчера подруга Зарина прислала видео', // cyrillic-ok: test input
   ]) {
     it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
       expect(honestyNote(said, [])).toBe('')
