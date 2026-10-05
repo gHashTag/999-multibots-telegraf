@@ -99,6 +99,8 @@ if [ "$n" = "0" ]; then
 else
   echo "  warn  log, ${HOURS} h over $nd deploy(s): $n answer(s) claimed an action no tool backed:"
   printf '%s\n' "$summary" | tail -n +2
-  [ "$rc" -eq 0 ] && rc=1
+  # Counted lies are a measured 1, even when the head was not measured
+  # (PR #3670 re-review): 2 would read as a Railway blink.
+  rc=1
 fi
 exit "$rc"

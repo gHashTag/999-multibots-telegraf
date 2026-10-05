@@ -98,8 +98,10 @@ describe('tri honesty', () => {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       PATH: `${dir}:${process.env.PATH}`,
-      TRI_AGENT_PROVIDER: provider,
     }
+    // '' = the head is read from Railway, i.e. from the stub.
+    if (provider) env.TRI_AGENT_PROVIDER = provider
+    else delete env.TRI_AGENT_PROVIDER
     if (withLog) env.TRI_HONESTY_LOG = log
     else delete env.TRI_HONESTY_LOG
     const r = spawnSync('bash', [HONESTY, '24'], { encoding: 'utf8', env })
@@ -119,5 +121,11 @@ describe('tri honesty', () => {
     expect(r.out).not.toMatch(/ok {4}log/)
     expect(r.rc).toBe(2)
     expect(stubbed('ollama', 'python3', true).rc).toBe(1)
+  })
+  it('counted flags are rc 1 even when Railway did not answer for the head', () => {
+    const r = stubbed('', 'railway', true)
+    expect(r.out).toMatch(/NOT measured/)
+    expect(r.out).toMatch(/1 answer\(s\) claimed/)
+    expect(r.rc).toBe(1)
   })
 })
