@@ -17,7 +17,7 @@ import type { ManagedBotRow } from '@/core/bot/managedBots/store'
 import { hiveAgent } from './catalogue'
 import { addressed, callsAll, mayAnswer, mentions, type Entity } from './rules'
 import {
-  depthOfIncoming,
+  placeOfIncoming,
   noteBotAnswer,
   noteSent,
   sinceLastBotAnswer,
@@ -174,6 +174,8 @@ export async function answerAsAgent(
   const where = thread !== undefined ? { message_thread_id: thread } : {}
 
   let depth = 0
+  // Whose turn this is: the sender, or for a bot the person who started the chain.
+  let origin: number | null = fromBot ? null : m.from.id
   if (isGroup) {
     const ok = addressed({
       tagged: mentions(text, m.entities ?? m.caption_entities, me),
@@ -184,12 +186,17 @@ export async function answerAsAgent(
       fromBot,
     })
     if (!ok) return false
-    depth = depthOfIncoming({
+    const place = placeOfIncoming({
       chatId: chat.id,
       messageId: m.message_id,
       fromBot,
+      fromId: m.from.id,
       replyToMessageId: m.reply_to_message?.message_id,
     })
+    depth = place.depth
+    origin = place.origin
+    // A bot message nobody can trace to a person runs in nobody's name.
+    if (origin === null) return false
     const now = deps.now?.() ?? Date.now()
     if (!mayAnswer(fromBot, depth, sinceLastBotAnswer(me.id, now))) return false
     if (fromBot) noteBotAnswer(me.id, now)
@@ -207,8 +214,9 @@ export async function answerAsAgent(
   const said = isGroup
     ? `${rosterLine(chat.id, me.id)}\n${author} wrote:\n${text}`
     : text
-  // A bot's turn runs in the name of the bot's owner: a bot has no wallet.
-  const identity = fromBot ? String(row.ownerId) : String(m.from.id)
+  // Never the bot owner's name: a bot hop must not turn a guest's request
+  // into the owner's (wallet, tools, keeper rights).
+  const identity = String(origin)
 
   await ctx.telegram
     .sendChatAction(chat.id, 'typing', where)
@@ -240,7 +248,7 @@ export async function answerAsAgent(
           }
         : {}),
     })
-    if (isGroup) noteSent(chat.id, sent.message_id, depth + 1)
+    if (isGroup) noteSent(chat.id, sent.message_id, depth + 1, origin)
   }
   return parts.length > 0
 }

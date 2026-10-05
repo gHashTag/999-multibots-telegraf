@@ -9,39 +9,54 @@
  * human (0) -> A (1) -> B (2) -> C (3), and nobody answers C: rules.ts
  * chainOpen. A bot message we know nothing about counts from its parent, or
  * as the first of a chain.
+ *
+ * Each remembered message also carries the PERSON who started its chain. A
+ * turn a bot triggers runs in that person's name, never in the bot owner's:
+ * otherwise anyone in the group could write "@A ask @B to do X" and B would
+ * act with the owner's wallet and rights. A bot message whose person we do
+ * not know is not answered.
  */
 
 const MAX_REMEMBERED = 5_000
 
-const depthOf = new Map<string, number>()
+const depthOf = new Map<string, { depth: number; origin: number | null }>()
 const lastBotAnswer = new Map<number, number>()
 
 const key = (chatId: number, messageId: number) => `${chatId}:${messageId}`
 
-/** The depth of an incoming message: 0 for a person. */
-export function depthOfIncoming(m: {
+/** Where an incoming message stands in its chain, and whose chain it is. */
+export interface ChainPlace {
+  depth: number
+  /** The person who started the chain; null when nobody knows. */
+  origin: number | null
+}
+
+/** Depth 0 and the sender for a person; for a bot, what the chain says. */
+export function placeOfIncoming(m: {
   chatId: number
   messageId: number
   fromBot: boolean
+  fromId: number
   replyToMessageId?: number
-}): number {
-  if (!m.fromBot) return 0
+}): ChainPlace {
+  if (!m.fromBot) return { depth: 0, origin: m.fromId }
   const known = depthOf.get(key(m.chatId, m.messageId))
   if (known !== undefined) return known
   const parent =
     m.replyToMessageId !== undefined
       ? depthOf.get(key(m.chatId, m.replyToMessageId))
       : undefined
-  return (parent ?? 0) + 1
+  return { depth: (parent?.depth ?? 0) + 1, origin: parent?.origin ?? null }
 }
 
 /** Remember a message an agent just sent, one deeper than what it answered. */
 export function noteSent(
   chatId: number,
   messageId: number,
-  depth: number
+  depth: number,
+  origin: number | null
 ): void {
-  depthOf.set(key(chatId, messageId), depth)
+  depthOf.set(key(chatId, messageId), { depth, origin })
   if (depthOf.size > MAX_REMEMBERED) {
     const oldest = depthOf.keys().next().value
     if (oldest !== undefined) depthOf.delete(oldest)

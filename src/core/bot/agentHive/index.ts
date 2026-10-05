@@ -76,7 +76,7 @@ export const HIVE_COPY = {
       'Ещё не в группе — добавьте кнопками ниже (боту нужны права админа, тогда он видит все сообщения):',
     noAgents: 'У агентов ещё нет ботов. Создайте их в личке: /agents',
     topicIntro: (a: HiveAgent, bot: string) =>
-      `${a.icon} ${a.name.ru} — ${a.role.ru}\nПишите здесь: отвечает @${bot}. В общей теме зовите его тегом или @all.`,
+      `${a.icon} ${a.name.ru} — ${a.role.ru}\nПишите здесь: отвечает ${bot}. В общей теме зовите его тегом или @all.`,
     only: 'Эта команда — для команды платформы.',
   },
   en: {
@@ -110,7 +110,7 @@ export const HIVE_COPY = {
       'Not in the group yet -- add them with the buttons below (as admins, so they see every message):',
     noAgents: 'No agent has a bot yet. Create them privately: /agents',
     topicIntro: (a: HiveAgent, bot: string) =>
-      `${a.icon} ${a.name.en} -- ${a.role.en}\nWrite here and @${bot} answers. In the general topic call it by tag or @all.`,
+      `${a.icon} ${a.name.en} -- ${a.role.en}\nWrite here and ${bot} answers. In the general topic call it by tag or @all.`,
     only: 'This command is for the platform team.',
   },
 } as const
