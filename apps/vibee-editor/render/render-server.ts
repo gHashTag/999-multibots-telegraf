@@ -657,7 +657,10 @@ let faceApiНедоступен: string | null = null
 
 /** Почему кадрирование по лицу недоступно, или null если доступно. */
 export function faceCroppingUnavailable(): string | null {
-  return faceApiНедоступен
+  // Two ways to be unavailable: the module failed to import (the old shape,
+  // before faceDetection.ts loaded its engine lazily), or the module loaded
+  // and its engine did not -- tfjs-node is not in the image (#888).
+  return faceApiНедоступен ?? faceApiReady?.faceDetectionUnavailable() ?? null
 }
 
 function faceApi(): Promise<FaceApi> {
@@ -6362,9 +6365,29 @@ const server = createServer(async (req, res) => {
           mediaUrl.endsWith('.mp4') ||
           mediaUrl.endsWith('.webm') ||
           mediaUrl.endsWith('.mov')
-        const faceBox = isVideo
-          ? await detectFaceInVideo(filePath)
-          : await detectFaceInImage(filePath)
+        let faceBox: Awaited<ReturnType<typeof detectFaceInImage>>
+        try {
+          faceBox = isVideo
+            ? await detectFaceInVideo(filePath)
+            : await detectFaceInImage(filePath)
+        } catch (detectError) {
+          // The engine missing from the process is not this request's fault:
+          // it was said once at startup, and the caller gets the center crop
+          // with the reason instead of a 500 and an error line per request.
+          const unavailable = faceCroppingUnavailable()
+          if (!unavailable) throw detectError
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              faceDetected: false,
+              faceDetectionAvailable: false,
+              cropSettings: { offsetX: 0, offsetY: 0, scale: 1 },
+              message: `Face detection unavailable: ${unavailable}`,
+            })
+          )
+          return
+        }
 
         if (!faceBox) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
