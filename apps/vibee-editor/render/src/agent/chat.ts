@@ -76,6 +76,7 @@ import {
   marketplaceAgentById,
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import * as WS from '../spec/crm-client-workspace.gen'
+import * as CHAIN from '../spec/agent-provider-chain.gen'
 import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
@@ -1712,7 +1713,7 @@ export function systemPrompt(
  * a dead route stays invisible for as long as the others live. One warn line
  * per skip, before the next provider is tried.
  */
-export const SKIP_LOG_PREFIX = '[agent] provider skipped:'
+export const SKIP_LOG_PREFIX = CHAIN.SKIP_LOG_PREFIX
 
 function skipped(reason: string): void {
   console.warn(`${SKIP_LOG_PREFIX} ${reason}`)

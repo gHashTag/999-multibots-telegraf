@@ -23,7 +23,6 @@
     }
   ],
   "unbound": [
-    "automation/agent-provider-chain",
     "automation/browser-pod-restart",
     "automation/browser-sign-in",
     "automation/crm-client-ownership",
