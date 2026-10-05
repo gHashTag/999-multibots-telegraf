@@ -223,12 +223,16 @@ describe('a refused gift leaves a line, because nothing else does', () => {
     expect(journalled(pool).length, 'a success was filed as a refusal').toBe(0)
   })
 
-  it('a stamped picture is a draft for the owner, never a card for the client', async () => {
-    // Measured 2026-10-03: every image_generate that day came from the free
-    // leg, stamped "pollinations.ai".
+  it('a stamped picture refused by image_generate is no card for the client (#3663)', async () => {
+    // Since #3657 image_generate refuses a stamped picture on every surface
+    // and returns no URL -- this is the shape the deliverer really receives.
     stubSupabase([leadRow])
     const { tool, q } = await deliverer({
-      gen: async () => ({ url: PIC, watermark: 'pollinations.ai' }),
+      gen: async () => ({
+        сделано: false, // cyrillic-ok: the tool's answer field
+        причина: 'знак pollinations.ai — такое не отдаём', // cyrillic-ok: the tool's answer field
+        watermark: 'pollinations.ai',
+      }),
     })
     const pool = poolWith([{ balance: 50 }])
     const r: any = await tool.handler(
@@ -236,13 +240,12 @@ describe('a refused gift leaves a line, because nothing else does', () => {
       ctxWith(pool)
     )
     expect(r.delivered).toBe(false)
-    expect(r.proposal, 'a stamped picture became a card').toBeFalsy()
-    expect(r.draft_url).toBe(PIC)
-    expect(r.watermark).toBe('pollinations.ai')
+    expect(r.proposal, 'a refused picture became a card').toBeFalsy()
+    expect(JSON.stringify(r)).not.toContain('http')
     expect(q.pendingCount(), 'a card was queued').toBe(0)
     const rows = journalled(pool)
-    expect(rows.length, 'the stamp left no trace').toBe(1)
-    expect(String(rows[0][4])).toContain('watermark')
+    expect(rows.length, 'the refusal left no trace').toBe(1)
+    expect(String(rows[0][4])).toContain('generate')
   })
 
   it('a clean picture still becomes a card', async () => {
