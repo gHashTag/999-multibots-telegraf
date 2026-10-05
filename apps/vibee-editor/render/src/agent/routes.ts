@@ -42,6 +42,7 @@ import { honestyLogFields, honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
 import { widgetsOfTurn } from './client-widgets'
 import { ownerWordsOf } from './assistant-opt-out'
+import { heardFrom } from './printed-facts'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
@@ -1244,6 +1245,8 @@ export async function handleAgentChat(
           initDataBot: initDataBotOf(req, telegramId) ?? undefined,
           // The caller's own words: the one draft a stopped client may still get.
           ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
+          // What a picture may print without asking first (#3661).
+          heard: heardFrom(history),
           // A lane other than main works in its own browser window (lanes.ts).
           ...(lane !== lanes.MAIN_LANE ? { lane } : {}),
         },
