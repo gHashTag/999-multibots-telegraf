@@ -34,7 +34,9 @@ describe('сохранённый выбор голоса сверяется со
     // `sarah`/`rachel`/`josh` не были голосами нигде: провайдер их отбрасывал
     // и читал голосом по умолчанию, а человек платил за каждую попытку.
     expect(ГОЛОСА).not.toContain("id: 'sarah'")
-    expect(ГОЛОСА).toContain("id: 'Russian_ReliableMan'")
+    // One list for server and web: the fallback IS Kie's list, not a copy.
+    expect(ГОЛОСА).toContain('KIE_TTS_VOICES')
+    expect(ГОЛОСА).not.toContain("id: 'Russian_ReliableMan'")
   })
 })
 

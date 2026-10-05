@@ -2267,7 +2267,8 @@ export const TOOLS: AgentTool[] = [
         text: { type: 'string', description: 'текст для озвучки' },
         voice_id: {
           type: 'string',
-          description: 'идентификатор голоса ElevenLabs, необязателен',
+          description:
+            'идентификатор голоса Kie (список /api/voices), необязателен',
         },
         for_lead: {
           type: 'string',
