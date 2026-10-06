@@ -83,9 +83,13 @@ const HOURS = new RegExp(
 )
 /*
  * "$5k", "$5 тыс", "1,5 млн": a multiplier after the amount. Without it "$5k"
- * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686).
+ * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). A
+ * spaced Cyrillic "k" letter with a word after it is the preposition "to",
+ * not a thousand: "$5 <k> morning" is $5 (#3719). Glued ("$5k") it is
+ * always the multiplier.
  */
-const KILO = '(?:k|к|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])' // cyrillic-ok: multiplier words
+const KILO =
+  '(?:k|(?<=\\d)к|к(?!\\s+\\p{L})|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])' // cyrillic-ok: multiplier words
 /**
  * The spaces that join digit groups, as a regex character-class body: a
  * space, a no-break space, a narrow no-break space. A CLOSED list, never
@@ -139,7 +143,10 @@ const MILLIONS = new RegExp('\\d\\s?(?:млн|mln|million)', 'iu')
  * "1,5 млн" is 1 500 000 (#3709). One separator before exactly three digits
  * ("$1.500k") reads both ways -- a decimal (1500, like "$1.5k") or a
  * thousands group (1 500 000) -- and either reading the person wrote confirms
- * it, the same way "08.10" is a date or a time. Without a multiplier cents
+ * it, the same way "08.10" is a date or a time. A COMMA there is only the
+ * group: an English reader takes "$1,500k" as $1.5 million, so "$1500" must
+ * not confirm it (#3719). "1,500 mln" reads as 1.5 billion too; the rare
+ * Russian decimal-comma intent is then asked again, the safe failure. Without a multiplier cents
  * are dropped: "$2.50" is 2, which a person's "$2.50" or "$2" confirms.
  */
 function priceReadings(raw: string, matched: string): string[] {
@@ -150,7 +157,7 @@ function priceReadings(raw: string, matched: string): string[] {
   }
   const scale = 10 ** zeros
   const t = raw.trim()
-  const ambiguous = t.match(/^(\d{1,3})[.,](\d{3})$/)
+  const ambiguous = t.match(/^(\d{1,3})\.(\d{3})$/)
   if (ambiguous) {
     const asDecimal =
       Number(ambiguous[1]) * scale + Number(ambiguous[2].padEnd(zeros, '0'))

@@ -543,6 +543,26 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
     expect(unconfirmedFacts('fee $1.500k', 'fee $1k').length).toBe(1)
   })
 
+  it('"$1,500k" (comma) is only the group: $1500 does not confirm $1.5M (#3719)', () => {
+    expect(keys('$1,500k')).toEqual(['p1500000'])
+    expect(unconfirmedFacts('fee $1,500k', 'fee $1500').length).toBe(1)
+    expect(unconfirmedFacts('fee $1,500k', 'fee $1.5k').length).toBe(1)
+    expect(unconfirmedFacts('fee $1,500k', 'fee $1 500 000')).toEqual([])
+    // Decision: a comma before three digits is a group in Russian too.
+    expect(keys('цена 1,500 млн')).toEqual(['p1500000000'])
+  })
+
+  it('a spaced "к" before a word is the preposition, not a thousand (#3719)', () => {
+    expect(keys('$5 к утру')).toEqual(['p5'])
+    expect(unconfirmedFacts('$5 к утру', '$5')).toEqual([])
+    expect(keys('вход 500 ₽ к вечеру')).toEqual(['p500'])
+    expect(keys('$10к утру')).toEqual(['p10000'])
+    expect(keys('вход 10к ₽')).toEqual(['p10000'])
+    expect(keys('вход 10 к ₽')).toEqual(['p10000'])
+    expect(keys('цена $10 к')).toEqual(['p10000'])
+    expect(keys('10к рублей')).toEqual(['p10000'])
+  })
+
   it('a preposition "к" with no currency is not a price', () => {
     expect(keys('500 к ужину')).toEqual([])
   })
