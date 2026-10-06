@@ -168,7 +168,10 @@ const FILLER_RUN = new RegExp(
  * гостей" stay the bare amount. Any other word, a currency, punctuation or
  * the end keeps the multiplier on the price (#3758 round 4, #3769):
  * "$5, 10k", "$5, 10k budget", "$5 about 10k quid", "₽5, 10 тыс сумма" ask.
- * A bare hedge with no comma ("$5 about 10k people") loosens the chain too.
+ * A bare hedge with no comma ("$5 about 10k people") loosens the chain too,
+ * but there the counted noun must END the phrase -- the end, punctuation, a
+ * line break or a filler after it (#3758 round 5): "$5 about 10k ticket
+ * revenue" asks, as on main.
  * A loose spread is also echoed exactly: the person's identical text
  * confirms it (see Fact.exact).
  * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
@@ -290,11 +293,26 @@ function laterMultiplier(
   let fractionOnFirst = 0
   let afterNumber = false
   let loose = false
+  // A dash before the chain's hedge, or a comma: then it is no bare hedge.
+  let dashed = false
+  // The chain was loosened only by a bare hedge ("$5 about 10k", #3758
+  // round 5): no comma, no dash before the hedge.
+  let hedgeOnly = false
   // A loose chain ends at a multiplier that a counted noun follows (see
   // above). Closed on the safe side (#3758 round 4, #3769): only a word in
   // COUNTED_NOUNS leaves the bare price; any other word, a currency or a
-  // filler keeps the multiplier on the price, so it asks.
-  const countsNoun = () => loose && COUNTED_NOUNS.test(rest)
+  // filler keeps the multiplier on the price, so it asks. After a bare
+  // hedge the noun must also END the phrase (#3758 round 5): in "$5 about
+  // 10k ticket revenue" the noun only modifies a money word, and main
+  // asks there.
+  const countsNoun = () => {
+    if (!loose) return false
+    const m = rest.match(COUNTED_NOUNS)
+    if (!m) return false
+    if (!hedgeOnly) return true
+    const w = rest.slice(m[0].length).match(/^[ \t\u00a0]+(\p{L}+)/u)
+    return !w || FILLER_RUN.test(w[1])
+  }
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined
@@ -304,6 +322,7 @@ function laterMultiplier(
     used += t[0]
     rest = rest.slice(t[0].length)
     if (t[2]) loose = true
+    if (t[1]) dashed = true
     if (t[1] || t[2]) {
       joined = true
       afterNumber = false
@@ -338,7 +357,10 @@ function laterMultiplier(
     }
     if (afterNumber && TIME_RUN.test(word)) return undefined
     if (FILLER_RUN.test(word)) {
-      if (HEDGE_RUN.test(word)) loose = true
+      if (HEDGE_RUN.test(word)) {
+        if (!dashed && !loose) hedgeOnly = true
+        loose = true
+      }
       joined = true
       afterNumber = false
       continue

@@ -1933,6 +1933,43 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
     }
   })
 
+  it('a bare hedge, then a counted noun that only modifies a money word, asks both ways (#3758 round 5)', () => {
+    // Round-4 review: main asks on every row, round 4 confirmed them.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k ticket revenue'],
+      ['$5', 'Tickets $5 about 10k ticket revenue expected'],
+      ['$5', '$5 about 10k ticket sales'],
+      ['$5', '$5 around 10k user fees'],
+      ['$5', '$5 about 10k fan budget'],
+      ['$5', '$5 roughly 10k member payout'],
+      ['$5', '$5 approx 10k seat revenue'],
+      ['$5', '$5 about 10k client budget'],
+      ['$5', '$5 about 10k student fees'],
+      ['$5', '$5 about 10k tickets revenue'],
+      ['$5', '$5 about 10k people budget'],
+      ['₽5', '₽5 около 10 тыс клиент бюджет'], // cyrillic-ok: poster text
+      ['₽5', '₽5 около 10 тыс человек бюджет'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс билетов выручка'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(14)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+    // The noun that ends the phrase still leaves the bare price.
+    for (const [bare, full] of [
+      ['$5', '$5 about 10k tickets'],
+      ['$5', '$5 about 10k people'],
+      ['$5', '$5 about 10k people.'],
+      ['$5', '$5 about 10k people\nDoors at 7'],
+      ['$5', '$5 about 10k followers on insta'],
+      ['₽500', '₽500 около 2 тыс гостей'], // cyrillic-ok: poster text
+    ] as const) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+      expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+    }
+  })
+
   it('exact echo: the identical loose chain confirms, a reordered one asks', () => {
     // The person's own text, printed back character for character.
     for (const e of [
@@ -2033,7 +2070,6 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
           'active users',
           'live viewers',
           'Followers',
-          'people came',
         ],
         [
           'quid',
@@ -2109,7 +2145,9 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
         expected +=
           connectors.length *
           mults.length *
-          (counted.length * 2 + (unlisted.length + money.length) * 4)
+          (counted.length * 2 +
+            (sign === '$' ? 3 : 0) +
+            (unlisted.length + money.length) * 4)
         for (const c of connectors)
           for (const [m, zeros] of mults) {
             const bare = `ticket ${sign}${a}`
@@ -2118,6 +2156,22 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
               expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
               expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
               cells += 2
+            }
+            // #3758 round 5: a counted noun with a word after it ("people
+            // came") leaves the bare price after a comma or a dash, but not
+            // after a bare hedge -- there the noun must end the phrase.
+            for (const n of sign === '$' ? ['people came'] : []) {
+              const full = `${bare}${c}${m} ${n}`
+              const bareHedge = !/[,-]/u.test(c)
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(
+                bareHedge ? 1 : 0
+              )
+              const back = asks(full, bare)
+              if (bareHedge)
+                expect(back, `${full} / ${bare}`).toBeGreaterThan(0)
+              else expect(back, `${full} / ${bare}`).toBe(0)
+              expect(asks(full, full), `${full} / echo`).toBe(0)
+              cells += 3
             }
             for (const w of [...unlisted, ...money]) {
               const full = `${bare}${c}${m} ${w}`
@@ -2133,7 +2187,9 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
           }
       }
       expect(cells).toBe(expected)
-      expect(cells).toBe(6 * 3 * (63 * 2 + 20 * 4) + 5 * 3 * (19 * 2 + 11 * 4))
+      expect(cells).toBe(
+        6 * 3 * (62 * 2 + 1 * 3 + 20 * 4) + 5 * 3 * (19 * 2 + 11 * 4)
+      )
     })
   })
 })
