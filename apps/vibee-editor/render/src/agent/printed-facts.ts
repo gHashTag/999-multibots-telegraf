@@ -389,7 +389,15 @@ function suffixReading(run: string | undefined): Suffix {
   if (!run) return NO_SUFFIX
   for (const [re, zeros, alsoBare] of MULTIPLIER_RES)
     if (re.test(run)) return { zeros, alsoBare }
-  if (CURRENCY_RUN.test(run) || FILLER_RUN.test(run) || HALF_RUN.test(run))
+  // A hedge is a connector only INSIDE a chain (laterMultiplier). As the
+  // price's own run ("$5 about", "$5ish", a Russian "about") it stays an
+  // unknown run, as on main (#3758 round 9): read as filler, it let
+  // "$5 about two million" or "$5ish, 10k" confirm the bare "$5".
+  if (
+    CURRENCY_RUN.test(run) ||
+    (FILLER_RUN.test(run) && !HEDGE_RUN.test(run)) ||
+    HALF_RUN.test(run)
+  )
     return NO_SUFFIX
   return 'unknown'
 }

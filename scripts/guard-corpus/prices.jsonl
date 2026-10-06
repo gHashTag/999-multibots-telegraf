@@ -398,3 +398,132 @@
 {"heard": "$3 about 7k downloads\n\nThanks", "printed": "$3", "expect": "confirm"}
 {"heard": "₽700", "printed": "₽700 около 3 тыс клиентов / клиент", "expect": "ask"}
 {"heard": "₽700 около 3 тыс клиентов / клиент", "printed": "₽700", "expect": "ask"}
+# #3758 round 9: the round-8 reviewer's 22 rows where main asks and the round-8 head confirmed (a hedge as the price's own run), then the author's fresh hedge rows (after the amount, before a comma, before a newline, -ish, or so, give or take, Russian). Bare-hedge confirms are the truth; the guard asks as main does until #3780.
+{"heard": "$5", "printed": "$5 about two million", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around twenty grand", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly ten k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about ten thousand", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10 zorg", "expect": "ask"}
+{"heard": "$5", "printed": "$5ish, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around, 2k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about\n10k", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 около двух тысяч", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно, 2 тыс", "expect": "ask"}
+{"heard": "$5", "printed": "$5 approx two thousand", "expect": "ask"}
+{"heard": "€5", "printed": "€5 circa five million", "expect": "ask"}
+{"heard": "$5", "printed": "$5 so, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly, 10k budget", "expect": "ask"}
+{"heard": "£5", "printed": "£5ish, 3k", "expect": "ask"}
+{"heard": "$5 about 10k", "printed": "$5 about 10k", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 около", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about", "expect": "confirm"}
+{"heard": "$5", "printed": "$5ish", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 ish", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 around", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 approx 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 circa 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 approximately 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 thereabouts 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 give or take 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 or so 2 million", "expect": "ask"}
+{"heard": "$5", "printed": "$5ish 3k", "expect": "ask"}
+{"heard": "$5", "printed": "$5-ish 3k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 about 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 around 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 roughly 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 approx 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 circa 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 approximately 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 thereabouts 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 give or take 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 or so 2 million", "expect": "ask"}
+{"heard": "€20", "printed": "€20ish 3k", "expect": "ask"}
+{"heard": "€20", "printed": "€20-ish 3k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 about 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 around 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 roughly 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 approx 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 circa 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 approximately 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 thereabouts 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 give or take 10k", "expect": "ask"}
+{"heard": "£3", "printed": "£3 or so 2 million", "expect": "ask"}
+{"heard": "£3", "printed": "£3ish 3k", "expect": "ask"}
+{"heard": "£3", "printed": "£3-ish 3k", "expect": "ask"}
+{"heard": "$5", "printed": "$5ish, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5-ish, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5-ish, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 or so, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 or so, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 give or take, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 give or take, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly, 10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20ish, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20ish, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20-ish, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20-ish, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20 about, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 about, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20 around, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 around, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20 or so, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 or so, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20 give or take, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 give or take, 10k people", "expect": "ask"}
+{"heard": "€20", "printed": "€20 roughly, 10k", "expect": "ask"}
+{"heard": "€20", "printed": "€20 roughly, 10k people", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about\n2 million budget", "expect": "ask"}
+{"heard": "$5", "printed": "$5ish\n10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5ish\n2 million budget", "expect": "ask"}
+{"heard": "$5", "printed": "$5 or so\n10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 or so\n2 million budget", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around\n10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around\n2 million budget", "expect": "ask"}
+{"heard": "$5", "printed": "$5 give or take\n10k", "expect": "ask"}
+{"heard": "$5", "printed": "$5 give or take\n2 million budget", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 около 2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 около, 10к", "expect": "ask"}
+{"heard": "500 ₽", "printed": "500 ₽ около 3 млн", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 около\n2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно, 10к", "expect": "ask"}
+{"heard": "500 ₽", "printed": "500 ₽ примерно 3 млн", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно\n2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно двух тысяч", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 где-то 2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 где-то, 10к", "expect": "ask"}
+{"heard": "500 ₽", "printed": "500 ₽ где-то 3 млн", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 где-то\n2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 где-то двух тысяч", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 приблизительно 2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 приблизительно, 10к", "expect": "ask"}
+{"heard": "500 ₽", "printed": "500 ₽ приблизительно 3 млн", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 приблизительно\n2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 приблизительно двух тысяч", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 порядка 2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 порядка, 10к", "expect": "ask"}
+{"heard": "500 ₽", "printed": "500 ₽ порядка 3 млн", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 порядка\n2 тыс", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 порядка двух тысяч", "expect": "ask"}
+{"heard": "$5 around 2k people", "printed": "$5 around 2k people", "expect": "confirm"}
+{"heard": "$5ish 10k", "printed": "$5ish 10k", "expect": "confirm"}
+{"heard": "$5 or so 10k fans", "printed": "$5 or so 10k fans", "expect": "confirm"}
+{"heard": "₽500 около 2 тыс гостей", "printed": "₽500 около 2 тыс гостей", "expect": "confirm"}
+{"heard": "$5 roughly 3 million", "printed": "$5 roughly 3 million", "expect": "confirm"}
+{"heard": "$5 give or take 10k", "printed": "$5 give or take 10k", "expect": "confirm"}
+{"heard": "ticket $5", "printed": "ticket $5 about 10k people came", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k people", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс человек", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 or so 2k seats", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 or so", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 give or take", "expect": "confirm"}
+{"heard": "€5", "printed": "€5 roughly", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно", "expect": "confirm"}

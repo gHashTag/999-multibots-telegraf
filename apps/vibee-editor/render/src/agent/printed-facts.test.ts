@@ -1397,6 +1397,8 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
       ' около ',
       ' примерно ', // cyrillic-ok: hedge words
     ]
+    // The hedge is the price's own run: a space, then the hedge word.
+    const HEDGE_RUN_CONNECTORS = [' about ', ' около ', ' примерно '] // cyrillic-ok: hedge words
     const connectors = [
       '-',
       '–',
@@ -1517,6 +1519,12 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
               // the person's identical text confirms it (#3758 round 4).
               // The tight round-7 connectors still ask on an echo.
               const loose = LOOSE_CONNECTORS.includes(c)
+              // #3758 round 9: a hedge as the price's OWN run ("$5 about
+              // 10k", a Russian "about") is an unknown 4+ letter run, as on
+              // main: the bare amount never confirms it, and only its echo
+              // with no multiplier after it does ("$5 about 10"). A scaled
+              // chain after it keeps no exact echo (until #3780).
+              const own = HEDGE_RUN_CONNECTORS.includes(c)
               // No multiplier: the first amount is the bare amount.
               if (c.trim() || second !== 'none') {
                 const tail =
@@ -1526,9 +1534,9 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                       ? `${c}${halfText}`
                       : c
                 const printed = `${bare}${tail}`.trimEnd()
-                cell(printed, bare, 0)
+                cell(printed, bare, own ? 1 : 0)
                 cell(printed, printed, 0)
-                cell(printed, `${bare}${and}${sign}${a * 1000}`, 0)
+                cell(printed, `${bare}${and}${sign}${a * 1000}`, own ? 1 : 0)
               }
               // A table multiplier: bare AND scaled, unless it is adjacent.
               for (const [w, zeros, glued] of table) {
@@ -1537,8 +1545,8 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                 const printed = `${bare}${glue(w, glued && second === 'number')}`
                 cell(printed, bare, 1)
                 cell(printed, `${sign}${scaled}`, adjacent ? 0 : 1)
-                cell(printed, `${bare}${and}${sign}${scaled}`, 0)
-                cell(printed, printed, adjacent || loose ? 0 : 1)
+                cell(printed, `${bare}${and}${sign}${scaled}`, own ? 1 : 0)
+                cell(printed, printed, adjacent || (loose && !own) ? 0 : 1)
               }
               // An unknown short multiplier after a second number or a half:
               // no amount confirms it, nor the same ambiguous text. Right
@@ -1552,7 +1560,7 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                   cell(printed, bare, 1)
                   cell(printed, `${sign}${a * 1000}`, 1)
                   cell(printed, `${bare}${and}${sign}${a * 1000}`, 1)
-                  cell(printed, printed, loose ? 0 : 1)
+                  cell(printed, printed, loose && !own ? 0 : 1)
                 }
             }
       expect(cells).toBe(43024)
@@ -2145,10 +2153,13 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       '$5, 10k budget',
       '₽5, 10 тыс бюджет', // cyrillic-ok: poster text
       '$5, 2-1 win',
-      '$5 about 10k quid',
       '$5 - about 10k profit',
     ])
       expect(asks(e, e), e).toBe(0)
+    // #3758 round 9: a hedge as the price's own run keeps no exact echo,
+    // as on main (until #3780).
+    for (const e of ['$5 about 10k quid', '$5 about 10k', '₽500 около 2 тыс']) // cyrillic-ok: poster text
+      expect(asks(e, e), e).toBe(1)
     // Inside a longer message, and with other whitespace.
     expect(asks('$5, 10k budget', 'Poster: $5, 10k budget, Friday')).toBe(0)
     expect(asks('$5,  10k', '$5, 10k')).toBe(0)
@@ -2299,8 +2310,11 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ],
     ]
     // #3758 round 8 (variant B): after a bare hedge a counted noun asks
-    // too, as on main; the exact echo still confirms every loose chain.
-    it('a counted noun confirms both ways (not after a bare hedge); any other word asks, and its exact echo confirms', () => {
+    // too, as on main; the exact echo confirms every loose chain, except
+    // one whose hedge is the price's own run (round 9): that asks, as on
+    // main.
+    const HEDGE_OWN_RUN = new RegExp('^ (?:about|около) $', 'u') // cyrillic-ok: hedge words
+    it('a counted noun confirms both ways (not after a bare hedge); any other word asks, and its exact echo confirms (not after an own-run hedge)', () => {
       let cells = 0
       let expected = 0
       for (const [
@@ -2322,6 +2336,10 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
           for (const [m, zeros] of mults) {
             const bare = `ticket ${sign}${a}`
             const bareHedge = !/[,-]/u.test(c)
+            // #3758 round 9: the hedge right after the amount is the
+            // price's own run, an unknown run as on main, so even the exact
+            // echo asks (until #3780).
+            const ownHedge = HEDGE_OWN_RUN.test(c)
             for (const n of counted) {
               const full = `${bare}${c}${m} ${n}`
               const back = asks(full, bare)
@@ -2346,7 +2364,7 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
               if (bareHedge)
                 expect(back, `${full} / ${bare}`).toBeGreaterThan(0)
               else expect(back, `${full} / ${bare}`).toBe(0)
-              expect(asks(full, full), `${full} / echo`).toBe(0)
+              expect(asks(full, full), `${full} / echo`).toBe(ownHedge ? 1 : 0)
               cells += 3
             }
             for (const w of [...unlisted, ...money]) {
@@ -2357,7 +2375,7 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
                 asks(full, `${sign}${a * 10 ** zeros}`),
                 `${full} / scaled`
               ).toBeGreaterThan(0)
-              expect(asks(full, full), `${full} / echo`).toBe(0)
+              expect(asks(full, full), `${full} / echo`).toBe(ownHedge ? 1 : 0)
               cells += 4
             }
           }
