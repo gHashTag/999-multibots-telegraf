@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 25;",
-    "to": "pub const VERSION : u8 = 24;"
+    "from": "pub const VERSION : u8 = 26;",
+    "to": "pub const VERSION : u8 = 25;"
   },
   {
     "name": "two reasons on the card allowed",
@@ -463,5 +463,20 @@
     "name": "v23: the name inside a longer word is not the house",
     "from": "            return NAME_INSIDE_WORD;",
     "to": "            return false;"
+  },
+  {
+    "name": "v26: a caller who is the lead is not his own reel",
+    "from": "    return lead_is_caller && CALLER_OWN_LEAD_IS_OWN_REEL;",
+    "to": "    return false;"
+  },
+  {
+    "name": "v26: the own card is filled even when the pause shows no call",
+    "from": "    return own_reel && OWN_CARD_FILLED && cta_card_shown(call_chars, has_end_card);",
+    "to": "    return own_reel && OWN_CARD_FILLED;"
+  },
+  {
+    "name": "v26: the default ground goes back to pure black",
+    "from": "pub const END_CARD_DEFAULT_BG : str = \"#0B0B0B\";",
+    "to": "pub const END_CARD_DEFAULT_BG : str = \"#000000\";"
   }
 ]
