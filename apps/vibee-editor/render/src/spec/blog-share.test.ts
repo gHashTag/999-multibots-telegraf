@@ -381,6 +381,64 @@ describe('spec automation/blog-share against the host', () => {
     ).toBe('asked about newest (newest: the queue could not be read)')
   })
 
+  it("a fresh article goes first, then the owner's queue, then the newest", async () => {
+    const { nextArticle, isFresh, FRESH_MS } = await import(
+      '../agent/blog-share'
+    )
+    expect(FRESH_MS).toBe(SPEC.FRESH_MS)
+    expect(SPEC.FRESH_MS).toBe(604800000)
+    /* is_fresh: the edge is included, one millisecond past it is not. */
+    expect(isFresh(0)).toBe(true)
+    expect(isFresh(604800000)).toBe(true)
+    expect(isFresh(604800001)).toBe(false)
+    const now = Date.UTC(2026, 9, 6)
+    const at = (slug: string, ageMs?: number) =>
+      ({
+        ...(article as object),
+        slug,
+        ...(ageMs === undefined ? {} : { published: now - ageMs }),
+      }) as never
+    const slugOf = (p: { article: { slug: string } } | undefined) =>
+      p?.article.slug
+    /* Feed newest first: two fresh, one exactly at the edge, one past it. */
+    const feed = [
+      at('fresh-new', 1000),
+      at('fresh-old', 2000),
+      at('edge', 604800000),
+      at('stale', 604800001),
+      at('undated'),
+    ]
+    /* next_source "fresh": ahead of the queue, the newest fresh first. */
+    expect(nextArticle(feed, new Set(), ['stale'], now)).toEqual({
+      article: feed[0],
+      queued: false,
+    })
+    expect(
+      slugOf(nextArticle(feed, new Set(['fresh-new']), ['stale'], now))
+    ).toBe('fresh-old')
+    /* The boundary vector: exactly FRESH_MS old still goes first. */
+    expect(
+      slugOf(
+        nextArticle(feed, new Set(['fresh-new', 'fresh-old']), ['stale'], now)
+      )
+    ).toBe('edge')
+    /* next_source "queue": no fresh one left, the queue orders the rest. */
+    const noFresh = new Set(['fresh-new', 'fresh-old', 'edge'])
+    expect(nextArticle(feed, noFresh, ['undated', 'stale'], now)).toEqual({
+      article: feed[4],
+      queued: true,
+    })
+    /* next_source "newest": no fresh, no queued -- the newest remaining. */
+    expect(nextArticle(feed, noFresh, ['gone'], now)).toEqual({
+      article: feed[3],
+      queued: false,
+    })
+    /* next_source "none". */
+    expect(
+      nextArticle(feed, new Set([...noFresh, 'stale', 'undated']), [], now)
+    ).toBe(undefined)
+  })
+
   it('a network switched off is neither asked about nor posted to', async () => {
     const { subredditOf, shareUrls, questionFor } = await import(
       '../agent/blog-share'
@@ -425,6 +483,6 @@ describe('spec automation/blog-share against the host', () => {
 
   it('the desk is live, and its posts were seen on the profile', () => {
     expect(SPEC.RUN_LIVE).toBe(true)
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 })
