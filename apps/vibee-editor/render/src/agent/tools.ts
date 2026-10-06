@@ -2072,8 +2072,7 @@ export const TOOLS: AgentTool[] = [
       'Картинка по описанию; с фото человека — image_edit. ' +
       imageChainShortNote() +
       ' В ответе «провайдер» — кто нарисовал, «отказы» — кто не смог или пропущен и почему. ' +
-      'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
-      'её можно сразу отдавать в reel_render или публиковать в ленту.',
+      'Файл ложится в S3 и в «мои файлы»; прямую ссылку сразу отдавай в reel_render или в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -2100,6 +2099,7 @@ export const TOOLS: AgentTool[] = [
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
+        title: { type: 'string', description: 'название афиши' },
       },
       required: ['prompt'],
       additionalProperties: false,
@@ -2110,8 +2110,13 @@ export const TOOLS: AgentTool[] = [
       // does not cover (src/agent/flat-price-model.ts).
       const refused = imageModelRefusal(args.model)
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
-      // A date, time or price nobody confirmed is not printed (#3661).
-      const unsaid = unconfirmedFacts(String(args.prompt ?? ''), ctx.heard)
+      // A date, time or price nobody confirmed is not printed (#3661) --
+      // in the drawn title either (#3729).
+      const title = typeof args.title === 'string' ? args.title : ''
+      const unsaid = unconfirmedFacts(
+        `${String(args.prompt ?? '')}\n${title}`,
+        ctx.heard
+      )
       if (unsaid.length)
         return {
           сделано: false, // cyrillic-ok: the tool's own response fields
@@ -2253,7 +2258,8 @@ export const TOOLS: AgentTool[] = [
       const drawn = await overlayFactsOnPicture(
         printed,
         Buffer.from(await img.arrayBuffer()),
-        img.headers.get('content-type') || 'image/jpeg'
+        img.headers.get('content-type') || 'image/jpeg',
+        { title }
       )
       const bytes = drawn.bytes
       // The extension follows the bytes. It used to be hard-coded .jpg while

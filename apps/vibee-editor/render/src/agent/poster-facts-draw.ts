@@ -12,6 +12,12 @@
  * never squeezed past the box: the spec's "a fact is never truncated" holds
  * for the font that actually paints, not only for the average.
  *
+ * The title is drawn only when the agent passes it explicitly (#3729): the
+ * background is asked for no text at all, so a poster with facts and no
+ * passed title has NO title, and the tool result says so instead of letting
+ * the agent describe one. A title too wide to fit is dropped and named; the
+ * facts are still drawn.
+ *
  * Font: Liberation Sans Bold (fonts-liberation in render/Dockerfile), falling
  * back to DejaVu Sans for glyphs Liberation 1.07 lacks (the rouble sign).
  */
@@ -34,19 +40,22 @@ export function overlayOn(env: NodeJS.ProcessEnv = process.env): boolean {
 /** Appended to the background prompt while code draws the facts. */
 export const NO_TEXT_SUFFIX =
   '\n\nNo text, letters, digits or logos anywhere on the picture. ' +
-  'Keep the bottom third calm and uncluttered: the date, time and price are added on top later.'
+  'Keep the bottom third calm and uncluttered: the poster text is added on top later.'
 
 /**
  * The lines the overlay can print from what factsIn found in the prompt:
- * dates then times as one date_time line, prices as the price line. Title and
- * venue have no confirmed source yet, so they are never guessed.
+ * dates then times as one date_time line, prices as the price line, and the
+ * title the agent passed explicitly. The title is never guessed from the
+ * prompt; venue has no confirmed source yet.
  */
-export function posterFactsFrom(facts: Fact[]): PosterFacts {
+export function posterFactsFrom(facts: Fact[], title?: string): PosterFacts {
   const of = (kind: Fact['kind']) =>
     facts.filter(f => f.kind === kind).map(f => f.text.trim())
   const dateTime = [...of('date'), ...of('time')].filter(Boolean).join(', ')
   const price = of('price').filter(Boolean).join(' / ')
   const out: PosterFacts = {}
+  const t = (title ?? '').replace(/\s+/g, ' ').trim()
+  if (t) out.title = t
   if (dateTime) out.date_time = dateTime
   if (price) out.price = price
   return out
@@ -188,9 +197,17 @@ export async function drawPosterFacts(
   }
 }
 
-/** What image_generate reports about the overlay; absent when it did not run. */
+/**
+ * What image_generate reports about the overlay; absent when it did not run.
+ * `title` says whether the poster carries one: 'none' = no title was passed,
+ * so the text-free background has no title at all.
+ */
 export type OverlayNote =
-  | { drawn: string[] }
+  | {
+      drawn: string[]
+      title: 'drawn' | 'none' | 'refused'
+      titleReason?: string
+    }
   | { drawn: false; refused: string; reason: string }
 
 /**
@@ -216,18 +233,34 @@ export async function overlayFactsOnPicture(
   facts: Fact[],
   bytes: Buffer,
   contentType: string,
-  opts: { env?: NodeJS.ProcessEnv; kit?: CanvasKit } = {}
+  opts: { env?: NodeJS.ProcessEnv; kit?: CanvasKit; title?: string } = {}
 ): Promise<{ bytes: Buffer; contentType: string; note?: OverlayNote }> {
-  const pf = posterFactsFrom(facts)
+  const pf = posterFactsFrom(facts, opts.title)
   if (!overlayOn(opts.env) || !(pf.date_time || pf.price))
     return { bytes, contentType }
   try {
-    const r = await drawPosterFacts(bytes, pf, opts.kit)
+    let r = await drawPosterFacts(bytes, pf, opts.kit)
+    let titleReason: string | undefined
+    // A title that does not fit is dropped, never cut; the facts it crowded
+    // out are drawn without it.
+    if (
+      !r.drawn &&
+      pf.title &&
+      (r.refused === 'title' || r.refused === 'block')
+    ) {
+      titleReason = r.reason
+      const { title: _dropped, ...rest } = pf
+      r = await drawPosterFacts(bytes, rest, opts.kit)
+    }
     if (r.drawn)
       return {
         bytes: r.bytes,
         contentType: r.contentType,
-        note: { drawn: r.lines },
+        note: {
+          drawn: r.lines,
+          title: titleReason ? 'refused' : pf.title ? 'drawn' : 'none',
+          ...(titleReason ? { titleReason } : {}),
+        },
       }
     return {
       bytes,
@@ -247,9 +280,20 @@ export async function overlayFactsOnPicture(
   }
 }
 
-/** The hint sentence for a refused overlay; empty when facts were drawn. */
+/**
+ * The hint sentence about what the poster lacks; empty only when the facts
+ * and the title were all drawn.
+ */
 export function overlayRefusedHint(note?: OverlayNote): string {
-  if (!note || note.drawn !== false) return ''
-  // cyrillic-ok: the tool's hint to the agent is Russian like the rest
-  return `Дата, время и цена НЕ напечатаны на картинке (${note.reason}) — скажи человеку честно и предложи короче формулировку.`
+  if (!note) return ''
+  if (note.drawn === false)
+    // cyrillic-ok: the tool's hint to the agent is Russian like the rest
+    return `Дата, время и цена НЕ напечатаны на картинке (${note.reason}), названия на ней тоже нет: фон рисуется без текста. Скажи человеку честно и предложи короче формулировку.`
+  if (note.title === 'none')
+    // cyrillic-ok: the tool's hint to the agent is Russian like the rest
+    return 'На картинке НЕТ названия: при дате и цене фон рисуется без текста. Не описывай название, которого нет; нужно — повтори с title.'
+  if (note.title === 'refused')
+    // cyrillic-ok: the tool's hint to the agent is Russian like the rest
+    return `Название НЕ напечатано (${note.titleReason}), дата, время и цена напечатаны. Скажи человеку честно и предложи короче название.`
+  return ''
 }
