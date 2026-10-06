@@ -23,7 +23,6 @@ is yours too"); it is not repeated here.
 - A -> `fix/userbot-plain-errors`
 - D -> `fix/crm-duet-dry-run-by-default`
 - N1 -> `fix/zai-relay-yields-to-agent`
-- N2 -> `fix/zai-lite-own-key`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
 2026-10-06 quoted. The coder bee removes its item's line here in its own PR,
@@ -57,6 +56,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       to the agent (in-flight cap 1, 3 s gap, own key `ZAI_RELAY_API_KEY`); N2 zai-lite on its own
       key `ZAI_LITE_API_KEY`; N3 after both deploy, set the keys (owner said yes 06.10): relay +
       Zep `ZEP_OPENAI_API_KEY` = account 3 together, lite = account 2; N4 top up `reserve` (owner).
+      N2 done in #3788 (not yet deployed); N1, N3, N4 remain.
 - [ ] M. Telegram start card: "take the wheel" / "pause" buttons (B14, C3/C4).
 
 ## Журнал
@@ -70,6 +70,11 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   1305 (model overloaded, any key) on 3 of 4. Lesson: when "the browser stalls", read the
   agent's provider lines first -- `[agent] provider skipped` and `"outcome":"error"` in
   `railway logs --service vibee-render --environment production --lines 5000`.
+- 2026-10-06. N2 (#3788): zai-lite reads `ZAI_LITE_API_KEY`, falling back to `GLM_API_KEY`;
+  a 429 line names the vendor code; while both routes share one key, a 1302 on zai skips
+  zai-lite for that turn (1305 does not). Tests 12/12 + 71/71 neighbours, run locally (runner
+  gave no result); 3 mutants caught. Nothing changes until `ZAI_LITE_API_KEY` is set on
+  vibee-render after the deploy (N3: account 2).
 - 2026-10-06. B (#3789): a yes now unlocks one place for one purpose -- only act-kind approvals
   (ask_permission, choice) mark the window, bound to the exact host of the agent's page; a yes
   with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
