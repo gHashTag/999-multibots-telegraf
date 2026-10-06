@@ -129,6 +129,11 @@ const en: Translations = {
   'browser.choice.done': '✓ Done',
   'browser.choice.cannot': 'Cannot',
   'browser.keys.label': 'Keys for the page',
+  'browser.tabs.label': 'Open tabs',
+  'browser.tabs.new': 'New tab',
+  'browser.tabs.close': 'Close tab {title}',
+  'browser.tabs.untitled': 'Untitled',
+  'browser.tabs.refused': 'The browser did not take it',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
   'browser.ask.title': '🛡 The agent asks your permission',
@@ -3156,6 +3161,11 @@ const ru: Translations = {
   'browser.choice.done': '✓ Готово', // cyrillic-ok
   'browser.choice.cannot': 'Не получается', // cyrillic-ok
   'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
+  'browser.tabs.label': 'Открытые вкладки', // cyrillic-ok
+  'browser.tabs.new': 'Новая вкладка', // cyrillic-ok
+  'browser.tabs.close': 'Закрыть вкладку {title}', // cyrillic-ok
+  'browser.tabs.untitled': 'Без названия', // cyrillic-ok
+  'browser.tabs.refused': 'Браузер не принял это', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
   'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
