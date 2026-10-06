@@ -749,6 +749,94 @@ describe('greeting, addressee, separator, opener, verb: one rule (#3728 round 3)
   }
 })
 
+/*
+ * A wrapped claim is still a claim, in every family (#3728 round 4). Round 3
+ * joined wrapped lines with a line break and folded it for media and voice
+ * only, so a browser claim that wrapped went quiet. This walks every claim
+ * example of every family and puts a line break at EVERY space, one at a
+ * time: the family must stay flagged wherever the spaced line is flagged.
+ */
+describe('a line break at any space keeps every family flagged (#3728 round 4)', () => {
+  const EXAMPLES: Record<string, string[]> = {
+    browser: [
+      'Открываю страницу входа в кабинет.', // cyrillic-ok: test input
+      'Сделал скриншот экрана для проверки.', // cyrillic-ok: test input
+      'Читаю текст страницы целиком.', // cyrillic-ok: test input
+      'Нажимаю кнопку входа через Google.', // cyrillic-ok: test input
+      'Прокручиваю ленту вниз до конца.', // cyrillic-ok: test input
+      'Сейчас проверяю все вкладки, минутку.', // cyrillic-ok: test input
+      'Зашла в кабинет, и на экране сейчас вижу форму оплаты.', // cyrillic-ok: test input
+      "I'm opening the login page now.",
+      'Done, I am opening the page now.',
+      'Хорошо, I clicked the button.', // cyrillic-ok: test input
+      'I took a screenshot of it.',
+    ],
+    media: [
+      'Сделала для вас афишу в стиле нуар.', // cyrillic-ok: test input
+      'Вот ваша афиша к открытию кафе.', // cyrillic-ok: test input
+      'Смонтировала тебе видео про кафе.', // cyrillic-ok: test input
+      'Отправила вам фото с примеркой.', // cyrillic-ok: test input
+      'I made the poster for you.',
+      'Here is your poster for the event.',
+    ],
+    voice: [
+      'Записала тебе голосовое сообщение с ответом.', // cyrillic-ok: test input
+      'Озвучила для вас текст поста.', // cyrillic-ok: test input
+      'Вот ваше голосовое к посту.', // cyrillic-ok: test input
+      'Голосовое сообщение готово, слушайте.', // cyrillic-ok: test input
+      'I recorded you a voice note.',
+      'I have voiced it for you.',
+      'Here is your voice note for today.',
+      'The voice message is ready now.',
+    ],
+  }
+  const rows: Array<[string, string, string]> = []
+  for (const [kind, lines] of Object.entries(EXAMPLES))
+    for (const spaced of lines)
+      for (let i = spaced.indexOf(' '); i >= 0; i = spaced.indexOf(' ', i + 1))
+        rows.push([
+          kind,
+          spaced,
+          spaced.slice(0, i) + '\n' + spaced.slice(i + 1),
+        ])
+  it('every example is flagged with its spaces', () => {
+    const quiet = Object.entries(EXAMPLES).flatMap(([kind, lines]) =>
+      lines.filter(l => !unbackedKinds(l, []).includes(kind as never))
+    )
+    expect(quiet).toEqual([])
+  })
+  it('covers every space of every example', () => {
+    expect(rows.length).toBeGreaterThan(100)
+  })
+  it('a line break at any space keeps the family flagged', () => {
+    const silent = rows.filter(
+      ([kind, spaced, wrapped]) =>
+        unbackedKinds(spaced, []).includes(kind as never) &&
+        !unbackedKinds(wrapped, []).includes(kind as never)
+    )
+    expect(silent).toEqual([])
+  })
+  it('claimsBrowserWork reads a wrapped line the same way', () => {
+    const silent = rows.filter(
+      ([kind, , wrapped]) => kind === 'browser' && !claimsBrowserWork(wrapped)
+    )
+    expect(silent).toEqual([])
+  })
+  // the five answers of the round-3 review, flagged on main, silent on round 3
+  for (const said of [
+    'Зашла в кабинет, и на экране\nвижу форму оплаты.', // cyrillic-ok: test input
+    'Сейчас проверяю\nвкладки, минутку.', // cyrillic-ok: test input
+    'Хорошо, I\nclicked the button.', // cyrillic-ok: test input
+    'Done, I am\nopening the page now.',
+    'I took a\nscreenshot of it.',
+  ]) {
+    it(`a wrapped browser claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['browser'])
+      expect(honestyNote(said, [text(said)])).toBe(HONESTY_NOTE)
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

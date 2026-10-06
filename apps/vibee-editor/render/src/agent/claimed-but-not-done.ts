@@ -177,6 +177,17 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
+ * The ONE form every claim pattern reads (#3728 round 4). Patterns spell a
+ * space literally ("на экране вижу", "I clicked"), and a model wraps lines
+ * anywhere, so each whitespace character becomes one space here and nowhere
+ * else: round 3 folded line breaks for media and voice only, and a wrapped
+ * browser claim went quiet. The fold keeps the length, so a match index in
+ * the flat form is the same index in the structural text, where a line break
+ * still ends a clause for the opener and person rules.
+ */
+const flatOf = (text: string): string => text.replace(/\s/g, ' ')
+
+/*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
  * It excuses the media and voice claims of ITS OWN sentence only (#3677): one
@@ -194,7 +205,8 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(text))
+  const flat = flatOf(text)
+  return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(flat))
 }
 
 /** How many browser tools the turn really called, from its events. Pure. */
@@ -269,11 +281,14 @@ function isHeader(line: string): boolean {
  * paragraph" rule only ever failed for that case, since a plain line after
  * a plain line joins it.
  */
-function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
+type Sentence = { text: string; flat: string; back: boolean }
+
+function sentencesOf(raw: string): Sentence[] {
   const clean = raw
+    .replace(/\r\n?/g, '\n')
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
-  const out: Array<{ text: string; back: boolean }> = []
+  const out: Sentence[] = []
   const items: Array<{ text: string; listed: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
     const first = items.length
@@ -282,7 +297,7 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
       const last = items.length > first ? items[items.length - 1] : undefined
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
-      if (continues) last.text += '\n' + line
+      if (continues) last.text += '\n' + line.trimStart()
       else items.push({ text: line, listed })
     }
   }
@@ -303,6 +318,7 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
     body.split(SENTENCE_END).forEach((text, k) =>
       out.push({
         text,
+        flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
       })
     )
@@ -568,18 +584,14 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
 // every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
-function claimedIn(
-  c: (typeof CLAIMS)[number],
-  s: { text: string; back: boolean }
-) {
-  if (kindOf(c) === 'browser') return c.re.test(s.text)
+// every family matches s.flat; the breaks are read from s.text (#3728 round 4)
+function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
+  if (kindOf(c) === 'browser') return c.re.test(s.flat)
   if (s.back) return false
   const verbLed = VERB_LED(c)
   const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
-  // a claim may wrap a line; whose verb it is depends on the break (#3728)
-  const flat = s.text.replace(/\n/g, ' ')
-  for (const m of flat.matchAll(all)) {
-    if (asked(flat, m, verbLed)) continue
+  for (const m of s.flat.matchAll(all)) {
+    if (asked(s.text, m, verbLed)) continue
     if (!verbLed || ownVerb(s.text, m)) return true
   }
   return false
