@@ -1298,6 +1298,76 @@ import {
   overlayFactsOnPicture,
   overlayRefusedHint,
 } from './poster-facts-draw'
+import {
+  backgroundFor,
+  keepBackground,
+  type Background,
+} from './poster-backgrounds'
+
+/** Whose background it is: the person, the client this turn draws for, the surface. */
+const backgroundOwner = (ctx: ToolContext): string =>
+  [
+    ctx.telegramId,
+    ctx.faceOf ?? '',
+    ctx.sellerSweep ? 'sweep' : '',
+    ctx.surface ?? '',
+  ].join('\n')
+
+/**
+ * The title drawn on a background already paid for (#3733): no provider
+ * call, no charge, nothing spent from the daily cap.
+ */
+async function redrawOnKeptBackground(
+  args: Record<string, any>,
+  ctx: ToolContext,
+  kept: Background,
+  title: string
+): Promise<unknown> {
+  const prompt = String(args.prompt ?? '')
+  const drawn = await overlayFactsOnPicture(
+    factsIn(prompt),
+    kept.bytes,
+    kept.contentType,
+    { title }
+  )
+  const ext = drawn.contentType.includes('png')
+    ? 'png'
+    : drawn.contentType.includes('webp')
+      ? 'webp'
+      : 'jpg'
+  const up = await selfFetch(`${selfBase()}/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': drawn.contentType,
+      'X-Filename': `agent-image-${Date.now()}.${ext}`,
+    },
+    body: new Uint8Array(drawn.bytes),
+  })
+  const upData: any = await up.json().catch(() => null)
+  if (!up.ok || !upData?.directUrl)
+    return {
+      сделано: false, // cyrillic-ok: the tools’ answer fields
+      причина: `S3 не принял файл: HTTP ${up.status}`, // cyrillic-ok: the tools’ answer fields
+    }
+  const r = await ctx.pool.query(
+    `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+     VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+     RETURNING id, created_at::text`,
+    [ctx.telegramId, upData.directUrl, prompt]
+  )
+  const unprinted = overlayRefusedHint(drawn.note)
+  return {
+    сделано: true, // cyrillic-ok: the tools’ answer fields
+    url: upData.directUrl,
+    id: r.rows[0]?.id,
+    provider: kept.provider,
+    watermark: null,
+    tried: [],
+    redrawn: true,
+    ...(drawn.note ? { factsOverlay: drawn.note } : {}),
+    подсказка: `Название дорисовано на прежний фон: новой генерации и списания не было. ${unprinted ? unprinted + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
+  }
+}
 
 export const TOOLS: AgentTool[] = [
   {
@@ -2071,8 +2141,8 @@ export const TOOLS: AgentTool[] = [
     description:
       'Картинка по описанию; с фото человека — image_edit. ' +
       imageChainShortNote() +
-      ' В ответе «провайдер» — кто нарисовал, «отказы» — кто не смог или пропущен и почему. ' +
-      'Файл ложится в S3 и в «мои файлы»; прямую ссылку сразу отдавай в reel_render или в ленту.',
+      ' В ответе provider — кто нарисовал, tried — кто не смог и почему. ' +
+      'Файл — в «мои файлы»; ссылку отдавай в reel_render или в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -2099,7 +2169,11 @@ export const TOOLS: AgentTool[] = [
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
-        title: { type: 'string', description: 'название афиши' },
+        title: {
+          type: 'string',
+          description:
+            'название афиши; при дате/цене — сразу, его печатает код',
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
@@ -2122,6 +2196,13 @@ export const TOOLS: AgentTool[] = [
           сделано: false, // cyrillic-ok: the tool's own response fields
           причина: confirmFirst(unsaid), // cyrillic-ok: the tool's own response fields
         }
+      // A title for a background paid for a moment ago only redraws the
+      // overlay: no new generation, no charge (#3733).
+      const who = backgroundOwner(ctx)
+      const keptBg = title
+        ? backgroundFor(who, String(args.prompt ?? ''))
+        : null
+      if (keptBg) return redrawOnKeptBackground(args, ctx, keptBg, title)
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
@@ -2255,12 +2336,21 @@ export const TOOLS: AgentTool[] = [
       }
       // The facts are drawn onto the picture before it is stored; a fact
       // that does not fit is refused and named, never cut (#3717).
+      const background = Buffer.from(await img.arrayBuffer())
+      const backgroundType = img.headers.get('content-type') || 'image/jpeg'
       const drawn = await overlayFactsOnPicture(
         printed,
-        Buffer.from(await img.arrayBuffer()),
-        img.headers.get('content-type') || 'image/jpeg',
+        background,
+        backgroundType,
         { title }
       )
+      // A textless background is kept, so a title added next costs nothing.
+      if (printed.length)
+        keepBackground(who, String(args.prompt ?? ''), {
+          bytes: background,
+          contentType: backgroundType,
+          provider: servedBy,
+        })
       const bytes = drawn.bytes
       // The extension follows the bytes. It used to be hard-coded .jpg while
       // Kie hands back image/png (measured), so every Kie poster was stored
