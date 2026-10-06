@@ -1072,3 +1072,331 @@ describe('whitespace is normalised once, at every entry (#3728 round 6)', () => 
       ])
     })
 })
+
+/*
+ * A gap between the verb and its object (#3734). The claim patterns wanted
+ * the object right after the verb, so "Сделала Анне афишу" and "Отправила // cyrillic-ok: quoted input
+ * вам только что голосовое" were silent -- the unsafe side. The gap is // cyrillic-ok: quoted input
+ * bounded by the clause, not by a count. Grid: every claim verb of every
+ * family that takes an object x every gap x every object noun of that
+ * family; every row is flagged. The honest mirror puts the same rows in the
+ * conditional, the future or the negative, and every one stays silent, as
+ * on main.
+ */
+describe('a gap between verb and object stays inside the clause (#3734)', () => {
+  type Family = 'browser' | 'media' | 'voice'
+  // 'past/future' of each verb, the objects it takes, the family
+  const RU: Array<[string[], string[], Family]> = [
+    [
+      [
+        'сделал/сделаю', // cyrillic-ok: test input
+        'сделала/сделаю', // cyrillic-ok: test input
+        'нарисовал/нарисую', // cyrillic-ok: test input
+        'нарисовала/нарисую', // cyrillic-ok: test input
+        'создал/создам', // cyrillic-ok: test input
+        'создала/создам', // cyrillic-ok: test input
+        'сгенерировал/сгенерирую', // cyrillic-ok: test input
+        'сгенерировала/сгенерирую', // cyrillic-ok: test input
+        'подготовил/подготовлю', // cyrillic-ok: test input
+        'подготовила/подготовлю', // cyrillic-ok: test input
+      ],
+      [
+        'афишу', // cyrillic-ok: test input
+        'картинку', // cyrillic-ok: test input
+        'изображение', // cyrillic-ok: test input
+        'постер', // cyrillic-ok: test input
+        'обложку', // cyrillic-ok: test input
+        'баннер', // cyrillic-ok: test input
+      ],
+      'media',
+    ],
+    [
+      [
+        'сделал/сделаю', // cyrillic-ok: test input
+        'сделала/сделаю', // cyrillic-ok: test input
+        'смонтировал/смонтирую', // cyrillic-ok: test input
+        'смонтировала/смонтирую', // cyrillic-ok: test input
+        'собрал/соберу', // cyrillic-ok: test input
+        'собрала/соберу', // cyrillic-ok: test input
+      ],
+      [
+        'видео', // cyrillic-ok: test input
+        'ролик', // cyrillic-ok: test input
+        'рилс', // cyrillic-ok: test input
+      ],
+      'media',
+    ],
+    [
+      [
+        'отправил/отправлю', // cyrillic-ok: test input
+        'отправила/отправлю', // cyrillic-ok: test input
+        'прислал/пришлю', // cyrillic-ok: test input
+        'прислала/пришлю', // cyrillic-ok: test input
+        'скинул/скину', // cyrillic-ok: test input
+        'скинула/скину', // cyrillic-ok: test input
+      ],
+      [
+        'фото', // cyrillic-ok: test input
+        'картинку', // cyrillic-ok: test input
+        'афишу', // cyrillic-ok: test input
+        'постер', // cyrillic-ok: test input
+        'видео', // cyrillic-ok: test input
+        'ролик', // cyrillic-ok: test input
+        'файл', // cyrillic-ok: test input
+      ],
+      'media',
+    ],
+    [
+      [
+        'записал/запишу', // cyrillic-ok: test input
+        'записала/запишу', // cyrillic-ok: test input
+        'отправил/отправлю', // cyrillic-ok: test input
+        'отправила/отправлю', // cyrillic-ok: test input
+        'прислал/пришлю', // cyrillic-ok: test input
+        'прислала/пришлю', // cyrillic-ok: test input
+        'скинул/скину', // cyrillic-ok: test input
+        'скинула/скину', // cyrillic-ok: test input
+        'озвучил/озвучу', // cyrillic-ok: test input
+        'озвучила/озвучу', // cyrillic-ok: test input
+      ],
+      [
+        'голосовое', // cyrillic-ok: test input
+        'аудио', // cyrillic-ok: test input
+        'войс', // cyrillic-ok: test input
+      ],
+      'voice',
+    ],
+    [
+      [
+        'озвучил/озвучу', // cyrillic-ok: test input
+        'озвучила/озвучу', // cyrillic-ok: test input
+      ],
+      [
+        'текст', // cyrillic-ok: test input
+        'пост', // cyrillic-ok: test input
+        'сценарий', // cyrillic-ok: test input
+        'ответ', // cyrillic-ok: test input
+        'сообщение', // cyrillic-ok: test input
+        'письмо', // cyrillic-ok: test input
+      ],
+      'voice',
+    ],
+    [
+      [
+        'открываю/открою', // cyrillic-ok: test input
+        'открыл/открою', // cyrillic-ok: test input
+        'открылась/откроется', // cyrillic-ok: test input
+        'открылся/откроется', // cyrillic-ok: test input
+      ],
+      [
+        'страницу', // cyrillic-ok: test input
+        'сайт', // cyrillic-ok: test input
+        'вкладку', // cyrillic-ok: test input
+        'linkedin', // cyrillic-ok: test input
+        'x.com', // cyrillic-ok: test input
+        'google', // cyrillic-ok: test input
+      ],
+      'browser',
+    ],
+    [
+      [
+        'делаю/сделаю', // cyrillic-ok: test input
+        'сделал/сделаю', // cyrillic-ok: test input
+      ],
+      [
+        'снимок', // cyrillic-ok: test input
+        'скриншот', // cyrillic-ok: test input
+      ],
+      'browser',
+    ],
+    [
+      [
+        'читаю/прочитаю', // cyrillic-ok: test input
+        'прочитал/прочитаю', // cyrillic-ok: test input
+      ],
+      [
+        'текст', // cyrillic-ok: test input
+        'страницу', // cyrillic-ok: test input
+      ],
+      'browser',
+    ],
+    [
+      [
+        'проверяю/проверю', // cyrillic-ok: test input
+        'смотрю/посмотрю', // cyrillic-ok: test input
+      ],
+      [
+        'вкладки', // cyrillic-ok: test input
+        'все вкладки', // cyrillic-ok: test input
+      ],
+      'browser',
+    ],
+  ]
+  const RU_GAPS = [
+    '',
+    'вам',
+    'тебе',
+    'ей',
+    'Анне',
+    'Ивану',
+    'только что',
+    'уже',
+    'вам только что',
+    'Анне уже',
+    'тебе сегодня утром',
+    'Ивану Петрову уже',
+  ] // cyrillic-ok: test input
+  // verb, its base form, the objects it takes, the family
+  const EN: Array<[string, string, string[], Family]> = [
+    ...['made', 'created', 'generated', 'drew'].map(
+      (v): [string, string, string[], Family] => [
+        v,
+        {
+          made: 'make',
+          created: 'create',
+          generated: 'generate',
+          drew: 'draw',
+        }[v]!,
+        [
+          'the poster',
+          'an image',
+          'a picture',
+          'your banner',
+          'the cover',
+          'a video',
+          'poster',
+        ],
+        'media',
+      ]
+    ),
+    [
+      'recorded',
+      'record',
+      ['a voice note', 'the audio', 'your voice message', 'an audio clip'],
+      'voice',
+    ],
+    [
+      'sent',
+      'send',
+      ['a voice note', 'the audio', 'your voice message', 'an audio clip'],
+      'voice',
+    ],
+    ['took', 'take', ['a screenshot'], 'browser'],
+  ]
+  const EN_GAPS = [
+    '',
+    'you',
+    'her',
+    'Anna',
+    'Ivan',
+    'just now',
+    'already',
+    'you just now',
+    'Anna already',
+    'you this morning',
+  ]
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+  const join = (...parts: string[]) => parts.filter(Boolean).join(' ')
+
+  const claims: Array<[string, Family]> = []
+  const honest: string[] = []
+  for (const [verbs, objects, family] of RU)
+    for (const pair of verbs)
+      for (const gap of RU_GAPS)
+        for (const obj of objects) {
+          const [verb, future] = pair.split('/')
+          claims.push([cap(join(verb, gap, obj)) + '.', family])
+          honest.push(cap(join(future, gap, obj)) + '.')
+          // the conditional: only a past form takes it
+          if (!verb.endsWith('ю'))
+            // cyrillic-ok: matched letter
+            honest.push(cap(join(verb, 'бы', gap, obj)) + ', если хотите.') // cyrillic-ok: test input
+          // the negative: the media and voice patterns refuse it before the verb
+          if (family !== 'browser')
+            honest.push(cap(join('не', verb, gap, obj)) + '.') // cyrillic-ok: test input
+        }
+  for (const [verb, base, objects, family] of EN)
+    for (const gap of EN_GAPS)
+      for (const obj of objects) {
+        claims.push([join('I', verb, gap, obj) + '.', family])
+        honest.push(join('I will', base, gap, obj) + '.')
+        honest.push(join('I could', base, gap, obj) + ' if you like.')
+        honest.push(join('Shall I', base, gap, obj) + '?')
+      }
+
+  it('covers every verb, gap and object', () => {
+    expect(claims.length).toBe(2746)
+    expect(honest.length).toBe(7638)
+  })
+  // main: 567 of 2746 flagged, every gapped row silent; 0 of 7638 honest noted
+  it('every claim row is flagged for its family', () => {
+    const silent = claims.filter(
+      ([said, family]) => !unbackedKinds(said, []).includes(family)
+    )
+    expect(silent).toEqual([])
+  })
+  it('claimsBrowserWork reads the gap the same way', () => {
+    const silent = claims.filter(
+      ([said, family]) => family === 'browser' && !claimsBrowserWork(said)
+    )
+    expect(silent).toEqual([])
+    expect(honest.filter(said => claimsBrowserWork(said))).toEqual([])
+  })
+  it('every honest mirror row stays silent, as on main', () => {
+    const noted = honest.filter(said => unbackedKinds(said, []).length > 0)
+    expect(noted).toEqual([])
+  })
+
+  // the issue's lines, and a gap wrapped onto the next line (round 4)
+  for (const [said, kind] of [
+    ['Сделала Анне афишу', 'media'], // cyrillic-ok: test input
+    ['Отправила вам только что голосовое', 'voice'], // cyrillic-ok: test input
+    ['I sent you the voice note just now', 'voice'],
+    ['I sent her just now the voice note', 'voice'],
+    ['I made you a poster.', 'media'],
+    ['Отправила Ивану Петрову видео.', 'media'], // cyrillic-ok: test input
+    ['Отправила вам\nтолько что голосовое', 'voice'], // cyrillic-ok: test input
+    ['Сделала для Анны новую афишу.', 'media'], // cyrillic-ok: test input
+    ['Отправила вам 3 фото.', 'media'], // cyrillic-ok: test input
+    ['Сделала Анне афишу — как тебе?', 'media'], // cyrillic-ok: test input
+    ['Открыл вам только что страницу входа.', 'browser'], // cyrillic-ok: test input
+  ] as const)
+    it(`a gapped claim is flagged: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  // each bound of the gap, silent on main and silent now
+  for (const said of [
+    // a clause break: "и", a line break before a capital // cyrillic-ok: quoted input
+    'Отправила текст и пришлю фото позже.', // cyrillic-ok: test input
+    'Сделала макет и нарисую афишу завтра.', // cyrillic-ok: test input
+    'Записала текст\nГолосовое пришлю вечером.', // cyrillic-ok: test input
+    'Открыл почту и потом страницу проверю.', // cyrillic-ok: test input
+    // a conditional or a new clause
+    'Сделала бы вам афишу, если хотите.', // cyrillic-ok: test input
+    'Отправила текст, а видео позже.', // cyrillic-ok: test input
+    'Записала текст но голосовое не успела.', // cyrillic-ok: test input
+    'Сделал бы вам скриншот, но браузер закрыт.', // cyrillic-ok: test input
+    'I recorded the call and will send a voice note.',
+    'I made the text but could make a poster too.',
+    // the object governed by a preposition
+    'Отправила вам ссылку на фото.', // cyrillic-ok: test input
+    'Сделала текст для афиши.', // cyrillic-ok: test input
+    'Сделала всё кроме афиши.', // cyrillic-ok: test input
+    'I sent you the link to the audio.',
+    'I made a note about the poster.',
+    // someone else's verb, inverted
+    'Прислала Анна фото чека.', // cyrillic-ok: test input
+    'Отправил клиент видео с примеркой.', // cyrillic-ok: test input
+    'Записала Мария голосовое с адресом.', // cyrillic-ok: test input
+    'Скинул он вам файл вчера.', // cyrillic-ok: test input
+    // the modal, the future and the question keep winning
+    'Могу отправить вам голосовое.', // cyrillic-ok: test input
+    'Хотите, сделаю Анне афишу?', // cyrillic-ok: test input
+    'Отправила вам только что голосовое?', // cyrillic-ok: test input
+  ])
+    it(`the gap ends at its clause: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+      expect(claimsBrowserWork(said)).toBe(false)
+    })
+})

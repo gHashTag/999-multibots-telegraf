@@ -55,18 +55,37 @@ const SEND_TOOLS = [
 ]
 const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
 
+/*
+ * The gap between a claim verb and its object (#3734). The patterns wanted
+ * the object right after the verb, so an indirect object or an adverb in
+ * between -- "Сделала Анне афишу", "Отправила вам только что голосовое", // cyrillic-ok: quoted input
+ * "I made you the poster" -- left the claim silent, the unsafe side. A count
+ * of words would be one more fixed window, so the regex lets any run of
+ * words through and gapHolds() bounds it by the clause: no clause break, no
+ * word that opens a conditional or a new clause, no preposition governing
+ * the object, and, for a Russian verb, no other subject in it.
+ */
+const GAP = String.raw`(?<gap>(?:[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*\s+)*?)`
+const claim = (source: string) => new RegExp(source, 'diu')
+
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   {
-    re: /(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+(страниц|сайт|вкладк|linkedin|x\.com|google)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+${GAP}(страниц|сайт|вкладк|linkedin|x\.com|google)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_open'],
   },
   {
-    re: /(^|[\s.,:;—-])(делаю|сделал)\s+(снимок|скриншот)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(делаю|сделал)\s+${GAP}(снимок|скриншот)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(читаю|прочитал)\s+(текст|страниц)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(читаю|прочитал)\s+${GAP}(текст|страниц)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_read'],
   },
   {
@@ -78,7 +97,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: ['browser_evaluate', 'browser_click'],
   },
   {
-    re: /(^|[\s.,:;—-])(проверяю|смотрю) (все )?вкладки/i, // cyrillic-ok: matched text
+    re: claim(String.raw`(^|[\s.,:;—-])(проверяю|смотрю) ${GAP}(все )?вкладки`), // cyrillic-ok: matched text
     tools: ['browser_status'],
   },
   {
@@ -88,11 +107,13 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   { re: /\b(I'm |I am |I )(opening|opened)\b/i, tools: ['browser_open'] },
   { re: /\b(I'm |I am |I )(clicking|clicked)\b/i, tools: ['browser_click'] },
   {
-    re: /\b(I'm |I am |I )(taking|took) a screenshot\b/i,
+    re: claim(String.raw`\b(I'm |I am |I )(taking|took) ${GAP}a screenshot\b`),
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(афиш|картинк|изображени|постер|обложк|баннер)`
+    ), // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -102,17 +123,23 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(видео|ролик|рилс)`
+    ), // cyrillic-ok: matched text
     tools: VIDEO_TOOLS,
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?${GAP}(фото|картинк|афиш|постер|видео|ролик|файл)`
+    ), // cyrillic-ok: matched text
     tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
   {
-    re: /\bI(?:'ve| have)? (made|created|generated|drew) (the |a |an |your )?(poster|image|picture|banner|cover|video)\b/i,
+    re: claim(
+      String.raw`\bI(?:'ve| have)? (made|created|generated|drew) ${GAP}(the |a |an |your )?(poster|image|picture|banner|cover|video)\b`
+    ),
     tools: [...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
@@ -122,12 +149,16 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(голосов|аудио|войс)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)`
+    ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(текст|пост|сценари|ответ|сообщени|письм)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(текст|пост|сценари|ответ|сообщени|письм)`
+    ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
@@ -137,7 +168,9 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'voice',
   },
   {
-    re: /\bI(?:'ve| have)? (recorded|sent)( you)? (a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b/i,
+    re: claim(
+      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b`
+    ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
@@ -226,8 +259,13 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  const flat = flatOf(normalised(text))
-  return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(flat))
+  const norm = normalised(text)
+  const flat = flatOf(norm)
+  return CLAIMS.some(
+    c =>
+      kindOf(c) === 'browser' &&
+      [...flat.matchAll(everyMatch(c))].some(m => gapHolds(norm, m, false))
+  )
 }
 
 /** How many browser tools the turn really called, from its events. Pure. */
@@ -450,6 +488,22 @@ const PREPOSITION = new Set([
   'за',
   'о',
   'об', // cyrillic-ok: matched words
+  // #3734: a preposition right before an object makes it oblique ("ссылку на // cyrillic-ok: quoted input
+  // фото"); in ownVerb these only read one more capital as the agent's // cyrillic-ok: quoted input
+  'без',
+  'кроме',
+  'вместо',
+  'после',
+  'до',
+  'перед',
+  'над',
+  'между', // cyrillic-ok: matched words
+  'about',
+  'of',
+  'after',
+  'before',
+  'without',
+  'except',
   'for',
   'in',
   'on',
@@ -603,6 +657,68 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
   return !verbLed || /^\p{L}*$/u.test(rest.slice(0, end))
 }
 
+/*
+ * Does the gap between the verb and its object stay inside the verb's own
+ * clause (#3734)? The regex lets any run of words through; this bounds it.
+ * - No clause break (CLAUSE_BREAK: a symbol, " - ", "и"). A line break before // cyrillic-ok: quoted input
+ *   a small letter or a digit is a wrapped line (round 4), not a break; one
+ *   before a capital starts a new clause.
+ * - No word that opens a conditional or another clause (GAP_STOP):
+ *   "Сделала бы вам афишу, если хотите" offers, it does not claim. Before // cyrillic-ok: quoted input
+ *   #3734 the verb had to touch its object, so "бы" kept it silent by // cyrillic-ok: quoted input
+ *   accident; now it does so by rule.
+ * - No preposition right before the object: "Сделала текст для афиши" made // cyrillic-ok: quoted input
+ *   a text, not a poster.
+ * - For a Russian verb, no other subject inside the gap: "Прислала Анна // cyrillic-ok: quoted input
+ *   фото" is Anna's verb, inverted. The same person rule as before the verb. // cyrillic-ok: quoted input
+ * A word these lists lack lets the gap through: a needless note, the safe
+ * side of a miss.
+ */
+const GAP_STOP = new Set([
+  'бы',
+  'б',
+  'если',
+  'чтобы',
+  'а',
+  'но',
+  'или', // cyrillic-ok: matched words
+  'if',
+  'would',
+  'could',
+  'will',
+  'can',
+  'shall',
+  'should',
+  'might',
+  'and',
+  'but',
+  'or',
+])
+const ONE_BREAK = new RegExp(CLAUSE_BREAK.source, 'u')
+
+function gapHolds(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
+  const at = m.indices?.groups?.gap
+  if (!at || at[0] === at[1]) return true
+  // the gap and the first letter of the object, as the clause rules read it
+  const gap = sentence
+    .slice(at[0], at[1] + 1)
+    .replace(/\n(?=[\p{Ll}\p{N}])/gu, ' ')
+    .slice(0, -1)
+  if (ONE_BREAK.test(gap)) return false
+  const words = gap.match(/[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu) ?? []
+  if (words.some(w => GAP_STOP.has(w.toLowerCase()))) return false
+  if (PREPOSITION.has(words.at(-1)!.toLowerCase())) return false
+  if (!verbLed) return true
+  return !words.some(
+    (w, i) =>
+      OTHER_SUBJECT.has(w.toLowerCase()) ||
+      (w[0] !== w[0].toLowerCase() && personShaped(words, i))
+  )
+}
+
+const everyMatch = (c: { re: RegExp }) =>
+  new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
+
 /* A verb-led Russian claim: its group 1 is the boundary before the verb. */
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
@@ -610,11 +726,13 @@ const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 // every family matches s.flat; the breaks are read from s.text, where "\n"
 // is the only character that is not a plain space (#3728 rounds 4-6)
 function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
-  if (kindOf(c) === 'browser') return c.re.test(s.flat)
-  if (s.back) return false
   const verbLed = VERB_LED(c)
-  const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
-  for (const m of s.flat.matchAll(all)) {
+  const matches = [...s.flat.matchAll(everyMatch(c))].filter(m =>
+    gapHolds(s.text, m, verbLed)
+  )
+  if (kindOf(c) === 'browser') return matches.length > 0
+  if (s.back) return false
+  for (const m of matches) {
     if (asked(s.text, m, verbLed)) continue
     if (!verbLed || ownVerb(s.text, m)) return true
   }
