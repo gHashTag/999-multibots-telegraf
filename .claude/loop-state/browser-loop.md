@@ -20,7 +20,6 @@ Taken items: item -> branch, dispatched 2026-10-06 12:00 UTC. When an item
 frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
 is yours too"); it is not repeated here.
 
-- A -> `fix/userbot-plain-errors`
 - D -> `fix/crm-duet-dry-run-by-default`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
@@ -37,9 +36,9 @@ watch-only link (#3510), probe reads (\_meta.probe), per-question TTL (#3235).
 Sources: browser audit (B#), userbot audit (U#), competitors (C#) -- tick 1, 03.10.
 Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merges.
 
-- [ ] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
+- [x] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
-      floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary".
+      floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary". (#3795)
 - [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
 - [ ] D. crm_duet sends for real by default (U1): dry_run defaults to true.
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
@@ -88,6 +87,12 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   `ZEP_OPENAI_API_KEY` on zep to the SAME value TOGETHER (account 3, N3). One without the other
   = 403 on every zep call. Tests 25/25 + 27 neighbours, run locally (runner gave no result); 2
   mutants caught.
+- 2026-10-06. A (#3795): gramjs flood/slow-mode waits (`.seconds`, "A wait of N seconds"),
+  PEER_FLOOD and dead-login codes reach the person in plain Russian (`tg-errors.ts`);
+  floodSleepThreshold 5; the login probe is `updates.GetState`, and only auth codes say
+  "session expired" -- a timeout is "temporary" with its code. 179/179 locally (runner gave
+  no result 3 times); 2 mutants killed (5 tests). Push gate caught `@SpamBot` in no-dossier
+  (allow-listed) and a shared render node_modules (`tri wt-deps`).
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
