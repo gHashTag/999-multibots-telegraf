@@ -1991,8 +1991,16 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ['₽500', '₽500 около 2 тыс билетов и бар выручка'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс билетов-выручка'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс гостей с человека'], // cyrillic-ok: poster text
+      // Pins NOUN_JOINER: the word after the joiner is a filler, so only
+      // the joiner keeps these asking.
+      ['$5', '$5 about 10k ticket-plus'],
+      ['$5', '$5 about 10k seats/only'],
+      // Pins RATE_RUN: a rate word with nothing after it.
+      ['$5', '$5 about 10k people each'],
+      ['$5', '$5 about 10k tickets per'],
+      ['₽500', '₽500 около 2 тыс гостей за'], // cyrillic-ok: poster text
     ]
-    expect(rows.length).toBe(25)
+    expect(rows.length).toBe(30)
     for (const [bare, full] of rows) {
       expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
       expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
