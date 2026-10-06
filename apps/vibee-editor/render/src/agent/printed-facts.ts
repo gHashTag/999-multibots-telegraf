@@ -169,9 +169,10 @@ const FILLER_RUN = new RegExp(
  * the end keeps the multiplier on the price (#3758 round 4, #3769):
  * "$5, 10k", "$5, 10k budget", "$5 about 10k quid", "₽5, 10 тыс сумма" ask.
  * A bare hedge with no comma ("$5 about 10k people") loosens the chain too,
- * but there the counted noun must END the phrase -- the end, punctuation, a
- * line break or a filler after it (#3758 round 5): "$5 about 10k ticket
- * revenue" asks, as on main.
+ * but there the counted noun must END the phrase (#3758 rounds 5, 6): no
+ * joiner glued to it, and the rest of the clause holds only fillers,
+ * counted nouns and "more". "$5 about 10k ticket revenue", "...ticket-revenue",
+ * "...ticket and merch revenue", "...followers on insta" ask, as on main.
  * A loose spread is also echoed exactly: the person's identical text
  * confirms it (see Fact.exact).
  * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
@@ -251,6 +252,33 @@ const COUNTED_NOUNS = new RegExp(
   `^[ \\t\\u00a0]*(?:(?:${COUNTED_ADJECTIVES})[ \\t\\u00a0]+)?(?:${COUNTED_NOUN_WORDS})(?![\\p{L}\\d])`,
   'iu'
 )
+/*
+ * The end-of-phrase check after a bare hedge and a counted noun (#3758
+ * round 6). NOUN_JOINER: a character glued to the noun that joins it to the
+ * next word -- hyphens and dashes, slashes, apostrophes, "&", "+". CLAUSE_END:
+ * sentence punctuation and line breaks. CLAUSE_WORD: a word, digits and
+ * currency signs included, so "10k fans $" or "10k fans 2026" asks. Both
+ * lists are CLOSED on the SAFE side (see countsNoun): a missing joiner or a
+ * missing clause end only leaves more words to check, so it asks more.
+ */
+const NOUN_JOINER =
+  /^[-\u2010-\u2015\u2212\uFE63\uFF0D/\u2044\u2215\uFF0F'\u2019\u02BC\u2032&\uFF06+\uFF0B]/u
+const CLAUSE_END = /[\n\r\u2028\u2029.,;:!?()]/u
+const CLAUSE_WORD = /[\p{L}\p{M}\p{N}$€₽฿£]+/gu
+const MORE_RUN = new RegExp('^(?:more|больше|ещё|еще)$', 'iu') // cyrillic-ok: "more" words
+/*
+ * After the noun, a second counted noun stands only right after one of these
+ * ("10k people and fans"); RATE_RUN words always ask ("10k people per
+ * seat", a Russian "from each person"). NOUN_CONJUNCTION is CLOSED on the safe
+ * side: a missing word asks. RATE_RUN is the one list here where a MISSING
+ * entry is unsafe -- it names FILLER_RUN words that make the price a rate --
+ * so it lists every FILLER_RUN word that can mean "for each".
+ */
+const NOUN_CONJUNCTION = new RegExp('^(?:and|or|plus|и|или|а|плюс)$', 'iu') // cyrillic-ok: conjunctions
+const RATE_RUN = new RegExp(
+  '^(?:per|each|a|an|for|за|с|со|по|на|в|во|from|от|with|at)$', // cyrillic-ok: rate words
+  'iu'
+)
 const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
 const TIME_RUN = new RegExp(
   '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
@@ -302,16 +330,45 @@ function laterMultiplier(
   // above). Closed on the safe side (#3758 round 4, #3769): only a word in
   // COUNTED_NOUNS leaves the bare price; any other word, a currency or a
   // filler keeps the multiplier on the price, so it asks. After a bare
-  // hedge the noun must also END the phrase (#3758 round 5): in "$5 about
-  // 10k ticket revenue" the noun only modifies a money word, and main
+  // hedge the noun must also END the phrase (#3758 rounds 5, 6): in "$5
+  // about 10k ticket revenue" the noun only modifies a money word, and main
   // asks there.
   const countsNoun = () => {
     if (!loose) return false
     const m = rest.match(COUNTED_NOUNS)
     if (!m) return false
     if (!hedgeOnly) return true
-    const w = rest.slice(m[0].length).match(/^[ \t\u00a0]+(\p{L}+)/u)
-    return !w || FILLER_RUN.test(w[1])
+    // After a bare hedge the noun must END the phrase (#3758 round 6). No
+    // list of spaces decides that: every character that is no word
+    // character (any space, an emoji) is skipped, and only the WORDS left
+    // in the clause count.
+    const after = rest.slice(m[0].length)
+    // A joiner glued to the noun ("ticket-revenue", "ticket/revenue",
+    // "people's budget", "ticket&bar") makes the noun part of a longer
+    // word: ask. A CLOSED list on the SAFE side: a joiner missing here only
+    // falls through to the word check below, which asks unless every word
+    // that follows is a filler, a counted noun or "more".
+    if (NOUN_JOINER.test(after)) return false
+    // The rest of the clause, up to sentence punctuation or a line break,
+    // may hold ONLY fillers, "more", and a counted noun right after "and" or
+    // "or" ("$5 about 10k tickets and more", "10k people and fans",
+    // "10k followers. On insta"). Any other word -- a money word ("ticket
+    // and merch revenue"), an unknown word ("followers on insta"), a number
+    // -- asks, and so does a rate word ("10k people per seat": the price is
+    // per seat). A clause end missing from CLAUSE_END only makes the clause
+    // longer, so it asks more, never less.
+    const clause = after.split(CLAUSE_END)[0]
+    let prev = ''
+    for (const word of clause.match(CLAUSE_WORD) ?? []) {
+      const counted = COUNTED_NOUNS.test(word) && NOUN_CONJUNCTION.test(prev)
+      if (
+        RATE_RUN.test(word) ||
+        (!counted && !FILLER_RUN.test(word) && !MORE_RUN.test(word))
+      )
+        return false
+      prev = word
+    }
+    return true
   }
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)

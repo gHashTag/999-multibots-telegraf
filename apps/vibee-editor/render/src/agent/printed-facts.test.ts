@@ -1783,7 +1783,7 @@ describe('four price shapes that read as another amount (#3746)', () => {
           ['2 million', 6],
           ['3m', 6],
         ],
-        [' people', ' seats', ' followers on insta', ' free drinks'],
+        [' people', ' seats', ' followers. On insta', ' free drinks'],
         [
           ' total',
           ' budget',
@@ -1956,13 +1956,59 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
       expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
     }
+  })
+
+  it('a bare hedge, then a counted noun the clause continues past, asks both ways (#3758 round 6)', () => {
+    // Round-5 review: main asks on every row, round 5 confirmed them. A
+    // joiner or a space round 5 did not know, or a filler that joins two
+    // modifiers of one money word.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k ticket-revenue'],
+      ['$5', '$5 about 10k ticket/revenue'],
+      ['$5', '$5 about 10k ticket\u202Frevenue'],
+      ['$5', '$5 about 10k ticket\u2009revenue'],
+      ['$5', '$5 about 10k ticket\u2007revenue'],
+      ['₽500', '₽500 около 2 тыс билетов\u202Fвыручка'], // cyrillic-ok: poster text
+      ['$5', '$5 about 10k ticket and merch revenue'],
+      ['$5', '$5 about 10k ticket and bar sales'],
+      ['$5', '$5 about 10k ticket plus bar revenue'],
+      ['$5', '$5 about 10k ticket or bar sales'],
+      // The round-5 control, flipped: "insta" is no filler, main asks.
+      ['$5', '$5 about 10k followers on insta'],
+      ['ticket $5', 'ticket $5 about 10k followers on insta'],
+      // The author's own probe: other joiners, zero-width and ideographic
+      // spaces, "&", a counted noun + a counted noun + a money word, a rate.
+      ['$5', '$5 about 10k ticket\u2011revenue'],
+      ['$5', '$5 about 10k ticket\u200Brevenue'],
+      ['$5', '$5 about 10k ticket\u3000revenue'],
+      ['$5', '$5 about 10k ticket & bar revenue'],
+      ['$5', '$5 about 10k ticket&bar revenue'],
+      ['$5', '$5 about 10k people\u2019s budget'],
+      ['$5', '$5 about 10k ticket fan revenue'],
+      ['$5', '$5 about 10k tickets plus seats budget'],
+      ['$5', '$5 about 10k people per seat'],
+      ['$5', '$5 about 10k ticket 💰 revenue'],
+      ['₽500', '₽500 около 2 тыс билетов и бар выручка'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс билетов-выручка'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс гостей с человека'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(25)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
     // The noun that ends the phrase still leaves the bare price.
     for (const [bare, full] of [
       ['$5', '$5 about 10k tickets'],
       ['$5', '$5 about 10k people'],
       ['$5', '$5 about 10k people.'],
       ['$5', '$5 about 10k people\nDoors at 7'],
-      ['$5', '$5 about 10k followers on insta'],
+      ['$5', '$5 about 10k followers. On insta'],
+      ['$5', '$5 about 10k people and more'],
+      ['$5', '$5 about 10k people 🎉'],
+      ['$5', '$5 about 10k people and fans.'],
+      ['$5', '$5 about 10k tickets, revenue'],
+      ['₽500', '₽500 около 2 тыс гостей и больше'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс гостей'], // cyrillic-ok: poster text
     ] as const) {
       expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
