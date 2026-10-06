@@ -17,6 +17,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const OWNER = '144022504'
 const TIM = '8420420131'
 
@@ -64,61 +72,80 @@ beforeEach(() => {
 })
 
 describe('clientBriefBlock', () => {
-  it('reads the package as the owner even when the client is the caller', async () => {
-    const { clientBriefBlock } = await import('./src/agent/chat')
-    const pool = profilePool()
-    // The caller is Tim himself: this is the business DM.
-    const ctx = { telegramId: TIM, pool } as never
-    const b = await clientBriefBlock(ctx, OWNER, TIM)
-    expect(b.name).toBe('woody-weed')
-    expect(b.text).toContain('ПРОФИЛЬ КЛИЕНТА')
-    expect(b.text).toContain('Паша')
-    expect(b.text).toContain('SOUL клиента: есть')
-    const look = pool.seen.find(s =>
-      /FROM crm_client_profiles WHERE telegram_id/.test(s.sql)
-    )!
-    // Whose notes, and about whom -- in that order, and not the caller's.
-    expect(look.params).toEqual([TIM, OWNER])
-  })
+  it(
+    'reads the package as the owner even when the client is the caller',
+    async () => {
+      const { clientBriefBlock } = await import('./src/agent/chat')
+      const pool = profilePool()
+      // The caller is Tim himself: this is the business DM.
+      const ctx = { telegramId: TIM, pool } as never
+      const b = await clientBriefBlock(ctx, OWNER, TIM)
+      expect(b.name).toBe('woody-weed')
+      expect(b.text).toContain('ПРОФИЛЬ КЛИЕНТА')
+      expect(b.text).toContain('Паша')
+      expect(b.text).toContain('SOUL клиента: есть')
+      const look = pool.seen.find(s =>
+        /FROM crm_client_profiles WHERE telegram_id/.test(s.sql)
+      )!
+      // Whose notes, and about whom -- in that order, and not the caller's.
+      expect(look.params).toEqual([TIM, OWNER])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a person with no package says nothing in the DM', async () => {
-    const { clientBriefBlock } = await import('./src/agent/chat')
-    const b = await clientBriefBlock(
-      { telegramId: '2086031075', pool: profilePool({ has: false }) } as never,
-      OWNER,
-      '2086031075'
-    )
-    expect(b).toEqual({ text: '', name: null })
-  })
+  it(
+    'a person with no package says nothing in the DM',
+    async () => {
+      const { clientBriefBlock } = await import('./src/agent/chat')
+      const b = await clientBriefBlock(
+        {
+          telegramId: '2086031075',
+          pool: profilePool({ has: false }),
+        } as never,
+        OWNER,
+        '2086031075'
+      )
+      expect(b).toEqual({ text: '', name: null })
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it("but the owner's workspace is told the package is missing", async () => {
-    const { clientBriefBlock } = await import('./src/agent/chat')
-    const b = await clientBriefBlock(
-      { telegramId: OWNER, pool: profilePool({ has: false }) } as never,
-      OWNER,
-      '2086031075',
-      { sayWhenMissing: true }
-    )
-    expect(b.text).toContain('не настроен')
-    /*
-     * Since crm-reach, SOUL is read only for a person who is yours (profile
-     * or reach). Here there is neither, so the brief says the private half
-     * was not read -- not the false "she never wrote one".
-     */
-    expect(b.text).toContain('SOUL и скиллы клиента не читались')
-  })
+  it(
+    "but the owner's workspace is told the package is missing",
+    async () => {
+      const { clientBriefBlock } = await import('./src/agent/chat')
+      const b = await clientBriefBlock(
+        { telegramId: OWNER, pool: profilePool({ has: false }) } as never,
+        OWNER,
+        '2086031075',
+        { sayWhenMissing: true }
+      )
+      expect(b.text).toContain('не настроен')
+      /*
+       * Since crm-reach, SOUL is read only for a person who is yours (profile
+       * or reach). Here there is neither, so the brief says the private half
+       * was not read -- not the false "she never wrote one".
+       */
+      expect(b.text).toContain('SOUL и скиллы клиента не читались')
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a dead table costs the package, not the answer', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const { clientBriefBlock } = await import('./src/agent/chat')
-    const b = await clientBriefBlock(
-      { telegramId: TIM, pool: profilePool({ dead: true }) } as never,
-      OWNER,
-      TIM
-    )
-    expect(b.text).toBe('')
-    warn.mockRestore()
-  })
+  it(
+    'a dead table costs the package, not the answer',
+    async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { clientBriefBlock } = await import('./src/agent/chat')
+      const b = await clientBriefBlock(
+        { telegramId: TIM, pool: profilePool({ dead: true }) } as never,
+        OWNER,
+        TIM
+      )
+      expect(b.text).toBe('')
+      warn.mockRestore()
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('the business DM is wired to it', () => {
