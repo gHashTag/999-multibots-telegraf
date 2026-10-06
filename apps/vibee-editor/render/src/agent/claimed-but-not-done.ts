@@ -163,55 +163,65 @@ const NOT_VOICE_NOUN = String.raw`(?!\s+(?:${VOICE_NOUNS.map(n => enForm(n, 'any
 const RU_HEAD = '(?:мнени|управлени|меню|настройк|функци|предпочтени|режим)' // cyrillic-ok: matched stems
 
 /*
- * When the head noun really ends the object (#3753 round 2). Round 1 read
- * any head noun as the end, and lost 20 claims main caught: "I created the
- * image prompt and the image", "I made the poster text bigger", "Here is
- * the poster text-free version", "Here is the banner text overlay". The
- * media noun is a modifier only when ALL of these hold:
- * (a) a head noun (or a run of them: "the audio settings list") follows it
- *     after a space, and the clause ends right there -- the end of the
- *     sentence, a stop, a colon, a semicolon, a line break, a comma or a
- *     dash with a space -- or, after a presentational opener ("here is",
- *     "sent you"), a closed tail starts: a preposition ("for the launch") or
- *     a relative clause with its own subject ("I would use", "Telegram
- *     accepts");
- * (b) nothing is glued by an unspaced hyphen: "poster-text", "text-free";
- * (c) the WHOLE REST OF THE MESSAGE after the head noun, not only its
- *     sentence (#3753 round 3), names (i) no other picture or voice noun:
- *     "the image prompt, and the image", "the poster idea. The poster is
- *     attached." still claim; (ii) no delivery word from DELIVERY_WORDS:
- *     "the poster idea, attached", "the poster text, rendered and
- *     attached"; (iii) no "it", "them" or their Russian forms, which can
- *     carry the media as an object: "the poster text, and I attached it",
- *     "the poster text. It is attached." A comma, semicolon or dash ends
- *     the clause for (a) only; (c) reads past every clause end;
- * (d) after "made/created/generated/drew" no tail but a preposition: "made
- *     the poster text bigger" and "made the poster style you asked for"
- *     report an edit of a rendered picture; and "copy" is no head there:
- *     "I made the poster copy" is a copy of the poster, a picture (round 3).
- * Russian takes (a) without any tail, (b) and (c): "Записал голосовое меню // cyrillic-ok: quoted input
- * для тебя" stays flagged, the arguable side being the safe one. // cyrillic-ok: quoted input
+ * When the head noun really ends the object (#3753 rounds 2-4). Round 1 read
+ * any head noun as the end and lost 20 claims main caught ("I made the
+ * poster text bigger", "the banner text overlay"). Round 3 kept a closed
+ * list of DELIVERY words and lost 15 more ("here you go", "enjoy!",
+ * "delivered", "voila"): delivery has more words than any list. Round 4
+ * turns the polarity over. The closed lists sit on the HONEST side, where a
+ * word they lack costs only a needless note; anything not on them keeps the
+ * claim. The media noun is a modifier only when EVERYTHING after the head
+ * noun, to the end of the message, has one of these shapes:
+ * (a') the clause ends right after the head noun (or a run of them): the
+ *     end of the text, ".", "!", "?", ":", "..." or a line break, maybe
+ *     after one decorative emoji of DECOR. After "here is" / "sent you"
+ *     the round-2 tails also count, a preposition ("for your post") or a
+ *     clause with its own subject ("I would send a designer", "Telegram
+ *     accepts"); after "made/created/generated/drew" only a preposition
+ *     ("made the poster text bigger" reports an edit, round 2). Such a tail
+ *     must be clean (below) and hold no coordinator ("and", "plus", "then"):
+ *     "for the launch and voila" starts a second clause;
+ * (b') a comma, a semicolon or a dash followed by words keeps the claim,
+ *     unless the words, to the clause end, are one entry of HONEST_TAILS:
+ *     ", tell me what you think", ", as you asked", ", что поправить?"; // cyrillic-ok: quoted input
+ * (c') after ":" or a line break the content itself may follow ("Here is
+ *     the poster idea: a dark stage, one spotlight"), and so may the list
+ *     items right under it. Content must be clean and hold no "!", no
+ *     emoji, no "I"/"we"/"here", no past tense ("-ed", "sent", "made" ...),
+ *     no "enjoy" or "voila": the voice of a report, not of an idea;
+ * (d') every later sentence is a question or opens with HONEST_OPENER
+ *     ("Let me know", "Should I", "Скажи" ...), and is clean. Any other // cyrillic-ok: quoted input
+ *     later sentence ("Enjoy!", "Delivered.", "Thanks.") keeps the claim.
+ * Clean, the round-3 checks kept as vetoes on every honest part: (i) no
+ * other picture or voice noun ("Should I draw the poster?"), (ii) no word of
+ * DELIVERY_WORDS ("Let me know when it is attached"), (iii) no "it", "them"
+ * or their Russian forms ("Tell me if you like it"). They are a belt now,
+ * not the gate: the gate is the closed honest shapes above.
+ * An unspaced hyphen never ends the head ("poster-text", "text-free"), and
+ * "copy" is no head after a make verb ("I made the poster copy" is a copy of
+ * the poster, round 3). Russian takes no preposition or subject tail:
+ * "Записал голосовое меню для тебя" stays flagged, the arguable side being // cyrillic-ok: quoted input
+ * the safe one.
  */
-const CLAUSE_ENDS = String.raw`(?=\s*$|\s*\n|[.!?…;:)](?![\p{L}\p{N}])|,(?:\s|$)|\s[-—–]\s|\s?[—–])`
 const headRun = (head: string) =>
   String.raw`(?:\s+${head}${WORD_END}(?!-))(?:\s+(?:${head}|draft)${WORD_END}(?!-))*`
 const HEAD_RUN = headRun(HEAD)
 const MAKE_HEAD_RUN = headRun(MAKE_HEAD)
-const PREP_TAIL = String.raw`\s+(?:for|in|from|on)\s`
-const SUBJECT_TAIL = String.raw`\s+(?:I|I'd|I'll|I've|you|we|they|that|which|\p{Lu}\p{Ll}+)\s`
-const EN_HEAD_MAKE = new RegExp(
-  String.raw`^${MAKE_HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL}))`,
-  'iu'
-)
+const PREP_TAIL = String.raw`\s*(?:for|in|from|on)\s`
+const SUBJECT_TAIL = String.raw`\s*(?:I|I'd|I'll|I've|you|we|they|that|which|\p{Lu}\p{Ll}+)\s`
+const EN_HEAD_MAKE = new RegExp(String.raw`^${MAKE_HEAD_RUN}`, 'iu')
 // the tail words are cased: "I" and a proper noun are capitals
-const EN_HEAD_SHOWN = new RegExp(
-  String.raw`^${HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL})|(?=${SUBJECT_TAIL}))`,
-  'u'
-)
+const EN_HEAD_SHOWN = new RegExp(String.raw`^${HEAD_RUN}`, 'u')
 const RU_HEAD_AFTER = new RegExp(
-  String.raw`^[а-яё]*\s+${RU_HEAD}[а-яё]*(?![\p{L}-])${CLAUSE_ENDS}`, // cyrillic-ok: matched letters
+  String.raw`^[а-яё]*\s+${RU_HEAD}[а-яё]*(?![\p{L}-])`, // cyrillic-ok: matched letters
   'iu'
 )
+// which round-2 tail may follow the head noun before a comma or a clause end
+const TAIL_START: Record<'shown' | 'make' | 'ru', RegExp | null> = {
+  shown: new RegExp(String.raw`^(?:${PREP_TAIL}|${SUBJECT_TAIL})`, 'u'),
+  make: new RegExp(String.raw`^${PREP_TAIL}`, 'iu'),
+  ru: null,
+}
 const MEDIA_WORDS = [...PICTURE_NOUNS, 'video', ...VOICE_NOUNS]
   .map(n => enForm(n, 'any'))
   .concat(['voice', 'audio'])
@@ -228,11 +238,11 @@ const RU_MEDIA_LATER =
 const MAKE_VERB = /\b(?:made|make|created|generated|drew|drawn)\b/i
 
 /*
- * (c)(ii) of round 3: one closed list of words that deliver a file. Any of
- * them anywhere after the head noun keeps the claim, even when it speaks of
- * something else ("the plan is ready"): a needless note is the cheaper
- * failure. "above" is listed although REFERS_BACK excuses its own sentence:
- * here it is read from a later one.
+ * (ii), a veto on the honest parts: words that deliver a file. Any of them
+ * keeps the claim, even when it speaks of something else ("the plan is
+ * ready"): a needless note is the cheaper failure. Not the gate any more
+ * (round 4): a delivery word missing here is still caught by the closed
+ * honest shapes, since it is on none of them.
  */
 const DELIVERY_WORDS = [
   'attached',
@@ -265,38 +275,210 @@ const RU_DELIVERY_STEMS = [
   'ниже', // cyrillic-ok: matched stem
   'файл', // cyrillic-ok: matched stem
 ]
-// (c)(iii): a pronoun that can carry the media as an object
+// (iii): a pronoun that can carry the media as an object
 const OBJECT_PRONOUNS = ['it', 'them', 'это', 'его', 'её', 'ее'] // cyrillic-ok: matched words
-const EN_DELIVERY_LATER = new RegExp(
-  String.raw`(?<![\p{L}'’-])(?:${DELIVERY_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})(?![\p{L}'’])`,
+const VETOES = [
+  EN_MEDIA_LATER,
+  RU_MEDIA_LATER,
+  new RegExp(
+    String.raw`(?<![\p{L}'’-])(?:${DELIVERY_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})(?![\p{L}'’])`,
+    'iu'
+  ),
+  new RegExp(String.raw`(?<!\p{L})(?:${RU_DELIVERY_STEMS.join('|')})`, 'iu'),
+  new RegExp(
+    String.raw`(?<![\p{L}'’-])(?:${OBJECT_PRONOUNS.join('|')})(?![\p{L}'’])`,
+    'iu'
+  ),
+]
+const clean = (text: string) => !VETOES.some(re => re.test(text))
+
+/*
+ * (b'): the whole of what may follow a comma, a semicolon or a dash after
+ * the head noun, compared after lower-casing and dropping inner commas.
+ * Closed on purpose: "ready for your review" is left out, "ready" delivers.
+ */
+export const HONEST_TAILS = [
+  'tell me what you think',
+  'tell me if you want changes',
+  'tell me what to change',
+  'let me know',
+  'let me know what you think',
+  'let me know if you want changes',
+  'let me know what to change',
+  'want changes',
+  'any changes',
+  'what do you think',
+  'thoughts',
+  'as you asked',
+  'as requested',
+  'for your review',
+  'up to you',
+  'скажи как тебе', // cyrillic-ok: matched words
+  'скажи что думаешь', // cyrillic-ok: matched words
+  'что поправить', // cyrillic-ok: matched words
+  'что скажешь', // cyrillic-ok: matched words
+  'как тебе', // cyrillic-ok: matched words
+  'как просил', // cyrillic-ok: matched words
+  'как просила', // cyrillic-ok: matched words
+  'как ты просил', // cyrillic-ok: matched words
+  'как ты просила', // cyrillic-ok: matched words
+]
+const HONEST_TAIL_SET = new Set(HONEST_TAILS)
+const tailKey = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/’/g, "'")
+    .replace(/,/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+// (d'): how a later sentence may open, or it is a question
+const HONEST_OPENER =
+  /^(?:let me know|tell me|should i|want me to|shall i|i can|if you like|скажи|напиши|хочешь|могу|если)(?![\p{L}'’])/iu // cyrillic-ok: matched words
+const QUESTION = /\?[\s"'»”’)]*$/u
+// (a'): a decorative emoji after the head noun; a pointing or a check mark
+// ("👇", "✅") says the file is there, so it is not listed
+const DECOR = /^\s*(?:[✨💡🎨📝🙂😊]\uFE0F?\s*)?$/u
+const BARE = /^[\s)"'»”’]*$/u
+// the end of a clause after the head noun; a stop inside "1080.5" is not one
+const HARD_END = /[.!?…:](?![\p{L}\p{N}])|\n/u
+const SEPARATOR = /[,;]|\s[-–—]\s|\s?[—–]/u
+const COORDINATOR =
+  /(?<![\p{L}'’])(?:and|plus|then|also|too|but|so|и|а|плюс|ещё|еще)(?![\p{L}'’])|&|\p{Extended_Pictographic}/iu // cyrillic-ok: matched words
+/*
+ * (c'): the voice of a report, which the content after a colon does not
+ * have. This is the one open shape left: content is free text, so it is
+ * guarded by a broad belt rather than a closed list -- "!", an emoji, the
+ * speaker ("I", "we"), the reader ("you", "yours", "держи"), a pointer // cyrillic-ok: quoted input
+ * ("here", "there", "it's"), an imperative that sends the reader to a file
+ * ("check", "see", "open"), and the past tense ("-ed", "sent", "made", and
+ * the Russian "-л", "-ла", "-ли", "-ло"). An idea, a size or a list of // cyrillic-ok: quoted input
+ * styles has none of them.
+ */
+const REPORT_WORDS = [
+  "I(?:['’](?:m|ve|ll|d))?",
+  "we(?:['’](?:ve|re))?",
+  'me',
+  'you',
+  'yours',
+  "it['’]s",
+  'here',
+  'there',
+  'voil[àa]',
+  'ta-?da',
+  'enjoy',
+  'check',
+  'see',
+  'look',
+  'find',
+  'open',
+  'download',
+  'grab',
+  'take',
+  'attachment',
+  'result',
+  'output',
+  'final',
+  'inbox',
+  'thread',
+  'link',
+  'all set',
+  'sent',
+  'made',
+  'drew',
+  'drawn',
+  'did',
+  'done',
+  'got',
+  'gave',
+  'wrote',
+  'written',
+  'built',
+  'took',
+  'shot',
+  'put',
+  'держи', // cyrillic-ok: matched word
+  'лови', // cyrillic-ok: matched word
+  'смотри', // cyrillic-ok: matched word
+  'глянь', // cyrillic-ok: matched word
+  'вот', // cyrillic-ok: matched word
+  'бери', // cyrillic-ok: matched word
+  'забирай', // cyrillic-ok: matched word
+  'наслаждайся', // cyrillic-ok: matched word
+]
+const REPORT_VOICE = new RegExp(
+  [
+    '!',
+    String.raw`\p{Extended_Pictographic}`,
+    String.raw`(?<![\p{L}'’])(?:${REPORT_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])\p{L}{2,}(?<!e)ed(?![\p{L}'’])`,
+    String.raw`(?<!\p{L})[а-яё]{3,}(?:л|ла|ли|ло|лся|лась)(?!\p{L})`, // cyrillic-ok: matched endings
+  ].join('|'),
   'iu'
 )
-const RU_DELIVERY_LATER = new RegExp(
-  String.raw`(?<!\p{L})(?:${RU_DELIVERY_STEMS.join('|')})`,
+
+const OFFER = new RegExp(
+  String.raw`^(?:should i|shall i|want me to|do you want me to|i can)\s+(?:generate|make|draw|render|create|design|record)\s+(?:it|them|one|(?:the|a)\s+(?:${MEDIA_WORDS}))(?:\s+(?:now|next|today|tomorrow|for you))?\s*[?.]?$`,
   'iu'
 )
-const PRONOUN_LATER = new RegExp(
-  String.raw`(?<![\p{L}'’-])(?:${OBJECT_PRONOUNS.join('|')})(?![\p{L}'’])`,
-  'iu'
-)
+// "the poster brief I would send a designer": a verb after a modal is not
+// done yet, so (ii) does not read it; (i) and (iii) still read the rest
+const HYPOTHETICAL =
+  /(?<![\p{L}'’])((?:I|we|you|they)(?:\s+(?:would|could|might|can|will)|['’](?:d|ll)))\s+\p{L}+/gu
+
+type TailMode = keyof typeof TAIL_START
+type Later = { flat: string; listed: boolean }
+
+// (a') and (b'): the clause right after the head noun, up to its hard end
+function honestClause(clause: string, mode: TailMode) {
+  if (BARE.test(clause) || DECOR.test(clause)) return true
+  const at = clause.search(SEPARATOR)
+  const lead = at < 0 ? clause : clause.slice(0, at)
+  if (!BARE.test(lead)) {
+    const start = TAIL_START[mode]
+    if (!start?.test(lead) || COORDINATOR.test(lead)) return false
+    if (!clean(lead.replace(HYPOTHETICAL, '$1'))) return false
+  }
+  if (at < 0) return true
+  const words = clause.slice(at).replace(SEPARATOR, '')
+  return HONEST_TAIL_SET.has(tailKey(words)) && clean(words)
+}
+
+const honestContent = (text: string) => clean(text) && !REPORT_VOICE.test(text)
+
+// (d'): a later sentence is a question or opens with an honest opener, and
+// is clean -- or it is one closed offer to make the thing ("Should I
+// generate it?"), whose verb and "it" are the offer, not a delivery.
+// "Should I make it bigger?" or "Should I send it again?" are not offers
+const honestLater = (text: string) => {
+  const t = text.trim()
+  if (OFFER.test(t)) return true
+  return (QUESTION.test(t) || HONEST_OPENER.test(t)) && clean(t)
+}
 
 function modifierOnly(s: Sentence, m: RegExpMatchArray) {
   const end = (m.index ?? 0) + m[0].length
   const after = s.text.slice(end)
   let head: RegExpMatchArray | null = null
+  let mode: TailMode = 'ru'
   if (RU_OBJECT_LAST.test(m[0])) head = after.match(RU_HEAD_AFTER)
-  else if (EN_OBJECT_LAST.test(m[0]))
-    head = after.match(MAKE_VERB.test(m[0]) ? EN_HEAD_MAKE : EN_HEAD_SHOWN)
+  else if (EN_OBJECT_LAST.test(m[0])) {
+    mode = MAKE_VERB.test(m[0]) ? 'make' : 'shown'
+    head = after.match(mode === 'make' ? EN_HEAD_MAKE : EN_HEAD_SHOWN)
+  }
   if (!head) return false
-  // the rest of the whole message, not of the sentence (round 3)
-  const rest = s.flat.slice(end + head[0].length) + ' ' + s.later
-  return ![
-    EN_MEDIA_LATER,
-    RU_MEDIA_LATER,
-    EN_DELIVERY_LATER,
-    RU_DELIVERY_LATER,
-    PRONOUN_LATER,
-  ].some(re => re.test(rest))
+  const tail = after.slice(head[0].length)
+  const stop = HARD_END.exec(tail)
+  const clause = stop ? tail.slice(0, stop.index) : tail
+  if (!honestClause(clause, mode)) return false
+  const rest = stop ? tail.slice(stop.index + stop[0].length) : ''
+  // after ":" or a line break the content follows, and the list under it
+  let content = stop !== null && /^[:\n]$/.test(stop[0])
+  if (content ? !honestContent(rest) : !BARE.test(rest) && !honestLater(rest))
+    return false
+  return s.later.every(x => {
+    content = content && x.listed
+    return content ? honestContent(x.flat) : honestLater(x.flat)
+  })
 }
 
 /* Claimed actions, each with the tool(s) that would have done it. */
@@ -586,8 +768,15 @@ function isHeader(line: string): boolean {
  * paragraph" rule only ever failed for that case, since a plain line after
  * a plain line joins it.
  */
-// later: the flat text of every sentence after this one, read by modifierOnly
-type Sentence = { text: string; flat: string; back: boolean; later: string }
+// later: every sentence after this one, read by modifierOnly; listed: it
+// opens a list item
+type Sentence = {
+  text: string
+  flat: string
+  back: boolean
+  listed: boolean
+  later: Later[]
+}
 
 // reads normalised text only: see normalised()
 function sentencesOf(norm: string): Sentence[] {
@@ -626,16 +815,14 @@ function sentencesOf(norm: string): Sentence[] {
         text,
         flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
-        later: '',
+        listed: item.listed && k === 0,
+        later: [],
       })
     )
     if (!item.listed && headsList(i)) header = true
   })
   out.forEach((o, i) => {
-    o.later = out
-      .slice(i + 1)
-      .map(x => x.flat)
-      .join(' ')
+    o.later = out.slice(i + 1)
   })
   return out
 }
