@@ -44,6 +44,14 @@
  * calls at once (default 1) and starts them at least ZAI_RELAY_MIN_GAP_MS
  * apart (default 3000). Over either line it answers 429 with Retry-After
  * at once, WITHOUT touching Z.AI: zep retries, the agent keeps the quota.
+ * How zep retries (read in zep v0.27.2 source): the HTTP client is
+ * go-retryablehttp v0.7.7 with RetryMax 5, and its default policy retries a
+ * 429 after Retry-After, all inside the 60 s call context (pkg/llms/
+ * llm_base.go). A task that still fails is re-run by watermill's Retry
+ * middleware, 5 more times at 1-5 s, and then goes to the poison_queue
+ * table (pkg/tasks/router.go). The chat messages are already stored by
+ * then. What a poisoned task loses is the derived summary, intent or
+ * entities for that window.
  * ZAI_RELAY_API_KEY, when set, moves memory to a quota of its own (see
  * zaiRelayKey): it is then BOTH the key forwarded and the bearer expected,
  * so zep's ZEP_OPENAI_API_KEY must change to the same value at the same time.
