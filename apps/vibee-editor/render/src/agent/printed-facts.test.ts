@@ -620,7 +620,13 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
    * same. Liveness too: one amount on both sides, the same, confirms.
    */
   describe('grid: a price is confirmed only by the one amount it can mean', () => {
-    type Form = { text: string; means: number[]; cur: string | undefined }
+    type Form = {
+      text: string
+      means: number[]
+      cur: string | undefined
+      // The person's identical text confirms it (#3746 exact echo).
+      exact?: true
+    }
     const ambiguousTails = [
       ' утру',
       ' вечеру',
@@ -685,6 +691,10 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         means: [a * 1000 + 500, (a * 1000 + 500) * 1000],
         cur,
       },
+      // A currency-first dot group is $a.50 or $a 500 (#3746); a trailing
+      // currency keeps the group only.
+      { text: `${sign}${a}.500`, means: [a * 1000 + 500, a], cur, exact: true },
+      { text: `${a}.500 ${word}`, means: [a * 1000 + 500], cur },
       { text: `${a} тыс ${word}`, means: [a * 1000], cur },
       { text: `${a} млн ${word}`, means: [a * 1e6], cur },
       { text: `${a} к ${word}`, means: [a * 1000], cur },
@@ -722,7 +732,7 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         )
       }
       expect(all.length).toBe(
-        2 * 2 * (10 + thousandTails.length + ambiguousTails.length) + 2
+        2 * 2 * (12 + thousandTails.length + ambiguousTails.length) + 2
       )
     })
 
@@ -737,10 +747,11 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
               f => f.kind === 'price'
             ).length === 0
           const should =
-            printed.means.length === 1 &&
-            heard.means.length === 1 &&
-            printed.means[0] === heard.means[0] &&
-            (!printed.cur || !heard.cur || printed.cur === heard.cur)
+            (printed.means.length === 1 &&
+              heard.means.length === 1 &&
+              printed.means[0] === heard.means[0] &&
+              (!printed.cur || !heard.cur || printed.cur === heard.cur)) ||
+            (printed.exact === true && printed.text === heard.text)
           expect(
             ok,
             `printed ${JSON.stringify(printed.text)} heard ${JSON.stringify(heard.text)}`
@@ -1072,6 +1083,12 @@ describe('shape plus echo (#3730 round 6)', () => {
     { printed: '₽700 обед', heard: 'Обед за 700 ₽' },
     { printed: '฿500 massage', heard: 'massage 500 baht' },
     { printed: '฿300 entry', heard: 'entry 300 THB' },
+    // #3746 shapes written honestly: the same notation, a list of amounts.
+    { printed: '€1.500 rent', heard: 'rent is €1.500' },
+    { printed: '$1,500 deposit', heard: 'deposit $1,500' },
+    { printed: '$5, $10 and $15 tickets', heard: 'tickets $5, $10 and $15' },
+    { printed: '$2.50 coffee, $3 cake', heard: 'coffee $2.50, cake $3' },
+    { printed: '$20 entry, 2k seats', heard: '$20 entry' },
   ]
   const needless = corpus.filter(r => !r.legit && asks(r.printed, r.heard))
   const counted = corpus.filter(r => !r.legit).length
@@ -1385,6 +1402,25 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
       ' всего ',
       ' только ',
       ' плюс ', // cyrillic-ok: connector words
+      // #3746: a comma right after an amount, and hedges.
+      ', ',
+      ' , ',
+      ' or so ',
+      ' or thereabouts ',
+      '-ish ',
+      ' about ',
+      ' около ',
+      ' примерно ', // cyrillic-ok: hedge words
+    ]
+    // [text, value]: a half word (per sign) or a digit fraction (#3746).
+    const fractions: ReadonlyArray<[string | undefined, number]> = [
+      [undefined, 0.5],
+      ['1/2', 0.5],
+      ['½', 0.5],
+      ['1/4', 0.25],
+      ['¼', 0.25],
+      ['3/4', 0.75],
+      ['¾', 0.75],
     ]
     // [sign, table [word, zeros, glued], unknown short words, half word]
     const signs: ReadonlyArray<
@@ -1428,12 +1464,17 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
       for (const [sign, table, unknowns, halfWord] of signs)
         for (const a of amounts)
           for (const c of connectors)
-            for (const second of ['number', 'none', 'half'] as const) {
+            for (const [second, [fracText, frac]] of [
+              ['number', fractions[0]] as const,
+              ['none', fractions[0]] as const,
+              ...fractions.map(f => ['half', f] as const),
+            ]) {
+              const halfText = fracText ?? halfWord
               const glue = (w: string, glued: boolean) =>
                 second === 'number'
                   ? `${c}10${glued ? '' : ' '}${w}`
                   : second === 'half'
-                    ? `${c}${halfWord} ${w}`
+                    ? `${c}${halfText} ${w}`
                     : `${c}${w}`
               const bare = `${sign}${a}`
               const and = sign === '$' ? ' and ' : ' и ' // cyrillic-ok: conjunction
@@ -1444,7 +1485,7 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                   second === 'number'
                     ? `${c}10`
                     : second === 'half'
-                      ? `${c}${halfWord}`
+                      ? `${c}${halfText}`
                       : c
                 const printed = `${bare}${tail}`.trimEnd()
                 cell(printed, bare, 0)
@@ -1454,8 +1495,7 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
               // A table multiplier: bare AND scaled, unless it is adjacent.
               for (const [w, zeros, glued] of table) {
                 const scaled =
-                  a * 10 ** zeros +
-                  (second === 'half' ? 5 * 10 ** (zeros - 1) : 0)
+                  a * 10 ** zeros + (second === 'half' ? frac * 10 ** zeros : 0)
                 const printed = `${bare}${glue(w, glued && second === 'number')}`
                 cell(printed, bare, 1)
                 cell(printed, `${sign}${scaled}`, adjacent ? 0 : 1)
@@ -1477,7 +1517,96 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                   cell(printed, printed, 1)
                 }
             }
-      expect(cells).toBe(11688)
+      expect(cells).toBe(43024)
     })
+  })
+})
+
+describe('four price shapes that read as another amount (#3746)', () => {
+  const asks = (printed: string, heard: string) =>
+    unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+
+  it('the issue rows ask, each with both readings', () => {
+    const rows: ReadonlyArray<[string, string, string[]]> = [
+      ['$1.500', '$1,500', ['p1500', 'p1']],
+      ['$5, 10k', '$5', ['p5', `p${5e3}`]],
+      ['$5 or so k', '$5', ['p5', `p${5e3}`]],
+      ['$1 1/2 million', '$1', ['p1', `p${1.5e6}`]],
+    ]
+    for (const [printed, heard, want] of rows) {
+      expect(new Set(factsIn(printed)[0].keys), printed).toEqual(new Set(want))
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(1)
+    }
+  })
+
+  it('each shape by class, not by string', () => {
+    // (a) a currency-first dot group, any sign or code.
+    for (const p of ['€2.000', '£1.500', '₽3.000', 'USD 1.500'])
+      expect(factsIn(p)[0].keys.length, p).toBe(2)
+    // ...a trailing currency or more groups keep the one reading.
+    expect(prices('1.500 ₽')).toEqual(['p1500'])
+    expect(prices('$1.500.000')).toEqual([`p${1.5e6}`])
+    expect(prices('$1.500,50')).toEqual(['p1500'])
+    // (b) a comma right after an amount, also after a second amount.
+    expect(asks('₽5, 10 тыс', '₽5')).toBe(1)
+    expect(asks('$5 to 6, 10k', '$5')).toBe(1)
+    // (c) digit fractions and glyphs, glued or spaced.
+    expect(prices('$1½ million')).toEqual([`p1|p${1.5e6}`])
+    expect(prices('$2 3/4k')).toEqual([`p2|p${2750}`])
+    expect(prices('$2 and ¼ million')).toEqual([`p2|p${2.25e6}`])
+    // ...an improper "fraction" is no fraction and no chain.
+    expect(prices('$2 5/4 million')).toEqual(['p2'])
+    // (d) hedges, English and Russian, glued with a dash too.
+    for (const p of [
+      '$5 or thereabouts k',
+      '$5-ish k',
+      '$5 about 10k',
+      '₽5 около тыс',
+      '₽5 примерно 10 тыс', // cyrillic-ok: hedge word
+    ])
+      expect(asks(p, p.slice(0, 2)), p).toBe(1)
+  })
+
+  it('honest prints still confirm', () => {
+    expect(asks('$1,500', '$1,500')).toBe(0)
+    expect(asks('$1.50', '$1.50')).toBe(0)
+    expect(asks('$1.5', '$1.50')).toBe(0)
+    expect(asks('$5, 10', '$5, 10')).toBe(0)
+    expect(asks('$5, then $10', '$5 then $10')).toBe(0)
+    expect(asks('$5 or so', '$5')).toBe(0)
+    expect(asks('$1 1/2', '$1')).toBe(0)
+    expect(asks('$5, 10k', `$5 and $${5e3}`)).toBe(0)
+    expect(asks('$1 1/2 million', `$1 and $${1.5e6}`)).toBe(0)
+    expect(asks('$1.500', '$1 and $1500')).toBe(0)
+  })
+
+  /*
+   * EXACT ECHO, decided here: a printed "€1.500" the person wrote as
+   * "€1.500" confirms. It is their own notation, not a fact the agent made
+   * up, and asking could never end -- the agent's "Печатаю €1.500?" and the
+   * person's yes re-read the same two readings. The heard side stays narrow:
+   * a heard "€1.500" confirms no other form, and no single amount.
+   */
+  it('exact echo: the identical dot group confirms, nothing else does', () => {
+    expect(asks('€1.500', '€1.500')).toBe(0)
+    expect(asks('€1.500 entry', 'entry €1.500')).toBe(0)
+    expect(asks('€1.500', 'Price: €1.500 per night')).toBe(0)
+    // Another sign, another form, another amount: each asks.
+    expect(asks('€1.500', '$1.500')).toBe(1)
+    expect(asks('€1.500', 'EUR 1.500')).toBe(1)
+    expect(asks('€1.500', '€1500')).toBe(1)
+    expect(asks('€1500', '€1.500')).toBe(1)
+    expect(asks('€1.50', '€1.500')).toBe(1)
+    expect(asks('€1.500k', '€1.500k')).toBe(1)
+    expect(asks('€1.500 to 2k', '€1.500 to 2k')).toBe(1)
+    // A word the person did not write still needs its echo.
+    expect(asks('€1.500 entry', '€1.500')).toBe(1)
+    // A yes to the agent's own confirm question ends the ask.
+    const history = [
+      { role: 'user', content: 'a poster, rent 1500 euro' },
+      { role: 'assistant', content: 'Печатаю €1.500 — верно?' },
+      { role: 'user', content: 'да' },
+    ]
+    expect(asks('€1.500', heardFrom(history))).toBe(0)
   })
 })

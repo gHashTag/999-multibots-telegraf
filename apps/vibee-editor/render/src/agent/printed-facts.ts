@@ -136,22 +136,30 @@ const CURRENCY_RUN = new RegExp(
  * as an unknown multiplier, and the agent asks once more.
  */
 const FILLER_RUN = new RegExp(
-  '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total)$', // cyrillic-ok: filler words
+  '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total|' + // cyrillic-ok: filler words
+    // Hedges (#3746): "$5 or so k", "$5-ish k", a Russian "about". A hedge
+    // is never a multiplier, and it does not break the chain to a later one.
+    'so|thereabouts|ish|about|around|roughly|approx|approximately|circa|около|примерно|приблизительно|порядка)$', // cyrillic-ok: hedge words
   'iu'
 )
 /*
- * A LATER MULTIPLIER SPREADS BACK (#3730 round 7). "$5-10k", "$5 to 10k",
- * "₽5 до 10 тыс", "$5 or 6 million", "₽5 плюс тыс": a reader may scale the
- * FIRST amount by the multiplier printed after the next number. The rule is
- * one shape, not a word per connector: after an amount, a chain of
- * connectors (a dash, or any FILLER_RUN word), further numbers and half
- * words, inside one clause, that ENDS in a multiplier makes that multiplier
- * a possible reading of every amount before it. The chain must hold a
- * connector or a second number before the multiplier. It stops at anything
- * else -- a noun ("$25 per person"), punctuation, a line break -- so a
+ * A LATER MULTIPLIER SPREADS BACK (#3730 round 7, widened in #3746).
+ * "$5-10k", "$5 to 10k", "₽5 до 10 тыс", "$5 or 6 million", "₽5 плюс тыс":
+ * a reader may scale the FIRST amount by the multiplier printed after the
+ * next number. The rule is one shape, not a word per connector: after an
+ * amount, a chain of connectors (a dash, a comma right after an amount, or
+ * any FILLER_RUN word, hedges included), further numbers and fractions (a
+ * half word, or a digit fraction "1/2", "½", "3/4"), inside one clause, that
+ * ENDS in a multiplier makes that multiplier a possible reading of every
+ * amount before it. The chain must hold a connector or a second number
+ * before the multiplier. It stops at anything else -- a noun
+ * ("$25 per person, 2k seats"), other punctuation, a line break -- so a
  * range with no multiplier ("$10-15", "$3 until 8") stays the bare amount.
- * A half word right after the connectors ("$1 and a half million",
- * "₽5 с половиной тысяч") adds a half of the multiplier to the first amount.
+ * A comma is a connector only right after an amount (#3746): "$5, 10k" is a
+ * list or a range a reader may take as "$5k".
+ * A fraction right after the connectors ("$1 and a half million",
+ * "₽5 с половиной тысяч", "$1 1/2 million", "$1½ million") adds that
+ * fraction of the multiplier to the first amount.
  * A glued or short run the table does not know after the second number
  * ("$5 to 10zorg") is an unknown multiplier. Time words after the second
  * number ("$3 until 8 pm") are a clock, never a multiplier.
@@ -161,49 +169,77 @@ const TIME_RUN = new RegExp(
   '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
   'iu'
 )
+/* A digit fraction: "1/2", "3/4", or a vulgar fraction glyph (#3746). */
+const GLYPH_FRACTIONS: Readonly<Record<string, number>> = {
+  '½': 0.5,
+  '¼': 0.25,
+  '¾': 0.75,
+}
+const FRACTION = '([½¼¾]|[1-9]\\/[1-9]\\d?)(?![\\d/])'
+/** The value of a FRACTION match; undefined when it is no proper fraction. */
+function fractionValue(f: string): number | undefined {
+  if (f in GLYPH_FRACTIONS) return GLYPH_FRACTIONS[f]
+  const [n, d] = f.split('/').map(Number)
+  return n < d ? n / d : undefined
+}
 type Spread = {
   zeros: number | 'unknown'
   alsoBare: boolean
-  halfOnFirst: boolean
+  /** The fraction of the multiplier added to the FIRST amount, 0 for none. */
+  fractionOnFirst: number
   text: string
 }
-function laterMultiplier(tail: string, joined: boolean): Spread | undefined {
+function laterMultiplier(
+  tail: string,
+  joined: boolean,
+  atAmount: boolean
+): Spread | undefined {
   const token = new RegExp(
-    `^[${DIGIT_JOINERS}\\t]*(?:([-–—])|([$€₽฿£]\\s?)?${NUM}|(\\p{L}+\\.?))`,
+    `^[${DIGIT_JOINERS}\\t]*(?:([-–—])|(,)|${FRACTION}|([$€₽฿£]\\s?)?${NUM}|(\\p{L}+\\.?))`,
     'iu'
   )
   let rest = tail
   let used = ''
   let second = false
-  let halfOnFirst = false
+  let fractionOnFirst = 0
   let afterNumber = false
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined
+    // A comma joins only right after an amount: "$5, 10k", "$5 to 6, 10k".
+    // After a noun ("$20 entry, 2k seats") the clause is a new one.
+    if (t[2] && !afterNumber && !(atAmount && !used.trim())) return undefined
     used += t[0]
     rest = rest.slice(t[0].length)
-    if (t[1]) {
+    if (t[1] || t[2]) {
       joined = true
       afterNumber = false
       continue
     }
-    if (t[3] !== undefined) {
+    const fraction = t[3] === undefined ? undefined : fractionValue(t[3])
+    if (t[3] !== undefined && fraction === undefined) return undefined
+    if (fraction !== undefined || HALF_RUN.test(t[6] ?? '')) {
+      if (!second) fractionOnFirst = fraction ?? 0.5
       second = true
       afterNumber = true
       continue
     }
-    const word = t[4]
+    if (t[5] !== undefined) {
+      second = true
+      afterNumber = true
+      continue
+    }
+    const word = t[6]
     const spaced = /^\s/u.test(t[0])
     const s = suffixReading(word)
     if (s !== 'unknown' && s.zeros) {
       if (!joined && !second) return undefined
-      return { zeros: s.zeros, alsoBare: s.alsoBare, halfOnFirst, text: used }
-    }
-    if (HALF_RUN.test(word)) {
-      if (!second) halfOnFirst = true
-      second = true
-      afterNumber = true
-      continue
+      return {
+        zeros: s.zeros,
+        alsoBare: s.alsoBare,
+        fractionOnFirst,
+        text: used,
+      }
     }
     if (afterNumber && TIME_RUN.test(word)) return undefined
     if (FILLER_RUN.test(word)) {
@@ -219,7 +255,12 @@ function laterMultiplier(tail: string, joined: boolean): Spread | undefined {
       afterNumber &&
       (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS)
     )
-      return { zeros: 'unknown', alsoBare: false, halfOnFirst, text: used }
+      return {
+        zeros: 'unknown',
+        alsoBare: false,
+        fractionOnFirst,
+        text: used,
+      }
     return undefined
   }
   return undefined
@@ -346,6 +387,17 @@ function amount(raw: string): string {
 }
 
 /*
+ * A CURRENCY-FIRST DOT GROUP (#3746). "$1.500" is $1500 to a European reader
+ * and $1.50 to an English one, so a printed "$1.500", "€2.000" carries both
+ * readings, 1500 and 1 (cents are dropped, as for "$1.50"), and only a person
+ * who confirmed both, or wrote that exact text, confirms it. A heard "€1.500"
+ * is just as ambiguous, so it confirms no single amount ("€1500" asks once).
+ * A trailing currency ("1.500 ₽") stays the group: that is how Russian and
+ * Thai posters write thousands, and no English reader starts a price there.
+ */
+const DOT_GROUP = /^(\d{1,3})\.\d{3}$/
+
+/*
  * The readings of a price, scaled by `zeros` from the multiplier table.
  * Before a multiplier the decimal is part of the amount, not cents: "1.5k"
  * and "1,5 тыс" are 1500, so "$1k" does not confirm "$1.5k" (#3697), and
@@ -417,6 +469,11 @@ export interface Fact {
    * the amount. The bare reading holds only if the person wrote this word.
    */
   word?: string
+  /**
+   * A currency-first dot group with no multiplier ("€1.500"), as written:
+   * the person's identical text confirms it, ambiguity and all (#3746).
+   */
+  exact?: string
 }
 
 function monthOf(word: string): number | null {
@@ -459,6 +516,22 @@ function priceFact(
     ...[...readings].map(d => `p${d}`),
     ...unknown.map(u => u.replace(/\s/g, '').toLowerCase()),
   ]
+  // A currency-first dot group ("$1.500") is $1.50 or $1500 (see DOT_GROUP).
+  const dot = lead ? raw.trim().match(DOT_GROUP) : null
+  const bare = () => {
+    const r = priceReadings(raw, 0)
+    if (dot) r.push(String(Number(dot[1])))
+    return r
+  }
+  let scaled = false
+  // The price as written, for the exact echo of a dot group (see Fact.exact).
+  const exact = () =>
+    dot && !scaled
+      ? m[0]
+          .slice(0, m[0].length - (run?.length ?? 0))
+          .replace(/\s/g, '')
+          .toLowerCase()
+      : undefined
   /*
    * A later multiplier may scale this amount too (see laterMultiplier). A
    * trailing currency ("500 ₽ - 1000 ₽") closes the amount first; a run
@@ -473,24 +546,27 @@ function priceFact(
     // and after an echoed noun, which joins like a connector.
     const own = !echoed && run ? run : ''
     const head = m[0].slice(0, m[0].length - own.length)
-    const spread = closed ? undefined : laterMultiplier(own + next, echoed)
+    const spread = closed
+      ? undefined
+      : laterMultiplier(own + next, echoed, !echoed && !own)
     if (!spread) return
+    scaled = true
     shown = (head + spread.text).replace(/\s+$/u, '')
     if (spread.zeros === 'unknown') {
       unknown.push(`u${raw}${run ?? ''}${spread.text}`)
       return
     }
-    const half = spread.halfOnFirst ? 5 * 10 ** (spread.zeros - 1) : 0
+    const part = Math.round(spread.fractionOnFirst * 10 ** spread.zeros)
     for (const r of priceReadings(raw, spread.zeros))
-      readings.add(String(Number(r) + half))
-    if (spread.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
+      readings.add(String(Number(r) + part))
+    if (spread.alsoBare) for (const r of bare()) readings.add(r)
   }
   if (suffix === 'unknown') {
     const word = lead ? echoCandidate(m[0], run) : undefined
     if (word) {
       // An echoed noun is no multiplier, and no wall either: in
       // "$5 tickets to 10k" the later "k" may still scale the $5.
-      const readings = new Set(priceReadings(raw, 0))
+      const readings = new Set(bare())
       if (!readings.size) return undefined
       const unknown: string[] = []
       spreadInto(readings, unknown, true)
@@ -499,19 +575,28 @@ function priceFact(
         text: shown.trim(),
         keys: keys(readings, unknown),
         word,
+        exact: exact(),
       }
     }
     const key = `u${raw}${run}`.replace(/\s/g, '').toLowerCase()
     return { kind: 'price', text: shown.trim(), keys: [key] }
   }
   const readings = new Set(priceReadings(raw, suffix.zeros))
-  if (suffix.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
+  if (suffix.alsoBare) for (const r of bare()) readings.add(r)
   if (SPACED_K.test(m[0]) && !K_THOUSAND_NEXT.test(next))
-    for (const r of priceReadings(raw, 0)) readings.add(r)
+    for (const r of bare()) readings.add(r)
   const unknown: string[] = []
-  if (!suffix.zeros) spreadInto(readings, unknown, false)
+  if (!suffix.zeros) {
+    for (const r of bare()) readings.add(r)
+    spreadInto(readings, unknown, false)
+  } else scaled = true
   if (!readings.size) return undefined
-  return { kind: 'price', text: shown.trim(), keys: keys(readings, unknown) }
+  return {
+    kind: 'price',
+    text: shown.trim(),
+    keys: keys(readings, unknown),
+    exact: exact(),
+  }
 }
 
 /** Every date, time and price in `text`, normalised. Pure. */
@@ -691,6 +776,13 @@ function confirmedBy(f: Fact, known: Fact[], heard: string): boolean {
   if (f.kind !== 'price')
     return known.some(h => h.keys.some(k => f.keys.includes(k)))
   if (f.word && !wordWritten(heard, f.word)) return false
+  /*
+   * EXACT ECHO (#3746): a printed "€1.500" the person wrote as "€1.500" is
+   * their own notation, not an invented fact -- and an ask could never end,
+   * since every "yes" re-reads the same two readings. Any other form of it
+   * asks; a heard "€1.500" confirms no other price.
+   */
+  if (f.exact && known.some(h => h.exact === f.exact)) return true
   const sure = known.filter(
     h => h.kind === 'price' && h.keys.length === 1 && sameCurrency(h, f)
   )
