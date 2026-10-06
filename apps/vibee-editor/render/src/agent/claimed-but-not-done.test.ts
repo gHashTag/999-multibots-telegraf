@@ -651,6 +651,32 @@ describe("a capital is someone else only in a person's shape (#3723)", () => {
   }
 })
 
+describe('a surname follows a known first name, not any capital (#3728 review)', () => {
+  for (const said of [
+    'Ура Готово сделала афишу', // cyrillic-ok: test input
+    'Ну Вот отправила видео.', // cyrillic-ok: test input
+    'Итак Наконец сделала афишу', // cyrillic-ok: test input
+    'Ок Теперь записала голосовое', // cyrillic-ok: test input
+    'Да Сразу отправила видео.', // cyrillic-ok: test input
+    'Ага Уже сделала афишу', // cyrillic-ok: test input
+    'Сегодня Утром сделала афишу', // cyrillic-ok: test input
+  ]) {
+    it(`two openers are no name, flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'Пётр прислал видео.', // cyrillic-ok: test input
+    'Петр прислал видео.', // cyrillic-ok: test input
+    'Анна Петрова прислала фото.', // cyrillic-ok: test input
+    'Артём Иванов отправил видео.', // cyrillic-ok: test input
+  ]) {
+    it(`a name, with or without yo and a surname, stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname

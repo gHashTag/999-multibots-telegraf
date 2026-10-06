@@ -433,22 +433,23 @@ const PREPOSITION = new Set([
  */
 export const FIRST_NAMES: ReadonlySet<string> = new Set(
   [
-    // Russian, full and everyday forms, nominative (a subject is nominative)
-    'александр александра алексей алёна алена алина алиса алла анастасия анатолий',
-    'андрей анжела анна антон арина арсений артём артем борис вадим валентин',
+    // Russian, full and everyday forms, nominative (a subject is nominative),
+    // written with ye for yo (nameKey)
+    'александр александра алексей алена алина алиса алла анастасия анатолий',
+    'андрей анжела анна антон арина арсений артем борис вадим валентин',
     'валентина валерий валерия варвара василий вера вероника виктор виктория',
     'виталий владимир владислав галина георгий глеб григорий даниил дарья денис',
     'диана дмитрий евгений евгения егор екатерина елена елизавета жанна захар',
     'зоя иван игорь илья инна ирина карина кирилл кристина ксения лариса лев',
     'леонид лидия лилия любовь людмила максим маргарита марина мария матвей',
     'милана михаил надежда наталья наталия никита николай нина оксана олег',
-    'ольга павел полина роман руслан светлана семён семен сергей софия софья',
-    'станислав степан тамара татьяна тимофей тимур ульяна фёдор федор эдуард',
+    'ольга павел петр полина роман руслан светлана семен сергей софия софья',
+    'станислав степан тамара татьяна тимофей тимур ульяна федор эдуард',
     'элина юлия юрий яна ярослав ярослава',
     'саша маша даша паша миша гриша наташа катя лена таня оля аня ира юля',
-    'света настя ксюша женя дима серёжа сережа лёша леша вова костя толя',
+    'света настя ксюша женя дима сережа леша вова костя толя',
     'коля петя вася витя ваня рома влад стас макс лиза соня поля вика',
-    'кристи лера алёша алеша марго',
+    'кристи лера алеша марго',
     // English and Latin-script names a Russian line carries as written
     'anna maria olga elena ivan alex alexander alexey andrew anton boris daniel',
     'david dmitry elizabeth emily emma george helen jack james jane john julia',
@@ -459,19 +460,27 @@ export const FIRST_NAMES: ReadonlySet<string> = new Set(
     .split(' ')
 )
 
+// Pyotr is spelled with and without the yo letter: look names up with yo
+// read as ye, so the list carries one form (#3728 review).
+function nameKey(word: string): string {
+  return word.toLowerCase().replace(/ё/g, 'е') // cyrillic-ok: matched letters
+}
+
 /*
- * Someone else's subject: a known first name, a capital right after a
+ * Someone else's subject: a known first name, a surname after a first-name
  * capital ("Елена Петровна", "Ксюша Петрова"), or a capital right after a
  * role word ("Клиентка Мария"). Anything else capitalised -- "Утром",
  * "Значит", "Оперативно", "Канва" -- reads as the agent's.
+ * A capital after just ANY capital is not a surname: two openers in a row
+ * are not a name, and reading them as one kept the guard quiet (#3728).
  */
 function personShaped(words: string[], at: number): boolean {
-  if (FIRST_NAMES.has(words[at].toLowerCase())) return true
+  if (FIRST_NAMES.has(nameKey(words[at]))) return true
   const prev = words[at - 1]
   if (!prev) return false
   const low = prev.toLowerCase()
   if (OTHER_SUBJECT.has(low)) return true
-  return prev[0] !== low[0] && !AGENT_SELF.has(low)
+  return FIRST_NAMES.has(nameKey(prev))
 }
 // a clause starts after a comma, a colon, a dash, a bracket or "and"
 const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
