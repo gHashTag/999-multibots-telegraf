@@ -2380,3 +2380,53 @@ checks out N's own branch (bin/helpers/prtree.sh) and says how far behind
 main it is. It refuses a closed or fork PR, a silent gh ("unknown", never
 "no such PR"), and a local branch of that name with unpushed commits -- moving
 it to origin would drop someone's work.
+
+## Lessons of the night of 2026-10-06: review rounds that end
+
+The one home of these rules. Other files point here and do not restate them.
+They came out of the honesty guard (`claimed-but-not-done.ts`) and the price
+reader (`printed-facts.ts`). Domain examples are in `cloud-agent-does-the-work`,
+section "The agent says only what it did".
+
+1. **A grid before review, not hand-written examples.** Generate the cross
+   product of every slot (verbs x gaps x nouns x whitespace; currency position
+   x spacing x following word), and its honest mirror (the same grid with the
+   claim removed, which must stay silent). Compute each expected value from a
+   one-line rule and run the grid against main too. Hand-written examples let
+   the reviewer find the next hole every round: #3728 took 6 rounds and #3730
+   took 7, and each hole was a combination no example covered. The reviewer
+   should be checking the rule, not finding your next missing example.
+2. **Fix the class, not the site.** Normalise once at the entry point, so no
+   rule downstream sees a raw form. Every exported function in
+   `claimed-but-not-done.ts` maps every line break and every whitespace
+   character to one form first (#3728). Keep one helper for one grammar fact:
+   `EN_NOUN`, an optional plural for every English object noun (pending
+   #3748). Use one shape rule instead of a word per connector: a later
+   multiplier in the same price phrase applies to every earlier amount
+   ("$5-10k", "$5 or 6 million", "₽5 до 10 тыс"; `printed-facts.ts`, #3730
+   round 7). If a fix adds an entry to a list, ask what structure the misses
+   share.
+3. **Close a list on the side where a miss is safe.** Readings are not
+   symmetric. A PRINTED amount counts as confirmed only when the person
+   confirmed EVERY reading of it. The HEARD side is read narrowly. In #3730,
+   four rounds patched a list of time words that made a spaced "к" a
+   preposition, and every round a word was missing. The merged rule closes
+   the other side: "к" is only a thousand before the end of the text,
+   punctuation or a currency (`K_THOUSAND_NEXT`), and anything else keeps
+   both readings, so the agent asks again.
+4. **Usability is a corpus with a bar, not an impression.** Commit a corpus of
+   realistic honest inputs as a test next to the soundness grid. A head may
+   add needless re-asks or notes up to 12% of the corpus, and no more than
+   main + 2. #3730 merged at 5/47 (10.6%). #3741 round 1 was rejected at 26
+   needless notes against main's 2. It merged at 2.
+5. **Merge policy (adopted 2026-10-06).** A reviewer bee merges when the head
+   is sound against main (no row that main flags turns silent or unsafe) and
+   usability is within the bar above. A hole that exists on main too becomes
+   a new issue, not another round. #3741 and #3730 merged under this policy,
+   and #3743, #3744 and #3746 were filed from it.
+6. **Bees are general-purpose agents with an explicit branch and worktree, not
+   forks.** A fork inherits the parent's context and drifts onto sibling PRs.
+   Three writers ended up on #3730's branch. Before dispatch, run
+   `tri holders <branch>` (#3738): rc 1 means a tree already holds the branch.
+   `tri worktrees` shows a fresh bee branch with no commits as new, not
+   finished, so the cleanup does not offer to remove it (pending #3749).
