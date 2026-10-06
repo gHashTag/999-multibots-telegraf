@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { BROWSER_TOOLS } from './src/browser/agent-tools'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import {
+  BROWSER_TOOLS,
+  stopExternalReportsForTests,
+  stopTickersForTests,
+} from './src/browser/agent-tools'
 import { TOOLS_BY_NAME } from './src/agent/tools'
+import { chosenFront, rememberFront } from './src/browser/front-page'
+import { resetPodTenantsCache } from './src/browser/pod-tenant'
 
 /**
  * THE TOOLS AN AGENT SEES.
@@ -141,6 +147,105 @@ describe('when there is no browser', () => {
     await expect(
       tool('browser_read').handler({}, ctxWith([row]) as never)
     ).rejects.toThrow(/no browser is running/)
+  })
+})
+
+/*
+ * CLOSING A TAB THE LIST STILL SHOWS, WITH THE VISIT ROW GONE.
+ *
+ * Measured 2026-10-04 on the owner's Blogger agent: browser_status listed a
+ * LinkedIn compose tab, and browser_close_tab answered "no browser is running"
+ * twice -- it asked the visit row alone, which the reaper had deleted. The
+ * unsent draft stayed open. Close now finds the pod the way focus_tab does.
+ */
+describe('browser_close_tab after the reaper took the visit row', () => {
+  const POD = '127.0.0.1:9223'
+  const PAGES = [
+    { id: 'A', type: 'page', url: 'https://t27.ai/' },
+    {
+      id: 'L',
+      type: 'page',
+      url: 'https://www.linkedin.com/feed/?shareActive=true',
+    },
+  ]
+  let podBefore: string | undefined
+
+  /* No session row; the pod is on record as this person's -- or nobody's. */
+  const ctxNoRow = (podIsMine: boolean, probe = false) => ({
+    telegramId: 'tg-900000001',
+    probe,
+    pool: {
+      async query(sql: string) {
+        if (podIsMine && /browser_pod_tenants/.test(sql) && /SELECT/i.test(sql))
+          return { rows: [{ telegram_id: 'tg-900000001' }] }
+        return { rows: [] }
+      },
+    },
+  })
+
+  function stubPod() {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      calls.push(String(url))
+      if (String(url).endsWith('/json/list'))
+        return new Response(JSON.stringify(PAGES))
+      return new Response('Target is closing')
+    })
+    return calls
+  }
+
+  function onPod(pod: string | undefined) {
+    podBefore = process.env.BROWSER_POD_CDP
+    if (pod === undefined) delete process.env.BROWSER_POD_CDP
+    else process.env.BROWSER_POD_CDP = pod
+    resetPodTenantsCache()
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    stopTickersForTests()
+    stopExternalReportsForTests()
+    if (podBefore === undefined) delete process.env.BROWSER_POD_CDP
+    else process.env.BROWSER_POD_CDP = podBefore
+    resetPodTenantsCache()
+  })
+
+  it("closes the tab on the person's own pod", async () => {
+    onPod(POD)
+    const calls = stubPod()
+    rememberFront('tg-900000001', 'L')
+    const out = await tool('browser_close_tab').handler(
+      { id: 'L' },
+      ctxNoRow(true) as never
+    )
+    expect(out).toEqual({ closed: 'L' })
+    expect(calls).toContain(`http://${POD}/json/close/L`)
+    /* The closed tab is no longer the one the tools act in. */
+    expect(chosenFront('tg-900000001')).toBeNull()
+    /* Closing starts no visit, so a probe may close too, as it may focus. */
+    const probed = await tool('browser_close_tab').handler(
+      { id: 'A' },
+      ctxNoRow(true, true) as never
+    )
+    expect(probed).toEqual({ closed: 'A' })
+  })
+
+  it('refuses an id that is not one of its tabs, and closes nothing', async () => {
+    onPod(POD)
+    const calls = stubPod()
+    await expect(
+      tool('browser_close_tab').handler({ id: 'GONE' }, ctxNoRow(true) as never)
+    ).rejects.toThrow(/no tab with that id/)
+    expect(calls.some(u => u.includes('/json/close/'))).toBe(false)
+  })
+
+  it('with no row and no pod of theirs, says no browser is running', async () => {
+    onPod(undefined)
+    const calls = stubPod()
+    await expect(
+      tool('browser_close_tab').handler({ id: 'L' }, ctxNoRow(false) as never)
+    ).rejects.toThrow(/no browser is running/)
+    expect(calls.some(u => u.includes('/json/close/'))).toBe(false)
   })
 })
 

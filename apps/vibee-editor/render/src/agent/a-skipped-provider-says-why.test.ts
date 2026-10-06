@@ -62,7 +62,7 @@ describe('a skipped provider says why', () => {
     )
     const events = await drain()
     expect(calls[0]).toBe('https://vendor.example/v1/chat/completions')
-    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-5.3' })
+    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-4.7-flash' })
     const skips = warn.mock.calls
       .map(c => String(c[0]))
       .filter(l => l.startsWith(SKIP_LOG_PREFIX))
@@ -83,7 +83,7 @@ describe('a skipped provider says why', () => {
       })
     )
     const events = await drain()
-    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-5.3' })
+    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-4.7-flash' })
     const skips = warn.mock.calls
       .map(c => String(c[0]))
       .filter(l => l.startsWith(SKIP_LOG_PREFIX))

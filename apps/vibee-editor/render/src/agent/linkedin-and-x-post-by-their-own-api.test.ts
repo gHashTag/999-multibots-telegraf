@@ -205,11 +205,19 @@ describe('connecting', () => {
   })
 
   it('X is connected with the verifier and keeps its refresh token sealed', async () => {
+    // Long distinctive plaintexts: a two-letter token such as "R1" turns up
+    // by chance inside random sealed base64 and made this test flaky (#3707).
+    const ACCESS_PLAIN = 'ACCESS-TOKEN-PLAINTEXT-a1b2c3'
+    const REFRESH_PLAIN = 'REFRESH-TOKEN-PLAINTEXT-r1s2t3'
     const q = memoryPool()
     const { f, calls } = fakeFetch(c =>
       c.url.endsWith('/oauth2/token')
         ? {
-            json: { access_token: 'A1', refresh_token: 'R1', expires_in: 7200 },
+            json: {
+              access_token: ACCESS_PLAIN,
+              refresh_token: REFRESH_PLAIN,
+              expires_in: 7200,
+            },
           }
         : { json: { data: { id: '42', username: 'username' } } }
     )
@@ -228,8 +236,25 @@ describe('connecting', () => {
     expect(form.get('code_verifier')).toBe('v'.repeat(64))
     expect(calls[0].init?.headers?.Authorization).toMatch(/^Basic /)
     const row = q.rows.get('7/x')
-    expect(JSON.stringify(row)).not.toContain('R1')
-    expect(JSON.stringify(row)).not.toContain('"A1"')
+    expect(JSON.stringify(row)).not.toContain(REFRESH_PLAIN)
+    expect(JSON.stringify(row)).not.toContain(ACCESS_PLAIN)
+    // Encoded is not sealed: a seal that only base64-encodes passes the two
+    // checks above and the round trip below together (#3712).
+    for (const plain of [ACCESS_PLAIN, REFRESH_PLAIN])
+      for (const enc of ['base64', 'base64url'] as const)
+        expect(JSON.stringify(row)).not.toContain(
+          Buffer.from(plain).toString(enc).replace(/=+$/, '')
+        )
+    // Sealed, not dropped: the stored value opens back to the token.
+    const { unseal } = await import('./meta-connect')
+    expect(unseal(String(row.meta.refresh_sealed), env)).toBe(REFRESH_PLAIN)
+    // ...and only under its own key.
+    expect(() =>
+      unseal(String(row.meta.refresh_sealed), {
+        ...env,
+        META_TOKEN_KEY: 'another-key',
+      })
+    ).toThrow()
   })
 
   it('an X connect without its verifier is refused', async () => {

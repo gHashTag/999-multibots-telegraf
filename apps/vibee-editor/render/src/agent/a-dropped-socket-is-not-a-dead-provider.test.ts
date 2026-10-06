@@ -61,7 +61,7 @@ describe('a transport death is retried on the same route', () => {
     )
     const events = await drain()
     expect(calls).toBe(2)
-    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-5.3' })
+    expect(events[0]).toEqual({ kind: 'provider', id: 'zai', model: 'glm-4.7-flash' })
     expect(events).toContainEqual({ kind: 'content', text: 'Готово' })
   })
 

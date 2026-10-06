@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "split-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 6 satisfies number;
+export const VERSION = 10 satisfies number;
 export const COMPOSITION = "SplitTalkingHead" satisfies string;
 export const FACE_SPEC = "owner-studio" satisfies string;
 export const LIPSYNC_MODEL = "kie/kling/ai-avatar-standard" satisfies string;
@@ -39,6 +39,31 @@ export const CTA_PAUSE_SEC = 3 satisfies number;
 export const CTA_ALWAYS = true satisfies boolean;
 export const OWNER_CTA = "@t27ai_bot" satisfies string;
 export const SPEECH_MAX_SECONDS = 12 satisfies number;
+export const CTA_GIVEN = 1 satisfies number;
+export const CTA_CLIENT = 2 satisfies number;
+export const CTA_NEUTRAL = 3 satisfies number;
+export const CTA_OWNER = 4 satisfies number;
+export const OWNER_VOICE_ON_CLIENT_REEL = false satisfies boolean;
+export const AGENT_HOUSE_NAME_ON_CLIENT_REEL = false satisfies boolean;
+export const REFUSED_BEFORE_SPEND = true satisfies boolean;
+export const STOCK_VOICE_FOR_ORDINARY = false satisfies boolean;
+export const MEASURED_CHARS = 464 satisfies number;
+export const MEASURED_MS = 25920 satisfies number;
+export const MS_PER_CHAR = 56 satisfies number;
+export const PACE_PER_VOICE = true satisfies boolean;
+export const PACE_ON_OTHER_VOICES = false satisfies boolean;
+export const PLAIN_CHAR_WEIGHT = 1 satisfies number;
+export const DIGIT_WEIGHT = 4 satisfies number;
+export const WIDE_CHAR_WEIGHT = 4 satisfies number;
+export const MIN_PACE_UNITS = 107 satisfies number;
+export const REFUND_TOO_LONG_VOICE = true satisfies boolean;
+export const HOUSE_CALL_COLOR = "#FFD700" satisfies string;
+export const NEUTRAL_CALL_COLOR = "#FFFFFF" satisfies string;
+export const CALL_GROUND = "#000000" satisfies string;
+export const CALL_AS_IS = 1 satisfies number;
+export const CALL_SHADE = 2 satisfies number;
+export const CALL_REFUSED = 3 satisfies number;
+export const GIVEN_CALL_COLOR_UNREADABLE_REFUSED = true satisfies boolean;
 export const REEL_CHECK_BEFORE_SEND = true satisfies boolean;
 // t27c gen-ts: fn caption_start_ms was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn raw_count was not emitted -- this backend lowers declarations, not bodies.
@@ -52,6 +77,42 @@ export const REEL_CHECK_BEFORE_SEND = true satisfies boolean;
 // t27c gen-ts: fn fits was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn reel_frames was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn deliverable was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn house_own was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn cta_for was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn owner_voice_allowed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn house_name_allowed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn charged was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn voice_refused was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn speech_units was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pace_for was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn speech_ms_estimate was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn text_fits was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn measured_pace was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn slowest_pace was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn pace_to_keep was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn row_pace_after was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn voice_too_long was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn backstop_refund was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn call_colour_from was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn call_drawn was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -65,7 +126,7 @@ export const REEL_CHECK_BEFORE_SEND = true satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "MIN_SHOT_FRAMES", "SPLIT_PCT", "FACE_FILLS_HALF", "FACE_CENTER_X_PCT", "FACE_CENTER_Y_PCT", "STUDIO_FACE_X_PCT", "STUDIO_FACE_Y_PCT", "HEADROOM_MIN_PCT", "FACE_OFF_CENTER_MAX_PCT", "HEADROOM_AIM_PCT", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL", "CAPTIONS_FROM_FINAL_VOICE", "CAPTION_DRIFT_MAX_MS", "ONSET_FRAME_MS", "SPEECH_BELOW_LOUD_DB", "CAPTION_ON_SILENCE_MAX_MS", "CTA_PAUSE_SEC", "CTA_ALWAYS", "OWNER_CTA", "SPEECH_MAX_SECONDS", "REEL_CHECK_BEFORE_SEND"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COMPOSITION", "FACE_SPEC", "LIPSYNC_MODEL", "BROLL_MODEL", "OWN_VOICE", "FPS", "OPEN_FULL_FRAMES", "SPLIT_FRAMES", "FULL_FRAMES", "MAX_SECONDS", "MIN_SHOT_FRAMES", "SPLIT_PCT", "FACE_FILLS_HALF", "FACE_CENTER_X_PCT", "FACE_CENTER_Y_PCT", "STUDIO_FACE_X_PCT", "STUDIO_FACE_Y_PCT", "HEADROOM_MIN_PCT", "FACE_OFF_CENTER_MAX_PCT", "HEADROOM_AIM_PCT", "CAPTION_COLOR", "WORDS_PER_CAPTION", "TEXT_IN_BROLL", "CAPTIONS_FROM_FINAL_VOICE", "CAPTION_DRIFT_MAX_MS", "ONSET_FRAME_MS", "SPEECH_BELOW_LOUD_DB", "CAPTION_ON_SILENCE_MAX_MS", "CTA_PAUSE_SEC", "CTA_ALWAYS", "OWNER_CTA", "SPEECH_MAX_SECONDS", "CTA_GIVEN", "CTA_CLIENT", "CTA_NEUTRAL", "CTA_OWNER", "OWNER_VOICE_ON_CLIENT_REEL", "AGENT_HOUSE_NAME_ON_CLIENT_REEL", "REFUSED_BEFORE_SPEND", "STOCK_VOICE_FOR_ORDINARY", "MEASURED_CHARS", "MEASURED_MS", "MS_PER_CHAR", "PACE_PER_VOICE", "PACE_ON_OTHER_VOICES", "PLAIN_CHAR_WEIGHT", "DIGIT_WEIGHT", "WIDE_CHAR_WEIGHT", "MIN_PACE_UNITS", "REFUND_TOO_LONG_VOICE", "HOUSE_CALL_COLOR", "NEUTRAL_CALL_COLOR", "CALL_GROUND", "CALL_AS_IS", "CALL_SHADE", "CALL_REFUSED", "GIVEN_CALL_COLOR_UNREADABLE_REFUSED", "REEL_CHECK_BEFORE_SEND"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

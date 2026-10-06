@@ -19,11 +19,7 @@ describe('ролики складываются по шаблонам', () => {
 
   it('групп столько, сколько шаблонов, а не роликов', () => {
     const г = поШаблонам(ролики)
-    expect(г.map(x => x.ключ)).toEqual([
-      'TrinityBlogReel',
-      'NoirReel',
-      null,
-    ])
+    expect(г.map(x => x.ключ)).toEqual(['TrinityBlogReel', 'NoirReel', null])
     expect(г[0].ролики.map(р => р.id)).toEqual([1, 2, 5])
   })
 
@@ -84,14 +80,21 @@ describe('группы подключены к экрану, а не тольк�
      * ОДНОГО шаблона: группа одна, значит развёрнута, значит на экране снова
      * стена карточек. Владелец увидел это первым.
      */
-    expect(СЕТКА).toContain('const раскрыта = (ключ: string | null) => раскрытые.has(')
+    expect(СЕТКА).toContain(
+      'const раскрыта = (ключ: string | null) => раскрытые.has('
+    )
     expect(СЕТКА).not.toContain('группы.length === 1')
   })
 
   it('дочитываются ВСЕ страницы, иначе шаблоны видны не все', () => {
     // Страница отдаёт 20, у владельца первые двадцать — один шаблон, а
     // остальные два лежали дальше и до вкладки не доходили вовсе.
-    expect(СЕТКА).toMatch(/if \(loading \|\| !hasMore \|\| page >= 9\) return/)
+    // The fuse moved into a name (AUTO_PAGES); the behaviour is pinned by
+    // ProfileTemplatesGrid.test.tsx, which counts the fetches.
+    expect(СЕТКА).toContain(
+      'const autoPaging = hasMore && page < AUTO_PAGES - 1'
+    )
+    expect(СЕТКА).toMatch(/if \(loading \|\| !autoPaging\) return/)
   })
 
   it('страницы не дублируются при добавлении', () => {

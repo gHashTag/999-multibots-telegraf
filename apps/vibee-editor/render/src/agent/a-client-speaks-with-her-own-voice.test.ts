@@ -55,6 +55,14 @@ function poolWith(saved: Row[] = []) {
   }
 }
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const voiceNote = (id: number, out: boolean, seconds: number) => ({
   id,
   out,
@@ -327,20 +335,38 @@ describe('the clone reaches the provider only by the service’s choice', () => 
 
   it('audio_generate speaks for_lead with the clone THIS owner made', () => {
     expect(tools).toMatch(
-      /leadVoiceOf\(\s*ctx\.pool,\s*String\(ctx\.telegramId\)/
+      /cloneFor\(\s*ctx\.pool,\s*String\(ctx\.telegramId\),\s*forLead\s*\)/
     )
     expect(tools).toMatch(/clone_voice: cloneVoice/)
+    // The one home of the rule: anybody else's clone only by the asker.
+    const leadVoice = fs.readFileSync(
+      path.join(__dirname, 'lead-voice.ts'),
+      'utf8'
+    )
+    expect(leadVoice).toMatch(
+      /self \? ownVoiceOf\(pool, asker\) : leadVoiceOf\(pool, asker, forLead\)/
+    )
   })
 
-  it('the route takes a clone only from its api-key caller, and skips ElevenLabs for it', () => {
+  it('the route takes a clone only from its api-key caller, and never sends it to Kie', () => {
     expect(server).toMatch(
       /authenticate\(req\)\.via === 'api-key' && isCloneVoiceId\(clone_voice\)/
     )
-    expect(server).toMatch(/if \(cloneVoice\) throw new Error/)
+    // There is no ElevenLabs leg any more (kie-speech.ts). A clone goes to
+    // Replicate when it is live, and is refused before the charge otherwise;
+    // Kie would read it in a stock voice.
+    expect(server).toMatch(/if \(cloneVoice && !replicateLive\(\)\)/)
+    expect(server).toMatch(
+      /if \(cloneVoice\) \{\s*const audioUrl = await generateAudioViaReplicate/
+    )
   })
 
-  it('the tool is in the registry', async () => {
-    const { TOOLS_BY_NAME } = await import('./tools')
-    expect(TOOLS_BY_NAME.get('crm_voice_clone')).toBeTruthy()
-  })
+  it(
+    'the tool is in the registry',
+    async () => {
+      const { TOOLS_BY_NAME } = await import('./tools')
+      expect(TOOLS_BY_NAME.get('crm_voice_clone')).toBeTruthy()
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

@@ -1536,6 +1536,24 @@ async function afterSend(
   sent: unknown,
   paid: number | null
 ): Promise<void> {
+  /*
+   * The bot sees this message come back as "the owner typed" and would pause
+   * the AI in that chat; remember the id so it asks and stays on (see
+   * agent-sent.ts). The call was lost when `execute` became this table
+   * (#2402) and the registry stayed empty: 2026-10-05 an autopilot send to a lead
+   * logged "Owner replied manually, AI paused". An album comes back
+   * as an array of messages; each id is remembered.
+   */
+  if (sent !== null && p.lead) {
+    const { recordAgentSent } = await import('./agent-sent')
+    for (const m of Array.isArray(sent) ? sent : [sent]) {
+      recordAgentSent(
+        ctx.telegramId,
+        p.lead,
+        (m as { id?: unknown } | null | undefined)?.id
+      )
+    }
+  }
   if (sent !== null) await mirrorSent(ctx, p, sent)
   if (p.lead && ctx.pool) {
     try {

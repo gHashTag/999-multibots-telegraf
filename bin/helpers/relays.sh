@@ -84,15 +84,7 @@ fi
 # run of this probe said "no relay failures in 24 h" eight hours after the
 # 401s of 04:31 -- they lived in the deployment before #3494. So each deploy
 # that ran inside the window is asked by id, filtered server-side.
-ids=$(railway deployment list --json --project "$RAIL_PROJECT" \
-  --environment "$RAIL_ENV" --service 999-multibots-telegraf 2>/dev/null |
-  HOURS="$HOURS" python3 -c 'import json,os,sys,datetime as d
-cut = d.datetime.now(d.timezone.utc) - d.timedelta(hours=int(os.environ["HOURS"]))
-rows = [x for x in json.load(sys.stdin) if x.get("status") in ("SUCCESS","REMOVED","CRASHED")]
-# A deploy that ran inside the window: created after the cut, or the last one before it.
-before = [x for x in rows if d.datetime.fromisoformat(x["createdAt"].replace("Z","+00:00")) < cut]
-keep = [x for x in rows if x not in before] + before[:1]
-print(" ".join(x["id"] for x in keep))' 2>/dev/null)
+ids=$(rdeploy_ids 999-multibots-telegraf "$HOURS")
 if [ -z "$ids" ]; then
   echo "  ??    bot log: Railway listed no deployments -- failures NOT counted"
   fail=$(( fail > 0 ? fail : 2 ))

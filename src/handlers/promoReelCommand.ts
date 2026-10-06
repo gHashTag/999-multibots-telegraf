@@ -40,7 +40,6 @@ export async function handlePromoReelCommand(ctx: MyContext) {
         backgroundMusic: '',
         splitRatio: 0.5,
         ctaText: 'ЖМИ /START',
-        ctaHighlight: '/START',
         segments: [
           {
             type: 'fullscreen',

@@ -20,6 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { toolContentForModel } from './tool-content'
+import type { TurnWidgets } from './client-widgets'
 import * as REEL from '../spec/crm-story-reel.gen'
 import * as SPLIT from '../spec/split-reel.gen'
 import {
@@ -75,6 +76,7 @@ import {
   marketplaceAgentById,
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import * as WS from '../spec/crm-client-workspace.gen'
+import * as CHAIN from '../spec/agent-provider-chain.gen'
 import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
@@ -1019,8 +1021,8 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
   3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
-  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку». ${'' /* cyrillic-ok: prompt copy */}
-  Бот в речи — одно слово «Тринити», без букв и цифр. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку»; у рилса клиента призыв и кнопка ЕГО, не Тринити. ${'' /* cyrillic-ok: prompt copy */}
+  Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
 - СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
@@ -1321,6 +1323,11 @@ function canTakeSection(surface?: string): string {
     'Имя или «HR» в профиле ничего не значат. Новую группу под аудиторию ' + // cyrillic-ok: prompt copy
     'открывает tg_create_group — карточка, владелец нажимает сам; группа ' + // cyrillic-ok: prompt copy
     'создаётся пустой, приглашения отдельно.' + // cyrillic-ok: prompt copy
+    '\n\nТЫ УМЕЕШЬ СОЗДАТЬ TELEGRAM-БОТА — tg_create_bot: ссылка и кнопка ' + // cyrillic-ok: prompt copy
+    'открывают окно создания в самом Telegram, человек подтверждает, токен ' + // cyrillic-ok: prompt copy
+    'никто не видит. Не говори, что боты создаются только в @BotFather, и ' + // cyrillic-ok: prompt copy
+    'не веди по /newbot; если инструмент ответил, что режим выключен, — ' + // cyrillic-ok: prompt copy
+    'передай ровно его путь включения.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *
@@ -1587,6 +1594,34 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       'О себе проект пишет на своём языке (own-language-first), а не в чужом формате.' // cyrillic-ok: prompt copy
     )
   }
+  /*
+   * THE t27b COMPILER ENGINEER (gHashTag/t27 epic #6063). It reads the
+   * blockers and the lab's runs; it cannot build t27b here, so every number
+   * it did not quote from a run is "not run", and a mismatch is a stop.
+   */
+  if (agent.id === 't27b') {
+    return (
+      '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — ИНЖЕНЕР КОМПИЛЯТОРА t27b: нативный AArch64-бэкенд ' + // cyrillic-ok: prompt copy
+      't27 без LLVM (cli/t27b в github.com/gHashTag/t27) до 100% корпуса спеков. ' + // cyrillic-ok: prompt copy
+      'Карта: эпик gHashTag/t27#6063, зонтик #5977; команда t27b corpus считает ' + // cyrillic-ok: prompt copy
+      'прогоны, t27b corpus --blockers даёт блокеры в порядке разблокировки. ' + // cyrillic-ok: prompt copy
+      'Честный знаменатель — спеки, у которых сам эталонный путь (t27c gen + ' + // cyrillic-ok: prompt copy
+      'zig test) проходит; спек, падающий на эталоне, вне знаменателя. Эпик, код ' + // cyrillic-ok: prompt copy
+      'и прогоны Railway-лаборатории читай web_read: её адрес — в комментариях ' + // cyrillic-ok: prompt copy
+      'эпика, она отдаёт /latest.json и /runs/<sha>.json. Справку по AArch64 ищи ' + // cyrillic-ok: prompt copy
+      'web_search. Нет адреса или прогона — так и говори, не подставляй число. ' + // cyrillic-ok: prompt copy
+      'Собрать и запустить t27b здесь нечем: code_run — ' + // cyrillic-ok: prompt copy
+      'песочница без сети и без компилятора, поэтому всё, что ты не процитировал ' + // cyrillic-ok: prompt copy
+      'из вывода прогона, помечаешь «не запускалось». Правила: число покрытия ' + // cyrillic-ok: prompt copy
+      '(pass/reference и число расхождений) называешь только со ссылкой на прогон, ' + // cyrillic-ok: prompt copy
+      'который его напечатал; расхождение с эталоном — остановка и отчёт, никогда ' + // cyrillic-ok: prompt copy
+      'не пропуск и не обход; одно семейство конструкций на PR, со своим issue, ' + // cyrillic-ok: prompt copy
+      'Refs #6063 и тестом вместе с изменением; PR не мержишь и не одобряешь — это ' + // cyrillic-ok: prompt copy
+      'решает владелец. Законы репозитория L1-L7: Closes #N, gen/ руками не ' + // cyrillic-ok: prompt copy
+      'правится, исходник только ASCII, идентификаторы и комментарии на ' + // cyrillic-ok: prompt copy
+      'английском (LANG-EN), в каждом спеке блок test/invariant/bench, новых *.sh нет.' // cyrillic-ok: prompt copy
+    )
+  }
   return ''
 }
 
@@ -1678,7 +1713,7 @@ export function systemPrompt(
  * a dead route stays invisible for as long as the others live. One warn line
  * per skip, before the next provider is tried.
  */
-export const SKIP_LOG_PREFIX = '[agent] provider skipped:'
+export const SKIP_LOG_PREFIX = CHAIN.SKIP_LOG_PREFIX
 
 function skipped(reason: string): void {
   console.warn(`${SKIP_LOG_PREFIX} ${reason}`)
@@ -2289,6 +2324,11 @@ async function* runAgentTurn(
     /** The Manager Agent: words only, no media tools (client-facing.ts). */
     textOnly?: boolean
     client?: string
+    /**
+     * The widgets beside the client's chat and their state, already checked
+     * (client-widgets.ts widgetsOfTurn). Read only together with `client`.
+     */
+    widgets?: TurnWidgets
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
     /**
@@ -2526,6 +2566,20 @@ async function* runAgentTurn(
     : ''
 
   /*
+   * What the owner sees beside that chat (owner, 2026-10-03: the agent sent
+   * an old render while the reel panel stood open with a new topic). Context,
+   * not an instruction; the free text in it is fenced. Spec v5 of
+   * crm-client-workspace.t27: a client's thread only.
+   */
+  const widgetsContext =
+    opts?.client && opts.widgets
+      ? await (async () => {
+          const { widgetsBlock } = await import('./client-widgets')
+          return widgetsBlock(opts.widgets!)
+        })().catch(() => '')
+      : ''
+
+  /*
    * The person on the other side of THIS conversation -- not a client the
    * seller is talking about, which is what clientContext is. Absent when the
    * caller sent nothing, and absent is the honest state: a row of "unknown"s
@@ -2568,6 +2622,7 @@ async function* runAgentTurn(
     dmHistory +
     clientBrief +
     clientContext +
+    widgetsContext +
     personContext +
     products +
     defects +
@@ -2865,6 +2920,16 @@ async function* runAgentTurn(
    * the model's call, as it always was.
    */
   const ranThisTurn = new Set<string>()
+  /*
+   * A SWEEP STEP'S WORDS WAIT FOR ITS VERDICT (production 2026-10-04 20:04).
+   *
+   * Under toolsOnly a provider that answers in words before any tool ran is
+   * out of the turn (below), and what it wrote must not reach the caller:
+   * the bot joins every text event, so "I am calling the context now" would
+   * prefix the next model's real answer. Nobody watches a sweep stream, so
+   * holding a step's text until the step ends costs nothing.
+   */
+  let heldStep = ''
   const logEmpty = (action: string, provider: string) =>
     console.warn(
       EMPTY_ANSWER_LOG_PREFIX,
@@ -2919,7 +2984,8 @@ async function* runAgentTurn(
           if (safe && contacts) heldForClient += safe
           else if (safe) {
             said += safe.trim().length
-            yield { тип: 'текст', текст: safe }
+            if (opts?.toolsOnly) heldStep += safe
+            else yield { тип: 'текст', текст: safe }
           }
         } else {
           assistant = ev.message
@@ -2942,7 +3008,8 @@ async function* runAgentTurn(
       heldForClient = ''
       if (tail) {
         said += tail.trim().length
-        yield { тип: 'текст', текст: tail }
+        if (opts?.toolsOnly) heldStep += tail
+        else yield { тип: 'текст', текст: tail }
       }
       noteFabricated()
       await noteWithheld()
@@ -2974,6 +3041,42 @@ async function* runAgentTurn(
         текст: 'модель не вернула сообщение',
       }
       return
+    }
+
+    /*
+     * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
+     *
+     * Production 2026-10-04 20:04, the owner's chat: zai-lite/glm-4.5-flash
+     * answered the sweep with "calling the context for the first lead" and
+     * no tool call -- twice, because the bot's retry reached the same model.
+     * A toolsOnly turn exists for its tool calls, so a provider whose answer
+     * ends before any tool ran is out of this turn and the next tool-capable
+     * provider gets the same messages. Its words are dropped (see heldStep).
+     * With nobody left after it, it keeps today's behaviour: the bot sees
+     * the words, files the failure and makes its one retry.
+     */
+    if (
+      opts?.toolsOnly &&
+      !assistant.tool_calls?.length &&
+      toolCallCount === 0 &&
+      answeredBy &&
+      allProviders().some(
+        p => p.tools && p.id !== answeredBy && !excluded.has(p.id)
+      )
+    ) {
+      excluded.add(answeredBy)
+      emptyFrom.push(
+        `${answeredBy}: ответил словами, не вызвав ни одного инструмента` // cyrillic-ok: reason text
+      )
+      logEmpty('talked instead of calling', answeredBy)
+      heldStep = ''
+      said = 0
+      step--
+      continue
+    }
+    if (heldStep) {
+      yield { тип: 'текст', текст: heldStep }
+      heldStep = ''
     }
 
     if (!assistant.tool_calls?.length) {

@@ -581,6 +581,12 @@ const en: Translations = {
   'crm.aside.gifts': 'Gifts',
   'crm.aside.gift.portrait.give': 'Give',
   'crm.aside.gift.portrait.send': 'Send',
+  'crm.aside.menu': 'Widgets',
+  'crm.aside.widget.moves': 'Moves',
+  'crm.aside.widget.group': 'Group',
+  'crm.aside.widget.content': 'Content',
+  'crm.aside.widget.templates': 'Templates',
+  'crm.aside.moves.none': 'No move to suggest right now.',
   'crm.aside.package.none': 'No client package: no rules written yet.',
   'crm.aside.plan.none': 'No content plan yet.',
   'crm.aside.note.placeholder': 'A note about this client…',
@@ -939,6 +945,8 @@ const en: Translations = {
   'meta.card.days': '{n} days left',
   'meta.card.soon': 'LinkedIn ends in {n} days -- reconnect',
   'meta.card.renews': 'renews itself',
+  'meta.card.waiting':
+    'Waiting for {name} to confirm -- this line updates by itself',
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
@@ -1747,7 +1755,7 @@ const en: Translations = {
   'feed.remixBasedOn': 'Based on another template',
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
-  'app.title': 'Trinity S³AI — reels on autopilot',
+  'app.title': 'TRINITY S³AI — AGI game — play, direct, earn',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -2061,6 +2069,8 @@ const en: Translations = {
   'profile.no_templates_desc': 'Create your first AI video to share',
   'profile.create_first_video': 'Create First Video',
   'profile.load_more': 'Load More',
+  'profile.templates_failed': 'Could not load the templates',
+  'profile.retry': 'Try again',
   'profile.loading': 'Loading profile...',
   'profile.not_found': 'User not found',
   'soul.title': 'My SOUL — the agent writes in my voice',
@@ -3578,6 +3588,12 @@ const ru: Translations = {
   'crm.aside.gifts': 'Подарки',
   'crm.aside.gift.portrait.give': 'Подарить',
   'crm.aside.gift.portrait.send': 'Отправить',
+  'crm.aside.menu': 'Виджеты',
+  'crm.aside.widget.moves': 'Ходы',
+  'crm.aside.widget.group': 'Группа',
+  'crm.aside.widget.content': 'Контент',
+  'crm.aside.widget.templates': 'Шаблоны',
+  'crm.aside.moves.none': 'Сейчас ходов не предложено.',
   'crm.aside.package.none': 'Пакета нет: правила не записаны.',
   'crm.aside.plan.none': 'Контент-плана пока нет.',
   'crm.aside.note.placeholder': 'Заметка о клиенте…',
@@ -3922,6 +3938,7 @@ const ru: Translations = {
   'meta.card.days': 'осталось дней: {n}',
   'meta.card.soon': 'LinkedIn закончится через {n} дн. — переподключите',
   'meta.card.renews': 'продлевается сам',
+  'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
     'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
@@ -4697,7 +4714,7 @@ const ru: Translations = {
   'feed.ageMonth': ' мес',
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
-  'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'app.title': 'TRINITY S³AI — AGI-игра — играй, управляй, зарабатывай',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
@@ -5012,6 +5029,8 @@ const ru: Translations = {
   'profile.no_templates_desc': 'Создайте своё первое AI-видео',
   'profile.create_first_video': 'Создать видео',
   'profile.load_more': 'Загрузить ещё',
+  'profile.templates_failed': 'Не удалось загрузить шаблоны',
+  'profile.retry': 'Повторить',
   'profile.loading': 'Загрузка профиля...',
   'profile.not_found': 'Пользователь не найден',
   'soul.title': 'Мой SOUL — агент пишет моим голосом',

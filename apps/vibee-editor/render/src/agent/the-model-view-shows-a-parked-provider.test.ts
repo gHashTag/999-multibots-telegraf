@@ -53,7 +53,7 @@ describe('GET /api/agent/provider', () => {
     expect(
       s.answering,
       'the view still says zai while zai-lite answers'
-    ).toEqual({ id: 'zai-lite', model: 'glm-4.5' })
+    ).toEqual({ id: 'zai-lite', model: 'glm-4.5-flash' })
     expect(s.breakers).toEqual([
       {
         id: 'zai',

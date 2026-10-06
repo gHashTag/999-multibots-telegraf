@@ -35,7 +35,12 @@ import {
   stripAgentMarkers,
 } from '@/navigation/helpers/actionButtons'
 import { rewriteAppUrls } from '@/navigation/helpers/appLinks'
-import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
+import {
+  splitLongAnswer,
+  keepTyping,
+  actionForTool,
+  type StopTyping,
+} from '@/helpers/telegramLongAnswer'
 import { agentLanes } from '@/services/agentLanes'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
@@ -159,7 +164,7 @@ const laneKeyOf = (connId: string, chatId: number | string): string =>
   `biz:${connId}:${chatId}`
 
 /** Lane key -> stop for the "typing…" that runs from accept to the end of the turn. */
-const typingStops = new Map<string, () => void>()
+const typingStops = new Map<string, StopTyping>()
 
 /**
  * Lane key -> who to tell if the process stops before the lane is done. Kept
@@ -858,7 +863,11 @@ export async function answerClient(
    * CRM -- the render hands this turn no media tool (a managed bot of that
    * package, core/bot/managedBots/runner.ts).
    */
-  opts: { textOnly?: boolean } = {}
+  opts: {
+    textOnly?: boolean
+    /** The tool the agent is running now, null when it ends (#3683). */
+    onTool?: (name: string | null) => void
+  } = {}
 ): Promise<string> {
   let attempts = 0
   let lastFault: ProviderFault = 'standing'
@@ -872,6 +881,7 @@ export async function answerClient(
         surface: 'business',
         ...(seller ? { seller } : {}),
         ...(opts.textOnly ? { textOnly: true } : {}),
+        ...(opts.onTool ? { onTool: opts.onTool } : {}),
       })
       // Markers are the bot chat's syntax; a client must never see bracket soup.
       const raw = (answer.текст ?? '').trim() // cyrillic-ok: pre-existing field
@@ -1797,7 +1807,13 @@ async function runBusinessBatch(
             }
           ),
         sellerId ? String(sellerId) : undefined,
-        offered
+        offered,
+        {
+          // The client sees "sending a photo…" while a picture is drawn,
+          // not thirty seconds of "typing…" (#3683).
+          onTool: name =>
+            typingStops.get(laneKey)?.setAction(actionForTool(name)),
+        }
       ),
       botUsername
     )

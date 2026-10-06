@@ -861,7 +861,7 @@ describe('a stamped picture is named, never handed over as clean', () => {
     const end = TOOLS_SRC.indexOf("name: 'audio_generate'", start)
     const body = TOOLS_SRC.slice(start, end)
     expect(body).toMatch(/const watermark = watermarkOf\(servedBy\)/)
-    const success = body.slice(body.indexOf('сделано: true')) // cyrillic-ok: the tool's own field
+    const success = sliceFrom(body, 'сделано: true') // cyrillic-ok: the tool's own field
     expect(success).toMatch(/\n\s*watermark,/)
   })
 })
