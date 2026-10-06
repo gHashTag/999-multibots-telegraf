@@ -16,6 +16,16 @@ import { layoutPosterFacts } from './poster-facts-layout'
 
 const PROMPT = 'jazz poster, 25 октября в 19:00, вход 1 500 ₽'
 
+/*
+ * Every test that touches the real canvas gets this budget (#3742). The
+ * drawing is ~0.3 s; what blows vitest's 5 s default is the first canvas
+ * call in a fresh worker loading cairo and fontconfig, plus importing
+ * ./tools -- CPU-bound work whose wall time scales with machine load
+ * (8.4 s seen at load average 14.7). Whichever canvas test runs first pays
+ * it, so all of them carry the same budget, not only the one that failed.
+ */
+const CANVAS_TIMEOUT_MS = 30_000
+
 async function blank(w: number, h: number): Promise<Buffer> {
   const { createCanvas } = await import('canvas')
   const c = createCanvas(w, h)
@@ -112,26 +122,34 @@ describe('drawPlan', () => {
 describe('drawPosterFacts on a real canvas', () => {
   // The first canvas call in a fresh process loads cairo and fontconfig; on
   // a cold tree under load that alone took 7 s once.
-  it('darkens the bottom and paints white text there; the top is untouched', async () => {
-    const r = await drawPosterFacts(await blank(768, 768), {
-      date_time: '25 октября, 19:00',
-      price: '50%',
-    })
-    expect(r.drawn).toBe(true)
-    if (!r.drawn) return
-    expect(r.lines).toEqual(['25 октября, 19:00', '50%'])
-    expect(await pixel(r.bytes, 5, 5)).toEqual([255, 255, 255, 255])
-    const plate = await pixel(r.bytes, 767, 767)
-    expect(plate[0]).toBeLessThan(130)
-    expect(plate[0]).toBeGreaterThan(100)
-  }, 20_000)
+  it(
+    'darkens the bottom and paints white text there; the top is untouched',
+    async () => {
+      const r = await drawPosterFacts(await blank(768, 768), {
+        date_time: '25 октября, 19:00',
+        price: '50%',
+      })
+      expect(r.drawn).toBe(true)
+      if (!r.drawn) return
+      expect(r.lines).toEqual(['25 октября, 19:00', '50%'])
+      expect(await pixel(r.bytes, 5, 5)).toEqual([255, 255, 255, 255])
+      const plate = await pixel(r.bytes, 767, 767)
+      expect(plate[0]).toBeLessThan(130)
+      expect(plate[0]).toBeGreaterThan(100)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 
-  it('a fact the layout refuses leaves the picture undrawn', async () => {
-    const r = await drawPosterFacts(await blank(768, 768), {
-      price: 'x'.repeat(400),
-    })
-    expect(r).toMatchObject({ drawn: false, refused: 'price' })
-  })
+  it(
+    'a fact the layout refuses leaves the picture undrawn',
+    async () => {
+      const r = await drawPosterFacts(await blank(768, 768), {
+        price: 'x'.repeat(400),
+      })
+      expect(r).toMatchObject({ drawn: false, refused: 'price' })
+    },
+    CANVAS_TIMEOUT_MS
+  )
 })
 
 describe('overlayFactsOnPicture', () => {
@@ -309,82 +327,86 @@ describe('image_generate is wired to the overlay', () => {
  * facts on it.
  */
 describe('image_generate uploads the drawn png', () => {
-  it('bytes, content type and file name are the drawn picture', async () => {
-    const source = await blank(768, 1152)
-    const uploads: {
-      type: string | null
-      name: string | null
-      body: Buffer
-    }[] = []
-    const realFetch = globalThis.fetch
-    const saved = {
-      VISION_API_KEY: process.env.VISION_API_KEY,
-      POSTER_FACTS_OVERLAY: process.env.POSTER_FACTS_OVERLAY,
-    }
-    delete process.env.VISION_API_KEY
-    delete process.env.POSTER_FACTS_OVERLAY
-    globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
-      const u = String(url)
-      if (u.endsWith('/api/generate/image'))
-        return new Response(
-          JSON.stringify({
-            url: 'https://provider.test/p.jpg',
-            provider: 'kie',
-          }),
-          { headers: { 'content-type': 'application/json' } }
-        )
-      if (u === 'https://provider.test/p.jpg')
-        return new Response(new Uint8Array(source), {
-          headers: { 'content-type': 'image/jpeg' },
-        })
-      if (u.endsWith('/upload')) {
-        const h = new Headers(init.headers)
-        uploads.push({
-          type: h.get('Content-Type'),
-          name: h.get('X-Filename'),
-          body: Buffer.from(init.body as Uint8Array),
-        })
-        return new Response(
-          JSON.stringify({ directUrl: 'https://s3.test/agent-image.png' }),
-          { headers: { 'content-type': 'application/json' } }
-        )
+  it(
+    'bytes, content type and file name are the drawn picture',
+    async () => {
+      const source = await blank(768, 1152)
+      const uploads: {
+        type: string | null
+        name: string | null
+        body: Buffer
+      }[] = []
+      const realFetch = globalThis.fetch
+      const saved = {
+        VISION_API_KEY: process.env.VISION_API_KEY,
+        POSTER_FACTS_OVERLAY: process.env.POSTER_FACTS_OVERLAY,
       }
-      return new Response('{}', { status: 404 })
-    }) as typeof fetch
-    const pool = {
-      query: async () => ({
-        rows: [{ n: 0, id: 7, balance: 50 }],
-        rowCount: 1,
-      }),
-    }
-    try {
-      const { TOOLS_BY_NAME } = await import('./tools')
-      const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
-        { prompt: PROMPT, title: 'Jazz Night' },
-        {
-          telegramId: '1',
-          pool,
-          chargeLater: true,
-          heard: 'афиша: Jazz Night, 25 октября в 19:00, вход 1 500 ₽',
-        } as never
-      )
-      expect(out['сделано']).toBe(true)
-      expect(out.factsOverlay).toMatchObject({ title: 'drawn' })
-      expect(uploads).toHaveLength(1)
-      expect(uploads[0].type).toBe('image/png')
-      expect(uploads[0].name).toMatch(/\.png$/)
-      expect(uploads[0].body.equals(source)).toBe(false)
-      expect(uploads[0].body.subarray(1, 4).toString()).toBe('PNG')
-      // The bottom is darkened by the plate; the provider's picture was white.
-      const bottom = await pixel(uploads[0].body, 5, 1140)
-      expect(bottom[0]).toBeLessThan(200)
-    } finally {
-      globalThis.fetch = realFetch
-      for (const [k, v] of Object.entries(saved))
-        if (v === undefined) delete process.env[k]
-        else process.env[k] = v
-    }
-  }, 30_000)
+      delete process.env.VISION_API_KEY
+      delete process.env.POSTER_FACTS_OVERLAY
+      globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+        const u = String(url)
+        if (u.endsWith('/api/generate/image'))
+          return new Response(
+            JSON.stringify({
+              url: 'https://provider.test/p.jpg',
+              provider: 'kie',
+            }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        if (u === 'https://provider.test/p.jpg')
+          return new Response(new Uint8Array(source), {
+            headers: { 'content-type': 'image/jpeg' },
+          })
+        if (u.endsWith('/upload')) {
+          const h = new Headers(init.headers)
+          uploads.push({
+            type: h.get('Content-Type'),
+            name: h.get('X-Filename'),
+            body: Buffer.from(init.body as Uint8Array),
+          })
+          return new Response(
+            JSON.stringify({ directUrl: 'https://s3.test/agent-image.png' }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        }
+        return new Response('{}', { status: 404 })
+      }) as typeof fetch
+      const pool = {
+        query: async () => ({
+          rows: [{ n: 0, id: 7, balance: 50 }],
+          rowCount: 1,
+        }),
+      }
+      try {
+        const { TOOLS_BY_NAME } = await import('./tools')
+        const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
+          { prompt: PROMPT, title: 'Jazz Night' },
+          {
+            telegramId: '1',
+            pool,
+            chargeLater: true,
+            heard: 'афиша: Jazz Night, 25 октября в 19:00, вход 1 500 ₽',
+          } as never
+        )
+        expect(out['сделано']).toBe(true)
+        expect(out.factsOverlay).toMatchObject({ title: 'drawn' })
+        expect(uploads).toHaveLength(1)
+        expect(uploads[0].type).toBe('image/png')
+        expect(uploads[0].name).toMatch(/\.png$/)
+        expect(uploads[0].body.equals(source)).toBe(false)
+        expect(uploads[0].body.subarray(1, 4).toString()).toBe('PNG')
+        // The bottom is darkened by the plate; the provider's picture was white.
+        const bottom = await pixel(uploads[0].body, 5, 1140)
+        expect(bottom[0]).toBeLessThan(200)
+      } finally {
+        globalThis.fetch = realFetch
+        for (const [k, v] of Object.entries(saved))
+          if (v === undefined) delete process.env[k]
+          else process.env[k] = v
+      }
+    },
+    CANVAS_TIMEOUT_MS
+  )
 
   it('a date hidden in the title is asked about before any charge', async () => {
     const untouchable = {
