@@ -93,13 +93,23 @@ const HOURS = new RegExp(
 const K_PREPOSITION_NEXT =
   '(?:утру|вечеру|обеду|ужину|завтраку|ночи|полудню|полуночи|часу|понедельнику|вторнику|среде|четвергу|пятнице|субботе|воскресенью|выходным|началу|концу|сроку|дедлайну|открытию|старту|празднику|новому)(?![\\p{L}])' // cyrillic-ok: preposition targets
 /*
+ * A digit after a spaced Cyrillic "k" letter makes it the preposition only
+ * when the digit starts a time or a date: a clock ("<k> 19:00"), a number
+ * with a time word ("<k> 7 вечера") or a day with a month ("<k> 8 марта").
+ * Any other digit keeps the letter a thousand -- "any digit" was the unsafe
+ * side: "RUB10 <k> 15 <k>" (a range), "$5 <k> 3 мес", "$5 <k> 2026" read as
+ * units, so "RUB10" or "$5" confirmed them (#3730 review, round 2).
+ */
+const K_PREPOSITION_DIGIT =
+  '(?:\\d{1,2}[:.]\\d{2}(?!\\d)|\\d{1,2}\\s*(?:утра|вечера|дня|ночи|часам|часов|ч)(?![\\p{L}])|\\d{1,2}\\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?![\\p{L}]))' // cyrillic-ok: time and month words
+/*
  * "$5k", "$5 тыс", "1,5 млн": a multiplier after the amount. Without it "$5k"
  * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). A
- * spaced Cyrillic "k" letter before a time ("<k> 19:00") or a word from
+ * spaced Cyrillic "k" letter before K_PREPOSITION_DIGIT ("<k> 19:00") or a word from
  * K_PREPOSITION_NEXT is the preposition "to": "$5 <k> morning" is $5
  * (#3719). Glued ("$5k") it is always the multiplier.
  */
-const KILO = `(?:k|(?<=\\d)к|к(?!\\s+(?:\\d|${K_PREPOSITION_NEXT}))|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
+const KILO = `(?:k|(?<=\\d)к|к(?!\\s+(?:${K_PREPOSITION_DIGIT}|${K_PREPOSITION_NEXT}))|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
 /**
  * The spaces that join digit groups, as a regex character-class body: a
  * space, a no-break space, a narrow no-break space. A CLOSED list, never

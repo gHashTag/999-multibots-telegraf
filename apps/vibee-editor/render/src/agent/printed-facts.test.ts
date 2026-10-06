@@ -609,6 +609,57 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
     expect(n).toBe(96)
   })
 
+  it('a spaced "к" before a digit is a thousand unless a time or date follows (#3730 review 2)', () => {
+    for (const text of [
+      '₽10 к 15 к',
+      '$5 к 3 мес',
+      '₽10 к 2 шт',
+      '₽10 к 2 взрослых',
+      'бюджет $5 к 2026',
+      '₽10 к 2',
+    ]) {
+      expect(keys(text)[0], text).toMatch(/^p\d+000$/)
+    }
+    expect(unconfirmedFacts('₽10 к 2 шт', '₽10').length).toBe(1)
+    expect(unconfirmedFacts('бюджет $5 к 2026', '$5').length).toBe(1)
+    expect(prices('$5 к 19:00')).toEqual(['p5'])
+    expect(prices('$5 к 7 вечера')).toEqual(['p5'])
+    expect(prices('$5 к 8 марта')).toEqual(['p5'])
+    // Accepted on the safe side: a count of guests is not a time, so the
+    // letter stays a thousand and "$3" no longer confirms it.
+    expect(prices('$3 к 5 гостям')).toEqual(['p3000'])
+  })
+
+  it('grid: "к" before a digit is a preposition only for a clock, a time word or a date', () => {
+    const tails = [
+      [' 19:00', true],
+      [' 19.00', true],
+      [' 7 вечера', true],
+      [' 9 утра', true],
+      [' 3 ч', true],
+      [' 8 марта', true],
+      [' 25 декабря', true],
+      [' 2 шт', false],
+      [' 3 мес', false],
+      [' 2 взрослых', false],
+      [' 5 гостям', false],
+      [' 2', false],
+      [' 2026', false],
+      [' 15 к', false],
+    ] as const
+    let n = 0
+    for (const sign of ['₽', '$']) {
+      for (const [tail, prep] of tails) {
+        const lead = `${sign}10 к${tail}`
+        expect(prices(lead)[0], lead).toBe(prep ? 'p10' : 'p10000')
+        const trail = `вход 10 к ${sign}${tail}`
+        expect(prices(trail)[0], trail).toBe('p10000')
+        n += 2
+      }
+    }
+    expect(n).toBe(56)
+  })
+
   it('a preposition "к" with no currency is not a price', () => {
     expect(keys('500 к ужину')).toEqual([])
   })
