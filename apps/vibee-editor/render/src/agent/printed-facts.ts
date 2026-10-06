@@ -101,19 +101,23 @@ const HOURS = new RegExp(
 const MULTIPLIERS: ReadonlyArray<[string, number, boolean]> = [
   ['hundreds?|сотен|сотни|сотня', 2, false], // cyrillic-ok: multiplier words
   [
-    'k|к|тыс|тысяч\\p{L}*|thousands?|thou|thous|grands?|тыщ\\p{L}*|косар\\p{L}*',
+    'k|к|тыс|тысяч\\p{L}*|thousands?|thou|thous|grands?|тыщ\\p{L}*|косар\\p{L}*|косых|кусок|куска|кусков', // cyrillic-ok: multiplier words
     3,
     false,
   ], // cyrillic-ok: multiplier words
   ['штук\\p{L}*', 3, true], // cyrillic-ok: a thousand, or pieces
   ['lakhs?|lacs?', 5, false],
   [
-    'm|mn|mln|mio|млн|millions?|миллион\\p{L}*|kk|кк|лям\\p{L}*|лимон\\p{L}*',
+    'm|mn|mln|mio|млн|millions?|mills?|миллион\\p{L}*|kk|кк|лям\\p{L}*|лимон\\p{L}*',
     6,
     false,
   ], // cyrillic-ok: multiplier words
   ['crores?', 7, false],
-  ['b|bn|bln|млрд|billions?|миллиард\\p{L}*', 9, false], // cyrillic-ok: multiplier words
+  [
+    'b|bn|bln|млрд|billions?|миллиард\\p{L}*|ярд\\p{L}*', // cyrillic-ok: multiplier words
+    9,
+    false,
+  ],
 ]
 const MULTIPLIER_RES: ReadonlyArray<[RegExp, number, boolean]> =
   MULTIPLIERS.map(([words, zeros, alsoBare]) => [
@@ -135,6 +139,92 @@ const FILLER_RUN = new RegExp(
   '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total)$', // cyrillic-ok: filler words
   'iu'
 )
+/*
+ * A LATER MULTIPLIER SPREADS BACK (#3730 round 7). "$5-10k", "$5 to 10k",
+ * "₽5 до 10 тыс", "$5 or 6 million", "₽5 плюс тыс": a reader may scale the
+ * FIRST amount by the multiplier printed after the next number. The rule is
+ * one shape, not a word per connector: after an amount, a chain of
+ * connectors (a dash, or any FILLER_RUN word), further numbers and half
+ * words, inside one clause, that ENDS in a multiplier makes that multiplier
+ * a possible reading of every amount before it. The chain must hold a
+ * connector or a second number before the multiplier. It stops at anything
+ * else -- a noun ("$25 per person"), punctuation, a line break -- so a
+ * range with no multiplier ("$10-15", "$3 until 8") stays the bare amount.
+ * A half word right after the connectors ("$1 and a half million",
+ * "₽5 с половиной тысяч") adds a half of the multiplier to the first amount.
+ * A glued or short run the table does not know after the second number
+ * ("$5 to 10zorg") is an unknown multiplier. Time words after the second
+ * number ("$3 until 8 pm") are a clock, never a multiplier.
+ */
+const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
+const TIME_RUN = new RegExp(
+  '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
+  'iu'
+)
+type Spread = {
+  zeros: number | 'unknown'
+  alsoBare: boolean
+  halfOnFirst: boolean
+  text: string
+}
+function laterMultiplier(tail: string, joined: boolean): Spread | undefined {
+  const token = new RegExp(
+    `^[${DIGIT_JOINERS}\\t]*(?:([-–—])|([$€₽฿£]\\s?)?${NUM}|(\\p{L}+\\.?))`,
+    'iu'
+  )
+  let rest = tail
+  let used = ''
+  let second = false
+  let halfOnFirst = false
+  let afterNumber = false
+  for (let i = 0; i < 16; i++) {
+    const t = rest.match(token)
+    if (!t) return undefined
+    used += t[0]
+    rest = rest.slice(t[0].length)
+    if (t[1]) {
+      joined = true
+      afterNumber = false
+      continue
+    }
+    if (t[3] !== undefined) {
+      second = true
+      afterNumber = true
+      continue
+    }
+    const word = t[4]
+    const spaced = /^\s/u.test(t[0])
+    const s = suffixReading(word)
+    if (s !== 'unknown' && s.zeros) {
+      if (!joined && !second) return undefined
+      return { zeros: s.zeros, alsoBare: s.alsoBare, halfOnFirst, text: used }
+    }
+    if (HALF_RUN.test(word)) {
+      if (!second) halfOnFirst = true
+      second = true
+      afterNumber = true
+      continue
+    }
+    if (afterNumber && TIME_RUN.test(word)) return undefined
+    if (FILLER_RUN.test(word)) {
+      joined = true
+      afterNumber = false
+      continue
+    }
+    if (CURRENCY_RUN.test(word)) {
+      afterNumber = false
+      continue
+    }
+    if (
+      afterNumber &&
+      (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS)
+    )
+      return { zeros: 'unknown', alsoBare: false, halfOnFirst, text: used }
+    return undefined
+  }
+  return undefined
+}
+
 /* A letter run glued to or right after an amount, captured for the table. */
 const RUN = '(\\p{L}+\\.?)'
 
@@ -145,7 +235,8 @@ function suffixReading(run: string | undefined): Suffix {
   if (!run) return NO_SUFFIX
   for (const [re, zeros, alsoBare] of MULTIPLIER_RES)
     if (re.test(run)) return { zeros, alsoBare }
-  if (CURRENCY_RUN.test(run) || FILLER_RUN.test(run)) return NO_SUFFIX
+  if (CURRENCY_RUN.test(run) || FILLER_RUN.test(run) || HALF_RUN.test(run))
+    return NO_SUFFIX
   return 'unknown'
 }
 
@@ -356,21 +447,57 @@ function priceFact(
   m: RegExpMatchArray,
   raw: string,
   run: string | undefined,
-  lead: boolean
+  lead: boolean,
+  closed = false
 ): Fact | undefined {
   const suffix = suffixReading(run)
   let shown = m[0]
   if (suffix !== 'unknown' && !suffix.zeros && run && FILLER_RUN.test(run))
     shown = shown.slice(0, shown.length - run.length)
+  const next = text.slice((m.index ?? 0) + m[0].length)
+  const keys = (readings: Set<string>, unknown: string[]) => [
+    ...[...readings].map(d => `p${d}`),
+    ...unknown.map(u => u.replace(/\s/g, '').toLowerCase()),
+  ]
+  /*
+   * A later multiplier may scale this amount too (see laterMultiplier). A
+   * trailing currency ("500 ₽ - 1000 ₽") closes the amount first; a run
+   * that is itself a multiplier is the adjacent case, read above.
+   */
+  const spreadInto = (
+    readings: Set<string>,
+    unknown: string[],
+    echoed: boolean
+  ) => {
+    // The chain starts AT a connector or half run ("$5 to", "$5 half"),
+    // and after an echoed noun, which joins like a connector.
+    const own = !echoed && run ? run : ''
+    const head = m[0].slice(0, m[0].length - own.length)
+    const spread = closed ? undefined : laterMultiplier(own + next, echoed)
+    if (!spread) return
+    shown = (head + spread.text).replace(/\s+$/u, '')
+    if (spread.zeros === 'unknown') {
+      unknown.push(`u${raw}${run ?? ''}${spread.text}`)
+      return
+    }
+    const half = spread.halfOnFirst ? 5 * 10 ** (spread.zeros - 1) : 0
+    for (const r of priceReadings(raw, spread.zeros))
+      readings.add(String(Number(r) + half))
+    if (spread.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
+  }
   if (suffix === 'unknown') {
     const word = lead ? echoCandidate(m[0], run) : undefined
     if (word) {
-      const bare = priceReadings(raw, 0)
-      if (!bare.length) return undefined
+      // An echoed noun is no multiplier, and no wall either: in
+      // "$5 tickets to 10k" the later "k" may still scale the $5.
+      const readings = new Set(priceReadings(raw, 0))
+      if (!readings.size) return undefined
+      const unknown: string[] = []
+      spreadInto(readings, unknown, true)
       return {
         kind: 'price',
         text: shown.trim(),
-        keys: bare.map(d => `p${d}`),
+        keys: keys(readings, unknown),
         word,
       }
     }
@@ -379,15 +506,12 @@ function priceFact(
   }
   const readings = new Set(priceReadings(raw, suffix.zeros))
   if (suffix.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
-  const next = text.slice((m.index ?? 0) + m[0].length)
   if (SPACED_K.test(m[0]) && !K_THOUSAND_NEXT.test(next))
     for (const r of priceReadings(raw, 0)) readings.add(r)
+  const unknown: string[] = []
+  if (!suffix.zeros) spreadInto(readings, unknown, false)
   if (!readings.size) return undefined
-  return {
-    kind: 'price',
-    text: shown.trim(),
-    keys: [...readings].map(d => `p${d}`),
-  }
+  return { kind: 'price', text: shown.trim(), keys: keys(readings, unknown) }
 }
 
 /** Every date, time and price in `text`, normalised. Pure. */
@@ -453,7 +577,7 @@ export function factsIn(text: string): Fact[] {
   for (const m of text.matchAll(PRICE)) {
     const lead = m[1] !== undefined
     const run = lead ? m[2] : m[4]
-    const f = priceFact(text, m, (lead ? m[1] : m[3]) ?? '', run, lead)
+    const f = priceFact(text, m, (lead ? m[1] : m[3]) ?? '', run, lead, !lead)
     // An echo word is no currency: "£5 europe" is pounds, not euros.
     const named = f?.word
       ? m[0].slice(0, m[0].length - (run?.length ?? 0))

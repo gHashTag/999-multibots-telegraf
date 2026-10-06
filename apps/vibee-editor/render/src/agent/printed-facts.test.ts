@@ -1293,3 +1293,191 @@ describe('shape plus echo (#3730 round 6)', () => {
     expect(checked).toBeGreaterThanOrEqual(48)
   })
 })
+
+describe('a later multiplier spreads back over the first amount (#3730 round 7)', () => {
+  const asks = (printed: string, heard: string) =>
+    unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+
+  it('the reviewer rows ask against the bare first amount', () => {
+    const rows: ReadonlyArray<[string, string, string]> = [
+      ['$5-10k', '$5', `p5|p${5e3}`],
+      ['$5 to 10k', '$5', `p5|p${5e3}`],
+      ['₽5 до 10 тыс', '₽5', `p5|p${5e3}`],
+      ['$5 or 6 million', '$5', `p5|p${5e6}`],
+      ['$1 and a half million', '$1', `p1|p${1.5e6}`],
+      ['₽5 с половиной тысяч', '₽5', `p5|p${5.5e3}`],
+      ['$5 till 10k', '$5', `p5|p${5e3}`],
+      ['$5 off 10k', '$5', `p5|p${5e3}`],
+      ['₽5 плюс тыс', '₽5', `p5|p${5e3}`],
+      ['₽5 только тыс', '₽5', `p5|p${5e3}`],
+      ['price 5-10k', 'price 5', `p5|p${5e3}`],
+      ['$5 tickets to 10k', '$5 tickets', `p5|p${5e3}`],
+    ]
+    for (const [printed, heard, want] of rows) {
+      expect(prices(printed), printed).toEqual([want])
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(1)
+    }
+  })
+
+  it('a range with no multiplier still confirms against the same range', () => {
+    for (const p of ['$10-15', '$10 – 15', '$10 to 15', '₽500 до 700'])
+      expect(asks(p, p), p).toBe(0)
+    expect(asks('$3 until 8 pm', 'beers $3 until 8 pm')).toBe(0)
+    expect(asks('$25 per person, 2k seats', '$25 per person')).toBe(0)
+    expect(asks('£5 all night', 'pints £5 all night')).toBe(0)
+  })
+
+  it('a trailing currency closes the amount before the chain', () => {
+    expect(prices('500 ₽ - 1000 ₽')).toEqual(['p500', 'p1000'])
+  })
+
+  /*
+   * THE GRID: {amount} x {connector} x {second: number, none, half} x
+   * {multiplier: table, unknown, none} x {heard: bare first, scaled first,
+   * both, identical text}. What each cell MEANS is written from the class,
+   * never read from the code. The connectors are every dash and every
+   * filler word, written out here, plus none.
+   */
+  describe('grid: a later multiplier is never confirmed by the bare first amount', () => {
+    const connectors = [
+      '-',
+      '–',
+      '—',
+      ' - ',
+      ' – ',
+      ' — ',
+      ' ',
+      ' to ',
+      ' till ',
+      ' until ',
+      ' or ',
+      ' and ',
+      ' a ',
+      ' an ',
+      ' the ',
+      ' per ',
+      ' for ',
+      ' each ',
+      ' from ',
+      ' at ',
+      ' on ',
+      ' in ',
+      ' with ',
+      ' all ',
+      ' only ',
+      ' just ',
+      ' off ',
+      ' plus ',
+      ' total ',
+      ' и ',
+      ' или ',
+      ' а ',
+      ' за ',
+      ' в ',
+      ' во ',
+      ' на ',
+      ' с ',
+      ' со ', // cyrillic-ok: connector words
+      ' по ',
+      ' до ',
+      ' от ',
+      ' для ',
+      ' всего ',
+      ' только ',
+      ' плюс ', // cyrillic-ok: connector words
+    ]
+    // [sign, table [word, zeros, glued], unknown short words, half word]
+    const signs: ReadonlyArray<
+      [
+        string,
+        ReadonlyArray<[string, number, boolean]>,
+        ReadonlyArray<string>,
+        string,
+      ]
+    > = [
+      [
+        '$',
+        [
+          ['k', 3, true],
+          ['million', 6, false],
+          ['grand', 3, false],
+        ],
+        ['mil', 'tsd'],
+        'half',
+      ],
+      [
+        '₽',
+        [
+          ['тыс', 3, false],
+          ['млн', 6, false],
+          ['кк', 6, true],
+        ],
+        ['тр', 'лр'],
+        'половиной',
+      ], // cyrillic-ok: multiplier words
+    ]
+    const amounts = [5, 12]
+    let cells = 0
+    const cell = (printed: string, heard: string, want: 0 | 1) => {
+      cells++
+      expect(Math.min(asks(printed, heard), 1), `${printed} / ${heard}`).toBe(
+        want
+      )
+    }
+    it('every cell', () => {
+      for (const [sign, table, unknowns, halfWord] of signs)
+        for (const a of amounts)
+          for (const c of connectors)
+            for (const second of ['number', 'none', 'half'] as const) {
+              const glue = (w: string, glued: boolean) =>
+                second === 'number'
+                  ? `${c}10${glued ? '' : ' '}${w}`
+                  : second === 'half'
+                    ? `${c}${halfWord} ${w}`
+                    : `${c}${w}`
+              const bare = `${sign}${a}`
+              const and = sign === '$' ? ' and ' : ' и ' // cyrillic-ok: conjunction
+              const adjacent = second === 'none' && c === ' '
+              // No multiplier: the first amount is the bare amount.
+              if (c.trim() || second !== 'none') {
+                const tail =
+                  second === 'number'
+                    ? `${c}10`
+                    : second === 'half'
+                      ? `${c}${halfWord}`
+                      : c
+                const printed = `${bare}${tail}`.trimEnd()
+                cell(printed, bare, 0)
+                cell(printed, printed, 0)
+                cell(printed, `${bare}${and}${sign}${a * 1000}`, 0)
+              }
+              // A table multiplier: bare AND scaled, unless it is adjacent.
+              for (const [w, zeros, glued] of table) {
+                const scaled =
+                  a * 10 ** zeros +
+                  (second === 'half' ? 5 * 10 ** (zeros - 1) : 0)
+                const printed = `${bare}${glue(w, glued && second === 'number')}`
+                cell(printed, bare, 1)
+                cell(printed, `${sign}${scaled}`, adjacent ? 0 : 1)
+                cell(printed, `${bare}${and}${sign}${scaled}`, 0)
+                cell(printed, printed, adjacent ? 0 : 1)
+              }
+              // An unknown short multiplier after a second number or a half:
+              // no amount confirms it, nor the same ambiguous text. Right
+              // after a connector it is out of the rule ("$5 per kg").
+              if (second !== 'none')
+                for (const w of [
+                  ...unknowns,
+                  ...(second === 'number' ? ['zorg'] : []),
+                ]) {
+                  const printed = `${bare}${glue(w, w === 'zorg')}`
+                  cell(printed, bare, 1)
+                  cell(printed, `${sign}${a * 1000}`, 1)
+                  cell(printed, `${bare}${and}${sign}${a * 1000}`, 1)
+                  cell(printed, printed, 1)
+                }
+            }
+      expect(cells).toBe(11688)
+    })
+  })
+})
