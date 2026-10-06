@@ -1991,11 +1991,12 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ['₽500', '₽500 около 2 тыс билетов и бар выручка'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс билетов-выручка'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс гостей с человека'], // cyrillic-ok: poster text
-      // Pins NOUN_JOINER: the word after the joiner is a filler, so only
-      // the joiner keeps these asking.
+      // The word after the joiner is a filler: only the mark keeps these
+      // asking (round 7: no mark but a space or an emoji may follow).
       ['$5', '$5 about 10k ticket-plus'],
       ['$5', '$5 about 10k seats/only'],
-      // Pins RATE_RUN: a rate word with nothing after it.
+      // A rate word with nothing after it (round 7: no word list of rates,
+      // a word outside the tail lists asks).
       ['$5', '$5 about 10k people each'],
       ['$5', '$5 about 10k tickets per'],
       ['₽500', '₽500 около 2 тыс гостей за'], // cyrillic-ok: poster text
@@ -2018,6 +2019,66 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ['$5', '$5 about 10k tickets, revenue'],
       ['₽500', '₽500 около 2 тыс гостей и больше'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс гостей'], // cyrillic-ok: poster text
+    ] as const) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+      expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun and a rate written with a mark or in brackets, asks both ways (#3758 round 7)', () => {
+    // Round-6 review: main asks on every row, round 6 confirmed them. The
+    // clause check skipped every mark, and a bracket ended the clause.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 circa 10k people /person'],
+      ['$5', '$5 about 10k tickets / person'],
+      ['$5', '$5 about 10k tickets @ person'],
+      ['$5', '$5 around 10k guests \u00d7 ticket'],
+      ['$5', '$5 roughly 10k fans \u00f7 guest'],
+      ['$5', '$5 approx 10k people / guest'],
+      ['$5', '$5 approx 10k guests (per head)'],
+      ['$5', '$5 circa 10k fans (each)'],
+      ['\u20ac3', '\u20ac3 around 5k members / user'],
+      ['$12', '$12 about 1k students /user'],
+      ['$7', '$7 approximately 20k subscribers \u00d7 member'],
+      ['$12', '$12 about 1k customers @ viewer'],
+      ['\u00a34', '\u00a34 roughly 8k attendees (per user)'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс зрителей / человек'], // cyrillic-ok: poster text
+      ['\u20bd500', '\u20bd500 примерно 2 тыс гостей (с человека)'], // cyrillic-ok: poster text
+      ['\u20bd300', '\u20bd300 примерно 5 тыс людей (с каждого)'], // cyrillic-ok: poster text
+      // The author's round-7 probe: a money emoji, "and"/"plus" before a
+      // money word, a colon, NBSP and thin spaces around a rate, a bracket
+      // glued to a money word, a lone variation selector before a rate.
+      ['$5', '$5 about 10k tickets \u{1F4B5}'],
+      ['$5', '$5 about 10k tickets \u{1F4B0}'],
+      ['$5', '$5 about 10k tickets and revenue'],
+      ['$5', '$5 about 10k people plus fees'],
+      ['$5', '$5 about 10k tickets in total revenue'],
+      ['$5', '$5 about 10k tickets all-in'],
+      ['$5', '$5 about 10k tickets: revenue'],
+      ['$5', '$5 about 10k tickets(revenue)'],
+      ['\u20ac3', '\u20ac3 around 5k members\u00a0/\u00a0user'],
+      ['\u20ac3', '\u20ac3 around 5k members\u2009per\u2009user'],
+      ['$5', '$5 about 10k tickets \uFE0F per head'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс билетов всего выручка'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(28)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+    // Spaces of every kind, emoji (with a variation selector or a skin
+    // tone), brackets around allowed words, and count words still leave the
+    // bare price.
+    for (const [bare, full] of [
+      ['$5', '$5 about 10k tickets \u{1F39F}\uFE0F'],
+      ['$5', '$5 about 10k people \u{1F44D}\u{1F3FD}'],
+      ['$5', '$5 about 10k\u00a0tickets'],
+      ['$5', '$5 about 10k tickets\u202f!'],
+      ['$5', '$5 about 10k tickets in total'],
+      ['$5', '$5 about 10k tickets (and more)'],
+      ['$5', '$5 about 10k tickets sold'],
+      ['$5', '$5 about 10k subscribers and counting'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс гостей (и больше)'], // cyrillic-ok: poster text
     ] as const) {
       expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
       expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
