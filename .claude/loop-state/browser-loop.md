@@ -3,7 +3,11 @@
 <!-- loop-branch: feat/browser-userbot-loop -->
 <!-- loop-not-mine: .claude/launch.json -->
 
-Cron 8eb28a55, every 15 min. Run each tick as
+**Owner since 2026-10-06: the Queen.** The scheduled round
+`queen-browser-social-round` (agent `.claude/agents/browser-desk-keeper.md`,
+every 2 h) takes the next unchecked items below, at most two coder bees per
+round, and ticks them off in the bee's own PR. The local cron 8eb28a55 that
+started this plan is retired. Older tick recipe, kept for a hand-run tick:
 `TRI_LOOP=browser ./bin/tri loop` -> `TRI_LOOP=browser ./bin/tri loop-guard start`
 -> one plan item -> commit by name -> `TRI_LOOP=browser ./bin/tri loop-guard end`.
 One item per tick; a tick that finds the tree dirty finishes or reverts first.
@@ -12,7 +16,9 @@ send real cards (`ask`, `tidy ask`) without a reason written here first.
 
 ## СЕЙЧАС В РАБОТЕ
 
-Tick 1: coder bees on A, B, D (disjoint files).
+2026-10-06: coder bees on A, B, D resumed (their worktrees held uncommitted
+work after a session restart); N1 and N2 dispatched. Every PR carries
+`owner-approved-foreign` with the owner's chat approval of 2026-10-06 quoted.
 
 ## Что уже есть
 
@@ -38,9 +44,23 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
 - [ ] J. Owner typed by hand in a business DM -> agent quiet there 30 min (C1).
 - [ ] K. Old "Ввести" deep link bound to the request id (B10); health.ts blank-tab leak (B9).
 - [ ] L. Journal/report words for ask_input/focus_tab/tidy + site on clicks (B12); stale "not built" notes (B13).
+- [ ] N. The agent starves for a model (measured 2026-10-06, see Журнал): N1 the Zep relay yields
+      to the agent (in-flight cap 1, 3 s gap, own key `ZAI_RELAY_API_KEY`); N2 zai-lite on its own
+      key `ZAI_LITE_API_KEY`; N3 after both deploy, set the keys (owner said yes 06.10): relay +
+      Zep `ZEP_OPENAI_API_KEY` = account 3 together, lite = account 2; N4 top up `reserve` (owner).
 - [ ] M. Telegram start card: "take the wheel" / "pause" buttons (B14, C3/C4).
 
 ## Журнал
+
+- 2026-10-06. Owner: "why does browser work stall?" The browser was healthy (pod up 49 h,
+  8 networks signed in). The AGENT starved: render logs 05:00-11:32 UTC, 15 of 45 turns
+  `outcome:error`; zai 429 x33, reserve "no funds" x19, nemotron "16/16 workers" x16,
+  zai-lite "talked instead of calling" x18. Zep memory made 630 relay calls (~97/h, bursts
+  of 15-30) on the agent's own z.ai key. Probes: production key -> 1302 (per-key limit) 3/3
+  even on glm-4.5-flash; three other accounts -> 200 on glm-4.5-flash; glm-4.7-flash ->
+  1305 (model overloaded, any key) on 3 of 4. Lesson: when "the browser stalls", read the
+  agent's provider lines first -- `[agent] provider skipped` and `"outcome":"error"` in
+  `railway logs --service vibee-render --environment production --lines 5000`.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
