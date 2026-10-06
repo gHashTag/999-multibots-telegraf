@@ -37,6 +37,12 @@ vi.mock('../browser/logins', async importOriginal => ({
   readMarks: async () => [],
 }))
 vi.mock('../agent/reach-log', () => ({ noteShape: async () => undefined }))
+/* What Reddit says about the community: no network from a test. */
+let community = 'unknown'
+vi.mock('../agent/reddit-wiring', async importOriginal => ({
+  ...(await importOriginal<typeof import('../agent/reddit-wiring')>()),
+  communityStateFor: () => async () => community,
+}))
 vi.mock('../browser/cdp', () => ({
   newPage: async (_c: string, url: string) => {
     opened.push(url)
@@ -479,6 +485,55 @@ describe('spec automation/blog-share against the host', () => {
       vi.unstubAllEnvs()
       vi.resetModules()
     }
+  })
+
+  it('a community Reddit closed is not opened at all (r/t27ai, banned 2026-10-03)', async () => {
+    const pool = { query: async () => ({ rows: [] }) } as never
+    const submit = () => opened.filter(u => u.includes('reddit.com/r/'))
+    buttonDrawn = true
+    profileShows = true
+    try {
+      for (const state of ['banned', 'private'] as const) {
+        community = state
+        opened.length = 0
+        const out = await (
+          await import('../agent/blog-share-wiring')
+        ).publishEverywhere(pool, '1', article)
+        /* No submit page, so no unfinished form left in the browser. */
+        expect(submit()).toHaveLength(0)
+        expect(out.Reddit).toBe(
+          `сообщество r/t27ai закрыто Reddit-ом (${state}) — ничего не открыто` // cyrillic-ok: the words publishEverywhere writes
+        )
+        /* The other networks still get their turn. */
+        expect(opened.some(u => u.includes('linkedin.com'))).toBe(true)
+      }
+      /* Reddit's answer unknown (its filter blocks the server): as before. */
+      community = 'unknown'
+      opened.length = 0
+      const out = await (
+        await import('../agent/blog-share-wiring')
+      ).publishEverywhere(pool, '1', article)
+      expect(submit()).toHaveLength(1)
+      /* The press names its community, for the Reddit desk to read. */
+      expect(out.Reddit).toMatch(/· r\/t27ai$/)
+    } finally {
+      community = 'unknown'
+    }
+  })
+
+  it('an article the Reddit desk already offered there is not opened again', async () => {
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) =>
+        sql.includes('FROM reddit_acts') && params[0] === 't27ai/s'
+          ? { rows: [{ '?column?': 1 }] }
+          : { rows: [] },
+    } as never
+    opened.length = 0
+    const out = await (
+      await import('../agent/blog-share-wiring')
+    ).publishEverywhere(pool, '1', article)
+    expect(opened.filter(u => u.includes('reddit.com/r/'))).toHaveLength(0)
+    expect(out.Reddit).toContain('Reddit-столом')
   })
 
   it('the desk is live, and its posts were seen on the profile', () => {

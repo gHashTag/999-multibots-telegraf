@@ -22,14 +22,17 @@ import type { Queryable } from '../browser/sessions'
 import type { DeskWho } from '../browser/desk-page'
 import {
   ANSWER_WAIT_MS,
+  readAnonymously,
   redditTick,
   submitUrl,
+  subredditOpen,
   subredditsOf,
   type Answer,
+  type CommunityState,
   type Mention,
   type PlannedPost,
 } from './reddit'
-import { RSS_URL } from './blog-share'
+import { RSS_URL, redditPressedKeys } from './blog-share'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -86,7 +89,34 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
       return await r.text()
     },
     tell: text => sendToTelegram(owner, `[Reddit] ${text}`),
+    communityState: communityStateFor(pool, owner),
+    blogPosted: () => blogRedditPosts(pool),
   })
+}
+
+/**
+ * A community's state (reddit.ts subredditOpen): the server's own read
+ * first, then the person's signed-in page -- Reddit's network filter answers
+ * an anonymous server with an HTML block page, which reads as `unknown`.
+ */
+export function communityStateFor(
+  pool: Queryable,
+  owner: string
+): (name: string) => Promise<CommunityState> {
+  return name =>
+    subredditOpen(name, [
+      url => readAnonymously(url),
+      url => readAsThePerson(pool, owner, url),
+    ])
+}
+
+/** What the blog-share desk pressed "Post" for on Reddit (blog_shares). */
+export async function blogRedditPosts(pool: Queryable): Promise<string[]> {
+  const { rows } = await pool.query(
+    `SELECT slug, detail FROM blog_shares WHERE state <> 'asked'`,
+    []
+  )
+  return redditPressedKeys(rows as Array<{ slug?: unknown; detail?: unknown }>)
 }
 
 /** Where the time of the last tick is kept, so a deploy cannot forget it. */
@@ -333,7 +363,12 @@ export function setDraftRetryMs(ms: number): void {
 
 export async function writeDraft(prompt: string): Promise<string | null> {
   const { allProviders, reserveEnv } = await import('./provider')
-  const routes: Array<{ id: string; base: string; key: string; model: string }> = []
+  const routes: Array<{
+    id: string
+    base: string
+    key: string
+    model: string
+  }> = []
   const have = allProviders()
   for (const id of DRAFT_ORDER) {
     if (id === 'reserve') {
@@ -384,7 +419,9 @@ export async function writeDraft(prompt: string): Promise<string | null> {
       if (typeof text === 'string' && text.trim()) return text.trim()
       why.push(`${route.id} empty`)
     } catch (e) {
-      why.push(`${route.id} ${String(e instanceof Error ? e.name : e).slice(0, 40)}`)
+      why.push(
+        `${route.id} ${String(e instanceof Error ? e.name : e).slice(0, 40)}`
+      )
     }
   }
   console.warn(`[draft] no model answered: ${why.join(', ') || 'no route'}`)
