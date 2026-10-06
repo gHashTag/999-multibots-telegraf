@@ -100,7 +100,7 @@ import { isClientFacing } from './client-facing'
 const UNSEEN_PICTURE_HINT =
   'Ты картинку не видел: не описывай, что на ней, — отдай ссылку как есть или сначала посмотри её' // cyrillic-ok: the tools’ answer text
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
-import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import { makeStoryReelTool, reelIsOwn, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
 import { lookAtOwnPicture, missingFactsNote } from './look-at-own-picture'
@@ -2499,9 +2499,19 @@ export const TOOLS: AgentTool[] = [
        * by house-names.ts): refused before the charge. A line she typed
        * herself this turn stands.
        */
+      /*
+       * A reel whose client is the caller himself is his own (crm-story-reel
+       * v26, reel_is_own): the job of his own crm_story_reel names him as
+       * for_lead, and his own lines naming the house were refused. Only the
+       * name check reads it; the owner's clone stays the house's own turn's.
+       */
+      const ownReel = reelIsOwn(
+        houseReel,
+        !!forLead && forLead === String(ctx.telegramId ?? '')
+      )
       if (
         !houseNameAllowed(
-          houseReel,
+          ownReel,
           agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)
         )
       ) {
