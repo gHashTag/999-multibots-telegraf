@@ -575,18 +575,49 @@ export function defaultInk(
   return SPEC.INK_BLACK
 }
 
+/** The spec's card_complete (v26). */
+export function cardComplete(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  if (cardFilled(ownReel, hasEndCard, callChars)) return true
+  return (
+    ownReel &&
+    SPEC.OWN_CARD_FILLED &&
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's reel_is_own (v26). */
+export function reelIsOwn(houseOwn: boolean, leadIsCaller: boolean): boolean {
+  if (houseOwn) return true
+  return leadIsCaller && SPEC.CALLER_OWN_LEAD_IS_OWN_REEL
+}
+
 /**
- * The card as the reel will draw it: on a client's reel whose pause shows the
- * card, every colour is set -- hers, else ink -- so the composition's house
- * defaults are never reached. The house's own reel, and a reel with no card
- * shown, keep the card as given.
+ * The card as the reel will draw it: whenever the pause shows the card, every
+ * colour is set before the render (spec v26, card_complete). The composition
+ * does not apply its defaults to a card passed with some fields, so a field
+ * left out was drawn as nothing: no ground, a dark call over the face. A
+ * client's card takes hers, else ink (v25); the own reel's takes the
+ * defaults. A reel with no card shown keeps the card as given.
  */
 export function endCardForReel(
   card: StoryEndCard | null,
   ownReel: boolean,
   call: string
 ): StoryEndCard | null {
-  if (!cardFilled(ownReel, !!card, call.trim().length)) return card
+  if (!cardComplete(ownReel, !!card, call.trim().length)) return card
+  if (!cardFilled(ownReel, !!card, call.trim().length))
+    return {
+      ...card,
+      bg: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,
+      title: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,
+      text: card?.text ?? SPEC.END_CARD_DEFAULT_TEXT,
+      accent: card?.accent ?? SPEC.END_CARD_DEFAULT_ACCENT,
+    }
   const bg = card?.bg ?? SPEC.END_CARD_DEFAULT_BG
   const ink =
     defaultInk(
@@ -1442,6 +1473,9 @@ export function makeStoryReelTool(
       )
 
       // 5. The template: cuts, breaths, and the pause with the call to action.
+      // Every colour of the card shown is set here (spec v26, card_complete):
+      // the own reel's from the defaults, a client's already in hers or ink.
+      const drawnCard = endCardForReel(endCard, !lead || lead === me, cta)
       const r = outcome(
         await render
           .handler(
@@ -1455,7 +1489,7 @@ export function makeStoryReelTool(
                 pauseSec: pause,
                 breathSec: STORY_BREATH_SEC,
                 cta,
-                ...(endCard ? { endCard } : {}),
+                ...(drawnCard ? { endCard: drawnCard } : {}),
               },
             },
             ctx
