@@ -678,7 +678,7 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         cur,
       },
       { text: `${a} тыс ${word}`, means: [a * 1000], cur },
-      { text: `${a} млн ${word}`, means: [a * 1000000], cur },
+      { text: `${a} млн ${word}`, means: [a * 1e6], cur },
       { text: `${a} к ${word}`, means: [a * 1000], cur },
       ...thousandTails.map(t => ({
         text: `${sign}${a} к${t}`,
