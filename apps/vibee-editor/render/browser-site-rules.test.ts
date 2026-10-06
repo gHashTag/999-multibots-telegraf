@@ -119,8 +119,15 @@ describe('the guard reads "ask" as a bank', () => {
       mayAct({ ...at, allowedAtMs: null, alsoSensitive: true }, []).allowed
     ).toBe(false)
     expect(
-      mayAct({ ...at, allowedAtMs: 1e12 - 1000, alsoSensitive: true }, [])
-        .allowed
+      mayAct(
+        {
+          ...at,
+          allowedAtMs: 1e12 - 1000,
+          allowedHost: 'portal.clinic.example',
+          alsoSensitive: true,
+        },
+        []
+      ).allowed
     ).toBe(true)
   })
 
@@ -150,6 +157,7 @@ const SESSION = {
   endpoint: '127.0.0.1:1',
   cdp_endpoint: '127.0.0.1:2',
   allowed_ms: null,
+  allowed_host: null as string | null,
   state: 'live',
   view_token: 'v',
   admin_token: 'a',
@@ -336,6 +344,7 @@ describe('the tools honour the list', () => {
     TABS.fail = false
     TABS.others = []
     SESSION.allowed_ms = null
+    SESSION.allowed_host = null
   })
 
   const tool = async (name: string) => {
@@ -394,6 +403,7 @@ describe('the tools honour the list', () => {
     PAGE.url = 'https://ru.wikipedia.org/wiki/x'
     /* A fresh yes: browser_evaluate reads too, so the yes is not enough. */
     SESSION.allowed_ms = Date.now() as never
+    SESSION.allowed_host = 'ru.wikipedia.org'
     await expect(
       (await tool('browser_open')).handler(
         { url: 'https://ru.wikipedia.org/' },
@@ -423,6 +433,7 @@ describe('the tools honour the list', () => {
     PAGE.url = 'https://bank.com/cards'
     TABS.fail = true
     SESSION.allowed_ms = Date.now() as never
+    SESSION.allowed_host = 'bank.com'
     for (const [name, args] of [
       ['browser_read', {}],
       ['browser_screenshot', {}],

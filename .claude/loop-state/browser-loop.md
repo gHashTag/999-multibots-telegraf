@@ -21,7 +21,6 @@ frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
 is yours too"); it is not repeated here.
 
 - A -> `fix/userbot-plain-errors`
-- B -> `fix/browser-yes-is-for-one-place`
 - D -> `fix/crm-duet-dry-run-by-default`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
@@ -41,7 +40,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
 - [ ] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
       floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary".
-- [ ] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host.
+- [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
 - [ ] D. crm_duet sends for real by default (U1): dry_run defaults to true.
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
 - [ ] E. closePage throws on !ok, browser_close_tab refuses the last tab, focus_tab is an acting tool (B7,B8).
@@ -75,6 +74,11 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   zai-lite for that turn (1305 does not). Tests 12/12 + 71/71 neighbours, run locally (runner
   gave no result); 3 mutants caught. Nothing changes until `ZAI_LITE_API_KEY` is set on
   vibee-render after the deploy (N3: account 2).
+- 2026-10-06. B (#3789): a yes now unlocks one place for one purpose -- only act-kind approvals
+  (ask_permission, choice) mark the window, bound to the exact host of the agent's page; a yes
+  with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
+  "ask" sites now need a yes per exact site; accounts.google.com and mail.google.com each need
+  their own yes (exact host, not registrable domain).
 - 2026-10-06. N1 (#3791): the Zep relay holds at most `ZAI_RELAY_MAX_INFLIGHT` upstream calls
   (default 1), started at least `ZAI_RELAY_MIN_GAP_MS` apart (default 3000); over either line it
   answers 429 `relay_busy` with Retry-After and does not call Z.AI. Zep v0.27.2 retries that
