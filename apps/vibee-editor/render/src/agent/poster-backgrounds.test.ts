@@ -18,6 +18,14 @@ const HEARD = 'афиша: Jazz Night, 25 октября в 19:00, вход 1 50
  */
 const CANVAS_TIMEOUT_MS = 30_000
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 async function blank(w: number, h: number): Promise<Buffer> {
   const { createCanvas } = await import('canvas')
   const c = createCanvas(w, h)
@@ -226,13 +234,17 @@ describe('image_generate with a title after a picture without one', () => {
 })
 
 describe('the title parameter', () => {
-  it('asks for the title up front on a poster with a date or price', async () => {
-    const { TOOLS_BY_NAME } = await import('./tools')
-    const params: any = TOOLS_BY_NAME.get('image_generate')!.parameters
-    expect(params.properties.title.description).toMatch(
-      /при дате\/цене — сразу/ // cyrillic-ok: the description is Russian
-    )
-  })
+  it(
+    'asks for the title up front on a poster with a date or price',
+    async () => {
+      const { TOOLS_BY_NAME } = await import('./tools')
+      const params: any = TOOLS_BY_NAME.get('image_generate')!.parameters
+      expect(params.properties.title.description).toMatch(
+        /при дате\/цене — сразу/ // cyrillic-ok: the description is Russian
+      )
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 /*

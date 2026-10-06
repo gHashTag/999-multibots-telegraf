@@ -26,6 +26,14 @@ const PROMPT = 'jazz poster, 25 октября в 19:00, вход 1 500 ₽'
  */
 const CANVAS_TIMEOUT_MS = 30_000
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 async function blank(w: number, h: number): Promise<Buffer> {
   const { createCanvas } = await import('canvas')
   const c = createCanvas(w, h)
@@ -408,18 +416,22 @@ describe('image_generate uploads the drawn png', () => {
     CANVAS_TIMEOUT_MS
   )
 
-  it('a date hidden in the title is asked about before any charge', async () => {
-    const untouchable = {
-      query: () => {
-        throw new Error('the database was reached: a charge could follow')
-      },
-    }
-    const { TOOLS_BY_NAME } = await import('./tools')
-    const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
-      { prompt: 'jazz poster', title: 'Jazz Night 8 October 11:30' },
-      { telegramId: '1', pool: untouchable, heard: 'сделай афишу' } as never
-    )
-    expect(out['сделано']).toBe(false)
-    expect(String(out['причина'])).toContain('«11:30»')
-  }, 30_000)
+  it(
+    'a date hidden in the title is asked about before any charge',
+    async () => {
+      const untouchable = {
+        query: () => {
+          throw new Error('the database was reached: a charge could follow')
+        },
+      }
+      const { TOOLS_BY_NAME } = await import('./tools')
+      const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
+        { prompt: 'jazz poster', title: 'Jazz Night 8 October 11:30' },
+        { telegramId: '1', pool: untouchable, heard: 'сделай афишу' } as never
+      )
+      expect(out['сделано']).toBe(false)
+      expect(String(out['причина'])).toContain('«11:30»')
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
