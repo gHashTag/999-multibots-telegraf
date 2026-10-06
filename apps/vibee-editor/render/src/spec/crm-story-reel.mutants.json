@@ -1125,7 +1125,7 @@
   {
     "name": "v25: the client's card is never filled (house gold reaches her reel)",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "  if (!cardFilled(ownReel, !!card, call.trim().length)) return card",
+    "from": "  if (!cardComplete(ownReel, !!card, call.trim().length)) return card",
     "to": "  if (true) return card",
     "tests": [
       "src/agent/a-story-reel-is-one-call.test.ts",
@@ -1135,8 +1135,8 @@
   {
     "name": "v25: a call alone does not show the card",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "  if (!cardFilled(ownReel, !!card, call.trim().length)) return card",
-    "to": "  if (!cardFilled(ownReel, !!card, 0)) return card",
+    "from": "  if (!cardComplete(ownReel, !!card, call.trim().length)) return card",
+    "to": "  if (!cardComplete(ownReel, !!card, 0)) return card",
     "tests": [
       "src/agent/a-story-reel-is-one-call.test.ts",
       "src/agent/a-story-reel-for-any-client.test.ts"
