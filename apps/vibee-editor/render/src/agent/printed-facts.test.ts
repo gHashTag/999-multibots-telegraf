@@ -1708,4 +1708,149 @@ describe('four price shapes that read as another amount (#3746)', () => {
       expect(cells).toBe(5 * 4 * (7 * 3 + 6 * 2) + 4 * 3 * (7 * 3 + 6 * 2))
     })
   })
+
+  /*
+   * A MONEY WORD IS NO COUNTED NOUN (#3758 round 3, #3765). After a loose
+   * chain -- a comma, a hedge, or both -- a currency, a filler or a word from
+   * MONEY_WORDS after the multiplier still lets it scale the price, so the
+   * bare price asks, in both directions.
+   */
+  it('a hedge or a comma, then a money word, asks both ways', () => {
+    const rows: ReadonlyArray<[string, string]> = [
+      // Round 2: a hedge without a comma (asked on main).
+      ['$5', '$5 about 10k total'],
+      ['$5', '$5 about 10k budget'],
+      ['$5', '$5 around 10k a month'],
+      ['$5', '$5 about 10k per month'],
+      ['$5', '$5 roughly 10k fee'],
+      ['$5', '$5 approx 10k salary'],
+      ['$5', '$5 around 10k revenue'],
+      ['$5', '$5 about 10k each'],
+      ['$5', '$5 about 10k per seat'],
+      ['₽5', '₽5 около 10 тыс бюджет'], // cyrillic-ok: poster text
+      ['₽5', '₽5 около 10 тыс в месяц'], // cyrillic-ok: poster text
+      // #3765: a comma or a dash plus a hedge (confirmed on main too).
+      ['$5', '$5, 10k budget'],
+      ['ticket $5', 'ticket $5, 10k total'],
+      ['price $5', 'price $5, 10k each'],
+      ['$5', '$5, 10k a month'],
+      ['$5', '$5, 10k per month'],
+      ['₽5', '₽5, 10 тыс бюджет'], // cyrillic-ok: poster text
+      ['₽500', '₽500, 2 тыс в месяц'], // cyrillic-ok: poster text
+      ['₽500', '₽500, 2 тыс зарплата'], // cyrillic-ok: poster text
+      ['$5', '$5 - about 10k total'],
+      ['$5', '$5 - about 10k a month'],
+    ]
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  describe('grid: hedge without a comma x multiplier x what follows', () => {
+    // [sign, amount, hedges, multipliers [text, zeros], nouns, money, fillers]
+    const signs: ReadonlyArray<
+      [
+        string,
+        number,
+        string[],
+        ReadonlyArray<[string, number]>,
+        string[],
+        string[],
+        string[],
+      ]
+    > = [
+      [
+        '$',
+        5,
+        [' about ', ' around ', ' roughly ', ' approx ', ' or so '],
+        [
+          ['10k', 3],
+          ['10 thousand', 3],
+          ['2 million', 6],
+          ['3m', 6],
+        ],
+        [' people', ' seats', ' followers on insta', ' free drinks'],
+        [
+          ' total',
+          ' budget',
+          ' revenue',
+          ' salary',
+          ' fee',
+          ' costs',
+          ' price',
+          ' each',
+          ' per seat',
+          ' a month',
+          ' monthly',
+          ' a year',
+          ' annually',
+          ' an hour',
+          ' daily',
+          ' dollars',
+        ],
+        [' for the hall', ' and up', ' in cash', ' or more', ' the lot'],
+      ],
+      [
+        '₽',
+        500,
+        [' около ', ' примерно ', ' порядка '], // cyrillic-ok: hedge words
+        [
+          ['2 тыс', 3], // cyrillic-ok: multiplier word
+          ['10к', 3], // cyrillic-ok: multiplier word
+          ['3 млн', 6], // cyrillic-ok: multiplier word
+        ],
+        [' гостей', ' человек', ' подписчиков'], // cyrillic-ok: nouns
+        [
+          ' бюджет', // cyrillic-ok: money word
+          ' итого', // cyrillic-ok: money word
+          ' всего', // cyrillic-ok: money word
+          ' зарплата', // cyrillic-ok: money word
+          ' выручка', // cyrillic-ok: money word
+          ' доход', // cyrillic-ok: money word
+          ' цена', // cyrillic-ok: money word
+          ' стоимость', // cyrillic-ok: money word
+          ' в месяц', // cyrillic-ok: money word
+          ' в год', // cyrillic-ok: money word
+          ' в час', // cyrillic-ok: money word
+          ' рублей', // cyrillic-ok: money word
+        ],
+        [' за зал', ' на всех', ' с человека'], // cyrillic-ok: filler words
+      ],
+    ]
+    it('a counted noun confirms; a money word or a filler asks', () => {
+      let cells = 0
+      let expected = 0
+      for (const [sign, a, hedges, mults, nouns, money, fillers] of signs) {
+        expected +=
+          hedges.length *
+          mults.length *
+          (nouns.length * 2 + (money.length + fillers.length) * 3)
+        for (const h of hedges)
+          for (const [m, zeros] of mults) {
+            const bare = `ticket ${sign}${a}`
+            for (const noun of nouns) {
+              const full = `${bare}${h}${m}${noun}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+              expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+              cells += 2
+            }
+            for (const tail of [...money, ...fillers]) {
+              const full = `${bare}${h}${m}${tail}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              expect(
+                asks(full, `${sign}${a * 10 ** zeros}`),
+                `${full} / scaled`
+              ).toBeGreaterThan(0)
+              cells += 3
+            }
+          }
+      }
+      expect(cells).toBe(expected)
+      expect(cells).toBe(
+        5 * 4 * (4 * 2 + (16 + 5) * 3) + 3 * 3 * (3 * 2 + (12 + 3) * 3)
+      )
+    })
+  })
 })

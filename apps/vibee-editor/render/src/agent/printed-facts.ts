@@ -167,9 +167,12 @@ const FILLER_RUN = new RegExp(
  * text, punctuation, a line break, a currency. A word after it means the
  * multiplier counts that noun: "$20, 2k seats", "$5 - about 10k people",
  * "₽500, 2 тыс гостей" stay the bare amount, while "$5, 10k" and
- * "$5 to 6, 10k." still ask. The tight chain of round 7 ("$5-10k tickets",
- * "$5 to 10k fans") keeps spreading: there the dash or "to" binds the two
- * numbers into one range, and the noun is what the whole range prices.
+ * "$5 to 6, 10k." still ask. A currency, a filler or a MONEY_WORDS phrase
+ * after the multiplier is no counted noun (#3758 round 3, #3765):
+ * "$5 about 10k total", "$5, 10k budget", "$5, 10k a month" ask.
+ * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
+ * spreading: there the dash or "to" binds the two numbers into one range,
+ * and the noun is what the whole range prices.
  * A fraction right after the connectors ("$1 and a half million",
  * "₽5 с половиной тысяч", "$1 1/2 million", "$1½ million") adds that
  * fraction of the multiplier to the first amount.
@@ -177,6 +180,56 @@ const FILLER_RUN = new RegExp(
  * ("$5 to 10zorg") is an unknown multiplier. Time words after the second
  * number ("$3 until 8 pm") are a clock, never a multiplier.
  */
+/*
+ * MONEY WORDS (#3758 round 3, #3765): after a later multiplier, a word that
+ * says the amount is money, not a count -- "$5, 10k budget", "$5 about 10k
+ * a month", "$5, 10k per month". A CLOSED list on the safe side: a money word
+ * missing here reads as a counted noun and confirms the bare price, so add
+ * to it, never trim it. Matched as a phrase at the start of the rest.
+ */
+const MONEY_WORDS = new RegExp(
+  '^[ \\t\\u00a0]*(?:' +
+    [
+      'budgets?',
+      'total',
+      'revenues?',
+      'salary',
+      'salaries',
+      'fees?',
+      'costs?',
+      'prices?',
+      'each',
+      'per',
+      'a month',
+      'monthly',
+      'a year',
+      'yearly',
+      'annually',
+      'a week',
+      'weekly',
+      'daily',
+      'an hour',
+      'hourly',
+      'rubles?',
+      'dollars?',
+      'usd',
+      'eur',
+      'бюджет\\p{L}*', // cyrillic-ok: money words
+      'итого', // cyrillic-ok: money words
+      'всего', // cyrillic-ok: money words
+      'зарплат\\p{L}*', // cyrillic-ok: money words
+      'выручк\\p{L}*', // cyrillic-ok: money words
+      'доход\\p{L}*', // cyrillic-ok: money words
+      'цена|цены|цену|цене', // cyrillic-ok: money words
+      'стоимост\\p{L}*', // cyrillic-ok: money words
+      'в месяц|в год|в неделю|в день|в час', // cyrillic-ok: money words
+      'руб\\p{L}*', // cyrillic-ok: money words
+      'рублей', // cyrillic-ok: money words
+      'долларов', // cyrillic-ok: money words
+    ].join('|') +
+    ')(?!\\p{L})',
+  'iu'
+)
 const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
 const TIME_RUN = new RegExp(
   '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
@@ -217,10 +270,16 @@ function laterMultiplier(
   let fractionOnFirst = 0
   let afterNumber = false
   let loose = false
-  // A loose chain ends at a multiplier that a word follows (see above).
+  // A loose chain ends at a multiplier that a counted noun follows (see
+  // above). Closed on the safe side (#3758 round 3, #3765): a currency, a
+  // filler ("each", "per", "a", hedges too) or a MONEY_WORDS phrase is
+  // no counted noun -- the multiplier may still scale money, so it asks.
   const countsNoun = () => {
+    if (!loose) return false
     const w = rest.match(/^[ \t\u00a0]*(\p{L}+\.?)/u)
-    return loose && !!w && !CURRENCY_RUN.test(w[1])
+    if (!w) return false
+    if (CURRENCY_RUN.test(w[1]) || FILLER_RUN.test(w[1])) return false
+    return !MONEY_WORDS.test(rest)
   }
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
