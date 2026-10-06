@@ -168,13 +168,11 @@ const FILLER_RUN = new RegExp(
  * гостей" stay the bare amount. Any other word, a currency, punctuation or
  * the end keeps the multiplier on the price (#3758 round 4, #3769):
  * "$5, 10k", "$5, 10k budget", "$5 about 10k quid", "₽5, 10 тыс сумма" ask.
- * A bare hedge with no comma ("$5 about 10k people") loosens the chain too,
- * but there the counted noun must END the phrase (#3758 rounds 5-7): the
- * rest of the phrase holds only spaces and emoji between its words, and
- * only counted nouns, "more" and a few count joiners ("and", "in total").
- * "$5 about 10k ticket revenue", "...ticket-revenue", "...ticket and merch
- * revenue", "...followers on insta", "...tickets / person", "...guests (per
- * head)" ask, as on main.
+ * A BARE hedge (no comma, no dash before it: "$5 about 10k people") never
+ * releases the price (#3758 round 8): the multiplier stays on it, as on
+ * main, whatever follows. Rounds 4-7 each found a new way a noun after a
+ * bare hedge still names money (modifiers, joiners, symbols, brackets,
+ * operator emoji); the release waits for its own issue.
  * A loose spread is also echoed exactly: the person's identical text
  * confirms it (see Fact.exact).
  * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
@@ -254,44 +252,6 @@ const COUNTED_NOUNS = new RegExp(
   `^[ \\t\\u00a0]*(?:(?:${COUNTED_ADJECTIVES})[ \\t\\u00a0]+)?(?:${COUNTED_NOUN_WORDS})(?![\\p{L}\\d])`,
   'iu'
 )
-/*
- * The end-of-phrase check after a bare hedge and a counted noun (#3758
- * rounds 6, 7). Each list below is CLOSED on the SAFE side unless it says
- * otherwise: an entry missing from it only makes the guard ask once more,
- * it never confirms.
- * TAIL_END: what ends the phrase -- sentence punctuation and line breaks.
- * A colon does NOT end it, and neither do brackets ("10k guests (per head)"
- * is the same phrase). A clause end missing here makes the phrase longer,
- * so it asks.
- * TAIL_GAP: the only marks that may stand between the words of the rest of
- * the phrase -- spaces of every kind (NBSP, thin spaces), emoji and their
- * modifiers, and brackets (the words inside a bracket are checked like any
- * other). Any other mark asks: "10k tickets / person", "@ person",
- * "x ticket", "ticket-revenue", "people's budget", "tickets: revenue", a
- * currency sign. A gap missing here asks.
- * CLAUSE_WORD: a word or a number; it starts with a letter or a digit, so a
- * lone variation selector after an emoji is a mark, not a word.
- * TAIL_RUN: the only words besides counted nouns and "more" that may follow
- * the noun ("10k people and fans", "10k tickets in total", "10k tickets
- * sold"). A word missing here asks.
- */
-const TAIL_END = /[\n\r\u2028\u2029.,;!?]/u
-const TAIL_GAP =
-  /[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\uFE0F\u200D()[\]]/gu
-/*
- * Emoji that name money ("10k tickets 💰" may be the takings, not the
- * crowd): never a gap, so they ask. The one list here where a missing entry
- * confirms -- it only narrows TAIL_GAP, and a money emoji missing here reads
- * like any other emoji ending, which round 6 accepted.
- */
-const MONEY_EMOJI =
-  /[\u{1F4B0}-\u{1F4B8}\u{1F911}\u{1F3E6}\u{1FA99}\u{1F9FE}\u{1F3E7}]/u
-const CLAUSE_WORD = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu
-const MORE_RUN = new RegExp('^(?:more|больше|ещё|еще)$', 'iu') // cyrillic-ok: "more" words
-const TAIL_RUN = new RegExp(
-  '^(?:and|or|plus|in|all|total|sold|expected|counting|и|или|плюс|всего)$', // cyrillic-ok: count joiners
-  'iu'
-)
 const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
 const TIME_RUN = new RegExp(
   '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
@@ -342,39 +302,10 @@ function laterMultiplier(
   // A loose chain ends at a multiplier that a counted noun follows (see
   // above). Closed on the safe side (#3758 round 4, #3769): only a word in
   // COUNTED_NOUNS leaves the bare price; any other word, a currency or a
-  // filler keeps the multiplier on the price, so it asks. After a bare
-  // hedge the noun must also END the phrase (#3758 rounds 5, 6): in "$5
-  // about 10k ticket revenue" the noun only modifies a money word, and main
-  // asks there.
-  const countsNoun = () => {
-    if (!loose) return false
-    const m = rest.match(COUNTED_NOUNS)
-    if (!m) return false
-    if (!hedgeOnly) return true
-    // After a bare hedge the noun must END the phrase (#3758 rounds 6, 7).
-    // The rest of the phrase, up to sentence punctuation or a line break,
-    // may hold only spaces and emoji between its words, and each word must
-    // be a counted noun, "more" or a TAIL_RUN word ("$5 about 10k tickets
-    // and more", "10k people and fans", "10k followers. On insta"). Any
-    // other mark asks -- a joiner glued to the noun ("ticket-revenue",
-    // "people's budget"), a rate symbol ("10k tickets / person", "@ person",
-    // "x ticket"), a bracket ("(per head)") -- and so does any other word:
-    // a money word ("ticket and merch revenue"), a rate word ("per seat",
-    // "each"), an unknown word ("followers on insta"), a number.
-    const after = rest.slice(m[0].length)
-    const clause = after.split(TAIL_END)[0]
-    if (MONEY_EMOJI.test(clause)) return false
-    if (clause.replace(CLAUSE_WORD, '').replace(TAIL_GAP, '') !== '')
-      return false
-    for (const word of clause.match(CLAUSE_WORD) ?? [])
-      if (
-        !COUNTED_NOUNS.test(word) &&
-        !MORE_RUN.test(word) &&
-        !TAIL_RUN.test(word)
-      )
-        return false
-    return true
-  }
+  // filler keeps the multiplier on the price, so it asks. A bare hedge
+  // never releases it (#3758 round 8): "$5 about 10k people" asks, as on
+  // main.
+  const countsNoun = () => loose && !hedgeOnly && COUNTED_NOUNS.test(rest)
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined

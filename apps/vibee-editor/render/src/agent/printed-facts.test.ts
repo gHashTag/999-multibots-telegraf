@@ -1847,7 +1847,9 @@ describe('four price shapes that read as another amount (#3746)', () => {
         [' за зал', ' на всех', ' с человека'], // cyrillic-ok: filler words
       ],
     ]
-    it('a counted noun confirms; a money word or a filler asks', () => {
+    // #3758 round 8 (variant B): a bare hedge never releases the price,
+    // so a counted noun asks here too, as on main.
+    it('a counted noun, a money word or a filler: all ask', () => {
       let cells = 0
       let expected = 0
       for (const [sign, a, hedges, mults, nouns, money, fillers] of signs) {
@@ -1860,8 +1862,8 @@ describe('four price shapes that read as another amount (#3746)', () => {
             const bare = `ticket ${sign}${a}`
             for (const noun of nouns) {
               const full = `${bare}${h}${m}${noun}`
-              expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
-              expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
               cells += 2
             }
             for (const tail of [...money, ...fillers]) {
@@ -2022,7 +2024,8 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
       expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
     }
-    // The noun that ends the phrase still leaves the bare price.
+    // Round 8 (variant B): a noun that ends the phrase asks too -- a bare
+    // hedge never releases the price, as on main.
     for (const [bare, full] of [
       ['$5', '$5 about 10k tickets'],
       ['$5', '$5 about 10k people'],
@@ -2036,8 +2039,8 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ['₽500', '₽500 около 2 тыс гостей и больше'], // cyrillic-ok: poster text
       ['₽500', '₽500 около 2 тыс гостей'], // cyrillic-ok: poster text
     ] as const) {
-      expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
-      expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
     }
   })
 
@@ -2082,9 +2085,9 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
       expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
     }
-    // Spaces of every kind, emoji (with a variation selector or a skin
-    // tone), brackets around allowed words, and count words still leave the
-    // bare price.
+    // Round 8 (variant B): spaces of every kind, emoji, brackets around
+    // allowed words, and count words ask too -- a bare hedge never releases
+    // the price, as on main.
     for (const [bare, full] of [
       ['$5', '$5 about 10k tickets \u{1F39F}\uFE0F'],
       ['$5', '$5 about 10k people \u{1F44D}\u{1F3FD}'],
@@ -2096,8 +2099,42 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       ['$5', '$5 about 10k subscribers and counting'],
       ['\u20bd500', '\u20bd500 примерно 2 тыс гостей (и больше)'], // cyrillic-ok: poster text
     ] as const) {
-      expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
-      expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun and an operator or money emoji, asks both ways (#3758 round 8)', () => {
+    // Round-7 review: main asks on every row, round 7 confirmed them.
+    // Variant B asks on every bare-hedge row, so these hold as must-ask.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k people \u2716\uFE0F ticket'],
+      ['$5', '$5 around 10k tickets \u2716 person'],
+      ['$5', '$5 roughly 10k tickets \u2797 person'],
+      ['$5', '$5 approx 10k guests \u2797 guest'],
+      ['$9', '$9 roughly 8k viewers \u2716\uFE0F viewer'],
+      ['\u20ac7', '\u20ac7 approx 3k users \u2797 user'],
+      ['\u00a32', '\u00a32 circa 4k guests \u2716 seat'],
+      ['\u00a32', '\u00a32 about 8k students \u2716 student'],
+      ['$30', '$30 around 2k readers \u2797 reader'],
+      ['$9', '$9 about 3k listeners \u2716\uFE0F listener \u{1F389}'],
+      ['$15', '$15 around 1k seats \u2716\uFE0F seat'],
+      ['\u20ac25', '\u20ac25 approx 2k plays \u2797 play'],
+      ['\u00a38', '\u00a38 roughly 3k streams \u2716 stream'],
+      ['\u20ac25', '\u20ac25 approximately 3k photos \u2716 photo'],
+      ['\u00a38', '\u00a38 around 4k reels \u2797 reel'],
+      ['$15', '$15 about 7k fans \u2716\uFE0Ffan'],
+      ['\u00a38', '\u00a38 approximately 9k guests \u2716 persons'],
+      ['\u20bd400', '\u20bd400 около 3 тыс гостей \u2716\uFE0F гость'], // cyrillic-ok: poster text
+      ['\u20bd700', '\u20bd700 примерно 3 тыс мест \u2797 место'], // cyrillic-ok: poster text
+      ['$30', '$30 approx 7k members \u{1F9E7}'],
+      ['$5', '$5 about 10k people \u{1F3F7}\uFE0F'],
+      ['$9', '$9 circa 3k people \u{1F4B9}'],
+    ]
+    expect(rows.length).toBe(22)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
     }
   })
 
@@ -2261,7 +2298,9 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
         ['бюджет', 'в месяц', 'рублей', 'итого', 'зарплата'], // cyrillic-ok: money words
       ],
     ]
-    it('a counted noun confirms both ways; any other word asks, and its exact echo confirms', () => {
+    // #3758 round 8 (variant B): after a bare hedge a counted noun asks
+    // too, as on main; the exact echo still confirms every loose chain.
+    it('a counted noun confirms both ways (not after a bare hedge); any other word asks, and its exact echo confirms', () => {
       let cells = 0
       let expected = 0
       for (const [
@@ -2282,18 +2321,24 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
         for (const c of connectors)
           for (const [m, zeros] of mults) {
             const bare = `ticket ${sign}${a}`
+            const bareHedge = !/[,-]/u.test(c)
             for (const n of counted) {
               const full = `${bare}${c}${m} ${n}`
-              expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
-              expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+              const back = asks(full, bare)
+              if (bareHedge) {
+                expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+                expect(back, `${full} / ${bare}`).toBeGreaterThan(0)
+              } else {
+                expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+                expect(back, `${full} / ${bare}`).toBe(0)
+              }
               cells += 2
             }
             // #3758 round 5: a counted noun with a word after it ("people
             // came") leaves the bare price after a comma or a dash, but not
-            // after a bare hedge -- there the noun must end the phrase.
+            // after a bare hedge (round 8: no bare hedge releases it).
             for (const n of sign === '$' ? ['people came'] : []) {
               const full = `${bare}${c}${m} ${n}`
-              const bareHedge = !/[,-]/u.test(c)
               expect(asks(bare, full), `${bare} / ${full}`).toBe(
                 bareHedge ? 1 : 0
               )
