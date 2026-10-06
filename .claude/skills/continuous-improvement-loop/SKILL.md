@@ -2429,4 +2429,6 @@ section "The agent says only what it did".
    Three writers ended up on #3730's branch. Before dispatch, run
    `tri holders <branch>` (#3738): rc 1 means a tree already holds the branch.
    `tri worktrees` shows a fresh bee branch with no commits as new, not
-   finished, so the cleanup does not offer to remove it (pending #3749).
+   finished, so the cleanup does not offer to remove it (#3749). An old
+   branch freshly checked out into a new worktree is still shown as finished
+   (#3751, open).
