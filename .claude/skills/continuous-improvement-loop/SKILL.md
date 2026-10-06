@@ -1092,6 +1092,9 @@ tri waiting     # что лежит в открытом PR: деньги / ви�
    replaces it with an APFS clone from a donor with the same lock and proves
    `undici` and `@vibee/atoms` resolve from inside the tree (rc 1 otherwise,
    #3675).
+   Before dispatching an author, run `tri holders <branch>`: rc 1 = another
+   worktree already holds that branch, or a tree has the repo staged deleted
+   (ALARM). Three writers on #3730's branch, 2026-10-06.
 3. PR на main в конце витка. Маленький PR, который можно слить сегодня,
    ценнее большого, который ждёт слова владельца третью неделю.
 4. Длинная ветка не «накапливает ценность» — она её запирает.
