@@ -61,6 +61,14 @@
  * added at the top level. No tree reflog -> the admin dir's `commondir` file,
  * written once at creation. Unknown age keeps the tree. Detached HEAD at a main commit has no
  * name to be new under, and stays finished.
+ * A REUSED NAME IS NOT A FINISHED ONE EITHER (#3756). A bee that runs
+ * `git worktree add dir fix/x` for a `fix/x` whose PR already merged gets a
+ * clean tree 0 ahead whose name -- and often whose tip -- matches the merged
+ * PR. The age guard runs before any merged-PR match, so such a tree is `new`
+ * while it is young; past the threshold the merged-PR match decides as
+ * before. A tree with commits after the merge is never matched by name alone:
+ * it is finished only when its tip is inside the merged head or its patches
+ * are upstream.
  */
 
 const fs = require('fs')
@@ -465,8 +473,8 @@ function gather(procs, only = null) {
  * finished  HEAD is a merged PR's head, inside one, already in origin/main,
  *           or every commit beyond main is already there as the same patch
  *           -- and nothing uncommitted
- * new       a NAMED branch, 0 commits ahead, no merged PR of that name, and
- *           younger than NEW_BRANCH_MAX_H by the younger of branch and tree
+ * new       a NAMED branch, 0 commits ahead -- even under the name or at the
+ *           head of a merged PR (#3756) -- and younger than NEW_BRANCH_MAX_H by the younger of branch and tree
  *           age (or of unknown age) -- a bee that
  *           has not committed yet; never proposed for removal
  * holds     uncommitted work, or locked -- never proposed for removal
@@ -480,25 +488,28 @@ function classify(trees, merged, newMaxH = NEW_BRANCH_MAX_H) {
       return { ...w, state: 'active', why: 'не прочитать (каталога нет?)' }
     if (w.locked)
       return { ...w, state: 'holds', why: 'заперто (git worktree lock)' }
+    const sameName = (w.branch && merged.byName.get(w.branch)) || []
+    // A young named tree with nothing of its own yet is a bee's fresh start,
+    // whatever merged PR its branch NAME or its tip happens to match (#3756):
+    // `git worktree add dir fix/x` on a reused name lands on the merged head
+    // or on main, and would read as finished minutes after it was made.
+    const age = w.ahead === 0 && w.branch ? youngestAge(w) : undefined
+    if (age !== undefined && (age === null || age < newMaxH))
+      return {
+        ...w,
+        state: 'new',
+        why:
+          'новая ветка, коммитов ещё нет' +
+          (age === null ? ' (возраст не прочитать)' : `, ${age.toFixed(1)} ч`) +
+          (sameName.length ? `; имя как у влитого PR #${sameName[0].n}` : ''),
+      }
     if (w.head && merged.byOid.has(w.head))
       return {
         ...w,
         state: 'finished',
         why: `= голова влитого PR #${merged.byOid.get(w.head)}`,
       }
-    const sameName = (w.branch && merged.byName.get(w.branch)) || []
-    if (w.ahead === 0 && w.branch && !sameName.length) {
-      const age = youngestAge(w)
-      if (age === null || age < newMaxH)
-        return {
-          ...w,
-          state: 'new',
-          why:
-            'новая ветка, коммитов ещё нет' +
-            (age === null
-              ? ' (возраст не прочитать)'
-              : `, ${age.toFixed(1)} ч`),
-        }
+    if (age !== undefined && !sameName.length) {
       return {
         ...w,
         state: 'finished',
@@ -577,7 +588,32 @@ function selfCheck() {
       t('/j', { branch: 'loop/fresh', ahead: 0, branchAgeH: 0.1 }),
       t('/k', { branch: 'loop/fresh2', ahead: 0, branchAgeH: null }),
       t('/l', { head: 'mmm', ahead: 0 }),
+      // a reused merged name in a fresh tree is a fresh start (#3756), both
+      // when its tip is the merged head and when it is some other main commit
       t('/m', { branch: 'loop/done', head: 'ddd', ahead: 0, branchAgeH: 0.1 }),
+      t('/q', {
+        branch: 'loop/done',
+        head: 'aaa',
+        ahead: 0,
+        branchAgeH: 999,
+        treeAgeH: 0.1,
+      }),
+      t('/r', {
+        branch: 'loop/done',
+        head: 'aaa',
+        ahead: 0,
+        branchAgeH: 999,
+        treeAgeH: 999,
+      }),
+      t('/s', {
+        branch: 'loop/done',
+        head: 'ddd',
+        ahead: 0,
+        branchAgeH: 999,
+        treeAgeH: 999,
+      }),
+      // new commits after the merge are work, young or old
+      t('/t', { branch: 'loop/done', head: 'eee', ahead: 1, treeAgeH: 0.1 }),
       // an old branch checked out into a fresh tree is a fresh start (#3751)
       t('/n', {
         branch: 'loop/reuse',
@@ -623,7 +659,11 @@ function selfCheck() {
     '/j': 'new',
     '/k': 'new',
     '/l': 'finished',
-    '/m': 'finished',
+    '/m': 'new',
+    '/q': 'new',
+    '/r': 'finished',
+    '/s': 'finished',
+    '/t': 'active',
     '/n': 'new',
     '/o': 'finished',
     '/p': 'finished',
