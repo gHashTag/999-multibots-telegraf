@@ -1721,3 +1721,78 @@ describe('a plural object is a claim like a singular one (#3744)', () => {
     )
   })
 })
+
+/*
+ * Number agreement (#3748 round 2). "here are" + EN_IMAGE took the
+ * singular too, and after "are" a singular noun is only a modifier:
+ * "Here are the poster ideas:" lists ideas, it hands over no poster. Main
+ * stayed silent on each line below; round 1 flagged every one.
+ */
+describe('"here is" takes the singular, "here are" the plural (#3748 round 2)', () => {
+  for (const said of [
+    'Here are the poster ideas:',
+    'Here are your poster options:',
+    'Here are the banner sizes for Telegram:',
+    'Here are your cover options:',
+    'Here are the picture requirements:',
+    'Here are the image sizes Instagram accepts: 1080x1080 and 1080x1350.',
+    'Here are the cover letter tips you asked for.',
+    'Here are the poster texts:',
+    // the same defect in the voice opener and the Russian one
+    'Here are the voice note tips:',
+    'Here are your voice message options:',
+    'Here are the voice reply templates.',
+    'Here are the audio settings:',
+    "Here are the posters' captions:",
+    'Вот твои постерные идеи.', // cyrillic-ok: test input
+    'Вот готовые афишные шаблоны.', // cyrillic-ok: test input
+    'Вот ваши баннерные размеры.', // cyrillic-ok: test input
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  it('"Here are the posters." still flags', () => {
+    expect(unbackedKinds('Here are the posters.', [])).toEqual(['media'])
+  })
+
+  // the grid: every English noun x {here's, here is, here are} x {singular,
+  // plural}. An agreeing pair is a claim; "here are" + a singular noun + the
+  // real object is a list and stays silent.
+  type Kind = 'media' | 'voice'
+  const GRID: Array<[string, string, Kind]> = [
+    ...['poster', 'image', 'picture', 'banner', 'cover'].map(
+      (n): [string, string, Kind] => [n, `${n}s`, 'media']
+    ),
+    ...[
+      ['note', 'notes'],
+      ['message', 'messages'],
+      ['reply', 'replies'],
+      ['clip', 'clips'],
+    ].map(([one, many]): [string, string, Kind] => [
+      `voice ${one}`,
+      `voice ${many}`,
+      'voice',
+    ]),
+  ]
+  const agreeing: Array<[string, Kind]> = []
+  const modifiers: string[] = []
+  for (const [one, many, kind] of GRID)
+    for (const det of ['the', 'your']) {
+      for (const lead of ["Here's", 'Here is'])
+        agreeing.push([`${lead} ${det} ${one}.`, kind])
+      agreeing.push([`Here are ${det} ${many}.`, kind])
+      for (const head of ['ideas', 'options', 'sizes', 'texts'])
+        modifiers.push(`Here are ${det} ${one} ${head}:`)
+    }
+  it('every agreeing "here" line is flagged with its kind', () => {
+    expect(agreeing.length).toBe(54)
+    expect(
+      agreeing.filter(([said, kind]) => !unbackedKinds(said, []).includes(kind))
+    ).toEqual([])
+  })
+  it('every "here are" + singular modifier + noun line stays silent', () => {
+    expect(modifiers.length).toBe(72)
+    expect(modifiers.filter(m => unbackedKinds(m, []).length > 0)).toEqual([])
+  })
+})

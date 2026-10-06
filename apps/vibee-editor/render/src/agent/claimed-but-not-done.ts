@@ -78,18 +78,27 @@ const claim = (source: string) => new RegExp(source, 'diu')
  * held; only the "вот ..." openers listed singular forms. // cyrillic-ok: quoted input
  */
 const EN_END = String.raw`(?![\p{L}'’])`
-const EN_NOUN = (...nouns: string[]) =>
-  `(${nouns.map(n => (n.endsWith('y') ? `${n.slice(0, -1)}(?:y|ies)` : `${n}s?`)).join('|')})${EN_END}`
-const EN_IMAGE = EN_NOUN('poster', 'image', 'picture', 'banner', 'cover')
-const EN_MEDIA = EN_NOUN(
-  'poster',
-  'image',
-  'picture',
-  'banner',
-  'cover',
-  'video'
-)
-const EN_VOICE = EN_NOUN('note', 'message', 'reply', 'clip')
+/*
+ * Number agreement (#3748 round 2). After "here are" a singular noun can
+ * only be a modifier -- "Here are the poster ideas:", "Here are the image
+ * sizes Instagram accepts" -- so an opener that fixes the number takes only
+ * the forms that agree with it: 'one' the singular, 'many' the plural.
+ * Both come from the same noun list, so no list is written twice.
+ */
+type EnNumber = 'one' | 'many' | 'any'
+const enForm = (noun: string, num: EnNumber) => {
+  const stem = noun.endsWith('y') ? noun.slice(0, -1) : noun
+  const [one, many] = noun.endsWith('y') ? ['y', 'ies'] : ['', 's']
+  if (num === 'one') return noun
+  if (num === 'many') return stem + many
+  return `${stem}(?:${one}|${many})`
+}
+const EN_NOUN = (nouns: readonly string[], num: EnNumber = 'any') =>
+  `(${nouns.map(n => enForm(n, num)).join('|')})${EN_END}`
+const PICTURE_NOUNS = ['poster', 'image', 'picture', 'banner', 'cover']
+const VOICE_NOUNS = ['note', 'message', 'reply', 'clip']
+const EN_MEDIA = EN_NOUN([...PICTURE_NOUNS, 'video'])
+const EN_VOICE = EN_NOUN(VOICE_NOUNS)
 
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
@@ -141,7 +150,9 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])вот\s+(тво[яйи]|ваш[аи]?|готов(?:ая|ый|ые|а|ы))\s+(афиш|картинк|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    // a stem followed by the adjective suffix is a modifier, not the object:
+    // "вот твои постерные идеи" names ideas (#3748 round 2) // cyrillic-ok: quoted input
+    re: /(^|[\s.,:;—-])вот\s+(тво[яйи]|ваш[аи]?|готов(?:ая|ый|ые|а|ы))\s+(афиш|картинк|постер|обложк|баннер)(?!н)/i, // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -168,7 +179,10 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: claim(String.raw`\bhere(?:'s| is| are) (the |your )` + EN_IMAGE),
+    re: claim(
+      String.raw`\bhere(?:'s| is) (the |your )${EN_NOUN(PICTURE_NOUNS, 'one')}` +
+        String.raw`|\bhere are (the |your )${EN_NOUN(PICTURE_NOUNS, 'many')}`
+    ),
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -204,7 +218,11 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'voice',
   },
   {
-    re: /\bhere(?:'s| is| are) (the |your )(audio|voice (?:notes?|messages?|repl(?:y|ies)))\b|\b(?:voice|audio) (?:(?:note|message|reply) (?:is |has been )?|(?:notes|messages|replies) (?:are |have been )?)sent\b/i,
+    re: claim(
+      String.raw`\bhere(?:'s| is) (the |your )(audio${EN_END}|voice ${EN_NOUN(VOICE_NOUNS, 'one')})` +
+        String.raw`|\bhere are (the |your )voice ${EN_NOUN(VOICE_NOUNS, 'many')}` +
+        String.raw`|\b(?:voice|audio) (?:(?:note|message|reply) (?:is |has been )?|(?:notes|messages|replies) (?:are |have been )?)sent\b`
+    ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
