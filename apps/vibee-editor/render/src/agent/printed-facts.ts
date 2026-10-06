@@ -82,34 +82,28 @@ const HOURS = new RegExp(
   'giu'
 )
 /*
- * The words after a spaced Cyrillic "k" letter that make it the preposition
- * "to" (a time or a goal: morning, Friday, the deadline), not a thousand.
- * A CLOSED list on the safe side: a word missing here keeps the letter a
- * thousand, so the confirmation is refused and the agent asks again. "Any
- * word" was the unsafe side -- the word after it is often the currency
- * itself, and "RUB10 <k> roubles" read as 10, so "RUB10" confirmed a
- * printed 10 000 (#3730 review).
+ * "$5k", "$5 thousand", "1,5 million": a multiplier after the amount. Without it "$5k"
+ * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). Glued
+ * ("$5k", "RUB10<k>") it is always the multiplier. A SPACED Cyrillic "k" letter
+ * is also the preposition "to" ("$5 <k> 7 pm"), so it is read both ways
+ * unless K_THOUSAND_NEXT follows -- see priceFact.
  */
-const K_PREPOSITION_NEXT =
-  '(?:утру|вечеру|обеду|ужину|завтраку|ночи|полудню|полуночи|часу|понедельнику|вторнику|среде|четвергу|пятнице|субботе|воскресенью|выходным|началу|концу|сроку|дедлайну|открытию|старту|празднику|новому)(?![\\p{L}])' // cyrillic-ok: preposition targets
+const KILO = `(?:k|к|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
+/* A spaced Cyrillic "k" letter closing a price match. */
+const SPACED_K = new RegExp('\\s[кК]$', 'u')
 /*
- * A digit after a spaced Cyrillic "k" letter makes it the preposition only
- * when the digit starts a time or a date: a clock ("<k> 19:00"), a number
- * with a time word ("<k> 7 вечера") or a day with a month ("<k> 8 марта").
- * Any other digit keeps the letter a thousand -- "any digit" was the unsafe
- * side: "RUB10 <k> 15 <k>" (a range), "$5 <k> 3 мес", "$5 <k> 2026" read as
- * units, so "RUB10" or "$5" confirmed them (#3730 review, round 2).
+ * What may follow a spaced Cyrillic "k" letter for it to be ONLY a thousand:
+ * the end of the text, closing punctuation, or a currency. A CLOSED list on
+ * the safe side: anything else -- a word, a digit, a line break and then a
+ * word -- leaves both readings. Four review rounds of #3730 patched the other
+ * side (a list of time words that made the letter a preposition), and every
+ * round a word was missing: "3 days" and "2 nights" are rental durations,
+ * "12.99" is no clock, "2 people" is a count. Reading both ways needs no such list.
  */
-const K_PREPOSITION_DIGIT =
-  '(?:\\d{1,2}[:.]\\d{2}(?!\\d)|\\d{1,2}\\s*(?:утра|вечера|дня|ночи|часам|часов|ч)(?![\\p{L}])|\\d{1,2}\\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?![\\p{L}]))' // cyrillic-ok: time and month words
-/*
- * "$5k", "$5 тыс", "1,5 млн": a multiplier after the amount. Without it "$5k"
- * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). A
- * spaced Cyrillic "k" letter before K_PREPOSITION_DIGIT ("<k> 19:00") or a word from
- * K_PREPOSITION_NEXT is the preposition "to": "$5 <k> morning" is $5
- * (#3719). Glued ("$5k") it is always the multiplier.
- */
-const KILO = `(?:k|(?<=\\d)к|к(?!\\s+(?:${K_PREPOSITION_DIGIT}|${K_PREPOSITION_NEXT}))|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
+const K_THOUSAND_NEXT = new RegExp(
+  '^\\s*(?:$|[.,;!?)\\]»"”…$€₽฿£]|(?:руб|р\\.|р(?![\\p{L}])|rub|rouble|ruble|доллар|dollar|бакс|usd|евро|eur|gbp|бат|baht|thb))', // cyrillic-ok: currency words
+  'iu'
+)
 /**
  * The spaces that join digit groups, as a regex character-class body: a
  * space, a no-break space, a narrow no-break space. A CLOSED list, never
@@ -162,8 +156,8 @@ const MILLIONS = new RegExp('\\d\\s?(?:млн|mln|million)', 'iu')
  * and "1,5 тыс" are 1500, so "$1k" does not confirm "$1.5k" (#3697), and
  * "1,5 млн" is 1 500 000 (#3709). One separator before exactly three digits
  * ("$1.500k") reads both ways -- a decimal (1500, like "$1.5k") or a
- * thousands group (1 500 000) -- and either reading the person wrote confirms
- * it, the same way "08.10" is a date or a time. A COMMA there is only the
+ * thousands group (1 500 000) -- so it carries both readings, and as a price
+ * with two readings it is asked about again (#3730 round 4). A COMMA there is only the
  * group: an English reader takes "$1,500k" as $1.5 million, so "$1500" must
  * not confirm it (#3719). "1,500 mln" reads as 1.5 billion too; the rare
  * Russian decimal-comma intent is then asked again, the safe failure. Without a multiplier cents
@@ -218,7 +212,8 @@ export interface Fact {
   /**
    * Normalised readings, for comparison with what the person said. "08.10"
    * is the 8th of October or ten past eight: either reading the person wrote
-   * confirms it.
+   * confirms it. A price with several readings needs all of them (see
+   * confirmedBy).
    */
   keys: string[]
   /** A price's currency (usd, eur, gbp, thb, rub) when it names one. */
@@ -231,13 +226,43 @@ function monthOf(word: string): number | null {
   return null
 }
 
+/*
+ * A price match as a Fact. A spaced Cyrillic "k" letter that is not followed
+ * by K_THOUSAND_NEXT is "to" or a thousand, so the fact carries BOTH
+ * readings: "$5 <k> 7 pm" is 5 or 5000. unconfirmedFacts then needs the
+ * person to have written every reading, and never lets such a form confirm
+ * anything -- an ambiguous price is asked about once more (#3730 round 4).
+ */
+function priceFact(
+  text: string,
+  m: RegExpMatchArray,
+  raw: string
+): Fact | undefined {
+  const readings = new Set(priceReadings(raw, m[0]))
+  const next = text.slice((m.index ?? 0) + m[0].length)
+  if (SPACED_K.test(m[0]) && !K_THOUSAND_NEXT.test(next))
+    for (const r of priceReadings(raw, m[0].replace(SPACED_K, '')))
+      readings.add(r)
+  if (!readings.size) return undefined
+  return {
+    kind: 'price',
+    text: m[0].trim(),
+    keys: [...readings].map(d => `p${d}`),
+  }
+}
+
 /** Every date, time and price in `text`, normalised. Pure. */
 export function factsIn(text: string): Fact[] {
   const out: Fact[] = []
   const seen = new Set<string>()
   const add = (f: Fact) => {
-    const id = f.keys.join('|')
+    // The currency is part of the id: "$300" must not hide "300 ₽". A
+    // price with no currency ("entry 500" inside "entry 500 RUB") adds nothing
+    // to the same readings with one, and would confirm any currency.
+    const bare = `${f.keys.join('|')}|`
+    const id = `${bare}${f.currency ?? ''}`
     if (seen.has(id)) return
+    if (!f.currency && [...seen].some(s => s.startsWith(bare))) return
     seen.add(id)
     out.push(f)
   }
@@ -287,23 +312,12 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    const readings = priceReadings(m[1] ?? m[2] ?? '', m[0])
-    if (readings.length)
-      add({
-        kind: 'price',
-        text: m[0].trim(),
-        keys: readings.map(d => `p${d}`),
-        currency: currencyOf(m[0]),
-      })
+    const f = priceFact(text, m, m[1] ?? m[2] ?? '')
+    if (f) add({ ...f, currency: currencyOf(m[0]) })
   }
   for (const m of text.matchAll(BARE_PRICE)) {
-    const readings = priceReadings(m[1] ?? '', m[0])
-    if (readings.length)
-      add({
-        kind: 'price',
-        text: m[0].trim(),
-        keys: readings.map(d => `p${d}`),
-      })
+    const f = priceFact(text, m, m[1] ?? '')
+    if (f) add(f)
   }
   return out
 }
@@ -387,6 +401,27 @@ export function heardFrom(history: ReadonlyArray<Turn>): string {
   return said.join('\n')
 }
 
+const sameCurrency = (a: Fact, b: Fact) =>
+  !a.currency || !b.currency || a.currency === b.currency
+
+/*
+ * Is `f` confirmed by what the person said? A date or a time: any reading
+ * the person wrote ("08.10" is a date or a time). A price is judged
+ * asymmetrically (#3730 round 4): a printed price with several readings
+ * ("$1.500k", "$5 <k> 7 pm") needs EVERY reading confirmed, and only a
+ * price the person wrote with ONE reading confirms anything. An ambiguous
+ * form on either side therefore asks again, and no list of words decides
+ * which reading is "really" meant.
+ */
+function confirmedBy(f: Fact, known: Fact[]): boolean {
+  if (f.kind !== 'price')
+    return known.some(h => h.keys.some(k => f.keys.includes(k)))
+  const sure = known.filter(
+    h => h.kind === 'price' && h.keys.length === 1 && sameCurrency(h, f)
+  )
+  return f.keys.length > 0 && f.keys.every(k => sure.some(h => h.keys[0] === k))
+}
+
 /** Facts in `prompt` that `heard` does not contain. Empty = print freely. */
 export function unconfirmedFacts(
   prompt: string,
@@ -394,14 +429,7 @@ export function unconfirmedFacts(
 ): Fact[] {
   if (heard === undefined) return []
   const known = factsIn(heard)
-  return factsIn(prompt).filter(
-    f =>
-      !known.some(
-        h =>
-          h.keys.some(k => f.keys.includes(k)) &&
-          (!h.currency || !f.currency || h.currency === f.currency)
-      )
-  )
+  return factsIn(prompt).filter(f => !confirmedBy(f, known))
 }
 
 /** The tool's refusal: Russian, because the model relays it to the person. */

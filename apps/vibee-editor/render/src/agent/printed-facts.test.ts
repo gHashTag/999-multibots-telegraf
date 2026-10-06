@@ -537,11 +537,18 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
     expect(unconfirmedFacts('вход 10.5к ₽', 'вход 10 500 ₽')).toEqual([])
   })
 
-  it('"$1.500k" reads both ways: $1.5k and $1 500k each confirm it', () => {
+  it('"$1.500k" carries both readings, so it is asked again (#3730 round 4)', () => {
     expect(keys('$1.500k')).toEqual(['p1500|p1500000'])
-    expect(unconfirmedFacts('fee $1.500k', 'fee $1.5k')).toEqual([])
-    expect(unconfirmedFacts('fee $1.500k', 'fee $1 500 000')).toEqual([])
+    // Flipped from "either reading confirms": each reading alone is not enough.
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1.5k').length).toBe(1)
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1 500 000').length).toBe(1)
     expect(unconfirmedFacts('fee $1.500k', 'fee $1k').length).toBe(1)
+    // The person wrote both: then it is confirmed.
+    expect(unconfirmedFacts('fee $1.500k', 'fee $1.5k, or $1 500 000')).toEqual(
+      []
+    )
+    // As the person's words it confirms nothing: it is not one amount.
+    expect(unconfirmedFacts('fee $1.5k', 'fee $1.500k').length).toBe(1)
   })
 
   it('"$1,500k" (comma) is only the group: $1500 does not confirm $1.5M (#3719)', () => {
@@ -553,18 +560,22 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
     expect(keys('цена 1,500 млн')).toEqual(['p1500000000'])
   })
 
-  it('a spaced "к" before a word is the preposition, not a thousand (#3719)', () => {
-    expect(keys('$5 к утру')).toEqual(['p5'])
-    expect(unconfirmedFacts('$5 к утру', '$5')).toEqual([])
+  it('a spaced "к" reads both ways unless the end, punctuation or a currency follows (#3730 round 4)', () => {
+    const both = (text: string) =>
+      new Set(
+        factsIn(text)
+          .filter(f => f.kind === 'price')
+          .flatMap(f => f.keys)
+      )
+    expect(both('$5 к утру')).toEqual(new Set(['p5', 'p5000']))
+    expect(both('$5 к 19:00')).toEqual(new Set(['p5', 'p5000']))
+    expect(both('₽10 к 15 к')).toEqual(new Set(['p10', 'p10000']))
     expect(keys('вход 500 ₽ к вечеру')).toEqual(['p500'])
     expect(keys('$10к утру')).toEqual(['p10000'])
     expect(keys('вход 10к ₽')).toEqual(['p10000'])
     expect(keys('вход 10 к ₽')).toEqual(['p10000'])
     expect(keys('цена $10 к')).toEqual(['p10000'])
     expect(keys('10к рублей')).toEqual(['p10000'])
-  })
-
-  it('a spaced "к" before the currency word is still a thousand (#3730 review)', () => {
     for (const text of [
       '₽10 к рублей',
       '₽10 к руб',
@@ -572,92 +583,216 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
       '$5 к баксов',
       '$5 к usd',
       '€3 к евро',
-    ]) {
-      expect(keys(text)[0], text).toMatch(/^p\d+000$/)
-    }
-    expect(unconfirmedFacts('₽10 к рублей', '₽10').length).toBe(1)
-    expect(unconfirmedFacts('$5 к долларов', '$5').length).toBe(1)
-    expect(prices('$5 к 19:00')).toEqual(['p5'])
-    expect(keys('$5 к пятнице')).toEqual(['p5'])
+      '$5 к.',
+      '$5 к, 19:00',
+      '$5 к. 19:00',
+    ])
+      expect(prices(text)[0], text).toMatch(/^p\d+000$/)
+    // Flipped toward asking: "$5" no longer confirms "$5 <k> by morning", and an
+    // ambiguous form the person wrote confirms neither reading.
+    expect(unconfirmedFacts('$5 к утру', '$5').length).toBe(1)
+    expect(unconfirmedFacts('$5 к утру', '$5000').length).toBe(1)
+    expect(unconfirmedFacts('$5', '$5 к утру').length).toBe(1)
+    expect(unconfirmedFacts('$5000', '$5 к утру').length).toBe(1)
+    expect(unconfirmedFacts('$5 к утру', '$5 к утру').length).toBe(1)
+    expect(unconfirmedFacts('$5 к утру', 'до $5 или $5000')).toEqual([])
   })
 
-  it('grid: "к" is a preposition only spaced and before a time word (#3730 review)', () => {
-    const tails = [
-      ['', false],
-      [' рублей', false],
-      [' долларов', false],
-      [' баксов', false],
-      [' утру', true],
-      [' пятнице', true],
-      [' дедлайну', true],
-      [' 19:00', true],
-    ] as const
-    let n = 0
-    for (const sign of ['$', '€', '₽']) {
-      for (const glued of [true, false]) {
-        for (const [tail, prep] of tails) {
-          const sp = glued ? '' : ' '
-          const lead = `${sign}10${sp}к${tail}`
-          const units = !glued && prep
-          expect(prices(lead), lead).toEqual([units ? 'p10' : 'p10000'])
-          const trail = `вход 10${sp}к ${sign}${tail}`
-          expect(prices(trail), trail).toEqual(['p10000'])
-          n += 2
+  it('"$300" does not hide "300 ₽" in the same prompt', () => {
+    expect(unconfirmedFacts('$300, 300 ₽', '$300').map(f => f.text)).toEqual([
+      '300 ₽',
+    ])
+  })
+
+  /*
+   * THE INVARIANT, by grid (#3730 round 4). Every printed form crossed with
+   * every heard form; what each form MEANS is written here from its shape,
+   * never read from the code. Confirmed => the printed form means exactly
+   * one amount, the heard form means exactly one amount, and they are the
+   * same. Liveness too: one amount on both sides, the same, confirms.
+   */
+  describe('grid: a price is confirmed only by the one amount it can mean', () => {
+    type Form = { text: string; means: number[]; cur: string | undefined }
+    const ambiguousTails = [
+      ' утру',
+      ' вечеру',
+      ' пятнице',
+      ' дедлайну',
+      ' 19:00',
+      ' 19.00',
+      ' 7 вечера',
+      ' 9 утра',
+      ' 8 марта',
+      ' 3 дня',
+      ' 2 ночи',
+      ' 5 дней',
+      ' 5 часов',
+      ' 10 ч',
+      ' 1 ч',
+      ' 7ч',
+      ' 12.99',
+      ' 1.99',
+      ' 9.75',
+      ' 15.50',
+      ' 2 чел',
+      ' 2 шт',
+      ' 3 мес',
+      ' 2 взрослых',
+      ' 5 гостям',
+      ' 2',
+      ' 2026',
+      ' 15 к',
+      '\n19:00',
+      '\nутру',
+      ' 🕖',
+      ' - 7 вечера',
+      ' 08.10',
+    ]
+    const thousandTails = [
+      '',
+      '.',
+      ',',
+      '!',
+      ' )',
+      ' рублей',
+      ' руб',
+      ' долларов',
+      ' usd',
+      ' евро',
+    ]
+    const forms = (
+      a: number,
+      sign: string,
+      word: string,
+      cur: string
+    ): Form[] => [
+      { text: `${sign}${a}`, means: [a], cur },
+      { text: `${sign}${a} 000`, means: [a * 1000], cur },
+      { text: `${sign}${a}к`, means: [a * 1000], cur },
+      { text: `${sign}${a}k`, means: [a * 1000], cur },
+      { text: `${sign}${a}.5k`, means: [a * 1000 + 500], cur },
+      { text: `${sign}${a},500k`, means: [(a * 1000 + 500) * 1000], cur },
+      {
+        text: `${sign}${a}.500k`,
+        means: [a * 1000 + 500, (a * 1000 + 500) * 1000],
+        cur,
+      },
+      { text: `${a} тыс ${word}`, means: [a * 1000], cur },
+      { text: `${a} млн ${word}`, means: [a * 1000000], cur },
+      { text: `${a} к ${word}`, means: [a * 1000], cur },
+      ...thousandTails.map(t => ({
+        text: `${sign}${a} к${t}`,
+        means: [a * 1000],
+        cur,
+      })),
+      ...ambiguousTails.map(t => ({
+        text: `${sign}${a} к${t}`,
+        means: [a, a * 1000],
+        cur,
+      })),
+    ]
+    const all: Form[] = []
+    for (const a of [5, 10])
+      for (const [sign, word, cur] of [
+        ['$', 'долларов', 'usd'],
+        ['₽', 'рублей', 'rub'],
+      ] as const)
+        all.push(...forms(a, sign, word, cur))
+    all.push(
+      { text: 'цена 10', means: [10], cur: undefined },
+      { text: 'цена 10 к', means: [10000], cur: undefined }
+    )
+    const priceOf = (text: string) =>
+      factsIn(text).filter(f => f.kind === 'price')
+
+    it('each form reads as exactly what it can mean', () => {
+      for (const f of all) {
+        const ps = priceOf(f.text)
+        expect(ps.length, f.text).toBe(1)
+        expect(new Set(ps[0].keys), f.text).toEqual(
+          new Set(f.means.map(n => `p${n}`))
+        )
+      }
+      expect(all.length).toBe(
+        2 * 2 * (10 + thousandTails.length + ambiguousTails.length) + 2
+      )
+    })
+
+    it('confirmed <=> one amount on both sides, the same, in a matching currency', () => {
+      let confirmed = 0
+      let pairs = 0
+      for (const printed of all)
+        for (const heard of all) {
+          pairs++
+          const ok =
+            unconfirmedFacts(printed.text, heard.text).filter(
+              f => f.kind === 'price'
+            ).length === 0
+          const should =
+            printed.means.length === 1 &&
+            heard.means.length === 1 &&
+            printed.means[0] === heard.means[0] &&
+            (!printed.cur || !heard.cur || printed.cur === heard.cur)
+          expect(
+            ok,
+            `printed ${JSON.stringify(printed.text)} heard ${JSON.stringify(heard.text)}`
+          ).toBe(should)
+          if (ok) confirmed++
         }
-      }
-    }
-    expect(n).toBe(96)
-  })
+      expect(pairs).toBe(all.length ** 2)
+      expect(confirmed).toBeGreaterThan(0)
+    })
 
-  it('a spaced "к" before a digit is a thousand unless a time or date follows (#3730 review 2)', () => {
-    for (const text of [
-      '₽10 к 15 к',
-      '$5 к 3 мес',
-      '₽10 к 2 шт',
-      '₽10 к 2 взрослых',
-      'бюджет $5 к 2026',
-      '₽10 к 2',
-    ]) {
-      expect(keys(text)[0], text).toMatch(/^p\d+000$/)
-    }
-    expect(unconfirmedFacts('₽10 к 2 шт', '₽10').length).toBe(1)
-    expect(unconfirmedFacts('бюджет $5 к 2026', '$5').length).toBe(1)
-    expect(prices('$5 к 19:00')).toEqual(['p5'])
-    expect(prices('$5 к 7 вечера')).toEqual(['p5'])
-    expect(prices('$5 к 8 марта')).toEqual(['p5'])
-    // Accepted on the safe side: a count of guests is not a time, so the
-    // letter stays a thousand and "$3" no longer confirms it.
-    expect(prices('$3 к 5 гостям')).toEqual(['p3000'])
-  })
-
-  it('grid: "к" before a digit is a preposition only for a clock, a time word or a date', () => {
-    const tails = [
-      [' 19:00', true],
-      [' 19.00', true],
-      [' 7 вечера', true],
-      [' 9 утра', true],
-      [' 3 ч', true],
-      [' 8 марта', true],
-      [' 25 декабря', true],
-      [' 2 шт', false],
-      [' 3 мес', false],
-      [' 2 взрослых', false],
-      [' 5 гостям', false],
-      [' 2', false],
-      [' 2026', false],
-      [' 15 к', false],
-    ] as const
-    let n = 0
-    for (const sign of ['₽', '$']) {
-      for (const [tail, prep] of tails) {
-        const lead = `${sign}10 к${tail}`
-        expect(prices(lead)[0], lead).toBe(prep ? 'p10' : 'p10000')
-        const trail = `вход 10 к ${sign}${tail}`
-        expect(prices(trail)[0], trail).toBe('p10000')
-        n += 2
+    it('every line from the three review rounds asks again against either reading', () => {
+      const lines = [
+        '₽10 к 15 к',
+        '$5 к 3 мес',
+        '₽10 к 2 шт',
+        '₽10 к 2 взрослых',
+        'бюджет $5 к 2026',
+        '₽10 к 2',
+        '$3 к 5 гостям',
+        '$5 к 12.99',
+        '$5 к 1.99',
+        '₽10 к 9.75',
+        'аренда ₽10 к 3 дня',
+        'аренда ₽10 к 2 ночи',
+        '₽10 к 2 ночи в отеле',
+        '₽10 к 2 дня',
+        '₽10 к 5 дней',
+        '$5 к 5 часов',
+        '₽10 к 5 часов',
+        '$5 к 10 ч',
+        '₽10 к 1 ч',
+        '₽10 к 2 ч',
+        '₽10 к 7ч',
+        '₽10 к 2 чел',
+        '₽10 к 15.50',
+        '₽10 к\n19:00',
+        '₽10 к 7 вечера',
+        '₽10 к 8 март',
+        '$5 к утру',
+        '$5 к пятнице',
+        '$5 к 19:00',
+        '$5 к 7 вечера',
+        '$5 к 8 марта',
+      ]
+      for (const line of lines) {
+        const [, sign, n] = line.match(/([$₽])(\d+)/) ?? []
+        const unit = Number(n)
+        for (const heard of [
+          `${sign}${unit}`,
+          `${sign}${unit * 1000}`,
+          `${sign}${unit} за 2 ч`,
+          line,
+        ])
+          expect(
+            unconfirmedFacts(line, heard).filter(f => f.kind === 'price')
+              .length,
+            `${line} / ${heard}`
+          ).toBe(1)
       }
-    }
-    expect(n).toBe(56)
+    })
   })
 
   it('a preposition "к" with no currency is not a price', () => {
