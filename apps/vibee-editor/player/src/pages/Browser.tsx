@@ -100,7 +100,7 @@ const TYPE_PARAM = 'type'
  *    proxies `/live/` under its own origin.
  */
 export default function BrowserPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [view, setView] = useState<BrowserSessionView | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -686,7 +686,7 @@ export default function BrowserPage() {
               <iframe
                 ref={frame}
                 className="remote-browser__frame"
-                src={absoluteViewUrl(view!.viewUrl!)}
+                src={absoluteViewUrl(view!.viewUrl!, lang)}
                 title={t('browser.title')}
                 allow="clipboard-read; clipboard-write; fullscreen"
                 onLoad={e => {
