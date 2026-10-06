@@ -38,7 +38,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
       floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary". (#3795)
 - [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
-- [x] D. crm_duet sends for real by default (U1): dry_run defaults to true, and a dry run is free (crm-duet.t27 v4). (#3794)
+- [x] D. crm_duet sends for real by default (U1): dry_run defaults to true, and a dry run is free: every priced tool refused (crm-duet.t27 v5). (#3794)
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
 - [ ] E. closePage throws on !ok, browser_close_tab refuses the last tab, focus_tab is an acting tool (B7,B8).
 - [ ] F. A late answer wakes the agent (B1) + ask_permission returns id and reuses an open same question (B4).
@@ -116,6 +116,11 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   any seller turn of a dry run, a paid call refused before its handler, nothing charged; the
   brief says so. Railway: 129/129 (crm-duet, provider, spec test); mutant "dry run offers paid
   tools again" red 3/103; spec mutants 22/22 killed.
+  Review round 2: v4's six-name list missed lipsync_generate, story_reel, split_reel and
+  crm_voice_clone, which charge. crm-duet.t27 v5: a paid tool is one with a price > 0. The set
+  is derived from TOKEN_PRICES (tool-charges.ts, `charges` on borrowing tools); no list.
+  Railway: 145/145 (8 files) + 303/303 neighbours; mutants 25/25 killed. Lesson: a list of
+  "what costs" drifts the day a new tool charges -- derive it from the price source.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
