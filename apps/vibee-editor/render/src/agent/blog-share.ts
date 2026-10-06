@@ -429,6 +429,45 @@ export function outcomeOf(
     : 'failed'
 }
 
+/** The community a Reddit press line names at its end (redditPressLine). */
+const PRESSED_IN = /· r\/([A-Za-z0-9_]{2,30})$/
+
+/** The Reddit line of a press, naming the community it went to. Pure. */
+export function redditPressLine(line: string, subreddit: string): string {
+  return `${line} · r/${subreddit}`
+}
+
+/**
+ * Every `<subreddit>/<slug>` (lower case) this desk pressed "Post" for on
+ * Reddit, from its own blog_shares rows -- the Reddit desk (reddit.ts) reads
+ * it so the same article is not posted to the same community twice. A press
+ * line written before it named its community went to the default one, the
+ * only one this desk ever used. Pure.
+ */
+export function redditPressedKeys(
+  rows: Array<{ slug?: unknown; detail?: unknown }>
+): string[] {
+  const out: string[] = []
+  for (const row of rows) {
+    const detail = (
+      typeof row.detail === 'string' ? safeParse(row.detail) : row.detail
+    ) as { result?: Record<string, unknown> } | null
+    const line = String(detail?.result?.Reddit ?? '')
+    if (!PRESSED.test(line)) continue
+    const sub = PRESSED_IN.exec(line)?.[1] ?? subredditOf(undefined)
+    out.push(`${sub}/${String(row.slug ?? '')}`.toLowerCase())
+  }
+  return out
+}
+
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
 
 /** The spec's `still_waiting`: pending and younger than the approval's lifetime. */

@@ -17,11 +17,13 @@ import {
   PROFILE_SETTLE_MS,
   profileUrlFor,
   QUEUE_SKILL,
+  redditPressLine,
   RSS_URL,
   SEEN_ON_PROFILE,
   seenOn,
   SHARE_LABELS,
   shareUrls,
+  SUBREDDIT,
   summaryWithEvidence,
   type Article,
   type Answer,
@@ -198,6 +200,24 @@ export async function publishEverywhere(
       out[net] = notOpened(net)
       continue
     }
+    /*
+     * A COMMUNITY REDDIT CLOSED IS NOT OPENED (reddit.ts redditShareRefusal):
+     * r/t27ai was banned on 2026-10-03, and every run since opened its dead
+     * submit page and left the form in the owner's browser. Nor is an
+     * article the Reddit desk already offered or posted there opened again.
+     */
+    if (net === 'Reddit' && SUBREDDIT) {
+      const { redditShareRefusal, deskPostedTo } = await import('./reddit')
+      const { communityStateFor } = await import('./reddit-wiring')
+      const refused = await redditShareRefusal(SUBREDDIT, a.slug, {
+        state: communityStateFor(pool, owner),
+        deskPosted: (sub, slug) => deskPostedTo(pool, sub, slug),
+      })
+      if (refused) {
+        out[net] = refused
+        continue
+      }
+    }
     try {
       const page = await newDeskPage(cdp, url, who)
       await settle(FIRST_SETTLE_MS)
@@ -245,7 +265,9 @@ export async function publishEverywhere(
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
-        ? `нажато «${pressed}` // cyrillic-ok: told to the owner
+        ? net === 'Reddit' && SUBREDDIT
+          ? redditPressLine(`нажато «${pressed}`, SUBREDDIT) // cyrillic-ok: told to the owner
+          : `нажато «${pressed}` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner
     } catch (e) {
       out[net] = `ошибка: ${String(e).slice(0, 120)}` // cyrillic-ok: told to the owner
