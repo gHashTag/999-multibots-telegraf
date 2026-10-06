@@ -110,6 +110,8 @@ describe('drawPlan', () => {
 })
 
 describe('drawPosterFacts on a real canvas', () => {
+  // The first canvas call in a fresh process loads cairo and fontconfig; on
+  // a cold tree under load that alone took 7 s once.
   it('darkens the bottom and paints white text there; the top is untouched', async () => {
     const r = await drawPosterFacts(await blank(768, 768), {
       date_time: '25 октября, 19:00',
@@ -122,7 +124,7 @@ describe('drawPosterFacts on a real canvas', () => {
     const plate = await pixel(r.bytes, 767, 767)
     expect(plate[0]).toBeLessThan(130)
     expect(plate[0]).toBeGreaterThan(100)
-  })
+  }, 20_000)
 
   it('a fact the layout refuses leaves the picture undrawn', async () => {
     const r = await drawPosterFacts(await blank(768, 768), {
@@ -135,11 +137,13 @@ describe('drawPosterFacts on a real canvas', () => {
 describe('overlayFactsOnPicture', () => {
   const bytes = Buffer.from('picture')
   const kit = (
-    width: number
+    width: number | ((text: string) => number)
   ): CanvasKit & { toBuffer: ReturnType<typeof vi.fn> } => {
     const toBuffer = vi.fn(() => Buffer.from('drawn'))
     const g = {
-      measureText: () => ({ width }),
+      measureText: (text: string) => ({
+        width: typeof width === 'number' ? width : width(text),
+      }),
       drawImage: vi.fn(),
       fillRect: vi.fn(),
       fillText: vi.fn(),
@@ -161,8 +165,64 @@ describe('overlayFactsOnPicture', () => {
     )
     expect(out.bytes.toString()).toBe('drawn')
     expect(out.contentType).toBe('image/png')
-    expect(out.note).toEqual({ drawn: ['25 октября, 19:00', '1 500 ₽'] })
+    expect(out.note).toEqual({
+      drawn: ['25 октября, 19:00', '1 500 ₽'],
+      title: 'none',
+    })
+  })
+
+  // #3729: the background is asked for no text, so a poster with facts and
+  // no passed title has no title at all -- and the agent must hear that.
+  it('no title passed: the note and the hint say the poster has none', async () => {
+    const out = await overlayFactsOnPicture(
+      factsIn(PROMPT),
+      bytes,
+      'image/jpeg',
+      { env: {}, kit: kit(10) }
+    )
+    expect(overlayRefusedHint(out.note)).toContain('НЕТ названия')
+  })
+
+  it('a passed title is drawn first, above the facts, and the hint is quiet', async () => {
+    const out = await overlayFactsOnPicture(
+      factsIn(PROMPT),
+      bytes,
+      'image/jpeg',
+      { env: {}, kit: kit(10), title: '  Jazz   Night ' }
+    )
+    expect(out.note).toEqual({
+      drawn: ['Jazz Night', '25 октября, 19:00', '1 500 ₽'],
+      title: 'drawn',
+    })
+    expect(out.contentType).toBe('image/png')
     expect(overlayRefusedHint(out.note)).toBe('')
+  })
+
+  it('a title too wide is dropped and named; the facts are still drawn', async () => {
+    const wideTitle = (t: string) => (t === 'Jazz Night' ? 5000 : 10)
+    const out = await overlayFactsOnPicture(
+      factsIn(PROMPT),
+      bytes,
+      'image/jpeg',
+      { env: {}, kit: kit(wideTitle), title: 'Jazz Night' }
+    )
+    expect(out.bytes.toString()).toBe('drawn')
+    expect(out.note).toMatchObject({
+      drawn: ['25 октября, 19:00', '1 500 ₽'],
+      title: 'refused',
+    })
+    expect(overlayRefusedHint(out.note)).toContain('Название НЕ напечатано')
+  })
+
+  it('a title alone, with no date, time or price, leaves the picture to the model', async () => {
+    const k = kit(10)
+    const out = await overlayFactsOnPicture([], bytes, 'image/jpeg', {
+      env: {},
+      kit: k,
+      title: 'Jazz Night',
+    })
+    expect(out).toEqual({ bytes, contentType: 'image/jpeg' })
+    expect(k.toBuffer).not.toHaveBeenCalled()
   })
 
   it('a line wider than its box keeps the picture and says so', async () => {
@@ -178,6 +238,7 @@ describe('overlayFactsOnPicture', () => {
     expect(out.note).toMatchObject({ drawn: false, refused: 'date_time' })
     expect(k.toBuffer).not.toHaveBeenCalled()
     expect(overlayRefusedHint(out.note)).toContain('НЕ напечатаны')
+    expect(overlayRefusedHint(out.note)).toContain('названия на ней тоже нет')
   })
 
   it('does nothing with the flag off or with no facts', async () => {
@@ -235,4 +296,108 @@ describe('image_generate is wired to the overlay', () => {
     expect(body).toContain('notOnPicture: look.missing')
     expect(body).toMatch(/lookAtOwnPicture\(String\(args\.prompt\), bytes\)/)
   })
+})
+
+/*
+ * THE STORED FILE IS THE DRAWN ONE (#3729).
+ *
+ * Driven through the handler, not read off the source: the provider hands
+ * back a picture labelled image/jpeg, the overlay turns it into a PNG, and
+ * the upload must carry the PNG's bytes under image/png and a .png name.
+ * Taking the content type from the provider's header again would store a
+ * PNG as .jpg; uploading the provider's bytes would store a poster with no
+ * facts on it.
+ */
+describe('image_generate uploads the drawn png', () => {
+  it('bytes, content type and file name are the drawn picture', async () => {
+    const source = await blank(768, 1152)
+    const uploads: {
+      type: string | null
+      name: string | null
+      body: Buffer
+    }[] = []
+    const realFetch = globalThis.fetch
+    const saved = {
+      VISION_API_KEY: process.env.VISION_API_KEY,
+      POSTER_FACTS_OVERLAY: process.env.POSTER_FACTS_OVERLAY,
+    }
+    delete process.env.VISION_API_KEY
+    delete process.env.POSTER_FACTS_OVERLAY
+    globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+      const u = String(url)
+      if (u.endsWith('/api/generate/image'))
+        return new Response(
+          JSON.stringify({
+            url: 'https://provider.test/p.jpg',
+            provider: 'kie',
+          }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+      if (u === 'https://provider.test/p.jpg')
+        return new Response(new Uint8Array(source), {
+          headers: { 'content-type': 'image/jpeg' },
+        })
+      if (u.endsWith('/upload')) {
+        const h = new Headers(init.headers)
+        uploads.push({
+          type: h.get('Content-Type'),
+          name: h.get('X-Filename'),
+          body: Buffer.from(init.body as Uint8Array),
+        })
+        return new Response(
+          JSON.stringify({ directUrl: 'https://s3.test/agent-image.png' }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+      }
+      return new Response('{}', { status: 404 })
+    }) as typeof fetch
+    const pool = {
+      query: async () => ({
+        rows: [{ n: 0, id: 7, balance: 50 }],
+        rowCount: 1,
+      }),
+    }
+    try {
+      const { TOOLS_BY_NAME } = await import('./tools')
+      const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
+        { prompt: PROMPT, title: 'Jazz Night' },
+        {
+          telegramId: '1',
+          pool,
+          chargeLater: true,
+          heard: 'афиша: Jazz Night, 25 октября в 19:00, вход 1 500 ₽',
+        } as never
+      )
+      expect(out['сделано']).toBe(true)
+      expect(out.factsOverlay).toMatchObject({ title: 'drawn' })
+      expect(uploads).toHaveLength(1)
+      expect(uploads[0].type).toBe('image/png')
+      expect(uploads[0].name).toMatch(/\.png$/)
+      expect(uploads[0].body.equals(source)).toBe(false)
+      expect(uploads[0].body.subarray(1, 4).toString()).toBe('PNG')
+      // The bottom is darkened by the plate; the provider's picture was white.
+      const bottom = await pixel(uploads[0].body, 5, 1140)
+      expect(bottom[0]).toBeLessThan(200)
+    } finally {
+      globalThis.fetch = realFetch
+      for (const [k, v] of Object.entries(saved))
+        if (v === undefined) delete process.env[k]
+        else process.env[k] = v
+    }
+  }, 30_000)
+
+  it('a date hidden in the title is asked about before any charge', async () => {
+    const untouchable = {
+      query: () => {
+        throw new Error('the database was reached: a charge could follow')
+      },
+    }
+    const { TOOLS_BY_NAME } = await import('./tools')
+    const out: any = await TOOLS_BY_NAME.get('image_generate')!.handler(
+      { prompt: 'jazz poster', title: 'Jazz Night 8 October 11:30' },
+      { telegramId: '1', pool: untouchable, heard: 'сделай афишу' } as never
+    )
+    expect(out['сделано']).toBe(false)
+    expect(String(out['причина'])).toContain('«11:30»')
+  }, 30_000)
 })
