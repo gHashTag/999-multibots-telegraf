@@ -1160,6 +1160,8 @@ describe('shape plus echo (#3730 round 6)', () => {
             [`${sign}${a}, ${w}`, true, true, false],
             [`${w}: ${sign}${a}`, true, true, false],
             [`${sign}${a}. Also ${w.toUpperCase()}`, true, true, false],
+            // Another word written is no echo of this one.
+            [`${sign}${a}, see you tonight`, false, true, false],
           ]
           if (full)
             heards.push(
