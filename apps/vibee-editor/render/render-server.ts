@@ -9132,7 +9132,10 @@ const server = createServer(async (req, res) => {
      */
     if (state === 'allowed') {
       const who = byToken?.telegramId || (await approvalOwner(pool, subject))
-      if (who) await markAllowed(pool, who)
+      /* Only a question about acting on a page opens the guard, for its host. */
+      const { allowedActHost } = await import('./src/browser/approvals')
+      if (who)
+        await markAllowed(pool, who, await allowedActHost(pool, subject, who))
     }
     const said =
       state === 'allowed'

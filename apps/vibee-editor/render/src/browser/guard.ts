@@ -29,6 +29,7 @@
  * The list is configuration, not a truth. It ships with the obvious cases and
  * the person's own additions go in `BROWSER_SENSITIVE_DOMAINS`.
  */
+import { hostOf } from './recipes'
 
 /**
  * The default list. Not exhaustive and not meant to be: these are the places
@@ -143,10 +144,55 @@ export function isSensitive(url: string, list = sensitiveList()): boolean {
 /** How long one "yes" keeps the door open. */
 export const PERMISSION_WINDOW_MS = 5 * 60 * 1000
 
+/**
+ * A YES IS FOR ONE PLACE (found 2026-10-03).
+ *
+ * The window used to be one timestamp per person: a "yes" to closing tabs,
+ * to a blog post, or to a bank unlocked Gmail for the next five minutes. Now
+ * only browser_ask_permission's yes opens the window, and only for the host
+ * the agent was on when it asked. Exact host (without www), not a registrable
+ * domain: accounts.google.com and mail.google.com are different rooms, and a
+ * second question is cheaper than a guess. '' when the address cannot be
+ * read -- and '' never matches anything.
+ */
+export function placeOf(urlOrHost: string | null | undefined): string {
+  const raw = String(urlOrHost ?? '').trim()
+  if (!raw) return ''
+  return hostOf(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`)
+    .toLowerCase()
+    .replace(/\.$/, '')
+}
+
+/** Does a yes given on `allowedHost` cover acting on `url`? Unknown = no. */
+export function yesCovers(
+  allowedHost: string | null | undefined,
+  url: string | null | undefined
+): boolean {
+  const said = placeOf(allowedHost)
+  if (!said) return false
+  try {
+    if (!/^https?:$/.test(new URL(String(url)).protocol)) return false
+  } catch {
+    return false
+  }
+  return placeOf(url) === said
+}
+
 export interface GuardInput {
   url: string
   /** When the person last said yes for this session, or null. */
   allowedAtMs: number | null
+  /**
+   * The host that yes was given for (sessions.ts allowedHost). Missing or
+   * null opens nothing: a yes recorded before the host was, or a yes to
+   * something that was not about acting on a page, is no yes here.
+   */
+  allowedHost?: string | null
+  /**
+   * For an act inside a frame: the tab that embeds it. The person said yes
+   * looking at that page, and the Stripe frame on it is part of what they saw.
+   */
+  tabUrl?: string | null
   nowMs: number
   /**
    * The person's own list says "ask" here, or the list could not be read
@@ -172,12 +218,12 @@ export function mayAct(
 ): GuardVerdict {
   if (!input.alsoSensitive && !isSensitive(input.url, list))
     return { allowed: true }
-  if (
-    input.allowedAtMs !== null &&
-    input.nowMs - input.allowedAtMs <= windowMs
-  ) {
-    return { allowed: true }
-  }
+  const fresh =
+    input.allowedAtMs !== null && input.nowMs - input.allowedAtMs <= windowMs
+  const here =
+    yesCovers(input.allowedHost, input.url) ||
+    (input.tabUrl != null && yesCovers(input.allowedHost, input.tabUrl))
+  if (fresh && here) return { allowed: true }
   let where = input.url
   try {
     where = new URL(input.url).host
