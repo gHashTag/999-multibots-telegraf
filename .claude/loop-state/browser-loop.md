@@ -16,8 +16,9 @@ send real cards (`ask`, `tidy ask`) without a reason written here first.
 
 ## СЕЙЧАС В РАБОТЕ
 
-2026-10-06 ~12:00 UTC, dispatched by hand before the Queen took the plan; these
-items are TAKEN until the date below + 24 h:
+Taken items: item -> branch, dispatched 2026-10-06 12:00 UTC. When an item
+frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
+is yours too"); it is not repeated here.
 
 - A -> `fix/userbot-plain-errors`
 - B -> `fix/browser-yes-is-for-one-place`
@@ -26,7 +27,8 @@ items are TAKEN until the date below + 24 h:
 - N2 -> `fix/zai-lite-own-key`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
-2026-10-06 quoted. The bee that merges an item removes its line here.
+2026-10-06 quoted. The coder bee removes its item's line here in its own PR,
+next to the tick.
 
 ## Что уже есть
 
