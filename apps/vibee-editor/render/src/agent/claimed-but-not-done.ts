@@ -282,7 +282,7 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
       const last = items.length > first ? items[items.length - 1] : undefined
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
-      if (continues) last.text += ' ' + line
+      if (continues) last.text += '\n' + line
       else items.push({ text: line, listed })
     }
   }
@@ -372,7 +372,7 @@ const AGENT_SELF = new Set([
   'agent',
   'bot',
   'assistant',
-  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4) // cyrillic-ok: quoted input
+  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4)
   'тебе',
   'тебя',
   'вам',
@@ -467,27 +467,66 @@ function nameKey(word: string): string {
 }
 
 /*
- * Someone else's subject: a known first name, a surname after a first-name
- * capital ("Елена Петровна", "Ксюша Петрова"), or a capital right after a
- * role word ("Клиентка Мария"). Anything else capitalised -- "Утром",
- * "Значит", "Оперативно", "Канва" -- reads as the agent's.
- * A capital after just ANY capital is not a surname: two openers in a row
- * are not a name, and reading them as one kept the guard quiet (#3728).
- */
+ * A surname has a surname's shape (#3728 round 3): any capital after a first
+ * name read as one, so "Анна Готово сделала" -- the agent greeting Anna, then
+ * its own sentence -- stayed quiet. Russian surnames and patronymics end in a
+ * few suffixes, on a stem of three letters or more ("Снова", "Только" are
+ * not surnames); a surname without one gets a needless note, the safe side.
+ */ // cyrillic-ok: quoted input
+const SURNAME =
+  /^\p{Lu}\p{L}{2,}(?:ов|ова|ев|ева|ёв|ёва|ин|ина|ын|ына|ский|ская|цкий|цкая|енко|ук|юк|ович|евич|ич|овна|евна|ична|инична)$/u // cyrillic-ok: matched suffixes
+const LATIN = /^\p{Script=Latin}+$/u
+
+/*
+ * Someone else's subject: a known first name, a surname-shaped word after a
+ * first name ("Елена Петровна", "Ксюша Петрова"), any Latin capital after a
+ * Latin first name ("Anna Smith"), or a capital right after a role word
+ * ("Клиентка Мария"). Anything else capitalised -- "Утром", "Значит",
+ * "Готово", "Канва" -- reads as the agent's.
+ */ // cyrillic-ok: quoted input
 function personShaped(words: string[], at: number): boolean {
-  if (FIRST_NAMES.has(nameKey(words[at]))) return true
+  const word = words[at]
+  if (FIRST_NAMES.has(nameKey(word))) return true
   const prev = words[at - 1]
   if (!prev) return false
-  const low = prev.toLowerCase()
-  if (OTHER_SUBJECT.has(low)) return true
-  return FIRST_NAMES.has(nameKey(prev))
+  if (OTHER_SUBJECT.has(prev.toLowerCase())) return true
+  if (!FIRST_NAMES.has(nameKey(prev))) return false
+  if (LATIN.test(prev) && LATIN.test(word)) return true
+  return SURNAME.test(word)
 }
-// a clause starts after a comma, a colon, a dash, a bracket or "and"
-const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
+/*
+ * A clause starts after a comma, a colon, a dash, a bracket, "and", a line
+ * break, an emoji or any other symbol (#3728 round 3): "Анна 🙌 Готово cyrillic-ok: quoted input
+ * сделала" and "Анна\nГотово сделала" greet Anna, then start the agent's own cyrillic-ok: quoted input
+ * clause. "@" stays inside, it marks a handle; "-" inside a word too.
+ */ // cyrillic-ok: quoted input
+const CLAUSE_BREAK = /[^\p{L}\p{N}\p{M} \t@'’-]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
+// a name right after a greeting is the addressee, not the subject
+const GREETING = new Set([
+  'привет',
+  'здравствуй',
+  'здравствуйте',
+  'здрасте',
+  'добрый',
+  'доброе',
+  'доброй',
+  'дорогая',
+  'дорогой',
+  'уважаемая',
+  'уважаемый', // cyrillic-ok: matched words
+  'hi',
+  'hello',
+  'hey',
+  'dear',
+])
 
 function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   const verbAt = (m.index ?? 0) + (m[1] ?? '').length
-  const clause = sentence.slice(0, verbAt).split(CLAUSE_BREAK).pop() ?? ''
+  // a capitalised verb inside a sentence opens its own clause: "Анна // cyrillic-ok: quoted input
+  // Сделала афишу" greets, then claims (#3728 round 3) // cyrillic-ok: quoted input
+  if (/\p{Lu}/u.test(sentence[verbAt] ?? '')) return true
+  const head = sentence.slice(0, verbAt)
+  const clause = head.split(CLAUSE_BREAK).pop() ?? ''
   const words = clause.match(/\p{L}+(?:-\p{L}+)*/gu) ?? []
   const before = words.at(-1)
   if (!before) return true
@@ -502,7 +541,11 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   // a name three words after "for" is still oblique (#3693 round 5).
   const lead = words.slice(0, at)
   if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
-  return !personShaped(words, at)
+  if (!personShaped(words, at)) return true
+  // a greeting earlier in the sentence makes the name the addressee:
+  // "Привет, Анна сделала афишу" is the agent's (#3728 round 3) // cyrillic-ok: quoted input
+  const said = head.match(/\p{L}+/gu) ?? []
+  return said.some(w => GREETING.has(w.toLowerCase()))
 }
 
 /*
@@ -533,8 +576,10 @@ function claimedIn(
   if (s.back) return false
   const verbLed = VERB_LED(c)
   const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
-  for (const m of s.text.matchAll(all)) {
-    if (asked(s.text, m, verbLed)) continue
+  // a claim may wrap a line; whose verb it is depends on the break (#3728)
+  const flat = s.text.replace(/\n/g, ' ')
+  for (const m of flat.matchAll(all)) {
+    if (asked(flat, m, verbLed)) continue
     if (!verbLed || ownVerb(s.text, m)) return true
   }
   return false

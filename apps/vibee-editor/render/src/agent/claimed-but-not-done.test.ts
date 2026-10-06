@@ -677,6 +677,78 @@ describe('a surname follows a known first name, not any capital (#3728 review)',
   }
 })
 
+/*
+ * The greeting-then-claim grid (#3728 round 3). Rounds 1-6 of #3693 and
+ * rounds 1-2 of #3728 each patched one line a reviewer found, and the next
+ * reviewer found its neighbour. This walks every combination of greeting,
+ * addressee, separator, opener and verb, and derives the expected answer from
+ * one rule: the claim is someone else's only when a person-shaped subject
+ * stands right before the verb in the verb's own clause, with no greeting
+ * that would make the name the addressee.
+ */
+describe('greeting, addressee, separator, opener, verb: one rule (#3728 round 3)', () => {
+  const GREETINGS = ['', 'Привет ', 'Привет, '] // cyrillic-ok: test input
+  const ADDRESSEES = ['', 'Анна', 'Анна Петрова'] // cyrillic-ok: test input
+  const SEPARATORS = [' ', ', ', '\n', ' 🙌 ', '! ', '. ', ' — ']
+  const OPENERS = ['', 'Готово', 'Вот', 'Ура', 'Сегодня'] // cyrillic-ok: test input
+  const VERBS = ['сделала', 'отправила', 'Сделала'] // cyrillic-ok: test input
+  const rows = new Map<string, boolean>()
+  for (const g of GREETINGS)
+    for (const a of ADDRESSEES)
+      for (const sep of SEPARATORS)
+        for (const o of OPENERS)
+          for (const v of VERBS) {
+            const lead = a ? g + a + sep : g
+            const said = (lead + (o ? o + ' ' : '') + v + ' афишу').trim() // cyrillic-ok: test input
+            // quiet only: a name, nothing between it and a lowercase verb
+            const quiet =
+              a !== '' &&
+              g === '' &&
+              sep === ' ' &&
+              o === '' &&
+              v === v.toLowerCase()
+            rows.set(said, !quiet)
+          }
+  it('covers the whole grid', () => {
+    expect(rows.size).toBeGreaterThan(400)
+  })
+  it('every row follows the rule', () => {
+    const wrong = [...rows].filter(
+      ([said, flagged]) => unbackedKinds(said, []).length > 0 !== flagged
+    )
+    expect(wrong).toEqual([])
+  })
+  // representative rows, named so a failure reads at a glance
+  for (const said of [
+    'Анна\nГотово сделала афишу', // cyrillic-ok: test input
+    'Анна 🙌 Готово сделала афишу', // cyrillic-ok: test input
+    'Привет Анна 🙂 Готово сделала афишу', // cyrillic-ok: test input
+    'Анна Вот сделала афишу', // cyrillic-ok: test input
+    'Анна Ура сделала афишу', // cyrillic-ok: test input
+    'Привет, Анна 👋\nСделала афишу', // cyrillic-ok: test input
+    'Анна 👋 Сделала афишу', // cyrillic-ok: test input
+    'Привет Анна Сделала афишу', // cyrillic-ok: test input
+    'Привет, Анна сделала афишу', // cyrillic-ok: test input
+    'Анна Снова сделала афишу', // cyrillic-ok: test input
+    'Анна Только сделала афишу', // cyrillic-ok: test input
+  ]) {
+    it(`the agent's own claim after a name: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+    })
+  }
+  for (const said of [
+    'Анна сделала афишу', // cyrillic-ok: test input
+    'Анна Петрова сделала афишу', // cyrillic-ok: test input
+    'Иван Шевченко прислал фото', // cyrillic-ok: test input
+    'Anna Smith прислала фото', // cyrillic-ok: test input
+    'Менеджер Зорро отправил видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+  }
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname
