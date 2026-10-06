@@ -1487,6 +1487,34 @@ describe('crm_duet tools', () => {
       expect((start.parameters as any).properties.dry_run.default).toBe(true)
     })
 
+    /* Only the boolean false goes real. A model that writes null, the
+     * string "false", 0 or "no" has not said the owner's yes in the one
+     * form the tool accepts, so each is a dry run like a missing flag. */
+    it.each([
+      ['null', null],
+      ['the string "false"', 'false'],
+      ['0', 0],
+      ['"no"', 'no'],
+    ])(
+      'dry_run: %s is a dry run: no sends, no Telegram client',
+      async (_label, value) => {
+        const { start, status } = await loadStart()
+        const r: any = await start.handler(
+          { buyer: R_BUYER, turns: 1, dry_run: value },
+          rctx
+        )
+        expect(r.started).toBe(true)
+        expect(r.dry_run).toBe(true)
+        await vi.waitFor(async () =>
+          expect(((await status.handler({}, rctx)) as any).run.state).not.toBe(
+            'running'
+          )
+        )
+        expect(sends).toEqual([])
+        expect(clients).toBe(0)
+      }
+    )
+
     it('dry_run:false takes the real path: the seller line is sent from a live client', async () => {
       const { start } = await loadStart()
       const r: any = await start.handler(
