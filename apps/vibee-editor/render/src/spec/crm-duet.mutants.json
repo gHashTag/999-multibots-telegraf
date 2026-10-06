@@ -48,10 +48,28 @@
     "to": "if (r.name === REEL_TOOL) return true"
   },
   {
-    "name": "story reel offered in a dry run",
+    "name": "a dry run offers paid tools again",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "return dryRun ? DRY_RUN_DENIED : DUET_NEVER",
-    "to": "return DUET_NEVER"
+    "from": "  if (dryRun) return DRY_RUN_DENIED\n",
+    "to": ""
+  },
+  {
+    "name": "a dry run refuses without saying why",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  ...[...PAID_TOOLS].map(t => [t, DRY_RUN_PAID_REASON] as const),\n",
+    "to": ""
+  },
+  {
+    "name": "a dry run's brief does not say it is free",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "(run.dry_run ? `\\n\\n${DRY_RUN_BRIEF_NOTE}` : '')",
+    "to": "''"
+  },
+  {
+    "name": "a dry-run refusal reported as discovery",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "} else if (refused && run.dry_run) {",
+    "to": "} else if (refused && false) {"
   },
   {
     "name": "promise resent despite a started story",

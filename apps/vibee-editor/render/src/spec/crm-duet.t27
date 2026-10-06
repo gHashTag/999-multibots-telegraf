@@ -54,6 +54,15 @@
 //      to her REEL card for plan N whatever reel template it names; a card with no template is
 //      her own and is never moved. A story reel without a topic takes her next card itself
 //      (story template), and the duet links nothing then -- one card, not two.
+// v4 (2026-10-06): A DRY RUN IS FREE. Owner, 2026-10-06 (translated): "a dry run must be free,
+// change the spec". v3 kept only the story reel out of a dry run; every other paid tool was
+// offered from seller turn 2 on, so a run that sends nothing still paid for generations
+// (duet-mu027xqr, a full dry run, made one paid call). Now a dry run offers no paid tool on
+// ANY seller turn, and a paid call that arrives anyway is refused by the dispatcher the way a
+// discovery turn refuses it: an error the model can act on, no handler runs, nothing is
+// charged. A real run is unchanged: discovery first, paid tools from seller turn 2. The host
+// reads dry_run as true unless the caller passed the boolean false (999#3794), so the free
+// path is also the default one.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_duet {
@@ -61,7 +70,7 @@ module automation::crm_duet {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-duet";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- Who ----------------------------------------------------------------------------
     pub const SELLER : str = "platform-owner";  // the owner's account: sells
@@ -165,6 +174,11 @@ module automation::crm_duet {
     pub const DISCOVERY_SELLER_TURNS : u8 = 2;  // seller turns 0 and 1 (transcript lines 0 and 2)
     pub const DISCOVERY_HIDES_PAID_TOOLS : bool = true;  // toOpenAITools does not list them on those turns
     pub const DISCOVERY_REFUSES_PAID_CALL : bool = true;  // a paid call on those turns answers with an error, no handler runs, nothing is spent
+    // v4: a dry run is free. No paid tool on any seller turn of a dry run; a call that
+    // arrives anyway is refused as in discovery.
+    pub const DRY_RUN_SPENDS : bool = false;
+    pub const DRY_RUN_HIDES_PAID_TOOLS : bool = true;  // toOpenAITools does not list them on any turn of a dry run
+    pub const DRY_RUN_REFUSES_PAID_CALL : bool = true;  // error to the model, no handler runs, nothing is charged
     pub const FAMILIARITY_MARKERS_RU : str = "ponravil|dogovar|dogovoril|kak vy prosili|po vashej pros'be|obsuzhdali|kak my reshili";  // transliterated; the code holds the Cyrillic regex
     pub const FAMILIARITY_CORRECTIONS : u8 = 1;
     pub const FAMILIARITY_MISS_IS_VIOLATION : bool = true;
@@ -224,8 +238,15 @@ module automation::crm_duet {
     }
 
     // Whether a paid tool is offered to the seller model on seller turn `seller_turn`.
-    fn paid_tool_offered(seller_turn: u8) -> bool {
-        return seller_turn >= DISCOVERY_SELLER_TURNS;
+    // A dry run is free (v4): never, on any turn.
+    fn paid_tool_offered(seller_turn: u8, dry_run: bool) -> bool {
+        return !dry_run && seller_turn >= DISCOVERY_SELLER_TURNS;
+    }
+
+    // Whether the dispatcher refuses a paid call that arrives anyway: on a turn that does
+    // not offer paid tools, and on every rewrite round (a rewrite changes words, not work).
+    fn paid_call_refused(seller_turn: u8, dry_run: bool, rewrite: bool) -> bool {
+        return rewrite || !paid_tool_offered(seller_turn, dry_run);
     }
 
     // Whether a call is a paid generation: the story reel only when it starts one.
@@ -407,14 +428,55 @@ module automation::crm_duet {
         assert(DISCOVERY_SELLER_TURNS == 2);
         assert(DISCOVERY_HIDES_PAID_TOOLS);
         assert(DISCOVERY_REFUSES_PAID_CALL);
-        assert(!paid_tool_offered(0));
-        assert(!paid_tool_offered(1));
-        assert(paid_tool_offered(2));
+        assert(!paid_tool_offered(0, false));
+        assert(!paid_tool_offered(1, false));
+        assert(paid_tool_offered(2, false));
         assert(FAMILIARITY_CORRECTIONS == 1);
         assert(FAMILIARITY_MISS_IS_VIOLATION);
         assert(SELLER_GENDER == "m");
         assert(SELLER_GENDER_IN_BRIEF);
         assert(GENDER_SLIP_IS_FLAG_ONLY);
+    }
+
+    test "a dry run is free: no paid tool on any seller turn" {
+        assert(!DRY_RUN_SPENDS);
+        assert(DRY_RUN_HIDES_PAID_TOOLS);
+        assert(TURNS_MAX == 8);
+        assert(!paid_tool_offered(0, true));
+        assert(!paid_tool_offered(1, true));
+        assert(!paid_tool_offered(2, true));
+        assert(!paid_tool_offered(3, true));
+        assert(!paid_tool_offered(4, true));
+        assert(!paid_tool_offered(5, true));
+        assert(!paid_tool_offered(6, true));
+        assert(!paid_tool_offered(7, true));
+    }
+
+    test "a real run keeps paid tools after discovery" {
+        assert(!paid_tool_offered(0, false));
+        assert(!paid_tool_offered(1, false));
+        assert(paid_tool_offered(2, false));
+        assert(paid_tool_offered(3, false));
+        assert(paid_tool_offered(4, false));
+        assert(paid_tool_offered(5, false));
+        assert(paid_tool_offered(6, false));
+        assert(paid_tool_offered(7, false));
+    }
+
+    test "a dry run's paid call is refused and nothing is charged" {
+        assert(DRY_RUN_REFUSES_PAID_CALL);
+        assert(DISCOVERY_REFUSES_PAID_CALL);
+        assert(paid_call_refused(0, true, false));
+        assert(paid_call_refused(2, true, false));
+        assert(paid_call_refused(7, true, false));
+        assert(paid_call_refused(1, false, false));
+        assert(!paid_call_refused(2, false, false));
+        assert(!paid_call_refused(7, false, false));
+        assert(paid_call_refused(2, false, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 4);
     }
 
     test "a negated claim word is not a claim; pressure is never exempt" {

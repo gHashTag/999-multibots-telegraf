@@ -17,6 +17,10 @@ import {
   TURNS_DEFAULT,
   TURNS_MAX,
   DISCOVERY_SELLER_TURNS,
+  DRY_RUN_BRIEF_NOTE,
+  DRY_RUN_DENY_REASONS,
+  DRY_RUN_PAID_REASON,
+  REWRITE_GATE,
   buyerRequestBody,
   callIsPaid,
   claimsDoneWork,
@@ -43,7 +47,9 @@ import {
   type ToolResultEvent,
 } from '../agent/crm-duet-tool'
 import { violatesLeelaVoice } from '../agent/leela-canon'
+import { dispatchToolCall } from '../agent/chat'
 import type { ChatMessage } from '../agent/chat'
+import { TOOLS_BY_NAME } from '../agent/tools'
 import type { ToolContext } from '../agent/tools'
 
 /**
@@ -62,6 +68,10 @@ import type { ToolContext } from '../agent/tools'
  * v3: the duet's reel is the story reel (crm_story_reel). Wiring it found it
  * in no set of the duet, a promise to send it "kept" by resending her
  * portrait, and her plan read only for the old template's cards.
+ *
+ * v4: a dry run is free (owner, 2026-10-06, translated: "a dry run must be
+ * free"). No paid tool on any seller turn of a dry run; a paid call that
+ * arrives anyway is refused by the dispatcher before its handler runs.
  *
  * Refresh: node scripts/sync-t27-spec.mjs <t27 checkout> automation/crm-duet
  */
@@ -602,7 +612,8 @@ describe("the spec's tests hold against the host", () => {
       ],
       ['В боте.', 'Друзья.', 'Давайте.']
     )
-    await runDuet(freshRun({ turns: 3, dry_run: true }), ctx, d)
+    // A real run: since v4 a dry run keeps paid tools off on every turn.
+    await runDuet(freshRun({ turns: 3 }), ctx, d)
     expect(denies[0]?.has('reel_render')).toBe(true)
     expect(denies[1]?.has('reel_render')).toBe(true)
     expect(denies[2]?.has('reel_render')).toBe(false)
@@ -613,6 +624,116 @@ describe("the spec's tests hold against the host", () => {
     expect(sellerBrief(BUYER)).toContain('в мужском роде')
     expect(sellerGenderSlip('Я задавала этот вопрос сама.')).toBe(true)
     expect(sellerGenderSlip('Я задавал этот вопрос сам.')).toBe(false)
+  })
+
+  it('a dry run is free: no paid tool on any seller turn', async () => {
+    // v4, owner 2026-10-06 (translated): "a dry run must be free".
+    expect(SPEC.DRY_RUN_SPENDS).toBe(false)
+    expect(SPEC.DRY_RUN_HIDES_PAID_TOOLS).toBe(true)
+    expect(TURNS_MAX).toBe(8)
+    // paid_tool_offered(t, true) == false for every seller turn.
+    for (let t = 0; t < TURNS_MAX; t++) {
+      for (const p of PAID_TOOLS) {
+        expect(deniedToolsFor(t, true).has(p), `${p} @${t}`).toBe(true)
+        expect(gateFor(t, true).denyTools?.has(p), `${p} @${t}`).toBe(true)
+      }
+      // The publish ban stays on a dry run too.
+      expect(deniedToolsFor(t, true).has('feed_publish')).toBe(true)
+    }
+    // The loop hands that gate to the agent on every seller turn of a dry run.
+    const script = Array.from({ length: 4 }, () => [text('Какой план ближе?')])
+    const { d, denies, histories } = deps(script, ['А.', 'Б.', 'В.', 'Г.'])
+    await runDuet(freshRun({ turns: 4, dry_run: true }), ctx, d)
+    expect(denies).toHaveLength(4)
+    for (const s of denies)
+      expect([...PAID_TOOLS].every(p => s?.has(p))).toBe(true)
+    // ...and its brief says so up front; a real run's brief does not.
+    expect(String(histories[0][0].content)).toContain(DRY_RUN_BRIEF_NOTE)
+    const live = deps([[text('Какой план ближе?')]], ['А.'])
+    await runDuet(freshRun(), ctx, live.d)
+    expect(String(live.histories[0][0].content)).not.toContain(
+      DRY_RUN_BRIEF_NOTE
+    )
+  })
+
+  it('a real run keeps paid tools after discovery', () => {
+    // paid_tool_offered(t, false) == t >= DISCOVERY_SELLER_TURNS, turns 0..7.
+    for (let t = 0; t < TURNS_MAX; t++) {
+      const offered = [...PAID_TOOLS].every(
+        p => !deniedToolsFor(t, false).has(p)
+      )
+      const hidden = [...PAID_TOOLS].every(p => deniedToolsFor(t, false).has(p))
+      expect(offered, `turn ${t}`).toBe(t >= SPEC.DISCOVERY_SELLER_TURNS)
+      expect(hidden, `turn ${t}`).toBe(t < SPEC.DISCOVERY_SELLER_TURNS)
+      expect(gateFor(t, false).denyReasons).toBe(DUET_DENY_REASONS)
+    }
+  })
+
+  it("a dry run's paid call is refused and nothing is charged", async () => {
+    expect(SPEC.DRY_RUN_REFUSES_PAID_CALL).toBe(true)
+    expect(SPEC.DISCOVERY_REFUSES_PAID_CALL).toBe(true)
+    // paid_call_refused(turn, dry_run, rewrite)
+    const refused = (t: number, dry: boolean, rewrite: boolean) =>
+      (rewrite ? REWRITE_GATE : gateFor(t, dry)).denyTools?.has('image_edit')
+    expect(refused(0, true, false)).toBe(true)
+    expect(refused(2, true, false)).toBe(true)
+    expect(refused(7, true, false)).toBe(true)
+    expect(refused(1, false, false)).toBe(true)
+    expect(refused(2, false, false)).toBe(false)
+    expect(refused(7, false, false)).toBe(false)
+    expect(refused(2, false, true)).toBe(true)
+    // The refusal says why, in words the model can act on.
+    for (const p of PAID_TOOLS) {
+      expect(DRY_RUN_DENY_REASONS.get(p), p).toContain('пробный прогон')
+    }
+    expect(DRY_RUN_DENY_REASONS.get('image_edit')).toBe(DRY_RUN_PAID_REASON)
+    // The REAL dispatcher refuses before any handler runs.
+    const tool = TOOLS_BY_NAME.get('image_edit')!
+    const handler = vi.spyOn(tool, 'handler')
+    try {
+      const gen = dispatchToolCall(
+        { function: { name: 'image_edit', arguments: '{}' } },
+        ctx,
+        gateFor(5, true)
+      )
+      let step = await gen.next()
+      while (!step.done) step = await gen.next()
+      const answer = step.value as Record<string, unknown>
+      expect(answer['отказано']).toBe(true)
+      expect(String(answer['ошибка'])).toContain(DRY_RUN_PAID_REASON)
+      expect(handler).not.toHaveBeenCalled()
+    } finally {
+      handler.mockRestore()
+    }
+    // A turn whose paid call came back refused charges nothing, and the
+    // report names the dry run, not discovery.
+    const turn = DISCOVERY_SELLER_TURNS
+    const seller: Array<Array<Record<string, unknown>>> = []
+    for (let i = 0; i < turn; i++) seller.push([text('Какой план ближе?')])
+    seller.push([
+      result('image_edit', {
+        ['ошибка']: `инструмент image_edit недоступен на этом ходу: ${DRY_RUN_PAID_REASON}`, // cyrillic-ok: envelope keys
+        ['отказано']: true, // cyrillic-ok
+      }),
+      text('Собрал бы ваш портрет в стиле плана 6.'),
+    ])
+    const { d, sent } = deps(seller, ['А.', 'Б.', 'В.'])
+    const run = await runDuet(
+      freshRun({ turns: turn + 1, dry_run: true }),
+      ctx,
+      d
+    )
+    expect(run.paid_calls).toBe(0)
+    expect(sent).toEqual([])
+    expect(run.violations).toContain(
+      `turn ${turn * 2}: image_edit в пробном прогоне — отклонён`
+    )
+  })
+
+  it("VERSION says what the header's last note says", () => {
+    expect(SPEC.VERSION).toBe(4)
+    const spec = readFileSync(join(__dirname, 'crm-duet.t27'), 'utf8')
+    expect(spec).toContain('v4 (2026-10-06): A DRY RUN IS FREE.')
   })
 
   it('a negated claim word is not a claim; pressure is never exempt', () => {

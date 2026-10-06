@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-duet" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 3 satisfies number;
+export const VERSION = 4 satisfies number;
 export const SELLER = "platform-owner" satisfies string;
 export const BUYER = "connected-seller" satisfies string;
 export const BUYER_GAME = "Leela Chakra" satisfies string;
@@ -68,6 +68,9 @@ export const LIMIT_MARKER_RU_DIAGNOSE = true satisfies boolean;
 export const DISCOVERY_SELLER_TURNS = 2 satisfies number;
 export const DISCOVERY_HIDES_PAID_TOOLS = true satisfies boolean;
 export const DISCOVERY_REFUSES_PAID_CALL = true satisfies boolean;
+export const DRY_RUN_SPENDS = false satisfies boolean;
+export const DRY_RUN_HIDES_PAID_TOOLS = true satisfies boolean;
+export const DRY_RUN_REFUSES_PAID_CALL = true satisfies boolean;
 export const FAMILIARITY_MARKERS_RU = "ponravil|dogovar|dogovoril|kak vy prosili|po vashej pros'be|obsuzhdali|kak my reshili" satisfies string;
 export const FAMILIARITY_CORRECTIONS = 1 satisfies number;
 export const FAMILIARITY_MISS_IS_VIOLATION = true satisfies boolean;
@@ -99,6 +102,7 @@ export interface Turn {
 export const Turn = Object.freeze({ __struct__: "Turn", fields: [["from_owner", "bool"], ["index", "u8"]] } as const);
 // t27c gen-ts: fn speaker_at was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn paid_tool_offered was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn paid_call_refused was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn call_is_paid was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn story_offered was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn resend_for_promise was not emitted -- this backend lowers declarations, not bodies.
@@ -125,10 +129,14 @@ export const Turn = Object.freeze({ __struct__: "Turn", fields: [["from_owner", 
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = ["Turn"] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SELLER", "BUYER", "BUYER_GAME", "BUYER_BOT", "BUYER_APP", "LEELA_PLANES", "LEELA_RULESET", "TOOL_START", "TOOL_STATUS", "TOOL_CALLER", "BUYER_MUST_BE_SELLER", "BUYER_MAY_BE_OWNER", "RUNS_IN_BACKGROUND", "TURNS_DEFAULT", "TURNS_MAX", "SELLER_SPEAKS_FIRST", "SELLER_SURFACE", "BUYER_TURN_IS_PLAIN_COMPLETION", "DRY_RUN_SENDS", "REPORT_TO_OWNER_SAVED", "RETURNS_SESSION", "BUSINESS_BOT_TAKEOVER_MIN", "PAID_TOOLS", "PAID_PER_REPLY_SOFT", "PAID_PER_RUN_SOFT", "PAID_CAP_IS_HARD", "MEDIA_FORWARDED", "REEL_TOOL", "OLD_REEL_IN_BRIEF", "STORY_PAID_ONLY_ON_START", "STORY_HIDDEN_IN_DISCOVERY", "STORY_IN_DRY_RUN", "STORY_START_COUNTS_AS_WORK", "STORY_REEL_FORWARDED", "STORY_CARD_TO", "STORY_START_KEEPS_PROMISE", "STORY_NOTE_NEXT_TURN", "PLAN_LINK_ANY_REEL_TEMPLATE", "PLAN_LINK_OWN_CARDS", "STORY_WITHOUT_TOPIC_TAKES_CARD", "CLAIMED_WORK_NEEDS_TOOL", "CLAIM_CHECK_CORRECTIONS", "CLAIM_MISS_IS_VIOLATION", "FEED_PUBLISH_SAYS_SAVED", "NO_LIVED_EXPERIENCE_CLAIM", "PLAN_MEANING_FROM_CANON", "PERSONA_CONSENT_IS_NOT_CONSENT", "AGENT_PUBLISH_IS_HIDDEN", "ABORTED_RUN_STATE", "ABORTED_RUN_KEEPS_ERROR", "DONE_MEANS_ALL_LINES", "RUN_ERROR_SHOWN_ON_DASHBOARD", "SELLER_RETRY_ON_LIMIT", "SELLER_RETRY_PAUSE_MS", "RETRY_ONLY_WITHOUT_PAID_CALL", "RETRY_NOTED_IN_TRANSCRIPT", "LIMIT_MARKERS", "LIMIT_MARKER_RU_DIAGNOSE", "DISCOVERY_SELLER_TURNS", "DISCOVERY_HIDES_PAID_TOOLS", "DISCOVERY_REFUSES_PAID_CALL", "FAMILIARITY_MARKERS_RU", "FAMILIARITY_CORRECTIONS", "FAMILIARITY_MISS_IS_VIOLATION", "SELLER_GENDER", "SELLER_GENDER_IN_BRIEF", "GENDER_SLIP_IS_FLAG_ONLY", "CLAIM_NEGATION_EXEMPT", "NEGATION_WINDOW_WORDS", "PRESSURE_NEGATION_EXEMPT", "HOOK_NE_SLUCHAJNO_FORBIDDEN_IN_BRIEF", "DRY_RUN_SEEN_LIVE", "RUN_KILLED_BY_REDEPLOY_SEEN", "FAILED_STATE_SEEN_LIVE", "CLAIM_CHECK_SEEN_LIVE", "RETRY_SEEN_LIVE", "FULL_DRY_RUN_SEEN_LIVE", "DISCOVERY_GATE_SEEN_LIVE", "DISCOVERY_GATE_LIVE_RUN", "FAMILIARITY_REWRITE_SEEN_LIVE", "SELLER_GENDER_FIXED_SEEN_LIVE", "DRY_RUN_DELIVERY_CLAIM_SEEN", "DRY_RUN_DELIVERY_CLAIM_FIXED", "DUET_RAN_LIVE", "DUET_LIVE_RUN", "Turn"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SELLER", "BUYER", "BUYER_GAME", "BUYER_BOT", "BUYER_APP", "LEELA_PLANES", "LEELA_RULESET", "TOOL_START", "TOOL_STATUS", "TOOL_CALLER", "BUYER_MUST_BE_SELLER", "BUYER_MAY_BE_OWNER", "RUNS_IN_BACKGROUND", "TURNS_DEFAULT", "TURNS_MAX", "SELLER_SPEAKS_FIRST", "SELLER_SURFACE", "BUYER_TURN_IS_PLAIN_COMPLETION", "DRY_RUN_SENDS", "REPORT_TO_OWNER_SAVED", "RETURNS_SESSION", "BUSINESS_BOT_TAKEOVER_MIN", "PAID_TOOLS", "PAID_PER_REPLY_SOFT", "PAID_PER_RUN_SOFT", "PAID_CAP_IS_HARD", "MEDIA_FORWARDED", "REEL_TOOL", "OLD_REEL_IN_BRIEF", "STORY_PAID_ONLY_ON_START", "STORY_HIDDEN_IN_DISCOVERY", "STORY_IN_DRY_RUN", "STORY_START_COUNTS_AS_WORK", "STORY_REEL_FORWARDED", "STORY_CARD_TO", "STORY_START_KEEPS_PROMISE", "STORY_NOTE_NEXT_TURN", "PLAN_LINK_ANY_REEL_TEMPLATE", "PLAN_LINK_OWN_CARDS", "STORY_WITHOUT_TOPIC_TAKES_CARD", "CLAIMED_WORK_NEEDS_TOOL", "CLAIM_CHECK_CORRECTIONS", "CLAIM_MISS_IS_VIOLATION", "FEED_PUBLISH_SAYS_SAVED", "NO_LIVED_EXPERIENCE_CLAIM", "PLAN_MEANING_FROM_CANON", "PERSONA_CONSENT_IS_NOT_CONSENT", "AGENT_PUBLISH_IS_HIDDEN", "ABORTED_RUN_STATE", "ABORTED_RUN_KEEPS_ERROR", "DONE_MEANS_ALL_LINES", "RUN_ERROR_SHOWN_ON_DASHBOARD", "SELLER_RETRY_ON_LIMIT", "SELLER_RETRY_PAUSE_MS", "RETRY_ONLY_WITHOUT_PAID_CALL", "RETRY_NOTED_IN_TRANSCRIPT", "LIMIT_MARKERS", "LIMIT_MARKER_RU_DIAGNOSE", "DISCOVERY_SELLER_TURNS", "DISCOVERY_HIDES_PAID_TOOLS", "DISCOVERY_REFUSES_PAID_CALL", "DRY_RUN_SPENDS", "DRY_RUN_HIDES_PAID_TOOLS", "DRY_RUN_REFUSES_PAID_CALL", "FAMILIARITY_MARKERS_RU", "FAMILIARITY_CORRECTIONS", "FAMILIARITY_MISS_IS_VIOLATION", "SELLER_GENDER", "SELLER_GENDER_IN_BRIEF", "GENDER_SLIP_IS_FLAG_ONLY", "CLAIM_NEGATION_EXEMPT", "NEGATION_WINDOW_WORDS", "PRESSURE_NEGATION_EXEMPT", "HOOK_NE_SLUCHAJNO_FORBIDDEN_IN_BRIEF", "DRY_RUN_SEEN_LIVE", "RUN_KILLED_BY_REDEPLOY_SEEN", "FAILED_STATE_SEEN_LIVE", "CLAIM_CHECK_SEEN_LIVE", "RETRY_SEEN_LIVE", "FULL_DRY_RUN_SEEN_LIVE", "DISCOVERY_GATE_SEEN_LIVE", "DISCOVERY_GATE_LIVE_RUN", "FAMILIARITY_REWRITE_SEEN_LIVE", "SELLER_GENDER_FIXED_SEEN_LIVE", "DRY_RUN_DELIVERY_CLAIM_SEEN", "DRY_RUN_DELIVERY_CLAIM_FIXED", "DUET_RAN_LIVE", "DUET_LIVE_RUN", "Turn"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

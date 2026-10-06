@@ -812,13 +812,21 @@ const DISCOVERY_DENIED: ReadonlySet<string> = new Set([
 ])
 
 /**
- * A DRY RUN SENDS NOTHING (DRY_RUN_SENDS), and a started story reel ends in a
- * card in the owner's Telegram: in a dry run the story reel is refused, with
- * words the model can act on (crm-duet.t27 v3, STORY_IN_DRY_RUN).
+ * A DRY RUN IS FREE (crm-duet.t27 v4: DRY_RUN_SPENDS, DRY_RUN_HIDES_PAID_TOOLS,
+ * DRY_RUN_REFUSES_PAID_CALL). Owner, 2026-10-06 (translated): "a dry run must
+ * be free". v3 kept only the story reel out of a dry run (its card would reach
+ * the owner's Telegram, STORY_IN_DRY_RUN); every other paid tool ran from
+ * seller turn 2, so a run that sends nothing still paid for generations. Now
+ * a dry run denies every paid tool on every turn, as discovery does: not
+ * listed, and a call that arrives anyway is refused before its handler runs,
+ * in words the model can act on.
  */
-const DRY_RUN_DENIED: ReadonlySet<string> = new Set([...DUET_NEVER, REEL_TOOL])
+const DRY_RUN_DENIED: ReadonlySet<string> = DISCOVERY_DENIED
+export const DRY_RUN_PAID_REASON =
+  'это пробный прогон, он бесплатный: генерации не вызывай. Скажи словами, что сделал бы для неё.'
 export const DRY_RUN_DENY_REASONS: ReadonlyMap<string, string> = new Map([
   ...DUET_DENY_REASONS,
+  ...[...PAID_TOOLS].map(t => [t, DRY_RUN_PAID_REASON] as const),
   [
     REEL_TOOL,
     'это пробный прогон: рилс-историю не запускай — её карточка пришла бы владельцу в Telegram, а пробный прогон ничего не отправляет. Скажи, какой план взял бы темой.',
@@ -826,16 +834,21 @@ export const DRY_RUN_DENY_REASONS: ReadonlyMap<string, string> = new Map([
 ])
 
 /**
- * Paid tools wait for discovery; the duet-never tools wait for ever; the
- * story reel never runs dry.
+ * Paid tools wait for discovery and never run dry (spec: paid_tool_offered);
+ * the duet-never tools wait for ever.
  */
 export function deniedToolsFor(
   sellerTurn: number,
   dryRun = false
 ): ReadonlySet<string> {
+  if (dryRun) return DRY_RUN_DENIED
   if (sellerTurn < DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED
-  return dryRun ? DRY_RUN_DENIED : DUET_NEVER
+  return DUET_NEVER
 }
+
+/** A dry run's brief says up front that nothing paid will run (v4). */
+export const DRY_RUN_BRIEF_NOTE =
+  'Это пробный прогон, он бесплатный: портрет, рилс и любые генерации в нём не запускаются. Продавай словами и говори, что сделал бы.'
 
 /** The gate of one seller turn: what is refused, and in which words. */
 export function gateFor(sellerTurn: number, dryRun = false): ToolDenial {
@@ -1633,7 +1646,12 @@ export async function runDuet(
   run.profile_used = !!profile
   await save(deps, run)
   const seller: ChatMessage[] = [
-    { role: 'user', content: sellerBrief(run.buyer, profile) },
+    {
+      role: 'user',
+      content:
+        sellerBrief(run.buyer, profile) +
+        (run.dry_run ? `\n\n${DRY_RUN_BRIEF_NOTE}` : ''),
+    },
   ]
   const buyer: ChatMessage[] = [
     { role: 'system', content: buyerPersona(soulExcerpt, profile) },
@@ -1784,6 +1802,11 @@ export async function runDuet(
           } else if (refused && results[k].rewrite) {
             run.violations.push(
               `turn ${i}: ${r.name} на правке реплики — отклонён`
+            )
+          } else if (refused && run.dry_run) {
+            // A dry run is free (v4): its refusal is not a discovery one.
+            run.violations.push(
+              `turn ${i}: ${r.name} в пробном прогоне — отклонён`
             )
           } else if (refused) {
             run.violations.push(`turn ${i}: ${r.name} до discovery — отклонён`) // cyrillic-ok
