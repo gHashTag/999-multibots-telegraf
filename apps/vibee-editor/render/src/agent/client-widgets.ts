@@ -38,6 +38,8 @@ export interface TurnContent {
   face?: string
   /** Topics the server suggested for her, shown as chips under the field. */
   ideas: string[]
+  /** The gallery script picked (crm_story_reel `template`), lines as edited. */
+  template?: { id: string; language: string; lines: string[] }
 }
 
 /** The widgets on the card in this turn, as far as the server believes it. */
@@ -70,6 +72,15 @@ function text(v: unknown): string | undefined {
   const one = v.replace(/\s+/g, ' ').trim()
   if (!one) return undefined
   return one.slice(0, capped(one.length, WS.WIDGET_TEXT_MAX_CHARS))
+}
+
+/** The gallery script the panel reports: an id, a language, its lines. */
+function templateOf(v: unknown): TurnContent['template'] {
+  if (!isObject(v)) return undefined
+  const id = text(v.id)
+  const lines = texts(v.lines)
+  if (!id || lines.length === 0) return undefined
+  return { id, language: v.language === 'en' ? 'en' : 'ru', lines }
 }
 
 /** A list of such strings, no longer than the spec allows. */
@@ -126,6 +137,7 @@ export function widgetsOfTurn(
         toDm: typeof c.toDm === 'boolean' ? c.toDm : undefined,
         face: text(c.face),
         ideas: texts(c.ideas),
+        template: templateOf(c.template),
       }
     }
   }
@@ -201,6 +213,12 @@ export async function widgetsBlock(w: TurnWidgets): Promise<string> {
     if (c.face) free.push(`лицо: ${c.face}`)
     if (c.ideas.length > 0)
       free.push('идеи под полем:\n' + c.ideas.map(i => `- ${i}`).join('\n'))
+    if (c.template)
+      free.push(
+        `сценарий из галереи: ${c.template.id} (${c.template.language}) — ` + // cyrillic-ok: agent prompt copy
+          'передай template, language и scenes с этими строками:\n' + // cyrillic-ok: agent prompt copy
+          c.template.lines.map(l => `- ${l}`).join('\n')
+      )
   }
   if (w.templates && w.templates.length > 0)
     free.push(
