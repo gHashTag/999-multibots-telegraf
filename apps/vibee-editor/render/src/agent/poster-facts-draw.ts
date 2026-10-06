@@ -291,7 +291,7 @@ export function overlayRefusedHint(note?: OverlayNote): string {
     return `Дата, время и цена НЕ напечатаны на картинке (${note.reason}), названия на ней тоже нет: фон рисуется без текста. Скажи человеку честно и предложи короче формулировку.`
   if (note.title === 'none')
     // cyrillic-ok: the tool's hint to the agent is Russian like the rest
-    return 'На картинке НЕТ названия: при дате и цене фон рисуется без текста. Не описывай название, которого нет; нужно — повтори с title.'
+    return 'На картинке НЕТ названия: при дате и цене фон рисуется без текста. Не описывай название, которого нет: скажи человеку, что его нет. Нужно — тот же prompt с title: фон перерисуется без новой генерации и списания.'
   if (note.title === 'refused')
     // cyrillic-ok: the tool's hint to the agent is Russian like the rest
     return `Название НЕ напечатано (${note.titleReason}), дата, время и цена напечатаны. Скажи человеку честно и предложи короче название.`
