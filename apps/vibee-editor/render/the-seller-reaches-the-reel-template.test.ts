@@ -21,6 +21,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import * as REEL from './src/spec/crm-story-reel.gen'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -49,22 +57,26 @@ describe('the words the seller reads route a talking reel to the template', () =
     expect(REEL.SENT_VOICE_NOTES_TRIED_FIRST).toBe(true)
   })
 
-  it('the tools say where the voice comes from', async () => {
-    const { TOOLS } = await import('./src/agent/tools')
-    const say = (n: string) =>
-      String(TOOLS.find(t => t.name === n)?.description ?? '')
-    expect(say('crm_story_reel')).toMatch(/ЛЮБОЙ говорящий рилс/)
-    expect(say('crm_story_reel')).toMatch(/без клона и Replicate/) // cyrillic-ok: tool text
-    expect(say('crm_story_reel')).toMatch(/НАСТОЯЩИЕ голосовые/) // cyrillic-ok: tool text
-    expect(say('audio_generate')).toMatch(
-      /for_lead[^.]*Replicate, ключ ElevenLabs ему НЕ нужен/
-    )
-    expect(say('audio_generate')).not.toMatch(
-      /^Озвучить текст голосом \(ElevenLabs\)/
-    )
-    expect(say('providers_status')).toMatch(/голос клиента \(Replicate\)/)
-    expect(REEL.VOICE_NEEDS_ELEVENLABS).toBe(false)
-  })
+  it(
+    'the tools say where the voice comes from',
+    async () => {
+      const { TOOLS } = await import('./src/agent/tools')
+      const say = (n: string) =>
+        String(TOOLS.find(t => t.name === n)?.description ?? '')
+      expect(say('crm_story_reel')).toMatch(/ЛЮБОЙ говорящий рилс/)
+      expect(say('crm_story_reel')).toMatch(/без клона и Replicate/) // cyrillic-ok: tool text
+      expect(say('crm_story_reel')).toMatch(/НАСТОЯЩИЕ голосовые/) // cyrillic-ok: tool text
+      expect(say('audio_generate')).toMatch(
+        /for_lead[^.]*Replicate, ключ ElevenLabs ему НЕ нужен/
+      )
+      expect(say('audio_generate')).not.toMatch(
+        /^Озвучить текст голосом \(ElevenLabs\)/
+      )
+      expect(say('providers_status')).toMatch(/голос клиента \(Replicate\)/)
+      expect(REEL.VOICE_NEEDS_ELEVENLABS).toBe(false)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe("the client's voice is as healthy as its last real call", () => {
@@ -97,41 +109,49 @@ describe("the client's voice is as healthy as its last real call", () => {
     )
   }
 
-  it('a 402 on a real clone makes the voice line say so, and name Replicate, not ElevenLabs', async () => {
-    const health = await import('./src/agent/image-health')
-    health.forgetImageHealthForTests()
-    health.noteVoiceFailed('Replicate HTTP 402: Insufficient credit')
-    healthPage()
-    const { TOOLS } = await import('./src/agent/tools')
-    const r: any = await TOOLS.find(
-      t => t.name === 'providers_status'
-    )!.handler({}, {
-      telegramId: '900000001',
-      pool: { query: async () => ({ rows: [] }) },
-    } as never)
-    const line = String(r['голос_клиента']) // cyrillic-ok: the answer field under test
-    expect(line).toMatch(/^НЕ работает/)
-    expect(line).toMatch(/402/)
-    expect(line).toMatch(/пополнить Replicate/)
-    expect(line).toMatch(/не ключ ElevenLabs/)
-    expect(REEL.VOICE_HEALTH_FROM_REAL_CALLS).toBe(true)
-  })
+  it(
+    'a 402 on a real clone makes the voice line say so, and name Replicate, not ElevenLabs',
+    async () => {
+      const health = await import('./src/agent/image-health')
+      health.forgetImageHealthForTests()
+      health.noteVoiceFailed('Replicate HTTP 402: Insufficient credit')
+      healthPage()
+      const { TOOLS } = await import('./src/agent/tools')
+      const r: any = await TOOLS.find(
+        t => t.name === 'providers_status'
+      )!.handler({}, {
+        telegramId: '900000001',
+        pool: { query: async () => ({ rows: [] }) },
+      } as never)
+      const line = String(r['голос_клиента']) // cyrillic-ok: the answer field under test
+      expect(line).toMatch(/^НЕ работает/)
+      expect(line).toMatch(/402/)
+      expect(line).toMatch(/пополнить Replicate/)
+      expect(line).toMatch(/не ключ ElevenLabs/)
+      expect(REEL.VOICE_HEALTH_FROM_REAL_CALLS).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('with no refusal seen, the voice is available whatever ElevenLabs says', async () => {
-    const health = await import('./src/agent/image-health')
-    health.forgetImageHealthForTests()
-    healthPage()
-    const { TOOLS } = await import('./src/agent/tools')
-    const r: any = await TOOLS.find(
-      t => t.name === 'providers_status'
-    )!.handler({}, {
-      telegramId: '900000001',
-      pool: { query: async () => ({ rows: [] }) },
-    } as never)
-    expect(String(r['голос_клиента'])).toMatch(
-      /ключ ElevenLabs для них не нужен/
-    ) // cyrillic-ok: the answer field under test
-  })
+  it(
+    'with no refusal seen, the voice is available whatever ElevenLabs says',
+    async () => {
+      const health = await import('./src/agent/image-health')
+      health.forgetImageHealthForTests()
+      healthPage()
+      const { TOOLS } = await import('./src/agent/tools')
+      const r: any = await TOOLS.find(
+        t => t.name === 'providers_status'
+      )!.handler({}, {
+        telegramId: '900000001',
+        pool: { query: async () => ({ rows: [] }) },
+      } as never)
+      expect(String(r['голос_клиента'])).toMatch(
+        /ключ ElevenLabs для них не нужен/
+      ) // cyrillic-ok: the answer field under test
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
   it('a clone that came back clears the doubt; a refused prompt is not an outage', async () => {
     const h = await import('./src/agent/image-health')
