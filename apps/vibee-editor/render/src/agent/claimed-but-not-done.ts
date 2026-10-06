@@ -77,7 +77,52 @@ const claim = (source: string) => new RegExp(source, 'diu')
  * and stay silent. Russian objects match by stem, so their plurals already
  * held; only the "вот ..." openers listed singular forms. // cyrillic-ok: quoted input
  */
-const EN_END = String.raw`(?![\p{L}'’])`
+const WORD_END = String.raw`(?![\p{L}'’])`
+/*
+ * A modifier, not the object (#3753). "Here is the poster idea:", "I sent
+ * you the voice notes transcript", "Here is the audio plan" name an idea, a
+ * transcript, a plan: the media noun modifies the head noun after it, and no
+ * file is claimed. Which words may follow is closed on the SAFE side, and
+ * here that is "still flag", since a missed claim is the worse failure: only
+ * a word below silences the claim, any other following word keeps it.
+ *
+ * The list holds only heads that name words or an abstract property, never
+ * a rendered file: an idea, a text, a prompt, a plan, a size, a style, a
+ * transcript, a letter ("cover letter"). Left out on purpose, so they still
+ * flag: "draft", "layout", "mockup", "preview", "version", "photo" -- a
+ * poster draft or a cover mockup IS a picture. "copy" is singular only: "the
+ * poster copy" is its text, "fifty poster copies" are prints. "of" is not a
+ * head either: "I made a cover of the song" claims a cover (a song cover is
+ * audio no call made), and "a poster of your photo" is a poster.
+ */
+const HEAD_NOUNS = [
+  'idea',
+  'text',
+  'prompt',
+  'concept',
+  'plan',
+  'option',
+  'size',
+  'transcript',
+  'preference',
+  'template',
+  'description',
+  'caption',
+  'brief',
+  'script',
+  'requirement',
+  'tip',
+  'format',
+  'style',
+  'list',
+  'outline',
+  'spec',
+  'setting',
+  'letter',
+]
+const HEAD = String.raw`(?:${HEAD_NOUNS.map(n => `${n}s?`).join('|')}|copy)`
+const NOT_MODIFIER = String.raw`(?!(?:\s+|-)${HEAD}${WORD_END})`
+const EN_END = WORD_END + NOT_MODIFIER
 /*
  * Number agreement (#3748 round 2). After "here are" a singular noun can
  * only be a modifier -- "Here are the poster ideas:", "Here are the image
@@ -99,6 +144,20 @@ const PICTURE_NOUNS = ['poster', 'image', 'picture', 'banner', 'cover']
 const VOICE_NOUNS = ['note', 'message', 'reply', 'clip']
 const EN_MEDIA = EN_NOUN([...PICTURE_NOUNS, 'video'])
 const EN_VOICE = EN_NOUN(VOICE_NOUNS)
+// "voice" alone is the object only when no voice noun follows: "the voice
+// notes transcript" must not fall back to a bare "voice" (#3753)
+const NOT_VOICE_NOUN = String.raw`(?!\s+(?:${VOICE_NOUNS.map(n => enForm(n, 'any')).join('|')})${WORD_END})`
+
+/*
+ * The Russian side of #3753: "голосовое" is an adjective standing for a // cyrillic-ok: quoted input
+ * voice message, so before one of these nouns it names the noun instead: // cyrillic-ok: quoted input
+ * "Вот твоё голосовое мнение" is an opinion, "голосовые настройки" settings. // cyrillic-ok: quoted input
+ * Closed on the same safe side: "голосовое сообщение", "голосовая заметка", // cyrillic-ok: quoted input
+ * "голосовое письмо" are audio, and any noun not listed keeps the claim. // cyrillic-ok: quoted input
+ * Left out on purpose: "описание", "задание", "пожелания", "команды" -- a // cyrillic-ok: quoted input
+ * recorded voice description or wish IS audio. // cyrillic-ok: quoted input
+ */
+const RU_VOICE_HEAD = String.raw`(?![а-яё]*\s+(?:мнени|управлени|меню|настройк|функци|предпочтени|режим))` // cyrillic-ok: matched stems
 
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
@@ -188,7 +247,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   },
   {
     re: claim(
-      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)`
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)${RU_VOICE_HEAD}`
     ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
@@ -201,13 +260,16 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'voice',
   },
   {
-    re: /(^|[\s.,:;—-])(вот\s+(тво[её]|ваше|твои|ваши)\s+голосов(?:ое|ые)|голосовое\s+(сообщение\s+)?готово|голосовые\s+(сообщения\s+)?готовы)/i, // cyrillic-ok: matched text
+    re: new RegExp(
+      String.raw`(^|[\s.,:;—-])(вот\s+(тво[её]|ваше|твои|ваши)\s+голосов(?:ое|ые)${RU_VOICE_HEAD}|голосовое\s+(сообщение\s+)?готово|голосовые\s+(сообщения\s+)?готовы)`, // cyrillic-ok: matched text
+      'i'
+    ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
     re: claim(
-      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio)(?: ${EN_VOICE}|${EN_END})`
+      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio)(?: ${EN_VOICE}|${EN_END}${NOT_VOICE_NOUN})`
     ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
