@@ -229,6 +229,11 @@ capitalised word is someone else's subject only at the start of its clause
 with no preposition anywhere earlier in that clause. Before patching a
 list, ask what STRUCTURE the misses share.
 
+A grid before review, a fixed class instead of a fixed site, a list closed on
+the safe side, and a usability bar: the long form, with this guard's #3728
+and #3730 as evidence, lives in `continuous-improvement-loop`, section
+"Lessons of the night of 2026-10-06".
+
 Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
 (U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
 Both readers share `DIGIT_JOINERS`: `look-at-own-picture.ts` since #3705,
