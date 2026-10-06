@@ -1,5 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage'
-import type { StoryTemplate } from '@/lib/crm'
+import { templateKey, type StoryTemplate } from '@/lib/crm'
 import type { StoryEndCard } from '@/lib/storyPalette'
 
 /**
@@ -110,7 +110,3 @@ export function StoryTemplateGallery({
     </section>
   )
 }
-
-/** One template's identity in the gallery: the same id comes in two languages. */
-export const templateKey = (t: Pick<StoryTemplate, 'id' | 'language'>) =>
-  `${t.id}:${t.language}`

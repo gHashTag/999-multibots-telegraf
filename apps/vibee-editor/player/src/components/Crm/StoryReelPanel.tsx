@@ -13,10 +13,7 @@ import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
 import { StoryPalette } from '@/components/Crm/StoryPalette'
-import {
-  StoryTemplateGallery,
-  templateKey,
-} from '@/components/Crm/StoryTemplateGallery'
+import { StoryTemplateGallery } from '@/components/Crm/StoryTemplateGallery'
 import { clientWidgetsAtom } from '@/atoms/clientWidgets'
 import {
   loadStoryIdeas,
@@ -27,6 +24,7 @@ import {
   type StoryReady,
   type StoryScenes,
   type StoryStart,
+  templateKey,
   type StoryTemplate,
 } from '@/lib/crm'
 
