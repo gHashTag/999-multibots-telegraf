@@ -33,6 +33,7 @@ import crypto from 'node:crypto'
 import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
 import { keepers } from '../hive/roles'
 import { hangUp } from './hang-up'
+import { isDeadSession, shortTelegramCode } from './tg-errors'
 import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
 import { ToolRefusal } from './tool-refusal'
@@ -651,10 +652,16 @@ export async function client(ctx?: ToolContext): Promise<unknown> {
     throw new Error(unavailableReason)
   }
 
-  const { TelegramClient } = await import('telegram')
+  const { TelegramClient, Api } = await import('telegram')
   const { StringSession } = await import('telegram/sessions')
   const c = new TelegramClient(new StringSession(session), apiId, apiHash, {
     connectionRetries: 3,
+    /*
+     * gramjs sleeps through any FLOOD_WAIT up to this many seconds without a
+     * word. The default 60 meant a pressed button could hang a full minute;
+     * past 5 s the wait surfaces as an error inPlainWords says in Russian.
+     */
+    floodSleepThreshold: 5,
   })
   await c.connect()
 
@@ -675,8 +682,27 @@ export async function client(ctx?: ToolContext): Promise<unknown> {
    * Соседняя ветка выше уже разделяет «не настроено» и «настроено неверно» —
    * это третий случай: «настроено, но вход истёк».
    */
-  const вошли = await c.checkAuthorization()
-  if (!вошли) {
+  /*
+   * Not `checkAuthorization()`: it is this very request wrapped in a catch
+   * that returns false on ANY error (telegram/client/auth.js), so a network
+   * timeout used to tell the owner his session had expired and send him to
+   * log in again for nothing. Only a code that means the login is gone
+   * (`isDeadSession`) earns that answer; anything else is a blip.
+   */
+  let probeError: unknown = null
+  try {
+    await c.invoke(new Api.updates.GetState())
+  } catch (e) {
+    probeError = e
+  }
+  if (probeError && !isDeadSession(probeError)) {
+    await hangUp(c)
+    throw new Error(
+      'Telegram сейчас не ответил — это временно, попробуйте через минуту ' +
+        `(${shortTelegramCode(probeError)}).`
+    )
+  }
+  if (probeError) {
     // Разрыв не важен: мы всё равно отказываем, и падение здесь только
     // подменило бы настоящую причину.
     await hangUp(c)
