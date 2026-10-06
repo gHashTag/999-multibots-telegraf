@@ -78,6 +78,19 @@ export interface LiveRequest {
   hasLoginParams: boolean
   /** True when this is the page itself rather than an asset or the socket. */
   isDocument: boolean
+  /**
+   * The app's own language, when the app put it on the address (`lang=ru|en`).
+   * Kept through the login redirect so the window speaks the app's language
+   * rather than the phone's; anything else is dropped.
+   */
+  lang?: ViewerLang
+}
+
+export type ViewerLang = 'ru' | 'en'
+
+/** Only the two languages the window has words for; anything else is null. */
+export function viewerLangOf(v: string | null | undefined): ViewerLang | null {
+  return v === 'ru' || v === 'en' ? v : null
 }
 
 export function cookieNameFor(sessionId: string): string {
@@ -108,6 +121,7 @@ export function parseLive(
   const queryToken = kept.get('t')
   kept.delete('t')
   const suffix = kept.toString() ? `?${kept.toString()}` : ''
+  const lang = viewerLangOf(kept.get('lang'))
 
   return {
     sessionId,
@@ -116,6 +130,7 @@ export function parseLive(
     cookieToken: readCookie(cookieHeader, cookieNameFor(sessionId)),
     hasLoginParams: kept.has('pwd'),
     isDocument: tail === '' || tail === '/',
+    ...(lang ? { lang } : {}),
   }
 }
 
@@ -128,9 +143,17 @@ export const LOGIN_QUERY =
   `?usr=${encodeURIComponent(DEFAULT_DISPLAY_NAME)}` +
   `&pwd=${encodeURIComponent(LOGIN_PLACEHOLDER)}`
 
-/** Where the page must land for the pod to let it in without asking. */
-export function loginUrlFor(sessionId: string): string {
-  return `${LIVE_PREFIX}${sessionId}/${LOGIN_QUERY}`
+/**
+ * Where the page must land for the pod to let it in without asking. The app's
+ * language rides along when it was asked for (skin.ts LANG_SCRIPT reads it
+ * once and keeps it for the tab, since reloads land on the bare address).
+ */
+export function loginUrlFor(
+  sessionId: string,
+  lang?: ViewerLang | null
+): string {
+  const tail = viewerLangOf(lang) ? `&lang=${lang}` : ''
+  return `${LIVE_PREFIX}${sessionId}/${LOGIN_QUERY}${tail}`
 }
 
 export function readCookie(
@@ -265,7 +288,7 @@ export async function authorizeLive(
   if (req.queryToken || (req.isDocument && !req.hasLoginParams)) {
     return {
       kind: 'redirect',
-      location: loginUrlFor(req.sessionId),
+      location: loginUrlFor(req.sessionId, req.lang),
       setCookie: cookieFor(req.sessionId, token, opts.secure),
     }
   }
