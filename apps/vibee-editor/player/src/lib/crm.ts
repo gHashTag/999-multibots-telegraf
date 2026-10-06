@@ -869,6 +869,10 @@ export interface StoryTemplate {
   maxSeconds: number
 }
 
+/** One template's identity in the gallery: the same id comes in two languages. */
+export const templateKey = (t: Pick<StoryTemplate, 'id' | 'language'>) =>
+  `${t.id}:${t.language}`
+
 const toStoryTemplates = (v: unknown): StoryTemplate[] =>
   (Array.isArray(v) ? v : [])
     .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')

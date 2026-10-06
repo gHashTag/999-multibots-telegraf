@@ -653,4 +653,101 @@ describe('the face of the reel', () => {
     expect(calls).toContainEqual({ lead: CLIENT, face_url: '' })
     expect(picker().textContent).toContain('crm.client.story.photo.avatar')
   })
+
+  /*
+   * THE TEMPLATE GALLERY (crm-story-reel v20 TEMPLATES_FROM_SERVER, law
+   * PRICE_BEFORE_PRESS): every listed script is a card with its lines and
+   * its call, its price stands on it before any tap, a tap fills the fields
+   * and the press carries the script -- and the tap itself calls nothing.
+   */
+  it('draws the server templates, prices them before the tap, and a tap fills the press', async () => {
+    serve(args =>
+      args['start']
+        ? { started: true, topic: 'x' }
+        : {
+            ...READY,
+            price_tokens: 270,
+            scenes: {
+              default: 3,
+              min: 1,
+              max: 6,
+              price_tokens: { 3: 270, 4: 355 },
+            },
+            templates: [
+              {
+                id: 'hook-studio',
+                language: 'en',
+                lines: ['L1', 'L2', 'L3', 'Want the same? Write to Trinity.'],
+                call: 'Write to Trinity',
+                button: '@t27ai_bot',
+                scenes: 4,
+                max_seconds: 26,
+              },
+              {
+                id: 'hook-studio',
+                language: 'ru',
+                lines: ['R1', 'R2'],
+                call: 'Напиши',
+                button: '',
+                scenes: 2,
+                max_seconds: 14,
+              },
+            ],
+          }
+    )
+    await draw()
+    const en = host.querySelector(
+      '[data-testid="story-reel-template-hook-studio:en"]'
+    ) as HTMLButtonElement
+    expect(en.textContent).toContain('L1')
+    expect(en.textContent).toContain('Write to Trinity')
+    expect(en.textContent).toContain('@t27ai_bot')
+    // Priced on the card before any tap; an unpriced count says so, no guess.
+    expect(
+      host.querySelector(
+        '[data-testid="story-reel-template-price-hook-studio:en"]'
+      )?.textContent
+    ).toContain('crm.client.story.gallery.price:355')
+    expect(
+      host.querySelector(
+        '[data-testid="story-reel-template-price-hook-studio:ru"]'
+      )?.textContent
+    ).toContain('crm.client.story.gallery.noPrice')
+
+    const before = calls.length
+    await act(async () => en.click())
+    expect(calls.length).toBe(before) // a tap spends and calls nothing
+    expect(en.getAttribute('aria-pressed')).toBe('true')
+    expect(
+      host.querySelector('[data-testid="story-reel-count"]')?.textContent
+    ).toBe('4')
+    expect(
+      host.querySelector('[data-testid="story-reel-price"]')?.textContent
+    ).toBe('crm.client.story.price:355')
+    expect(
+      (host.querySelector('.story-reel__topic') as HTMLTextAreaElement).value
+    ).toBe('L1')
+
+    await act(async () =>
+      (host.querySelector('.story-reel__go') as HTMLButtonElement).click()
+    )
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+    const press = calls.find(c => c['start'])!
+    expect(press['template']).toBe('hook-studio')
+    expect(press['language']).toBe('en')
+    expect(press['scenes']).toEqual([
+      { line: 'L1' },
+      { line: 'L2' },
+      { line: 'L3' },
+      { line: 'Want the same? Write to Trinity.' },
+    ])
+  })
+
+  it('shows no gallery when the server lists no templates', async () => {
+    serve(() => READY)
+    await draw()
+    expect(host.querySelector('[data-testid="story-reel-gallery"]')).toBeNull()
+  })
 })

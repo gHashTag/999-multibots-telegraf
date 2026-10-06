@@ -20,9 +20,6 @@ Taken items: item -> branch, dispatched 2026-10-06 12:00 UTC. When an item
 frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
 is yours too"); it is not repeated here.
 
-- A -> `fix/userbot-plain-errors`
-- N1 -> `fix/zai-relay-yields-to-agent`
-
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
 2026-10-06 quoted. The coder bee removes its item's line here in its own PR,
 next to the tick.
@@ -37,9 +34,9 @@ watch-only link (#3510), probe reads (\_meta.probe), per-question TTL (#3235).
 Sources: browser audit (B#), userbot audit (U#), competitors (C#) -- tick 1, 03.10.
 Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merges.
 
-- [ ] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
+- [x] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
-      floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary".
+      floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary". (#3795)
 - [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
 - [x] D. crm_duet sends for real by default (U1): dry_run defaults to true. (#3794)
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
@@ -55,7 +52,12 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       to the agent (in-flight cap 1, 3 s gap, own key `ZAI_RELAY_API_KEY`); N2 zai-lite on its own
       key `ZAI_LITE_API_KEY`; N3 after both deploy, set the keys (owner said yes 06.10): relay +
       Zep `ZEP_OPENAI_API_KEY` = account 3 together, lite = account 2; N4 top up `reserve` (owner).
-      N2 done in #3788 (not yet deployed); N1, N3, N4 remain.
+      N2 done in #3788 and N1 in #3791, both deployed; N3 done 2026-10-06 (see Журнал); N4 remains
+      (owner). N5 MEASURE before any code: after 24 h on split keys, count skips and outcomes
+      (command in Журнал). Only if turns still end `outcome:error` because zai answers 1305 and
+      zai-lite then "talked instead of calling" outside a toolsOnly turn, dispatch a bee: one
+      short-backoff retry of zai on 1305 before zai-lite, or lite out of tool-needing turns.
+      Measure first: a fix for a cause nobody counted is a guess.
 - [ ] M. Telegram start card: "take the wheel" / "pause" buttons (B14, C3/C4).
 
 ## Журнал
@@ -79,6 +81,31 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
   "ask" sites now need a yes per exact site; accounts.google.com and mail.google.com each need
   their own yes (exact host, not registrable domain).
+- 2026-10-06. N1 (#3791): the Zep relay holds at most `ZAI_RELAY_MAX_INFLIGHT` upstream calls
+  (default 1), started at least `ZAI_RELAY_MIN_GAP_MS` apart (default 3000); over either line it
+  answers 429 `relay_busy` with Retry-After and does not call Z.AI. Zep v0.27.2 retries that
+  429: retryablehttp honours Retry-After, 5 retries, then watermill retries the task 5 more
+  times, then poison_queue. The messages are kept; only that summary/intent can be lost.
+  Rollout: deploy first, then set `ZAI_RELAY_API_KEY` on vibee-render and
+  `ZEP_OPENAI_API_KEY` on zep to the SAME value TOGETHER (account 3, N3). One without the other
+  = 403 on every zep call. Tests 25/25 + 27 neighbours, run locally (runner gave no result); 2
+  mutants caught.
+- 2026-10-06. A (#3795): gramjs flood/slow-mode waits (`.seconds`, "A wait of N seconds"),
+  PEER_FLOOD and dead-login codes reach the person in plain Russian (`tg-errors.ts`);
+  floodSleepThreshold 5; the login probe is `updates.GetState`, and only auth codes say
+  "session expired" -- a timeout is "temporary" with its code. 179/179 locally (runner gave
+  no result 3 times); 2 mutants killed (5 tests). Push gate caught `@SpamBot` in no-dossier
+  (allow-listed) and a shared render node_modules (`tri wt-deps`).
+- 2026-10-06. N3: keys set blind (hash check only). vibee-render `GLM_API_KEY` = account 1,
+  `ZAI_LITE_API_KEY` = account 2, `ZAI_RELAY_API_KEY` and zep `ZEP_OPENAI_API_KEY` = account 3,
+  set together. Render log of the next deploy (259 lines): zero 1302; left were zai 1305 x2,
+  one zai 60 s timeout (breaker opened 120 s), zai-lite "talked instead of calling", nemotron
+  16/16, reserve no funds, one `outcome:error`. 1305 is glm-4.7-flash overloaded for every
+  key, so it goes to zai-lite by design (provider.ts KEY_WIDE_LIMIT_CODES). Re-measure (N5):
+  `railway logs --project 999 --environment production --service vibee-render --lines 5000 | grep -oE 'provider skipped: [a-z-]+: [^:{]{0,40}|"outcome":"[a-z]+"' | sort | uniq -c`.
+  The check runner was stuck all day (#3792, deployed 13:54Z): an orphan vitest held the
+  queue. "the runner gave no result" with an empty `GET /status` queue is a busy or cut
+  request, not the old stall -- re-run once before running locally.
 - 2026-10-06. D (#3794): crm_duet runs for real only on an explicit `dry_run:false`; missing,
   null or any other value is a dry run that sends nothing, and its answer says how to go real
   (only after the owner's yes for this run). Callers all pass dry_run explicitly. Tests 95/95 +

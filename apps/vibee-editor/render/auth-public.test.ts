@@ -145,7 +145,8 @@ describe('достижимость маршрутов аутентификаци
    * this file's history to be written, typed, deployed and unreachable.
    *
    * The relay authenticates harder than the guard would: a timing-safe
-   * digest match against GLM_API_KEY (zai-relay.ts), fail-closed 503 when
+   * digest match against the relay key (ZAI_RELAY_API_KEY, else GLM_API_KEY;
+   * zai-relay.ts), fail-closed 503 when
    * that key is unset. The guard has nothing to add.
    */
   it('Z.AI relay: mounted, and public so its own bearer is the gate', () => {
