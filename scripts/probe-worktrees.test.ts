@@ -60,6 +60,32 @@ function oldTree(name: string, branch: string, hours: number) {
   return dir
 }
 
+// an existing branch created `branchHours` ago, checked out into a worktree
+// added `treeHours` ago (#3751): a bee that reuses an old branch name today
+function reusedTree(
+  name: string,
+  branch: string,
+  branchHours: number,
+  treeHours: number
+) {
+  const dir = path.join(tmp, name)
+  const at = (h: number) => ({
+    ...process.env,
+    GIT_COMMITTER_DATE: `${Math.floor(Date.now() / 1000 - h * 3600)} +0000`,
+  })
+  execFileSync('git', ['branch', branch, 'origin/main'], {
+    cwd: repo,
+    stdio: 'pipe',
+    env: at(branchHours),
+  })
+  execFileSync('git', ['worktree', 'add', '-q', dir, branch], {
+    cwd: repo,
+    stdio: 'pipe',
+    env: at(treeHours),
+  })
+  return dir
+}
+
 function commit(dir: string, file: string) {
   fs.writeFileSync(path.join(dir, file), file + '\n')
   git(dir, 'add', file)
@@ -177,6 +203,10 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     tree('fresh', '-q', '-b', 'fix/fresh', '@', 'origin/main')
     // stale: the same shape, but its branch was created two days ago
     oldTree('stale', 'fix/stale', 48)
+    // reused: a branch two days old, checked out into a tree a minute old
+    reusedTree('reused-old', 'fix/reused-old', 48, 0)
+    // reused-stale: a branch two days old in a tree two days old
+    reusedTree('reused-stale', 'fix/reused-stale', 48, 48)
     // locked: already in main, but locked by its owner
     tree('locked', '-q', '--detach', '@', 'origin/main')
     git(repo, 'worktree', 'lock', path.join(tmp, 'locked'))
@@ -305,6 +335,17 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
   it('removes a clean named branch with no commits past the age threshold', () => {
     expect(exists('stale'), out).toBe(false)
     expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/stale/) // cyrillic-ok
+  })
+
+  it('keeps an old branch checked out into a fresh tree: new, not finished', () => {
+    expect(exists('reused-old'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-old/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/reused-old/) // cyrillic-ok
+  })
+
+  it('removes an old branch in an old tree with no commits', () => {
+    expect(exists('reused-stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/reused-stale/) // cyrillic-ok
   })
 
   it('keeps a detached tree at a main commit finished', () => {
