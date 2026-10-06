@@ -22,7 +22,10 @@ import type { AgentTool } from './tools'
 import { askVision, visionConfig } from './media-vision'
 import { whisperBytes, whisperConfig } from './media-library'
 import { resolveFinalUrl } from './web-guard'
-import { downloadBoundedMediaToFile } from '../lib/remoteMediaDuration'
+import {
+  downloadBoundedMediaToFile,
+  type AddressLookup,
+} from '../lib/remoteMediaDuration'
 import * as SPEC from '../spec/split-reel.gen'
 import { splitSegments } from '../split-reel-plan'
 
@@ -49,6 +52,22 @@ export function setReelExecForTests(next: Exec): Exec {
   exec = next
   return prev
 }
+
+/**
+ * Input options for every ffmpeg and ffprobe run on a downloaded reel, placed
+ * BEFORE the input. The file came from a url the model chose, and ffmpeg
+ * decides what a file is by its bytes, not its name: a "reel.mp4" that is an
+ * HLS playlist (or a concat list) makes ffmpeg open the urls inside it itself
+ * -- the metadata endpoint, a sibling service, file:///etc/passwd -- past
+ * every check web-guard made. So ffmpeg may open only local files, and may
+ * read only the containers a phone reel comes in: mov/mp4 and matroska/webm.
+ */
+export const REEL_INPUT_ARGS: readonly string[] = [
+  '-protocol_whitelist',
+  'file',
+  '-format_whitelist',
+  'mov,matroska',
+]
 
 /** A cut is a frame whose scene score is above this. */
 export const SCENE_THRESHOLD = 0.3
@@ -142,6 +161,7 @@ async function probe(
     'stream=r_frame_rate:format=duration',
     '-of',
     'json',
+    ...REEL_INPUT_ARGS,
     file,
   ])
   const j = JSON.parse(r.stdout || '{}')
@@ -150,11 +170,23 @@ async function probe(
   return { durationS: Number(j?.format?.duration) || 0, fps }
 }
 
-/** A reference reel is seconds of phone video; anything bigger is not one. */
-const REEL_MAX_BYTES = 100 * 1024 * 1024
+/**
+ * A reference reel is seconds of phone video; anything bigger is not one.
+ * Enforced twice by downloadBoundedMediaToFile: a declared Content-Length over
+ * it is refused before the body is read, and the body itself is counted while
+ * it streams to disk, so a lying header or an endless body stops here too.
+ */
+export const REEL_MAX_BYTES = 100 * 1024 * 1024
 
 export async function analyzeReel(
-  url: string
+  url: string,
+  opts: {
+    /** Test seams; production resolves and pins every hop itself. */
+    fetchImpl?: typeof fetch
+    lookupImpl?: AddressLookup
+    /** Tests only: a smaller cap so an endless body is cheap to send. */
+    maxBytes?: number
+  } = {}
 ): Promise<Record<string, unknown>> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'reel-analyze-'))
   try {
@@ -162,12 +194,17 @@ export async function analyzeReel(
     // checked, the address pinned, the body capped. A refusal says only that
     // it was refused -- a status code would tell a caller which internal
     // address is alive.
-    const target = await resolveFinalUrl(url)
+    const target = await resolveFinalUrl(url, {
+      fetchImpl: opts.fetchImpl,
+      lookupImpl: opts.lookupImpl,
+    })
     if (!target.ok) return { ok: false, why: target.reason }
     const file = path.join(dir, 'reel.mp4')
     try {
       await downloadBoundedMediaToFile(target.url, file, {
-        maxBytes: REEL_MAX_BYTES,
+        fetchImpl: opts.fetchImpl,
+        lookupImpl: opts.lookupImpl,
+        maxBytes: opts.maxBytes ?? REEL_MAX_BYTES,
         timeoutMs: 60_000,
       })
     } catch {
@@ -178,6 +215,7 @@ export async function analyzeReel(
 
     const scene = await exec('ffmpeg', [
       '-hide_banner',
+      ...REEL_INPUT_ARGS,
       '-i',
       file,
       '-vf',
@@ -206,6 +244,7 @@ export async function analyzeReel(
           'error',
           '-ss',
           String((s.startS + s.endS) / 2),
+          ...REEL_INPUT_ARGS,
           '-i',
           file,
           '-frames:v',
@@ -237,6 +276,7 @@ export async function analyzeReel(
       await exec('ffmpeg', [
         '-v',
         'error',
+        ...REEL_INPUT_ARGS,
         '-i',
         file,
         '-vn',
