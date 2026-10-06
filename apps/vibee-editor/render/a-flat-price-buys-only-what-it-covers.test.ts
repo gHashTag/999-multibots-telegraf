@@ -23,7 +23,7 @@ import {
 import { FAL_IMAGE_MODELS } from './src/image-chain'
 import { KIE_WEB_MODELS } from './src/agent/kie-web-provider'
 import { costCeilingUsd } from './src/agent/billing-shared'
-import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated'
+import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated' // cyrillic-ok: generated table name
 
 /*
  * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
@@ -32,7 +32,6 @@ import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated
  * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
  */
 const SLOW_IMPORT_TIMEOUT_MS = 30_000
-// cyrillic-ok: generated table name
 
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000031'
