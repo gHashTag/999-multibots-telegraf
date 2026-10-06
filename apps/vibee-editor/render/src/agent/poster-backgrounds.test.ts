@@ -11,6 +11,13 @@ const PROMPT = 'jazz poster, 25 октября в 19:00, вход 1 500 ₽'
 const SQ = sizeKey(undefined, undefined)
 const HEARD = 'афиша: Jazz Night, 25 октября в 19:00, вход 1 500 ₽'
 
+/*
+ * Budget for every test that draws on the real canvas (#3742): the first
+ * canvas call in a worker loads cairo and fontconfig and the handler imports
+ * ./tools -- CPU-bound, so wall time scales with machine load.
+ */
+const CANVAS_TIMEOUT_MS = 30_000
+
 async function blank(w: number, h: number): Promise<Buffer> {
   const { createCanvas } = await import('canvas')
   const c = createCanvas(w, h)
@@ -90,124 +97,132 @@ describe('image_generate with a title after a picture without one', () => {
       else process.env[k] = v
   })
 
-  it('redraws on the kept background: one generation, one charge', async () => {
-    const source = await blank(768, 1152)
-    let generations = 0
-    const uploads: { type: string | null; body: Buffer }[] = []
-    globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
-      const u = String(url)
-      if (u.endsWith('/api/generate/image')) {
-        generations++
-        return new Response(
-          JSON.stringify({
-            url: 'https://provider.test/p.jpg',
-            provider: 'kie',
-          }),
-          { headers: { 'content-type': 'application/json' } }
-        )
+  it(
+    'redraws on the kept background: one generation, one charge',
+    async () => {
+      const source = await blank(768, 1152)
+      let generations = 0
+      const uploads: { type: string | null; body: Buffer }[] = []
+      globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+        const u = String(url)
+        if (u.endsWith('/api/generate/image')) {
+          generations++
+          return new Response(
+            JSON.stringify({
+              url: 'https://provider.test/p.jpg',
+              provider: 'kie',
+            }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        }
+        if (u === 'https://provider.test/p.jpg')
+          return new Response(new Uint8Array(source), {
+            headers: { 'content-type': 'image/png' },
+          })
+        if (u.endsWith('/upload')) {
+          uploads.push({
+            type: new Headers(init.headers).get('Content-Type'),
+            body: Buffer.from(init.body as Uint8Array),
+          })
+          return new Response(
+            JSON.stringify({
+              directUrl: `https://s3.test/${uploads.length}.png`,
+            }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        }
+        return new Response('{}', { status: 404 })
+      }) as typeof fetch
+      let debits = 0
+      const pool = {
+        query: async (sql: string) => {
+          if (/balance = balance -/.test(String(sql))) debits++
+          return { rows: [{ n: 0, id: 7, balance: 5000 }], rowCount: 1 }
+        },
       }
-      if (u === 'https://provider.test/p.jpg')
-        return new Response(new Uint8Array(source), {
-          headers: { 'content-type': 'image/png' },
-        })
-      if (u.endsWith('/upload')) {
-        uploads.push({
-          type: new Headers(init.headers).get('Content-Type'),
-          body: Buffer.from(init.body as Uint8Array),
-        })
-        return new Response(
-          JSON.stringify({
-            directUrl: `https://s3.test/${uploads.length}.png`,
-          }),
-          { headers: { 'content-type': 'application/json' } }
-        )
+      const ctx = { telegramId: '1', pool, heard: HEARD } as never
+      const { TOOLS_BY_NAME } = await import('./tools')
+      const tool = TOOLS_BY_NAME.get('image_generate')!
+
+      const first: any = await tool.handler({ prompt: PROMPT }, ctx)
+      expect(first['сделано']).toBe(true)
+      expect(first.factsOverlay).toMatchObject({ title: 'none' })
+      expect(generations).toBe(1)
+      expect(debits).toBe(1)
+
+      const second: any = await tool.handler(
+        { prompt: PROMPT, title: 'Jazz Night' },
+        ctx
+      )
+      expect(second['сделано']).toBe(true)
+      expect(second.redrawn).toBe(true)
+      expect(second.factsOverlay).toMatchObject({ title: 'drawn' })
+      expect(second['токены']).toBeUndefined()
+      expect(generations).toBe(1)
+      expect(debits).toBe(1)
+      expect(uploads).toHaveLength(2)
+      expect(uploads[1].type).toBe('image/png')
+      expect(uploads[1].body.equals(uploads[0].body)).toBe(false)
+    },
+    CANVAS_TIMEOUT_MS
+  )
+
+  it(
+    'another client of the same owner gets a new generation',
+    async () => {
+      const source = await blank(768, 1152)
+      let generations = 0
+      globalThis.fetch = (async (url: string) => {
+        const u = String(url)
+        if (u.endsWith('/api/generate/image')) {
+          generations++
+          return new Response(
+            JSON.stringify({
+              url: 'https://provider.test/p.jpg',
+              provider: 'kie',
+            }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        }
+        if (u === 'https://provider.test/p.jpg')
+          return new Response(new Uint8Array(source), {
+            headers: { 'content-type': 'image/png' },
+          })
+        if (u.endsWith('/upload'))
+          return new Response(
+            JSON.stringify({ directUrl: 'https://s3.test/x.png' }),
+            {
+              headers: { 'content-type': 'application/json' },
+            }
+          )
+        return new Response('{}', { status: 404 })
+      }) as typeof fetch
+      const pool = {
+        query: async () => ({
+          rows: [{ n: 0, id: 7, balance: 5000 }],
+          rowCount: 1,
+        }),
       }
-      return new Response('{}', { status: 404 })
-    }) as typeof fetch
-    let debits = 0
-    const pool = {
-      query: async (sql: string) => {
-        if (/balance = balance -/.test(String(sql))) debits++
-        return { rows: [{ n: 0, id: 7, balance: 5000 }], rowCount: 1 }
-      },
-    }
-    const ctx = { telegramId: '1', pool, heard: HEARD } as never
-    const { TOOLS_BY_NAME } = await import('./tools')
-    const tool = TOOLS_BY_NAME.get('image_generate')!
-
-    const first: any = await tool.handler({ prompt: PROMPT }, ctx)
-    expect(first['сделано']).toBe(true)
-    expect(first.factsOverlay).toMatchObject({ title: 'none' })
-    expect(generations).toBe(1)
-    expect(debits).toBe(1)
-
-    const second: any = await tool.handler(
-      { prompt: PROMPT, title: 'Jazz Night' },
-      ctx
-    )
-    expect(second['сделано']).toBe(true)
-    expect(second.redrawn).toBe(true)
-    expect(second.factsOverlay).toMatchObject({ title: 'drawn' })
-    expect(second['токены']).toBeUndefined()
-    expect(generations).toBe(1)
-    expect(debits).toBe(1)
-    expect(uploads).toHaveLength(2)
-    expect(uploads[1].type).toBe('image/png')
-    expect(uploads[1].body.equals(uploads[0].body)).toBe(false)
-  }, 30_000)
-
-  it('another client of the same owner gets a new generation', async () => {
-    const source = await blank(768, 1152)
-    let generations = 0
-    globalThis.fetch = (async (url: string) => {
-      const u = String(url)
-      if (u.endsWith('/api/generate/image')) {
-        generations++
-        return new Response(
-          JSON.stringify({
-            url: 'https://provider.test/p.jpg',
-            provider: 'kie',
-          }),
-          { headers: { 'content-type': 'application/json' } }
-        )
-      }
-      if (u === 'https://provider.test/p.jpg')
-        return new Response(new Uint8Array(source), {
-          headers: { 'content-type': 'image/png' },
-        })
-      if (u.endsWith('/upload'))
-        return new Response(
-          JSON.stringify({ directUrl: 'https://s3.test/x.png' }),
-          {
-            headers: { 'content-type': 'application/json' },
-          }
-        )
-      return new Response('{}', { status: 404 })
-    }) as typeof fetch
-    const pool = {
-      query: async () => ({
-        rows: [{ n: 0, id: 7, balance: 5000 }],
-        rowCount: 1,
-      }),
-    }
-    const { TOOLS_BY_NAME } = await import('./tools')
-    const tool = TOOLS_BY_NAME.get('image_generate')!
-    await tool.handler({ prompt: PROMPT }, {
-      telegramId: '1',
-      pool,
-      heard: HEARD,
-      faceOf: 'lead-a',
-      chargeLater: true,
-    } as never)
-    await tool.handler({ prompt: PROMPT, title: 'Jazz Night' }, {
-      telegramId: '1',
-      pool,
-      heard: HEARD,
-      faceOf: 'lead-b',
-      chargeLater: true,
-    } as never)
-    expect(generations).toBe(2)
-  }, 30_000)
+      const { TOOLS_BY_NAME } = await import('./tools')
+      const tool = TOOLS_BY_NAME.get('image_generate')!
+      await tool.handler({ prompt: PROMPT }, {
+        telegramId: '1',
+        pool,
+        heard: HEARD,
+        faceOf: 'lead-a',
+        chargeLater: true,
+      } as never)
+      await tool.handler({ prompt: PROMPT, title: 'Jazz Night' }, {
+        telegramId: '1',
+        pool,
+        heard: HEARD,
+        faceOf: 'lead-b',
+        chargeLater: true,
+      } as never)
+      expect(generations).toBe(2)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 })
 
 describe('the title parameter', () => {
@@ -294,39 +309,55 @@ describe('image_generate with a title and a size', () => {
     return { second, asked, debits }
   }
 
-  it('another size misses the kept background and pays once more', async () => {
-    const r = await twoCalls(
-      { width: 1024, height: 1024 },
-      { width: 1024, height: 1536 }
-    )
-    expect(r.second['сделано']).toBe(true)
-    expect(r.second.redrawn).toBeUndefined()
-    expect(r.asked).toHaveLength(2)
-    expect(r.asked[1]).toEqual({ width: 1024, height: 1536 })
-    expect(r.debits).toBe(2)
-  }, 30_000)
+  it(
+    'another size misses the kept background and pays once more',
+    async () => {
+      const r = await twoCalls(
+        { width: 1024, height: 1024 },
+        { width: 1024, height: 1536 }
+      )
+      expect(r.second['сделано']).toBe(true)
+      expect(r.second.redrawn).toBeUndefined()
+      expect(r.asked).toHaveLength(2)
+      expect(r.asked[1]).toEqual({ width: 1024, height: 1536 })
+      expect(r.debits).toBe(2)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 
-  it('the same size still redraws free', async () => {
-    const r = await twoCalls(
-      { width: 1024, height: 1536 },
-      { width: 1024, height: 1536 }
-    )
-    expect(r.second.redrawn).toBe(true)
-    expect(r.asked).toHaveLength(1)
-    expect(r.debits).toBe(1)
-  }, 30_000)
+  it(
+    'the same size still redraws free',
+    async () => {
+      const r = await twoCalls(
+        { width: 1024, height: 1536 },
+        { width: 1024, height: 1536 }
+      )
+      expect(r.second.redrawn).toBe(true)
+      expect(r.asked).toHaveLength(1)
+      expect(r.debits).toBe(1)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 
-  it('no size in either call still redraws free', async () => {
-    const r = await twoCalls({}, {})
-    expect(r.second.redrawn).toBe(true)
-    expect(r.asked).toHaveLength(1)
-    expect(r.debits).toBe(1)
-  }, 30_000)
+  it(
+    'no size in either call still redraws free',
+    async () => {
+      const r = await twoCalls({}, {})
+      expect(r.second.redrawn).toBe(true)
+      expect(r.asked).toHaveLength(1)
+      expect(r.debits).toBe(1)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 
-  it('no size, then the default size said aloud, is the same picture', async () => {
-    const r = await twoCalls({}, { width: 1024, height: 1024 })
-    expect(r.second.redrawn).toBe(true)
-    expect(r.asked).toHaveLength(1)
-    expect(r.debits).toBe(1)
-  }, 30_000)
+  it(
+    'no size, then the default size said aloud, is the same picture',
+    async () => {
+      const r = await twoCalls({}, { width: 1024, height: 1024 })
+      expect(r.second.redrawn).toBe(true)
+      expect(r.asked).toHaveLength(1)
+      expect(r.debits).toBe(1)
+    },
+    CANVAS_TIMEOUT_MS
+  )
 })
