@@ -143,7 +143,11 @@ describe('deskMayAct: the tools’ question, asked at the desk', () => {
   })
 
   it('while the person holds the wheel, nothing is pressed even with a yes', async () => {
-    const who = person([], { allowedAtMs: NOW, wheelUntilMs: NOW + 60_000 })
+    const who = person([], {
+      allowedAtMs: NOW,
+      allowedHost: 'x.com',
+      wheelUntilMs: NOW + 60_000,
+    })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)
     ).rejects.toThrow(DESK_WHEEL_TAKEN)
@@ -159,6 +163,7 @@ describe('deskMayAct: the tools’ question, asked at the desk', () => {
   it('a blocked site stays blocked, yes or no', async () => {
     const who = person([{ site: 'x.com', rule: 'block' }], {
       allowedAtMs: NOW,
+      allowedHost: 'x.com',
     })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)
