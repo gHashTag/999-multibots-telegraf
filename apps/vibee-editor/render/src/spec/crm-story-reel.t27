@@ -226,6 +226,18 @@
 // which always reads (EXTREME_MIN_CONTRAST_X10). The contrast check reads the card as it will
 // be drawn (CLIENT_CARD_CHECKED_AS_DRAWN): a cream ground with no call colour is no longer
 // refused for a gold that would never be drawn. The house's own reel keeps the defaults.
+// v26 (2026-10-06, two defects seen on job 11, the owner's own reel): (1) crm_story_reel for
+// the owner refused his own lines naming Trinity. The voice step named him as for_lead, so it
+// read his reel as a client's and refused the house's name. A reel whose client is the caller
+// himself is his own reel (reel_is_own): line_way keeps his lines as on any own reel. The
+// owner's voice is not widened by this: only the house's own turn speaks the owner's clone.
+// (2) The end card of an own reel given only a button drew no ground and a dark title over the
+// face: the composition's defaults are not applied to a card passed with some fields, so every
+// field left out was empty. Now every card the pause shows has every colour set before the
+// render (card_complete): a client's as in v25, the own reel's from the defaults, which are now
+// a near-black ground #0B0B0B with gold #FFD700 for the call and the button and white text.
+// The defaults read: gold on the ground is 14.0:1 and white 19.6:1, both measured by the host
+// (DEFAULT_TITLE_CONTRAST_X10, DEFAULT_TEXT_CONTRAST_X10) and both above END_CARD_CONTRAST_MIN_X10.
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
@@ -236,7 +248,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 25;
+    pub const VERSION : u8 = 26;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -362,10 +374,10 @@ module automation::crm_story_reel {
     pub const END_CARD_ARG : str = "end_card";  // crm_story_reel and story_reel
     pub const END_CARD_KEPT_IN_JOB : bool = true;  // story_jobs.end_card: a resume renders the same card
     pub const END_CARD_BUTTON_MAX : u16 = 60;
-    pub const END_CARD_DEFAULT_BG : str = "#000000";  // StoryReel.tsx takes its defaults from here
+    pub const END_CARD_DEFAULT_BG : str = "#0B0B0B";  // StoryReel.tsx takes its defaults from here
     pub const END_CARD_DEFAULT_TITLE : str = "#FFD700";
     pub const END_CARD_DEFAULT_TEXT : str = "#FFFFFF";
-    pub const END_CARD_DEFAULT_ACCENT : str = "#00FF88";
+    pub const END_CARD_DEFAULT_ACCENT : str = "#FFD700";  // v26: the button is gold, as the call
     // ---- A client's card is never the house's (v25) ------------------------------------------
     // The defaults above are the house's: gold call, green button. On a client's reel a colour
     // nobody gave is ink -- white or black, whichever contrasts more with the card's ground.
@@ -376,6 +388,11 @@ module automation::crm_story_reel {
     pub const INK_WHITE_HEX : str = "#FFFFFF";
     pub const INK_BLACK_HEX : str = "#000000";
     pub const CLIENT_CARD_CHECKED_AS_DRAWN : bool = true;  // the contrast check reads the ink, not the gold
+    // ---- Every card shown is complete; the caller's own lead is his own reel (v26) ------------
+    pub const OWN_CARD_FILLED : bool = true;  // the own reel's card takes the defaults before the render
+    pub const DEFAULT_TITLE_CONTRAST_X10 : u16 = 140;  // #FFD700 on #0B0B0B, measured by the host
+    pub const DEFAULT_TEXT_CONTRAST_X10 : u16 = 196;  // #FFFFFF on #0B0B0B, measured by the host
+    pub const CALLER_OWN_LEAD_IS_OWN_REEL : bool = true;  // for_lead == the caller: his own reel
     pub const FIELD_FROM_DEFAULT : u8 = 0;
     pub const FIELD_FROM_PROFILE : u8 = 1;
     pub const FIELD_FROM_SELLER : u8 = 2;
@@ -970,6 +987,24 @@ module automation::crm_story_reel {
         return !own_reel && !HOUSE_COLOURS_ON_CLIENT_REEL && cta_card_shown(call_chars, has_end_card);
     }
 
+    // Whether every colour of the card is set before the render (v26): whenever the pause shows
+    // it -- a client's in ink (card_filled), the own reel's in the defaults.
+    fn card_complete(own_reel: bool, has_end_card: bool, call_chars: u16) -> bool {
+        if card_filled(own_reel, has_end_card, call_chars) {
+            return true;
+        }
+        return own_reel && OWN_CARD_FILLED && cta_card_shown(call_chars, has_end_card);
+    }
+
+    // Whether a reel is the caller's own (v26): the house's own turn, or a reel whose client
+    // is the caller himself.
+    fn reel_is_own(house_own: bool, lead_is_caller: bool) -> bool {
+        if house_own {
+            return true;
+        }
+        return lead_is_caller && CALLER_OWN_LEAD_IS_OWN_REEL;
+    }
+
     // The colour a field nobody gave takes (v25): the house's default on its own reel, else
     // white or black, whichever contrasts more with the ground (a tie is white).
     fn default_ink(own_reel: bool, white_x10: u16, black_x10: u16) -> u8 {
@@ -1359,10 +1394,10 @@ module automation::crm_story_reel {
         assert(end_card_field(false, false, true) == FIELD_FROM_PROFILE);
         assert(end_card_field(false, false, false) == FIELD_FROM_DEFAULT);
         assert(END_CARD_BUTTON_MAX == 60);
-        assert(END_CARD_DEFAULT_BG == "#000000");
+        assert(END_CARD_DEFAULT_BG == "#0B0B0B");
         assert(END_CARD_DEFAULT_TITLE == "#FFD700");
         assert(END_CARD_DEFAULT_TEXT == "#FFFFFF");
-        assert(END_CARD_DEFAULT_ACCENT == "#00FF88");
+        assert(END_CARD_DEFAULT_ACCENT == "#FFD700");
     }
 
     test "a colour is #hex that CSS reads, and an unreadable palette of the seller's is refused before spending" {
@@ -1546,7 +1581,7 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 25);
+        assert(VERSION == 26);
     }
 
     test "a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink" {
@@ -1856,6 +1891,33 @@ module automation::crm_story_reel {
         assert(line_way(name_mark(false, true), false, LINE_FROM_EDIT) == LINE_REFUSED);
         assert(line_way(code_mark(false, false, false), false, LINE_FROM_EDIT) == LINE_REFUSED);
     }
+
+    test "a reel whose client is the caller himself is his own, and his lines may name the house" {
+        assert(CALLER_OWN_LEAD_IS_OWN_REEL);
+        assert(reel_is_own(false, true));
+        assert(reel_is_own(true, false));
+        assert(reel_is_own(true, true));
+        assert(!reel_is_own(false, false));
+        assert(line_way(true, reel_is_own(false, true), LINE_FROM_EDIT) == LINE_KEPT);
+        assert(line_way(true, reel_is_own(false, false), LINE_FROM_EDIT) == LINE_REFUSED);
+    }
+
+    test "every end card the pause shows has a ground and a readable call and button" {
+        assert(OWN_CARD_FILLED);
+        assert(card_complete(true, false, 14));
+        assert(card_complete(true, true, 0));
+        assert(card_complete(true, false, 1));
+        assert(card_complete(false, false, 14));
+        assert(card_complete(false, true, 0));
+        assert(!card_complete(true, false, 0));
+        assert(!card_complete(false, false, 0));
+        assert(END_CARD_DEFAULT_ACCENT == END_CARD_DEFAULT_TITLE);
+        assert(DEFAULT_TITLE_CONTRAST_X10 == 140);
+        assert(DEFAULT_TEXT_CONTRAST_X10 == 196);
+        assert(end_card_readable(DEFAULT_TITLE_CONTRAST_X10));
+        assert(end_card_readable(DEFAULT_TEXT_CONTRAST_X10));
+    }
+
 }
 
 // phi^2 + 1/phi^2 = 3 | TRINITY

@@ -1155,5 +1155,47 @@
     "from": "  const endCard = endCardForReel(\n    mergeEndCard(",
     "to": "  const endCard = ((c: any) => c)(\n    mergeEndCard(",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "v26: a caller's own lead is not his own reel",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return leadIsCaller && SPEC.CALLER_OWN_LEAD_IS_OWN_REEL",
+    "to": "  return false"
+  },
+  {
+    "name": "v26: the house's own turn is not own",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (houseOwn) return true\n  return leadIsCaller",
+    "to": "  if (houseOwn) return false\n  return leadIsCaller"
+  },
+  {
+    "name": "v26: the voice step judges the house's turn alone",
+    "file": "src/agent/tools.ts",
+    "from": "        !houseNameAllowed(\n          ownReel,",
+    "to": "        !houseNameAllowed(\n          houseReel,"
+  },
+  {
+    "name": "v26: the own card is filled even when nothing is shown",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    SPEC.OWN_CARD_FILLED &&\n    SPEC.CTA_CARD_LIKE_WIDGET &&\n    (hasEndCard || callChars > 0)",
+    "to": "    SPEC.OWN_CARD_FILLED"
+  },
+  {
+    "name": "v26: the own card is never filled",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "    ownReel &&\n    SPEC.OWN_CARD_FILLED &&",
+    "to": "    false &&\n    SPEC.OWN_CARD_FILLED &&"
+  },
+  {
+    "name": "v26: the own card leaves its ground empty",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "      bg: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,\n      title: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,",
+    "to": "      bg: card?.bg,\n      title: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,"
+  },
+  {
+    "name": "v26: story_reel renders the card as given",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "...(drawnCard ? { endCard: drawnCard } : {}),",
+    "to": "...(endCard ? { endCard } : {}),"
   }
 ]
