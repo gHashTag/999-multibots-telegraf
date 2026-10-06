@@ -38,9 +38,14 @@ describe('factsIn: dates, times and prices a picture would print', () => {
     ).toEqual([])
     // a price in dollars is not a time
     expect(keys('coffee $2.50')).toEqual(['p2'])
-    // A word right after the amount is a multiplier the table does not know
-    // (#3730 round 5): the reading is unknown, never the bare 2.
-    expect(keys('$2.50 coffee')).toEqual(['u2.50coffee'])
+    // A spaced 4+ letter word after "$N" is the bare amount plus a word the
+    // person must also have written (#3730 round 6, shape plus echo).
+    expect(keys('$2.50 coffee')).toEqual(['p2'])
+    expect(factsIn('$2.50 coffee')[0].word).toBe('coffee')
+    expect(unconfirmedFacts('$2.50 coffee', '$2.50').length).toBe(1)
+    expect(unconfirmedFacts('$2.50 coffee', 'coffee is $2.50')).toEqual([])
+    // Glued, it is still an unknown multiplier.
+    expect(keys('$2.50coffee')).toEqual(['u2.50coffee'])
   })
 })
 
@@ -806,7 +811,13 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
    * only the identical text confirms.
    */
   describe('grid: a multiplier the reader does not know never reads as the bare amount', () => {
-    type Form = { text: string; means: Array<number | string>; cur: string }
+    type Form = {
+      text: string
+      means: Array<number | string>
+      cur: string
+      // What the form means as the PERSON's words, when that differs.
+      heardMeans?: Array<number | string>
+    }
     // [suffix, zeros] -- null zeros = no factor the reader can know.
     const suffixes: ReadonlyArray<[string, number | null]> = [
       ['k', 3],
@@ -830,11 +841,18 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
       ['billion', 9],
       ['млрд', 9],
       ['миллиард', 9],
+      ['hundred', 2],
+      ['grand', 3],
+      ['thou', 3],
+      ['тыщ', 3],
+      ['косарей', 3],
+      ['lakh', 5],
+      ['crore', 7],
+      ['лямов', 6],
+      ['лимонов', 6],
       ['zorg', null],
       ['зорг', null],
       ['гиг', null],
-      ['lakh', null],
-      ['crore', null],
       ['М', null], // a Cyrillic capital: not the Latin "M"
       ['gb', null],
     ]
@@ -862,21 +880,35 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         ['₽', 'рублей', 'rub'],
       ] as const) {
         heardOnly.push({ text: `${sign}${a}`, means: [a], cur })
-        for (const z of [3, 6, 9])
+        for (const z of [2, 3, 5, 6, 7, 9])
           heardOnly.push({
             text: `${sign}${a * 10 ** z}`,
             means: [a * 10 ** z],
             cur,
           })
         for (const [suf, zeros] of suffixes)
-          for (const text of layouts(a, suf, sign, word))
+          for (const text of layouts(a, suf, sign, word)) {
+            // Round 6: "$5 zorg" (sign first, spaced, 4+ letters) is the
+            // bare 5 PLUS the word, its own reading: only a person who wrote
+            // the word confirms it (the echo grid below crosses that).
+            const noun =
+              zeros === null &&
+              text === `${sign}${a} ${suf}` &&
+              [...suf].length >= 4
             all.push({
               text,
               means: [
-                zeros === null ? `?${a}${suf.toLowerCase()}` : a * 10 ** zeros,
+                zeros !== null
+                  ? a * 10 ** zeros
+                  : noun
+                    ? `w${a}${suf.toLowerCase()}`
+                    : `?${a}${suf.toLowerCase()}`,
               ],
+              // The person wrote the word, so as heard it is the bare amount.
+              heardMeans: noun ? [a, `w${a}${suf.toLowerCase()}`] : undefined,
               cur,
             })
+          }
       }
     const priceOf = (text: string) =>
       factsIn(text).filter(f => f.kind === 'price')
@@ -888,7 +920,10 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         expect(ps[0].keys.length, f.text).toBe(1)
         const [m] = f.means
         if (typeof m === 'number') expect(ps[0].keys[0], f.text).toBe(`p${m}`)
-        else expect(ps[0].keys[0], f.text).toMatch(/^u/)
+        else if (m.startsWith('w')) {
+          expect(ps[0].keys[0], f.text).toMatch(/^p\d+$/)
+          expect(ps[0].word, f.text).toBe(m.replace(/^w\d+/, ''))
+        } else expect(ps[0].keys[0], f.text).toMatch(/^u/)
       }
       expect(all.length).toBe(2 * 2 * (suffixes.length * 5 - 1))
     })
@@ -909,7 +944,8 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
               f => f.kind === 'price'
             ).length === 0
           const should =
-            printed.means[0] === heard.means[0] && printed.cur === heard.cur
+            (heard.heardMeans ?? heard.means).includes(printed.means[0]) &&
+            printed.cur === heard.cur
           expect(
             ok,
             `printed ${JSON.stringify(printed.text)} heard ${JSON.stringify(heard.text)}`
@@ -958,5 +994,300 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
 
   it('a preposition "к" with no currency is not a price', () => {
     expect(keys('500 к ужину')).toEqual([])
+  })
+})
+
+/*
+ * Round 6 (#3730): SHAPE PLUS ECHO. Round 5 was sound but asked again on 17
+ * of 42 ordinary posters, every one "$N word" ("$20 entry", "€15 entrance").
+ * A spaced 4+ letter word after a currency-first amount, not in the
+ * multiplier table, now takes the bare reading only when the person wrote
+ * the same word; the table always wins.
+ */
+describe('shape plus echo (#3730 round 6)', () => {
+  const asks = (printed: string, heard: string) =>
+    unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+
+  /*
+   * THE USABILITY CORPUS: realistic poster prompts with a price next to a
+   * word, each paired with the natural way a person says it. `legit` marks
+   * a row where asking again is right (the person never named the currency).
+   */
+  const corpus: ReadonlyArray<{
+    printed: string
+    heard: string
+    legit?: true
+  }> = [
+    // The reviewer's 17 round-5 re-asks.
+    { printed: '$20 entry', heard: 'Entry is $20' },
+    { printed: '$20 entry', heard: '$20' },
+    {
+      printed: '$15 tickets at the door',
+      heard: 'tickets are $15 at the door',
+    },
+    { printed: '$5 coffee and cake', heard: 'coffee and cake for $5' },
+    { printed: '$10 cover charge', heard: 'cover charge is $10' },
+    { printed: '$3 beers until 8', heard: 'beers are $3 until 8' },
+    { printed: '$35 bottomless mimosas', heard: 'unlimited mimosas, $35' },
+    { printed: '$40 only', heard: 'just $40' },
+    { printed: '$99 monthly membership', heard: 'membership is $99 a month' },
+    { printed: '$2.50 coffee', heard: 'coffee $2.50' },
+    { printed: '$45 general admission', heard: 'general admission $45' },
+    { printed: '$60 materials included', heard: '$60, everything included' },
+    { printed: '$8 lunch special', heard: 'lunch special for $8' },
+    { printed: 'Pizza $10 large', heard: 'a large pizza is $10' },
+    { printed: '€15 entrance', heard: 'entrance €15' },
+    { printed: '£5 pints', heard: 'pints for £5 all night' },
+    { printed: '₽500 вход', heard: 'вход 500 ₽' },
+    // A trailing currency closes the amount: these confirmed on every head.
+    { printed: '500 ₽ вход', heard: 'вход 500 ₽' },
+    { printed: 'билет 1500 ₽ на двоих', heard: 'билет на двоих 1500 ₽' },
+    { printed: 'Цена: 990 ₽ скидка', heard: 'цена 990 ₽ со скидкой' },
+    { printed: 'от 3000 ₽ за урок', heard: 'урок от 3000 ₽' },
+    { printed: 'Аренда 3000 ₽ сутки', heard: 'аренда 3000 ₽ в сутки' },
+    { printed: '5000 ₽ за ночь', heard: 'ночь 5000 ₽' },
+    { printed: 'Билет 1500 ₽', heard: 'билет 1500 рублей' },
+    { printed: 'бесплатно от 1500 ₽', heard: 'от 1500', legit: true },
+    // More "$N word" posters, English and Russian.
+    { printed: 'Entry $20', heard: 'entry is $20' },
+    { printed: 'Entry: $10', heard: '$10 entry, doors at 8' },
+    { printed: '$10 tickets', heard: '$10 tickets' },
+    { printed: '$12 cocktails all night', heard: 'cocktails are $12' },
+    { printed: '$30 at the door', heard: '$30 at the door' },
+    { printed: '€20 entry', heard: 'entry €20' },
+    { printed: 'drinks $5', heard: 'drinks $5, entry free' },
+    { printed: '$25 per person', heard: '$25 per person' },
+    { printed: '$5 off', heard: 'get $5 off' },
+    { printed: '$100 deposit required', heard: 'there is a $100 deposit' },
+    { printed: '$50 gift card', heard: 'a gift card worth $50' },
+    { printed: '$7 wine', heard: 'wine is $7 a glass' },
+    { printed: '$15 ticket', heard: 'tickets are $15' },
+    { printed: '$1,500 rent', heard: 'rent is $1,500' },
+    { printed: '$5k prize pool', heard: 'prize pool $5000' },
+    { printed: '₽1500 билет', heard: 'билет стоит 1500 ₽' },
+    { printed: '₽2000 депозит', heard: 'депозит 2000 ₽' },
+    { printed: '₽990 месяц', heard: '990 ₽ в месяц' },
+    { printed: '₽300 кофе', heard: 'кофе за 300 ₽' },
+    { printed: '₽5 тыс за курс', heard: 'курс 5000 ₽' },
+    { printed: '₽700 обед', heard: 'Обед за 700 ₽' },
+    { printed: '฿500 massage', heard: 'massage 500 baht' },
+    { printed: '฿300 entry', heard: 'entry 300 THB' },
+  ]
+  const needless = corpus.filter(r => !r.legit && asks(r.printed, r.heard))
+  const counted = corpus.filter(r => !r.legit).length
+
+  it(`usability corpus: ${needless.length}/${counted} needless re-asks (<= 12%)`, () => {
+    expect(corpus.length).toBeGreaterThanOrEqual(42)
+    expect(
+      needless.length / counted,
+      needless.map(r => `${r.printed} / ${r.heard}`).join('; ')
+    ).toBeLessThanOrEqual(0.12)
+    // Every remaining ask has a reason the person can see: the word after
+    // the amount is one the person never wrote.
+    for (const r of needless) {
+      const f = unconfirmedFacts(r.printed, r.heard).find(
+        x => x.kind === 'price'
+      )
+      expect(f?.word, `${r.printed} / ${r.heard}`).toBeDefined()
+    }
+    // The legitimate ask still asks.
+    for (const r of corpus.filter(x => x.legit))
+      expect(asks(r.printed, r.heard), r.printed).toBe(1)
+  })
+
+  /*
+   * THE SOUNDNESS GRID, extended with echo. Every table word, every unknown
+   * multiplier, and some ordinary nouns, after "$a " and "₽a ", crossed with
+   * whether the person wrote the word, the bare number, the full value.
+   * What each case MEANS is written here from the word's class, never read
+   * from the code.
+   */
+  describe('grid: echo never lets the bare number confirm a multiplier', () => {
+    // [word, zeros]: a number = the table; 'both' = a thousand or a count;
+    // 'unknown' = a multiplier the table does not know (short, so no echo);
+    // 'noun' = an ordinary 4+ letter word.
+    type Cls = number | 'both' | 'unknown' | 'noun'
+    const words: ReadonlyArray<[string, Cls]> = [
+      ['hundred', 2],
+      ['thousand', 3],
+      ['thou', 3],
+      ['grand', 3],
+      ['тысяч', 3],
+      ['тыщи', 3],
+      ['косарей', 3],
+      ['lakh', 5],
+      ['lakhs', 5],
+      ['million', 6],
+      ['миллионов', 6],
+      ['лямов', 6],
+      ['лимона', 6],
+      ['crore', 7],
+      ['crores', 7],
+      ['billion', 9],
+      ['миллиардов', 9],
+      ['штук', 'both'],
+      ['штуки', 'both'],
+      ['гиг', 'unknown'],
+      ['gb', 'unknown'],
+      ['ярд', 'unknown'],
+      ['mil', 'unknown'],
+      ['М', 'unknown'],
+      ['entry', 'noun'],
+      ['вход', 'noun'],
+      ['coffee', 'noun'],
+      ['zorg', 'noun'],
+    ]
+    type Row = {
+      printed: string
+      heard: string
+      should: boolean
+      cls: Cls
+      bare: boolean
+      full: boolean
+    }
+    const rows: Row[] = []
+    for (const a of [5, 10])
+      for (const sign of ['$', '₽'])
+        for (const [w, cls] of words) {
+          const printed = `${sign}${a} ${w}`
+          const full =
+            typeof cls === 'number' ? `${sign}${a * 10 ** cls}` : undefined
+          const heards: Array<[string, boolean, boolean, boolean]> = [
+            // [heard, wrote word, wrote bare number, wrote full value]
+            ['', false, false, false],
+            [`${sign}${a}`, false, true, false],
+            [`${w} please`, true, false, false],
+            [`${sign}${a}, ${w}`, true, true, false],
+            [`${w}: ${sign}${a}`, true, true, false],
+            [`${sign}${a}. Also ${w.toUpperCase()}`, true, true, false],
+          ]
+          if (full)
+            heards.push(
+              [full, false, false, true],
+              [`${w} ${full}`, true, false, true]
+            )
+          for (const [heard, word, bare, fullHeard] of heards)
+            rows.push({
+              printed,
+              heard,
+              cls,
+              bare,
+              full: fullHeard,
+              should:
+                typeof cls === 'number'
+                  ? fullHeard
+                  : cls === 'noun'
+                    ? word && bare
+                    : false,
+            })
+        }
+
+    it(`${rows.length} rows: confirmed <=> the table value, or a noun the person wrote with the bare amount`, () => {
+      for (const r of rows)
+        expect(
+          asks(r.printed, r.heard) === 0,
+          `printed ${JSON.stringify(r.printed)} heard ${JSON.stringify(r.heard)}`
+        ).toBe(r.should)
+      expect(rows.filter(r => r.should).length).toBeGreaterThan(0)
+    })
+
+    it('THE INVARIANT: a table word or an unknown multiplier is never confirmed by the bare number, echoed or not', () => {
+      const guarded = rows.filter(r => r.cls !== 'noun' && r.bare && !r.full)
+      expect(guarded.length).toBeGreaterThan(0)
+      for (const r of guarded)
+        expect(asks(r.printed, r.heard), `${r.printed} / ${r.heard}`).toBe(1)
+    })
+
+    it('glued and trailing-currency unknown runs never take an echo', () => {
+      expect(asks('$5zorg', '$5, zorg')).toBe(1)
+      expect(asks('5 zorg $', '$5, zorg')).toBe(1)
+      expect(asks('5 zorgs рублей', '5 рублей zorgs')).toBe(1)
+      // ...and their identical text still confirms them.
+      expect(asks('$5zorg', '$5zorg')).toBe(0)
+    })
+
+    it('the echo is of THAT word', () => {
+      expect(asks('$20 entry', '$20 tickets')).toBe(1)
+      expect(asks('$20 entry', 'tickets $20')).toBe(1)
+      expect(asks('$20 entry', '$20 entrance')).toBe(1)
+      expect(asks('$20 entry', 'ENTRY $20')).toBe(0)
+      expect(asks('$20 entry', '$20 entry')).toBe(0)
+      // A person's own "$5 zorg" is their noun: it reads as 5.
+      expect(asks('$5', '$5 zorg')).toBe(0)
+      expect(asks('$5', '$5zorg')).toBe(1)
+      // Another currency is still another price.
+      expect(asks('$20 entry', 'entry 20 ₽')).toBe(1)
+      // An echo word is no currency name: "£5 europe" is pounds.
+      expect(factsIn('£5 europe')[0].currency).toBe('gbp')
+    })
+
+    it('the table wins over echo: "$5 crore" is 5e7 even when the person wrote "crore"', () => {
+      expect(prices('$5 crore')).toEqual([`p${5e7}`])
+      expect(asks('$5 crore', 'crore, $5')).toBe(1)
+      expect(asks('$5 crore', `$${5e7}`)).toBe(0)
+      expect(asks('$5 crore', '$5 crore')).toBe(0)
+      expect(new Set(factsIn('₽10 штук')[0].keys)).toEqual(
+        new Set(['p10', 'p10000'])
+      )
+    })
+  })
+
+  /*
+   * The reviewer's 48 round-5 soundness rows, each against the heard forms
+   * the review used, plus the bare amount with the word written apart.
+   */
+  it('every round 1-5 soundness row the reviewer re-checked still asks again', () => {
+    const rows: ReadonlyArray<[string, ReadonlyArray<string>]> = [
+      ['$5 thousand', ['$5', '$5, thousand']],
+      ['$5M', ['$5']],
+      ['$5kk', ['$5']],
+      ['₽10кк', ['₽10']],
+      ['$5 bn', ['$5']],
+      ['5 млрд ₽', ['5 ₽', '']],
+      ['$5 thousands', ['$5', 'thousands $5']],
+      ['$5 million', ['$5', 'million $5']],
+      ['$5 billion', ['$5', 'billion $5']],
+      ['$5 mln', ['$5']],
+      ['$5 mil', ['$5', 'mil $5']],
+      ['$5 Mio', ['$5']],
+      ['$5 B', ['$5']],
+      ['$5 bln', ['$5']],
+      ['$5 миллионов', ['$5', 'миллионов $5']],
+      ['₽10 тысяч', ['₽10', 'тысяч ₽10']],
+      ['10 тысяч рублей', ['10 рублей', '₽10']],
+      ['$5 lakh', ['$5', 'lakh $5']],
+      ['$5 crore', ['$5', 'crore $5']],
+      ['$5 grand', ['$5', 'grand $5']],
+      ['$5 лямов', ['$5', 'лямов $5']],
+      ['$5 тыщ', ['$5', 'тыщ $5']],
+      ['₽10 штук', ['₽10', '₽10000', 'штук ₽10']],
+      ['₽10 косарей', ['₽10', 'косарей ₽10']],
+      ['$5 thou', ['$5', 'thou $5', '$5, thou']],
+      ['₽10 к 3 дня', ['₽10', '₽10000']],
+      ['₽10 к 2 ночи', ['₽10', '₽10000']],
+      ['$5 к 7 pm', ['$5', '$5000']],
+      ['₽10 к — 3 дня', ['₽10', '₽10000']],
+      ['₽10 к 2 чел', ['₽10', '₽10000']],
+      ['$5 к 5 часов', ['$5', '$5000']],
+      ['$5 к 10 ч', ['$5', '$5000']],
+      ['₽10 к 7ч', ['₽10', '₽10000']],
+      ['₽10 к\n19:00', ['₽10', '₽10000']],
+      ['₽10 к 15.50', ['₽10', '₽10000']],
+      ['$5 к 3 мес', ['$5', '$5000']],
+      ['₽10 к 2 шт', ['₽10', '₽10000']],
+      ['бюджет $5 к 2026', ['$5', '$5000']],
+      ['₽10 к 15 к', ['₽10000']],
+      ['$1,500k', ['$1500']],
+      ['$1.500k', ['$1500', `$${1.5e6}`]],
+      ['300 ₽', ['$300']],
+    ]
+    let checked = 0
+    for (const [printed, heards] of rows)
+      for (const heard of heards) {
+        checked++
+        expect(asks(printed, heard), `${printed} / ${heard}`).toBe(1)
+      }
+    expect(rows.length).toBe(42)
+    expect(checked).toBeGreaterThanOrEqual(48)
   })
 })
