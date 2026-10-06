@@ -55,8 +55,26 @@ const KEY = process.env.CHECK_RUNNER_KEY || ''
 const CACHE = process.env.CHECK_CACHE || '/cache'
 const WORK = process.env.CHECK_WORK || '/work'
 const MAX_BODY = 64 * 1024 * 1024
-/* A run that outlives this is stopped: a hung test must not hold the queue. */
-const RUN_LIMIT_MS = Number(process.env.CHECK_RUN_LIMIT_MS || 20 * 60_000)
+/*
+ * Railway cuts a request at 15 minutes (measured 2026-10-06: the connection
+ * closed at 901.96 s), and the result is the stream's last line, so a job
+ * that runs longer can never deliver it. Until then the limit was 20 minutes
+ * per command: a long job ran on after its caller was gone, and the next
+ * caller waited behind it. Now a job has RUN_LIMIT_MS from the moment its
+ * request arrived -- queue wait included -- and is stopped there, so its
+ * result always goes out before the cap.
+ */
+export const REQUEST_CAP_MS = 15 * 60_000
+export const RUN_LIMIT_MS = Number(
+  process.env.CHECK_RUN_LIMIT_MS || 13 * 60_000
+)
+/*
+ * Railway's edge answers 502 after ~300 s in which the runner sent nothing,
+ * and a 28 MB archive from a loaded Mac takes longer than that to arrive.
+ * So a line goes back every BEAT_MS from the moment the key is checked,
+ * upload and queue wait included.
+ */
+const BEAT_MS = Number(process.env.CHECK_BEAT_MS || 20_000)
 
 /*
  * trinity's website checks run on Node 22, the version trinity's own CI pins
@@ -289,17 +307,64 @@ const NO_GIT_ENV = Object.fromEntries(
     .map(k => [k, undefined])
 )
 
-function run(cmd, cwd, out, env = {}) {
+/*
+ * One request's job: the processes it started, whether its caller is gone,
+ * and when it must stop. cancel() kills every process tree it started.
+ */
+export function newJob(deadline = Date.now() + RUN_LIMIT_MS) {
+  const kids = new Set()
+  return {
+    gone: false,
+    timedOut: false,
+    deadline,
+    kids,
+    cancel() {
+      this.gone = true
+      for (const k of kids) killTree(k)
+    },
+  }
+}
+
+/*
+ * The whole tree, not just bash: vitest's workers and npm's children are
+ * grandchildren, and killing bash alone left them running. Each command is
+ * its own process group (detached), so the group is killed at once.
+ */
+function killTree(child) {
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    child.kill('SIGKILL')
+  }
+}
+
+export function run(cmd, cwd, out, env = {}, job = null) {
   return new Promise(resolve => {
+    if (job?.gone) return resolve(1)
+    const left = job
+      ? Math.min(RUN_LIMIT_MS, job.deadline - Date.now())
+      : RUN_LIMIT_MS
+    if (left <= 0) {
+      if (job) job.timedOut = true
+      out.write(`:: out of time: ${RUN_LIMIT_MS / 60_000} min per request\n`)
+      return resolve(1)
+    }
     const child = spawn('bash', ['-lc', cmd], {
       cwd,
       env: { ...process.env, CI: '1', FORCE_COLOR: '0', ...env },
+      detached: true,
     })
-    const timer = setTimeout(() => child.kill('SIGKILL'), RUN_LIMIT_MS)
+    job?.kids.add(child)
+    const timer = setTimeout(() => {
+      if (job) job.timedOut = true
+      out.write(`\n:: out of time: ${RUN_LIMIT_MS / 60_000} min per request\n`)
+      killTree(child)
+    }, left)
     child.stdout.on('data', d => out.write(d))
     child.stderr.on('data', d => out.write(d))
     child.on('close', code => {
       clearTimeout(timer)
+      job?.kids.delete(child)
       resolve(code ?? 1)
     })
   })
@@ -347,7 +412,7 @@ async function treeHash(dir) {
  * really sits -- with --install-links, so that dependency is copied in and
  * the folder can move to the cache without a dangling link.
  */
-async function modulesFor(root, project, out) {
+async function modulesFor(root, project, out, job) {
   const at = join(root, project.dir)
   const lockPath = join(at, project.lock)
   if (!(await exists(lockPath))) return
@@ -366,7 +431,7 @@ async function modulesFor(root, project, out) {
   if (!(await exists(join(cached, 'node_modules')))) {
     out.write(`:: installing ${project.dir} (${hash})\n`)
     const ci = 'npm ci --install-links --no-audit --no-fund --loglevel=error'
-    const code = await run(project.node22 ? onNode22(ci) : ci, at, out)
+    const code = await run(project.node22 ? onNode22(ci) : ci, at, out, {}, job)
     if (code !== 0 || !(await exists(join(at, 'node_modules')))) {
       out.write(`:: install failed for ${project.dir}\n`)
       return
@@ -374,7 +439,7 @@ async function modulesFor(root, project, out) {
     const tmp = `${cached}.tmp-${randomUUID()}`
     await mkdir(tmp, { recursive: true })
     /* The work dir and the volume are different devices: mv, not rename. */
-    if ((await run(`mv node_modules ${quote(tmp)}/`, at, out)) !== 0) {
+    if ((await run(`mv node_modules ${quote(tmp)}/`, at, out, {}, job)) !== 0) {
       out.write(`:: could not keep ${project.dir} in the cache\n`)
       return
     }
@@ -391,12 +456,12 @@ async function modulesFor(root, project, out) {
  * failure does not stop the rest, since each name is its own question and
  * gets its own exit code under "website:<name>". They run under Node 22.
  */
-async function runWebsite(job, names, res, result) {
+async function runWebsite(dir, job, names, res, result) {
   const cmds = suiteCommands('website', names)
   for (let i = 0; i < names.length; i++) {
     res.write(`\n:: website: ${cmds[i]}\n`)
     const watch = skipWatcher(res)
-    const code = await run(onNode22(cmds[i]), job, watch)
+    const code = await run(onNode22(cmds[i]), dir, watch, {}, job)
     if (code === 0 && watch.skipped())
       res.write(
         `:: website: ${names[i]} said it skipped for want of Chrome and ` +
@@ -408,15 +473,25 @@ async function runWebsite(job, names, res, result) {
 }
 
 /* The experiments the same way: every name run, each its own answer. */
-async function runPerName(job, suite, names, res, result) {
+async function runPerName(dir, job, suite, names, res, result) {
   const cmds = suiteCommands(suite, names)
   for (let i = 0; i < names.length; i++) {
     res.write(`\n:: ${suite}: ${cmds[i]}\n`)
-    result[`${suite}:${names[i]}`] = await run(cmds[i], job, res)
+    result[`${suite}:${names[i]}`] = await run(cmds[i], dir, res, {}, job)
   }
 }
 
 let queue = Promise.resolve()
+/* Jobs taken and not yet finished, the running one included. */
+let pending = 0
+
+/* One line per job event in `railway logs`: until 2026-10-06 only startup. */
+function logJob(id, fields) {
+  const kv = Object.entries(fields).map(
+    ([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`
+  )
+  console.log(`[check-runner] job ${id.slice(0, 8)} ${kv.join(' ')}`)
+}
 
 async function handleRun(req, res, url) {
   const suites = (url.searchParams.get('suites') || 'render')
@@ -439,69 +514,120 @@ async function handleRun(req, res, url) {
     res.end(`${refused}\n`)
     return
   }
-  const job = join(WORK, randomUUID())
-  await mkdir(job, { recursive: true })
+  const id = randomUUID()
+  const began = Date.now()
+  const job = newJob(began + RUN_LIMIT_MS)
+  const dir = join(WORK, id)
+  /*
+   * The caller gone before the result -- curl cut, Railway's 15-minute cap,
+   * Ctrl-C -- cancels the job: its processes are killed and, if it is still
+   * queued, it never starts. Until 2026-10-06 every cut-off attempt left an
+   * orphan running, and the next caller waited behind it.
+   */
+  res.on('close', () => {
+    if (!res.writableFinished) job.cancel()
+  })
+  const out = {
+    write: d => {
+      if (!res.destroyed && !res.writableEnded) res.write(d)
+    },
+  }
+  /*
+   * The status line waits for the first beat, so a request refused at once
+   * (too large, not a .tar.gz) still gets its own status; one that takes
+   * longer gets a 200 and a line every BEAT_MS, and a refusal after that is
+   * the "::result" line the client reads anyway.
+   */
+  const open = () => {
+    if (!res.headersSent)
+      res.writeHead(200, {
+        'content-type': 'text/plain; charset=utf-8',
+        'x-accel-buffering': 'no',
+      })
+  }
+  const beat = setInterval(() => {
+    open()
+    out.write(':: still working\n')
+  }, BEAT_MS)
+  const fail = async (status, why) => {
+    clearInterval(beat)
+    if (!res.headersSent) {
+      res.writeHead(status, { 'content-type': 'text/plain' })
+      res.end(`${why}\n`)
+    } else if (!res.destroyed)
+      res.end(`\n::result {"error":${JSON.stringify(why)}}\n`)
+    await rm(dir, { recursive: true, force: true })
+    logJob(id, { refused: why, cancelled: job.gone, ms: Date.now() - began })
+  }
+
+  await mkdir(dir, { recursive: true })
   /* The archive straight into tar, capped. */
   let size = 0
-  const tar = spawn('tar', ['-xzf', '-', '-C', job])
+  const tar = spawn('tar', ['-xzf', '-', '-C', dir])
+  tar.stdin.on('error', () => {})
   const extracted = new Promise(resolve =>
     tar.on('close', code => resolve(code))
   )
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY) {
-      tar.kill('SIGKILL')
-      res.writeHead(413, { 'content-type': 'text/plain' })
-      res.end('archive too large\n')
-      await rm(job, { recursive: true, force: true })
-      return
+  try {
+    for await (const chunk of req) {
+      size += chunk.length
+      if (size > MAX_BODY) {
+        tar.kill('SIGKILL')
+        return await fail(413, 'archive too large')
+      }
+      tar.stdin.write(chunk)
     }
-    tar.stdin.write(chunk)
+  } catch {
+    /* The caller hung up mid-upload. */
+    tar.kill('SIGKILL')
+    return await fail(499, 'upload cut off')
   }
   tar.stdin.end()
-  if ((await extracted) !== 0) {
-    res.writeHead(400, { 'content-type': 'text/plain' })
-    res.end('not a .tar.gz\n')
-    await rm(job, { recursive: true, force: true })
-    return
-  }
+  if ((await extracted) !== 0) return await fail(400, 'not a .tar.gz')
+  if (job.gone) return await fail(499, 'caller gone before the queue')
 
-  res.writeHead(200, {
-    'content-type': 'text/plain; charset=utf-8',
-    'x-accel-buffering': 'no',
-  })
-  /* A heartbeat while queued or installing, so no proxy calls it idle. */
-  const beat = setInterval(() => res.write(':: still working\n'), 20_000)
+  open()
+  const ahead = pending++
+  logJob(id, { queued: suites.join(','), files: files.length, ahead })
+  if (ahead) out.write(`:: queued, ${ahead} ahead\n`)
+  const result = {}
   const mine = queue.then(async () => {
-    const result = {}
-    try {
-      if ((await run(SNAPSHOT, job, res, NO_GIT_ENV)) !== 0)
-        res.write(':: could not make the tree a repository\n')
-      for (const p of projectsFor(suites)) await modulesFor(job, p, res)
-      if (suites.includes('website')) await runWebsite(job, files, res, result)
-      else if (suites.includes('mutants') || suites.includes('spec'))
-        await runPerName(job, suites[0], files, res, result)
-      else
-        for (const s of suites) {
-          let code = 0
-          for (const cmd of suiteCommands(s, files)) {
-            res.write(`\n:: ${s}: ${cmd}\n`)
-            code = await run(cmd, job, res)
-            if (code !== 0) break
-          }
-          result[s] = code
+    if (job.gone) return
+    out.write(':: running\n')
+    if ((await run(SNAPSHOT, dir, out, NO_GIT_ENV, job)) !== 0)
+      out.write(':: could not make the tree a repository\n')
+    for (const p of projectsFor(suites)) await modulesFor(dir, p, out, job)
+    if (suites.includes('website'))
+      await runWebsite(dir, job, files, out, result)
+    else if (suites.includes('mutants') || suites.includes('spec'))
+      await runPerName(dir, job, suites[0], files, out, result)
+    else
+      for (const s of suites) {
+        let code = 0
+        for (const cmd of suiteCommands(s, files)) {
+          out.write(`\n:: ${s}: ${cmd}\n`)
+          code = await run(cmd, dir, out, {}, job)
+          if (code !== 0) break
         }
-    } finally {
-      clearInterval(beat)
-      res.write(`\n::result ${JSON.stringify(result)}\n`)
-      res.end()
-      await rm(job, { recursive: true, force: true })
-    }
+        result[s] = code
+      }
   })
   queue = mine.catch(() => {})
+  let error = null
   await mine.catch(e => {
-    clearInterval(beat)
-    res.end(`\n::result {"error":${JSON.stringify(String(e).slice(0, 200))}}\n`)
+    error = String(e).slice(0, 200)
+  })
+  pending--
+  clearInterval(beat)
+  out.write(`\n::result ${JSON.stringify(error ? { error } : result)}\n`)
+  if (!res.destroyed) res.end()
+  await rm(dir, { recursive: true, force: true })
+  logJob(id, {
+    end: error ? 'error' : 'done',
+    rc: error || result,
+    ms: Date.now() - began,
+    cancelled: job.gone,
+    timedOut: job.timedOut,
   })
 }
 
