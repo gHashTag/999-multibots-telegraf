@@ -30,7 +30,6 @@ import {
   wheelAfterTouch,
   wheelAfterHandBack,
   shouldRenewWheel,
-  type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { Desks } from '@/components/Browser/Desks'
