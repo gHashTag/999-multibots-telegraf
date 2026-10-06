@@ -2436,4 +2436,24 @@ section "The agent says only what it did".
    `tri worktrees` shows a fresh bee branch with no commits as new, not
    finished, so the cleanup does not offer to remove it (#3749). An old
    branch freshly checked out into a new worktree is still shown as finished
-   (#3751, open).
+   (#3751, fixed by #3755: age is the younger of the branch reflog and the
+   worktree's own HEAD log).
+7. **The reviewer builds its own probe.** A claim set the author wrote passes
+   the author's own fix. On #3759 the author reported 0 lost claims of 50
+   twice. Each time, the reviewer's independent probe found more: 20 lost in
+   round 1, then 16 in round 2, which the author's set never covered (a
+   comma ends the clause, then "I attached it"; the next sentence delivers
+   the picture). Every reviewer prompt asks for an independent adversarial
+   probe against main, aimed at each condition of the new rule.
+8. **A rule that silences must prove the object ENDS.** A "this noun is only
+   a modifier" rule (`poster text`, `voice menu`) silences a claim, so it
+   must check the whole rest of the message: no second media noun, no
+   delivery word (attached, sent, rendered), no "it" as an object. Checking
+   only the next word ate the real object (#3759 rounds 1-2).
+9. **Pick the closed list whose MISS is safe.** #3758 round 3 listed money
+   words (budget, total, each) that keep a later multiplier on the price. A
+   money synonym missing from that list (bucks, payout) confirms the bare
+   price silently, so the miss is unsafe. The safe list is the other one:
+   the counted nouns (followers, seats, guests, people) that let the bare
+   price stand. An unknown word then asks again. Before you merge a closed
+   list, name what a missing entry does.
