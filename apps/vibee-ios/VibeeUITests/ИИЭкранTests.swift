@@ -63,7 +63,7 @@ final class ИИЭкранTests: XCTestCase {
     вид("сценарий")
     // Именно это было сломано: вкладка показывала Kling и Grok Imagine —
     // модели, которые снимают ролик, а не пишут текст.
-    XCTAssertTrue(строкаМодели("glm-5.3").waitForExistence(timeout: 5))
+    XCTAssertTrue(строкаМодели("glm-4.7-flash").waitForExistence(timeout: 5))
     XCTAssertTrue(строкаМодели("gpt-5-2").exists)
     XCTAssertFalse(строкаМодели("kling/v2-1-pro").exists,
                    "видеомодель просочилась в сценарий")
@@ -142,7 +142,7 @@ final class ИИЭкранTests: XCTestCase {
     if app.keyboards.count > 0 { app.buttons["Return"].firstMatch.tap() }
     if app.keyboards.count > 0 { app.swipeDown() }
 
-    let модель = строкаМодели("glm-5.3")
+    let модель = строкаМодели("glm-4.7-flash")
     if !модель.isHittable { модель.scrollToElement() }
     модель.tap()
 

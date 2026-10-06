@@ -24,7 +24,7 @@ import { getAppAccessToken } from '@/lib/appSession'
 import { getInitData } from '@/lib/telegram'
 import { sessionTrustedIn, type FramedWindow } from '@/lib/framedSession'
 import {
-  cardFromHref,
+  cardFromAnchor,
   cardFromMessage,
   cardFromSearch,
   keepCard,
@@ -138,6 +138,19 @@ export default function HivePage() {
     here.current = `${location.pathname}${location.search}${location.hash}`
   }, [location.pathname, location.search, location.hash])
   const page = queenPage(lang, asked)
+
+  // The tab names the game, and only the game: no view word in front of it
+  // (owner, 2026-10-04: "BROWSER ·" was not wanted). The app writes the title
+  // from its Header, and this page draws none -- so without this every view
+  // kept index.html's title. Put back on the way out, or a page after this
+  // one with no Header of its own (/learn) would keep the game's name.
+  useEffect(() => {
+    const before = document.title
+    document.title = t('app.title')
+    return () => {
+      document.title = before
+    }
+  }, [t])
   const outside = queenPublicPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const openLogin = useSetAtom(openLoginAtom)
@@ -210,7 +223,7 @@ export default function HivePage() {
         if (e.defaultPrevented || e.button !== 0) return
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
         const a = (e.target as Element | null)?.closest?.('a[href]')
-        const asked = a ? cardFromHref((a as HTMLAnchorElement).href) : null
+        const asked = cardFromAnchor(a)
         if (!asked) return
         e.preventDefault()
         e.stopPropagation()

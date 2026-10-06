@@ -955,6 +955,8 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    */
   'tg_forward',
   'tg_read',
+  /* Creating a bot (managed-bot-create.ts): rare, and the kit is at its budget. */
+  'tg_create_bot',
   /*
    * Bulk and files are the same call: rare, deliberate, worth a big-context
    * model's attention. Voice and video stay -- "here is the clip about the

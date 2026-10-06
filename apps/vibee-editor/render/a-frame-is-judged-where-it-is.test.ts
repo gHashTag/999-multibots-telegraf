@@ -434,14 +434,19 @@ const WORLD = {
   focusIn: [] as string[] | 'throws',
   /* The site list stops answering once a tab is open. */
   rulesDieOnOpen: false,
+  /* Chromium's own target list stops answering after this many reads. */
+  listDiesAfter: Infinity,
 }
 let looks = 0
+let lists = 0
 let opening = false
 
 vi.mock('./src/browser/cdp', async importOriginal => ({
   ...(await importOriginal<typeof import('./src/browser/cdp')>()),
   frontPage: async () => ({ id: 'page-1', url: PAGE.url }),
   listTargets: async () => {
+    if (lists++ >= WORLD.listDiesAfter)
+      throw new Error('CDP /json/list: socket hang up')
     const out = [
       { id: 'page-1', url: PAGE.url, title: 'front', type: 'page' },
       ...WORLD.iframes.map(f => ({ ...f, title: '', type: 'iframe' })),
@@ -502,6 +507,26 @@ vi.mock('./src/browser/screen', async importOriginal => ({
   },
 }))
 
+/* browser_ask_input sends a Telegram button and reads the focused field. */
+vi.mock('./src/auth/telegram-sender', () => ({
+  sendToTelegram: async () => undefined,
+}))
+vi.mock('./src/browser/person-type', async importOriginal => {
+  const real =
+    await importOriginal<typeof import('./src/browser/person-type')>()
+  return {
+    ...real,
+    cdpTypeIo: {
+      ...real.cdpTypeIo,
+      focus: async () => ({
+        host: 'shop.example',
+        field: 'password',
+        label: '',
+      }),
+    },
+  }
+})
+
 vi.mock('./src/agent/media-vision', async importOriginal => ({
   ...(await importOriginal<typeof import('./src/agent/media-vision')>()),
   visionConfig: () => null,
@@ -537,6 +562,8 @@ describe('the tools judge the frame, not only the tab', () => {
     WORLD.hit = 'throws'
     WORLD.focusIn = []
     WORLD.rulesDieOnOpen = false
+    WORLD.listDiesAfter = Infinity
+    lists = 0
     looks = 0
     opening = false
   })
@@ -879,5 +906,53 @@ describe('the tools judge the frame, not only the tab', () => {
     ).handler({ url: 'https://short.example/abc' }, ctx)) as { opened: string }
     /* Not waited for: the answer is the address asked, not x.com. */
     expect(r.opened).toBe('https://short.example/abc')
+  })
+
+  /* ---- the two holes the bee on #3515 found outside its diff ---- */
+
+  const asked = { ...(ctx as object), probe: true } as never
+
+  it('ASK_INPUT does not put the cursor into a payment frame without a yes', async () => {
+    WORLD.frames = [STRIPE]
+    const r = (await (
+      await tool('browser_ask_input')
+    ).handler(
+      { kind: 'password', why: 'card code', x: 250, y: 320 },
+      asked
+    )) as { pointed: boolean }
+    expect(cdpCalls).not.toContain('clickAt')
+    expect(r.pointed).toBe(false)
+  })
+
+  it('with a fresh yes ask_input puts the cursor there', async () => {
+    WORLD.frames = [STRIPE]
+    SESSION.allowed_ms = Date.now()
+    const r = (await (
+      await tool('browser_ask_input')
+    ).handler(
+      { kind: 'password', why: 'card code', x: 250, y: 320 },
+      asked
+    )) as { pointed: boolean }
+    expect(cdpCalls).toContain('clickAt')
+    expect(r.pointed).toBe(true)
+  })
+
+  it('AN UNREADABLE FRAME LIST IS NOT "NO FRAMES": the press is refused, even after a yes', async () => {
+    WORLD.listDiesAfter = 0
+    SESSION.allowed_ms = Date.now()
+    await expect(
+      (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
+    ).rejects.toThrow(/frames could not be listed/)
+    expect(cdpCalls).not.toContain('clickAt')
+  })
+
+  it('an unreadable frame list refuses the shot while a site is blocked', async () => {
+    table = [{ site: 'x.com', rule: 'block' }]
+    /* The front tab and its address read; the frame list after them does not. */
+    WORLD.listDiesAfter = 2
+    await expect(
+      (await tool('browser_screenshot')).handler({}, ctx)
+    ).rejects.toThrow(/frames could not be listed/)
+    expect(cdpCalls).not.toContain('screenshot')
   })
 })

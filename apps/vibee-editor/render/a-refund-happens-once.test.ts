@@ -19,6 +19,14 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { spendByTid, refundByTid } from './src/agent/billing-shared'
 import { forgetTokenLedgerTables } from './src/token-ledger'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * A Postgres small enough to reason about: one balance, one ledger, and the
  * partial unique index on (kind, ref) enforced the way the real one is --
@@ -191,28 +199,36 @@ describe('a refund gives the same charge back once', () => {
 describe("a late picture's charge comes back once, whoever notices", () => {
   beforeEach(() => forgetTokenLedgerTables())
 
-  it('the second refund of one task adds nothing; another task is its own', async () => {
-    const { refundLateImage } = await import('./src/agent/tools')
-    const db = fakeDb(1000)
-    const ctx = { telegramId: '900000031', pool: db } as never
-    const t = { task: 'task-b', charged: 8, op: 'image_edit' }
-    await refundLateImage(ctx, t, 'the watch gave up')
-    await refundLateImage(ctx, t, 'the story job gave up')
-    expect(db.balance).toBe(1008)
-    const back = db.ledger.filter(r => r.kind === 'refund')
-    expect(back).toEqual([
-      expect.objectContaining({ ref: 'late-image:task-b', delta: 8 }),
-    ])
-    await refundLateImage(ctx, { ...t, task: 'task-c' }, 'another still')
-    expect(db.balance).toBe(1016)
-  })
+  it(
+    'the second refund of one task adds nothing; another task is its own',
+    async () => {
+      const { refundLateImage } = await import('./src/agent/tools')
+      const db = fakeDb(1000)
+      const ctx = { telegramId: '900000031', pool: db } as never
+      const t = { task: 'task-b', charged: 8, op: 'image_edit' }
+      await refundLateImage(ctx, t, 'the watch gave up')
+      await refundLateImage(ctx, t, 'the story job gave up')
+      expect(db.balance).toBe(1008)
+      const back = db.ledger.filter(r => r.kind === 'refund')
+      expect(back).toEqual([
+        expect.objectContaining({ ref: 'late-image:task-b', delta: 8 }),
+      ])
+      await refundLateImage(ctx, { ...t, task: 'task-c' }, 'another still')
+      expect(db.balance).toBe(1016)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('an unknown charge gives nothing back: never re-derived from a price table', async () => {
-    const { refundLateImage } = await import('./src/agent/tools')
-    const db = fakeDb(1000)
-    const ctx = { telegramId: '900000031', pool: db } as never
-    await refundLateImage(ctx, { task: 'task-d' }, 'no charge on record')
-    expect(db.balance).toBe(1000)
-    expect(db.ledger.filter(r => r.kind === 'refund')).toHaveLength(0)
-  })
+  it(
+    'an unknown charge gives nothing back: never re-derived from a price table',
+    async () => {
+      const { refundLateImage } = await import('./src/agent/tools')
+      const db = fakeDb(1000)
+      const ctx = { telegramId: '900000031', pool: db } as never
+      await refundLateImage(ctx, { task: 'task-d' }, 'no charge on record')
+      expect(db.balance).toBe(1000)
+      expect(db.ledger.filter(r => r.kind === 'refund')).toHaveLength(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

@@ -317,39 +317,78 @@ export async function waitForOrigin(
 }
 
 /**
- * The draft, from the one model call this codebase keeps for prose
- * (agent/provider.ts reserveEnv). Returns null rather than a guess when no
- * model answers -- reddit.ts then hands the comment to the owner instead of
- * offering them something to approve.
+ * The draft. The FREE z.ai flash models first (owner, 2026-10-05: "переключи
+ * на бесплатную модель z.ai"), the paid reserve route last. Measured
+ * 2026-10-04 16:14Z: the reserve key ran out of funds, every draft came back
+ * null and the engage desk logged "no model answered" for x and reddit.
+ * glm-4.5-flash (zai-lite, no thinking) goes before glm-4.7-flash (zai, a
+ * hybrid reasoner that can spend the budget thinking). Returns null rather
+ * than a guess when no model answers; why each one failed is logged.
  */
+export const DRAFT_ORDER = ['zai-lite', 'zai', 'reserve'] as const
+export let DRAFT_RETRY_MS = 4000
+export function setDraftRetryMs(ms: number): void {
+  DRAFT_RETRY_MS = ms
+}
+
 export async function writeDraft(prompt: string): Promise<string | null> {
-  const { reserveEnv } = await import('./provider')
-  const reserve = reserveEnv()
-  if (!reserve?.key) return null
-  try {
-    const r = await fetch(`${reserve.base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${reserve.key}`,
-      },
-      body: JSON.stringify({
-        model: reserve.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 600,
-        temperature: 0.4,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    })
-    if (!r.ok) return null
-    const out = (await r.json()) as {
-      choices?: Array<{ message?: { content?: unknown } }>
+  const { allProviders, reserveEnv } = await import('./provider')
+  const routes: Array<{ id: string; base: string; key: string; model: string }> = []
+  const have = allProviders()
+  for (const id of DRAFT_ORDER) {
+    if (id === 'reserve') {
+      const r = reserveEnv()
+      if (r?.key) routes.push({ id, base: r.base, key: r.key, model: r.model })
+      continue
     }
-    const text = out.choices?.[0]?.message?.content
-    return typeof text === 'string' && text.trim() ? text.trim() : null
-  } catch {
-    return null
+    const p = have.find(x => x.id === id)
+    if (p?.key) routes.push({ id, base: p.base, key: p.key, model: p.model })
   }
+  const why: string[] = []
+  for (const route of routes) {
+    const zai = route.id !== 'reserve'
+    try {
+      const ask = () =>
+        fetch(`${route.base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${route.key}`,
+          },
+          body: JSON.stringify({
+            model: route.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: zai ? 1000 : 600,
+            temperature: 0.4,
+            // GLM thinks by default and spends the whole budget on it:
+            // measured 2026-10-04, 350 tokens of reasoning for a five-word
+            // reply, so a draft came back with empty content.
+            ...(zai ? { thinking: { type: 'disabled' } } : {}),
+          }),
+          signal: AbortSignal.timeout(60_000),
+        })
+      let r = await ask()
+      // The free endpoint answers 429 to a burst; one paced retry.
+      if (r.status === 429) {
+        await new Promise(res => setTimeout(res, DRAFT_RETRY_MS))
+        r = await ask()
+      }
+      if (!r.ok) {
+        why.push(`${route.id} ${r.status}`)
+        continue
+      }
+      const out = (await r.json()) as {
+        choices?: Array<{ message?: { content?: unknown } }>
+      }
+      const text = out.choices?.[0]?.message?.content
+      if (typeof text === 'string' && text.trim()) return text.trim()
+      why.push(`${route.id} empty`)
+    } catch (e) {
+      why.push(`${route.id} ${String(e instanceof Error ? e.name : e).slice(0, 40)}`)
+    }
+  }
+  console.warn(`[draft] no model answered: ${why.join(', ') || 'no route'}`)
+  return null
 }
 
 /** Press the first button whose label matches, or throw saying so. */

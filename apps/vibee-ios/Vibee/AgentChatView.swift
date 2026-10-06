@@ -1172,6 +1172,9 @@ extension AgentChatView {
       "step_limit": l(
         "Ran out of steps — try a smaller task.",
         "Не уложился в шаги — попробуй задачу поменьше."),
+      "lane_limit": l(
+        "Your browser already has as many chats working in it as it can hold. Continue in one of them, or wait until one goes quiet.",
+        "В вашем браузере уже работает столько чатов, сколько он вмещает. Продолжите в одном из них или подождите, пока какой-то затихнет."),
     ]
     let text = (words ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let cyrillic = text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }

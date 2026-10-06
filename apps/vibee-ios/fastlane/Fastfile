@@ -464,8 +464,11 @@ platform :ios do
 
     group_id = plan[:target] && plan[:target][:id]
     if plan[:create]
-      made = app.create_beta_group(group_name: TeamGroup::NAME, is_internal_group: true, has_access_to_all_builds: true)
-      group_id = made.id
+      # Not app.create_beta_group: it sends public-link fields Apple refuses on
+      # an internal group (team_group.rb, create_body).
+      made = Spaceship::ConnectAPI.client.test_flight_request_client
+        .post("v1/betaGroups", TeamGroup.create_body(app.id))
+      group_id = made.to_models.first.id
       UI.success("group     #{TeamGroup::NAME} created (internal, every new build)")
     else
       UI.success("group     #{plan[:target][:name]} (internal, every new build)")

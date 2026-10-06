@@ -107,11 +107,20 @@ import {
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
+  MAIN_LANE,
   chosenFront,
+  chosenFrontsOf,
+  chosenLaneFront,
   forgetFront,
   pickFront,
   rememberFront,
+  rememberLaneFront,
 } from './front-page'
+import { claimLane, openInLane, pickLaneFront } from './lanes'
+import { closeWindow, goTo, openWindow, type DeskWindowDeps } from './windows'
+
+/** The chat lane this call runs in (lanes.ts); no lane is the main one. */
+const laneOf = (ctx: ToolContext): string => ctx.lane ?? MAIN_LANE
 
 /**
  * THE GUARD AN AGENT CANNOT DRIVE PAST.
@@ -168,16 +177,32 @@ function needsPermission(where: string, inFrame = false): Error {
   )
 }
 
+/*
+ * Chromium's own list is the only witness of a cross-origin frame the page
+ * hides from its script. Read as "no frames" when it failed, it let a press
+ * or a shot through on a page embedding a blocked site.
+ */
+const UNLISTED_FRAMES =
+  "this page's frames could not be listed, so where the act lands is " +
+  'unknown; nothing was done. Try again in a moment.'
+
+async function framesListed(cdp: string): Promise<CdpTarget[]> {
+  return await listTargets(cdp).catch(() => {
+    throw new Error(UNLISTED_FRAMES)
+  })
+}
+
 /**
  * The frames of a page, both ways (embedded.ts). `probed` is false when the
  * page did not answer the probe: then only Chromium's own list is known.
+ * An unreadable list throws: it never reads as "no frames".
  */
 async function framesNow(
   cdp: string,
   targetId: string,
   targets?: CdpTarget[]
 ): Promise<{ frames: SeenFrame[]; oopif: string[]; probed: boolean }> {
-  const listed = targets ?? (await listTargets(cdp).catch(() => []))
+  const listed = targets ?? (await framesListed(cdp))
   const oopif = framesOfTarget(listed, targetId)
   const raw = await evaluateOn(cdp, targetId, FRAMES_PROBE).then(
     r => ({ r }),
@@ -245,7 +270,7 @@ async function mustBeAllowedInFrame(
   targetId: string,
   at: { x: number; y: number } | 'focus'
 ): Promise<void> {
-  const targets = await listTargets(cdp).catch(() => [] as CdpTarget[])
+  const targets = await framesListed(cdp)
   const kids = frameTargetsOf(targets, targetId).filter(t => isWeb(t.url))
   let reach: string[]
   if (at === 'focus') {
@@ -556,7 +581,8 @@ async function makeRoom(
      * is typing in -- the reviewer's note on #3469.
      */
     const { deskTabsHeld } = await import('./desk-page')
-    const chosen = chosenFront(telegramId)
+    /* Every lane's chosen tab (lanes.ts), not only main's. */
+    const chosen = chosenFrontsOf(telegramId)
     const pages = (await io.list(cdp)).map(t => ({
       id: t.id,
       url: t.url ?? '',
@@ -564,7 +590,7 @@ async function makeRoom(
     }))
     const doomed = roomForOne(
       pages,
-      [...(chosen ? [chosen] : []), ...deskTabsHeld()],
+      [...chosen, ...deskTabsHeld()],
       undefined,
       forUrl
     )
@@ -615,6 +641,31 @@ export async function openAndChoose(
 }
 
 /**
+ * THE CALLS BEHIND A LANE'S WINDOW (lanes.ts openInLane) -- the ones the
+ * rounds already make for a desk's window (rounds-wiring.ts). Room is made
+ * before a window is OPENED, because a window is one more tab against the
+ * pod's ceiling, and not before it is merely walked. Not tiled: the person's
+ * own window is not ours to move, so a lane's window opens where Chromium
+ * puts it.
+ */
+export function laneWindowDeps(
+  telegramId: string,
+  endpoint: string,
+  io: TabIo = { list: listTargets, close: closePage }
+): DeskWindowDeps {
+  return {
+    open: async url => {
+      await makeRoom(telegramId, endpoint, io, url)
+      return await openWindow(endpoint, url)
+    },
+    tile: async () => {},
+    goTo: async (id, url) => await goTo(endpoint, id, url),
+    alive: async id => !!(await pageUrl(endpoint, id)),
+    close: async id => await closeWindow(endpoint, id),
+  }
+}
+
+/**
  * THE REFUSAL WHEN THERE IS NO VISIT, TRUE FOR A PROBE TOO.
  *
  * A probe never starts a browser (liveSession). But the reaper deletes the
@@ -645,6 +696,24 @@ async function podOf(
   const session = await liveSession(ctx)
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
     throw await noBrowserError(ctx)
+  }
+  /*
+   * A LANE ACTS IN ITS OWN TAB OR NOWHERE (lanes.ts). Falling back to the
+   * first page, as main does, would put this lane's click into another
+   * chat's page -- the very collision lanes exist to end.
+   */
+  const lane = laneOf(ctx)
+  if (lane !== MAIN_LANE) {
+    const listed = await listTargetsForFront(session.cdpEndpoint).catch(
+      () => null
+    )
+    const id = pickLaneFront(listed, chosenLaneFront(ctx.telegramId, lane))
+    if (!id)
+      throw new Error(
+        `lane ${lane} has no page of its own yet, or it was closed: call ` +
+          "browser_open first -- in a lane it opens the lane's own window"
+      )
+    return { cdp: session.cdpEndpoint, targetId: id }
   }
   /* The tab the agent chose with browser_status front, while it is open. */
   const targets = await listTargetsForFront(session.cdpEndpoint).catch(() => [])
@@ -973,6 +1042,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       ) {
         try {
           await mustBeAllowedToAct(ctx, cdp, targetId)
+          /*
+           * The press that puts the cursor in the field is a press like any
+           * other: inside a payment frame it needs the same yes (#3507).
+           */
+          await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
           await clickAt(cdp, targetId, a.x, a.y)
           pointed = true
         } catch {
@@ -1073,7 +1147,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (typeof front === 'string' && front) {
         await activatePage(found.cdp, front).catch(() => {})
         /* Activating does not reorder /json/list: remember the choice. */
-        rememberFront(ctx.telegramId, front)
+        rememberLaneFront(ctx.telegramId, laneOf(ctx), front)
       }
       const targets = await listTargets(found.cdp).catch(() => [])
       const pages = targets.filter(t => t.type === 'page')
@@ -1109,7 +1183,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             /* A blocked tab is named by host only (site-rules.ts veilTab). */
             ...veilTab({ title: t.title, url: t.url }, rules),
             /* Where the tools act now (front-page.ts). */
-            ...(t.id === chosenFront(ctx.telegramId)
+            ...(t.id === chosenLaneFront(ctx.telegramId, laneOf(ctx))
               ? { actingHere: true as const }
               : {}),
             ...(shape
@@ -1332,11 +1406,22 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (!session?.cdpEndpoint || session.state !== 'live') {
         throw await noBrowserError(ctx)
       }
-      const page = await openAndChoose(
-        ctx.telegramId,
-        session.cdpEndpoint,
-        String(args.url)
-      )
+      /* Main opens a tab, as ever; any other lane walks its own window. */
+      const lane = laneOf(ctx)
+      const page =
+        lane === MAIN_LANE
+          ? await openAndChoose(
+              ctx.telegramId,
+              session.cdpEndpoint,
+              String(args.url)
+            )
+          : await openInLane(
+              ctx.telegramId,
+              lane,
+              session.cdpEndpoint,
+              String(args.url),
+              endpoint => laneWindowDeps(ctx.telegramId, endpoint)
+            )
       const landed = await mustNotHaveLandedBlocked(
         ctx,
         session.cdpEndpoint,
@@ -1565,14 +1650,26 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
        */
       if (typeof args.id !== 'string' || !args.id.trim())
         throw new Error('id is required: take it from browser_status pages')
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-      if (!session?.cdpEndpoint) throw new Error('no browser is running')
-      await closePage(session.cdpEndpoint, String(args.id))
-      forgetFront(ctx.telegramId, String(args.id))
-      return { closed: String(args.id) }
+      /*
+       * THE SAME DOOR AS browser_status AND browser_focus_tab (podToLookAt).
+       * Measured 2026-10-04 on the owner's Blogger agent: status listed a
+       * LinkedIn compose tab, and two closes on its id answered "no browser
+       * is running" -- this asked the visit row alone, which the reaper had
+       * deleted. The draft stayed open. Closing starts no visit, so a probe
+       * may close too, as it may focus.
+       */
+      const found = await podToLookAt(ctx)
+      if (!found) throw new Error('no browser is running')
+      const id = String(args.id)
+      /* An unknown id closes nothing and must not answer {closed}. */
+      const pages = await listTargets(found.cdp)
+      if (!pages.some(t => t.id === id))
+        throw new Error(
+          'no tab with that id: call browser_status again, it may have closed'
+        )
+      await closePage(found.cdp, id)
+      forgetFront(ctx.telegramId, id)
+      return { closed: id }
     },
   },
   {
@@ -1710,7 +1807,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           'no tab with that id: call browser_status again, it may have closed'
         )
       await activatePage(found.cdp, id)
-      rememberFront(ctx.telegramId, id)
+      rememberLaneFront(ctx.telegramId, laneOf(ctx), id)
       /*
        * The id came from browser_status, which names a blocked tab by host
        * only; answering with page.url would hand the path straight back
@@ -1787,8 +1884,13 @@ async function filmStep(
       typeof a.x === 'number' &&
       typeof a.y === 'number'
     ) {
-      const page = await frontPage(session.cdpEndpoint)
-      const jpeg = await screenshot(session.cdpEndpoint, page.id)
+      /* A lane's click happened in the lane's tab, not in the first page. */
+      const laneTab =
+        laneOf(ctx) === MAIN_LANE
+          ? null
+          : chosenLaneFront(ctx.telegramId, laneOf(ctx))
+      const pageId = laneTab ?? (await frontPage(session.cdpEndpoint)).id
+      const jpeg = await screenshot(session.cdpEndpoint, pageId)
       addFrame(ctx.telegramId, {
         at,
         tool,
@@ -1953,7 +2055,7 @@ function journaled(tool: AgentTool): AgentTool {
             outcome,
             Date.now() - t0
           ),
-          { probe: ctx.probe === true }
+          { probe: ctx.probe === true, lane: ctx.lane }
         )
       try {
         const result = await tool.handler(args, ctx)
@@ -2007,8 +2109,28 @@ function respectsTheWheel(tool: AgentTool): AgentTool {
   }
 }
 
-export const BROWSER_TOOLS: AgentTool[] =
-  TOOLS_UNJOURNALED.map(respectsTheWheel).map(journaled)
+/*
+ * A LANE IS HELD WHILE IT WORKS (lanes.ts): every tool call in it keeps it,
+ * and a lane let go while the cap filled up is refused, not squeezed in. Inside
+ * the wheel, so the person driving stops every lane before any lane is touched.
+ */
+function inItsLane(tool: AgentTool): AgentTool {
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const lane = laneOf(ctx)
+      if (lane !== MAIN_LANE) {
+        const claim = claimLane(ctx.telegramId, lane)
+        if (!claim.ok) throw new Error(claim.error)
+      }
+      return tool.handler(args, ctx)
+    },
+  }
+}
+
+export const BROWSER_TOOLS: AgentTool[] = TOOLS_UNJOURNALED.map(inItsLane)
+  .map(respectsTheWheel)
+  .map(journaled)
 
 /**
  * The message with the two buttons.
