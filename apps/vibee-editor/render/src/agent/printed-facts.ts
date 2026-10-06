@@ -82,14 +82,24 @@ const HOURS = new RegExp(
   'giu'
 )
 /*
+ * The words after a spaced Cyrillic "k" letter that make it the preposition
+ * "to" (a time or a goal: morning, Friday, the deadline), not a thousand.
+ * A CLOSED list on the safe side: a word missing here keeps the letter a
+ * thousand, so the confirmation is refused and the agent asks again. "Any
+ * word" was the unsafe side -- the word after it is often the currency
+ * itself, and "RUB10 <k> roubles" read as 10, so "RUB10" confirmed a
+ * printed 10 000 (#3730 review).
+ */
+const K_PREPOSITION_NEXT =
+  '(?:утру|вечеру|обеду|ужину|завтраку|ночи|полудню|полуночи|часу|понедельнику|вторнику|среде|четвергу|пятнице|субботе|воскресенью|выходным|началу|концу|сроку|дедлайну|открытию|старту|празднику|новому)(?![\\p{L}])' // cyrillic-ok: preposition targets
+/*
  * "$5k", "$5 тыс", "1,5 млн": a multiplier after the amount. Without it "$5k"
  * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). A
- * spaced Cyrillic "k" letter with a word after it is the preposition "to",
- * not a thousand: "$5 <k> morning" is $5 (#3719). Glued ("$5k") it is
- * always the multiplier.
+ * spaced Cyrillic "k" letter before a time ("<k> 19:00") or a word from
+ * K_PREPOSITION_NEXT is the preposition "to": "$5 <k> morning" is $5
+ * (#3719). Glued ("$5k") it is always the multiplier.
  */
-const KILO =
-  '(?:k|(?<=\\d)к|к(?!\\s+\\p{L})|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])' // cyrillic-ok: multiplier words
+const KILO = `(?:k|(?<=\\d)к|к(?!\\s+(?:\\d|${K_PREPOSITION_NEXT}))|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
 /**
  * The spaces that join digit groups, as a regex character-class body: a
  * space, a no-break space, a narrow no-break space. A CLOSED list, never

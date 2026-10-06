@@ -7,6 +7,7 @@ import {
 } from './printed-facts'
 
 const keys = (text: string) => factsIn(text).map(f => f.keys.join('|'))
+const prices = (text: string) => keys(text).filter(k => k.startsWith('p'))
 
 describe('factsIn: dates, times and prices a picture would print', () => {
   it('reads the poster that went out unconfirmed on 2026-10-05', () => {
@@ -561,6 +562,51 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
     expect(keys('вход 10 к ₽')).toEqual(['p10000'])
     expect(keys('цена $10 к')).toEqual(['p10000'])
     expect(keys('10к рублей')).toEqual(['p10000'])
+  })
+
+  it('a spaced "к" before the currency word is still a thousand (#3730 review)', () => {
+    for (const text of [
+      '₽10 к рублей',
+      '₽10 к руб',
+      '$5 к долларов',
+      '$5 к баксов',
+      '$5 к usd',
+      '€3 к евро',
+    ]) {
+      expect(keys(text)[0], text).toMatch(/^p\d+000$/)
+    }
+    expect(unconfirmedFacts('₽10 к рублей', '₽10').length).toBe(1)
+    expect(unconfirmedFacts('$5 к долларов', '$5').length).toBe(1)
+    expect(prices('$5 к 19:00')).toEqual(['p5'])
+    expect(keys('$5 к пятнице')).toEqual(['p5'])
+  })
+
+  it('grid: "к" is a preposition only spaced and before a time word (#3730 review)', () => {
+    const tails = [
+      ['', false],
+      [' рублей', false],
+      [' долларов', false],
+      [' баксов', false],
+      [' утру', true],
+      [' пятнице', true],
+      [' дедлайну', true],
+      [' 19:00', true],
+    ] as const
+    let n = 0
+    for (const sign of ['$', '€', '₽']) {
+      for (const glued of [true, false]) {
+        for (const [tail, prep] of tails) {
+          const sp = glued ? '' : ' '
+          const lead = `${sign}10${sp}к${tail}`
+          const units = !glued && prep
+          expect(prices(lead), lead).toEqual([units ? 'p10' : 'p10000'])
+          const trail = `вход 10${sp}к ${sign}${tail}`
+          expect(prices(trail), trail).toEqual(['p10000'])
+          n += 2
+        }
+      }
+    }
+    expect(n).toBe(96)
   })
 
   it('a preposition "к" with no currency is not a price', () => {
