@@ -3,6 +3,8 @@ import {
   isZaiRelayPath,
   legalizeZaiMessages,
   handleZaiRelay,
+  createZaiRelayGate,
+  zaiRelayKey,
   ZAI_RELAY_UPSTREAM,
 } from './src/zai-relay'
 
@@ -32,11 +34,16 @@ const KEY = 'test-zai-key'
 
 // Upstream resolution reads the environment when deps leave it open; keep the
 // environment clean so tests cannot leak into each other through it.
+const RELAY_ENV = [
+  'ZAI_RELAY_UPSTREAM',
+  'ZAI_RELAY_MAX_INFLIGHT',
+  'ZAI_RELAY_MIN_GAP_MS',
+]
 beforeEach(() => {
-  delete process.env.ZAI_RELAY_UPSTREAM
+  for (const name of RELAY_ENV) delete process.env[name]
 })
 afterEach(() => {
-  delete process.env.ZAI_RELAY_UPSTREAM
+  for (const name of RELAY_ENV) delete process.env[name]
 })
 
 function deps(over: Partial<Parameters<typeof handleZaiRelay>[1]> = {}) {
@@ -55,6 +62,9 @@ function deps(over: Partial<Parameters<typeof handleZaiRelay>[1]> = {}) {
         headers: { 'Content-Type': 'application/json' },
       })
     }) as typeof fetch,
+    // A gate of its own per helper call: the process-wide one would carry
+    // the minimum gap from one test into the next.
+    gate: createZaiRelayGate(),
     ...over,
   }
   return { d, seen }
@@ -297,5 +307,192 @@ describe('handleZaiRelay', () => {
     const out = await handleZaiRelay({ method: 'POST' }, d)
     expect(out.status).toBe(502)
     expect(out.body).toContain('ECONNREFUSED')
+  })
+})
+
+/**
+ * BACKGROUND YIELDS TO THE PERSON'S TURN (measured 2026-10-06, vibee-render
+ * production 05:00-11:32 UTC): 630 relay calls in 6.5 h, in bursts of 15-30,
+ * against ~45 agent turns on the same Z.AI key -- the agent got 429 33 times
+ * and 15 of its 45 turns ended in an error. The relay now spends at most one
+ * call at a time, 3 s apart, and says 429 itself instead of asking Z.AI.
+ */
+describe('handleZaiRelay yields to the agent', () => {
+  const body = JSON.stringify({ messages: [{ role: 'user', content: 'x' }] })
+
+  it('over the in-flight cap: 429 with Retry-After at once, upstream untouched', async () => {
+    let release: () => void = () => {}
+    let calls = 0
+    const gate = createZaiRelayGate()
+    let t = 0
+    const fetchImpl = (async () => {
+      calls++
+      await new Promise<void>(r => (release = r))
+      return new Response('{"ok":1}', { status: 200 })
+    }) as typeof fetch
+    const first = handleZaiRelay(
+      { method: 'POST' },
+      deps({ readBody: async () => body, fetchImpl, gate, now: () => t }).d
+    )
+    // Let the first call reach fetch and hold its slot.
+    await new Promise(r => setTimeout(r, 0))
+    expect(calls).toBe(1)
+    expect(gate.inFlight).toBe(1)
+    t = 60_000 // far past the gap: only the cap can refuse now
+    const second = await handleZaiRelay(
+      { method: 'POST' },
+      deps({ readBody: async () => body, fetchImpl, gate, now: () => t }).d
+    )
+    expect(second.status).toBe(429)
+    expect(Number(second.headers?.['Retry-After'])).toBeGreaterThanOrEqual(1)
+    expect(JSON.parse(second.body).error.code).toBe('relay_busy')
+    expect(calls).toBe(1)
+    release()
+    expect((await first).status).toBe(200)
+    expect(gate.inFlight).toBe(0)
+  })
+
+  it('ZAI_RELAY_MAX_INFLIGHT raises the cap', async () => {
+    process.env.ZAI_RELAY_MAX_INFLIGHT = '2'
+    process.env.ZAI_RELAY_MIN_GAP_MS = '0'
+    const gate = createZaiRelayGate()
+    gate.inFlight = 1
+    const { d, seen } = deps({ readBody: async () => body, gate })
+    expect((await handleZaiRelay({ method: 'POST' }, d)).status).toBe(200)
+    expect(seen).toHaveLength(1)
+    gate.inFlight = 2
+    const full = deps({ readBody: async () => body, gate })
+    expect((await handleZaiRelay({ method: 'POST' }, full.d)).status).toBe(429)
+    expect(full.seen).toHaveLength(0)
+  })
+
+  it('the slot is released after an upstream throw and after a failed body read', async () => {
+    const gate = createZaiRelayGate()
+    let t = 0
+    const thrower = deps({
+      readBody: async () => body,
+      gate,
+      now: () => t,
+      fetchImpl: (async () => {
+        throw new Error('connect ECONNREFUSED')
+      }) as typeof fetch,
+    })
+    expect((await handleZaiRelay({ method: 'POST' }, thrower.d)).status).toBe(
+      502
+    )
+    expect(gate.inFlight).toBe(0)
+
+    t += 10_000
+    const badBody = deps({
+      readBody: async () => body,
+      gate,
+      now: () => t,
+      fetchImpl: (async () =>
+        ({
+          status: 200,
+          text: async () => {
+            throw new Error('socket hang up')
+          },
+        }) as unknown as Response) as typeof fetch,
+    })
+    await expect(handleZaiRelay({ method: 'POST' }, badBody.d)).rejects.toThrow(
+      'socket hang up'
+    )
+    expect(gate.inFlight).toBe(0)
+
+    // And the next call, past the gap, goes through.
+    t += 10_000
+    const next = deps({ readBody: async () => body, gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, next.d)).status).toBe(200)
+    expect(next.seen).toHaveLength(1)
+  })
+
+  it('a call sooner than the minimum gap is 429 without upstream; after it, it goes', async () => {
+    const gate = createZaiRelayGate()
+    let t = 1_000_000
+    const first = deps({ readBody: async () => body, gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, first.d)).status).toBe(200)
+
+    t += 2_999 // default gap is 3000 ms
+    const early = deps({ readBody: async () => body, gate, now: () => t })
+    const out = await handleZaiRelay({ method: 'POST' }, early.d)
+    expect(out.status).toBe(429)
+    expect(out.headers?.['Retry-After']).toBe('1')
+    expect(early.seen).toHaveLength(0)
+
+    t += 1 // exactly 3000 ms after the last start
+    const onTime = deps({ readBody: async () => body, gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, onTime.d)).status).toBe(
+      200
+    )
+    expect(onTime.seen).toHaveLength(1)
+  })
+
+  it('ZAI_RELAY_MIN_GAP_MS sets the gap, and a refusal does not restart it', async () => {
+    process.env.ZAI_RELAY_MIN_GAP_MS = '10000'
+    const gate = createZaiRelayGate()
+    let t = 0
+    const run = async () => {
+      const x = deps({ readBody: async () => body, gate, now: () => t })
+      return {
+        out: await handleZaiRelay({ method: 'POST' }, x.d),
+        seen: x.seen,
+      }
+    }
+    expect((await run()).out.status).toBe(200)
+    t = 5_000
+    const early = await run()
+    expect(early.out.status).toBe(429)
+    expect(early.out.headers?.['Retry-After']).toBe('5')
+    t = 10_000 // measured from the last START, not from the refusal
+    expect((await run()).out.status).toBe(200)
+  })
+
+  it('refusals before the gate (bad bearer, bad body) do not spend a slot or the gap', async () => {
+    const gate = createZaiRelayGate()
+    const t = 0
+    const stranger = deps({ bearerOf: () => 'Bearer nope', gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, stranger.d)).status).toBe(
+      403
+    )
+    const junk = deps({ readBody: async () => '{oops', gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, junk.d)).status).toBe(400)
+    const real = deps({ readBody: async () => body, gate, now: () => t })
+    expect((await handleZaiRelay({ method: 'POST' }, real.d)).status).toBe(200)
+  })
+
+  it('zaiRelayKey: ZAI_RELAY_API_KEY when set, else GLM_API_KEY; blank is unset', () => {
+    expect(zaiRelayKey({ GLM_API_KEY: 'shared' })).toBe('shared')
+    expect(
+      zaiRelayKey({ GLM_API_KEY: 'shared', ZAI_RELAY_API_KEY: 'memory-own' })
+    ).toBe('memory-own')
+    expect(
+      zaiRelayKey({ GLM_API_KEY: 'shared', ZAI_RELAY_API_KEY: '   ' })
+    ).toBe('shared')
+    expect(zaiRelayKey({})).toBeUndefined()
+    expect(zaiRelayKey({ GLM_API_KEY: '' })).toBeUndefined()
+  })
+
+  it('the separate key is both forwarded and expected; the shared key no longer opens the door', async () => {
+    const env = { GLM_API_KEY: KEY, ZAI_RELAY_API_KEY: 'memory-own-key' }
+    const auth = (seen: Array<{ init: RequestInit }>) =>
+      (seen[0].init.headers as Record<string, string>).Authorization
+
+    const zep = deps({
+      readBody: async () => body,
+      apiKey: () => zaiRelayKey(env),
+      bearerOf: () => 'Bearer memory-own-key',
+    })
+    expect((await handleZaiRelay({ method: 'POST' }, zep.d)).status).toBe(200)
+    expect(auth(zep.seen)).toBe('Bearer memory-own-key')
+
+    // A caller still on the shared key cannot spend the separate one.
+    const stale = deps({
+      readBody: async () => body,
+      apiKey: () => zaiRelayKey(env),
+      bearerOf: () => `Bearer ${KEY}`,
+    })
+    expect((await handleZaiRelay({ method: 'POST' }, stale.d)).status).toBe(403)
+    expect(stale.seen).toHaveLength(0)
   })
 })
