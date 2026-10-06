@@ -927,6 +927,7 @@ describe('the tools judge the frame, not only the tab', () => {
   it('with a fresh yes ask_input puts the cursor there', async () => {
     WORLD.frames = [STRIPE]
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
     const r = (await (
       await tool('browser_ask_input')
     ).handler(
@@ -940,9 +941,14 @@ describe('the tools judge the frame, not only the tab', () => {
   it('AN UNREADABLE FRAME LIST IS NOT "NO FRAMES": the press is refused, even after a yes', async () => {
     WORLD.listDiesAfter = 0
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
+    /* Since a yes is bound to a host (2026-10-03), the tab's own address,
+     * unreadable here, is refused first: no yes opens an unknown place. */
     await expect(
       (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
-    ).rejects.toThrow(/frames could not be listed/)
+    ).rejects.toThrow(
+      /frames could not be listed|needs the person's permission/
+    )
     expect(cdpCalls).not.toContain('clickAt')
   })
 
