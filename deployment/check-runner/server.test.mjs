@@ -659,6 +659,10 @@ describe('the queue drops a client that left', () => {
     const ranB = join(marks, 'ran-b')
     const ranC = join(marks, 'ran-c')
     const pids = []
+    /* What the server says in its own log: one line per dropped job. */
+    const logged = []
+    const log = console.log
+    console.log = (...a) => logged.push(a.join(' '))
     try {
       /* A blocks: it and a grandchild on its pipe, until the test is over. */
       const a = open(
@@ -712,7 +716,25 @@ setTimeout(() => {}, 30000)
       /* C's dir is removed after its answer; then the queue is empty. */
       await until('the queue to empty', () => queueState().running === null)
       assert.deepEqual(queueState(), { running: null, queued: 0 })
+      /*
+       * B was skipped, not started: an aborted signal alone would also run
+       * nothing, so only the log tells a skip from a start-and-stop.
+       */
+      assert.deepEqual(
+        logged.filter(l => l.startsWith('[check-runner]')),
+        [
+          '[check-runner] stopped guard: its client left',
+          '[check-runner] skipped guard: its client left in the queue',
+        ]
+      )
+      /* No job dir is left behind, the skipped one's included. */
+      const { readdirSync } = await import('node:fs')
+      assert.deepEqual(
+        readdirSync(process.env.CHECK_WORK).filter(n => n !== 'cache'),
+        []
+      )
     } finally {
+      console.log = log
       for (const pid of pids)
         try {
           process.kill(pid, 'SIGKILL')
