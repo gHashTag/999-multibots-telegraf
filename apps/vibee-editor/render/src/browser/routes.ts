@@ -93,6 +93,7 @@ import {
   decideAsPerson,
   allowedActHost,
 } from './approvals'
+import { handleStrip, type StripIo } from './tab-strip'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -111,6 +112,7 @@ export const BROWSER_PATHS = [
   '/api/browser/scenarios',
   '/api/browser/reach',
   '/api/browser/tabs',
+  '/api/browser/strip',
   '/api/browser/watch',
   '/api/browser/heal',
   '/api/browser/logins',
@@ -172,6 +174,8 @@ export interface BrowserDeps {
   ) => Promise<NetworkLogin[] | null>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
+  /** Injected for tests; defaults to the pod over CDP (tab-strip.ts). */
+  stripIo?: StripIo
   /**
    * Is the browser still a browser (health.ts). Injected so the one route that
    * asks before restarting anything can be tested without a pod, and so "it
@@ -890,6 +894,39 @@ export async function handleBrowser(
       return { status: 405, body: { ok: false, error: 'GET or POST' } }
     }
     return await personTypes(pool, deps, who, req, method === 'POST')
+  }
+
+  /*
+   * THE TAB STRIP (tab-strip.ts, spec browser-tab-strip.t27). GET: every page
+   * in the person's browser as id, clipped title, host and active. POST
+   * {action, id?}: switch, open or close. The person's door only; the
+   * diagnostic GET /api/browser/tabs above is a different door and stays.
+   */
+  if (path === '/api/browser/strip') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'вкладками управляет только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    if (method === 'GET')
+      return await handleStrip(pool, who, null, deps.stripIo)
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'tabs are not wired' } }
+    }
+    let raw: string
+    try {
+      raw = await deps.readBody(req, 1024)
+    } catch {
+      return { status: 400, body: { ok: false, error: 'bad body' } }
+    }
+    return await handleStrip(pool, who, raw, deps.stripIo)
   }
 
   /*
