@@ -41,7 +41,13 @@ import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic
 import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
 import { asksForAPicture, noteOwed } from './crm-owed'
-import { allProviders, diagnose } from './provider'
+import {
+  allProviders,
+  diagnose,
+  isKeyWideLimit,
+  sharedKeyReason,
+  type ProviderId,
+} from './provider'
 import {
   claimProbe,
   orderByBreaker,
@@ -2015,8 +2021,23 @@ export async function* streamModel(
   // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
   // и не узнает, что дело в нулевом балансе или протухшем ключе.
   const причины: string[] = []
+  /*
+   * A key-wide limit (z.ai 1302) on one provider is the same limit for every
+   * provider on that key (provider.ts, keyGroup). 2026-10-06: zai and
+   * zai-lite both read GLM_API_KEY, and the production key answered 1302 on
+   * both models -- asking zai-lite after zai's 1302 spent a call to hear the
+   * same refusal. Per turn only: the breaker keeps its own counts.
+   */
+  const keyLimited = new Map<string, ProviderId>()
   providerLoop: for (const p of chain) {
     if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
+    const limitedBy = p.keyGroup ? keyLimited.get(p.keyGroup) : undefined
+    if (limitedBy) {
+      const why = sharedKeyReason(p.id, limitedBy)
+      skipped(why)
+      причины.push(why) // cyrillic-ok: pre-existing identifier
+      continue
+    }
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
@@ -2099,6 +2120,9 @@ export async function* streamModel(
           if (!r.ok || !r.body) {
             const t = await r.text().catch(() => '')
             const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
+            if (p.keyGroup && isKeyWideLimit(r.status, t)) {
+              keyLimited.set(p.keyGroup, p.id)
+            }
             skipped(почему) // cyrillic-ok: pre-existing identifier
             причины.push(почему) // cyrillic-ok: pre-existing identifier
             fail('error', почему) // cyrillic-ok: pre-existing identifier
