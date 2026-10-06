@@ -55,18 +55,37 @@ const SEND_TOOLS = [
 ]
 const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
 
+/*
+ * The gap between a claim verb and its object (#3734). The patterns wanted
+ * the object right after the verb, so an indirect object or an adverb in
+ * between -- "Сделала Анне афишу", "Отправила вам только что голосовое", // cyrillic-ok: quoted input
+ * "I made you the poster" -- left the claim silent, the unsafe side. A count
+ * of words would be one more fixed window, so the regex lets any run of
+ * words through and gapHolds() bounds it: no clause break, only gap-shaped
+ * words (round 2: an addressee, a name, an adverb, a number), no preposition
+ * governing the object, and, for a Russian verb, no other subject in it.
+ */
+const GAP = String.raw`(?<gap>(?:[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*\s+)*?)`
+const claim = (source: string) => new RegExp(source, 'diu')
+
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   {
-    re: /(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+(страниц|сайт|вкладк|linkedin|x\.com|google)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+${GAP}(страниц|сайт|вкладк|linkedin|x\.com|google)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_open'],
   },
   {
-    re: /(^|[\s.,:;—-])(делаю|сделал)\s+(снимок|скриншот)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(делаю|сделал)\s+${GAP}(снимок|скриншот)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(читаю|прочитал)\s+(текст|страниц)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(читаю|прочитал)\s+${GAP}(текст|страниц)`
+    ), // cyrillic-ok: matched text
     tools: ['browser_read'],
   },
   {
@@ -78,7 +97,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     tools: ['browser_evaluate', 'browser_click'],
   },
   {
-    re: /(^|[\s.,:;—-])(проверяю|смотрю) (все )?вкладки/i, // cyrillic-ok: matched text
+    re: claim(String.raw`(^|[\s.,:;—-])(проверяю|смотрю) ${GAP}(все )?вкладки`), // cyrillic-ok: matched text
     tools: ['browser_status'],
   },
   {
@@ -88,11 +107,13 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   { re: /\b(I'm |I am |I )(opening|opened)\b/i, tools: ['browser_open'] },
   { re: /\b(I'm |I am |I )(clicking|clicked)\b/i, tools: ['browser_click'] },
   {
-    re: /\b(I'm |I am |I )(taking|took) a screenshot\b/i,
+    re: claim(String.raw`\b(I'm |I am |I )(taking|took) ${GAP}a screenshot\b`),
     tools: ['browser_screenshot'],
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(афиш|картинк|изображени|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|нарисовал|нарисовала|создал|создала|сгенерировал|сгенерировала|подготовил|подготовила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(афиш|картинк|изображени|постер|обложк|баннер)`
+    ), // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -102,17 +123,23 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?(видео|ролик|рилс)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(сделал|сделала|смонтировал|смонтировала|собрал|собрала)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(видео|ролик|рилс)`
+    ), // cyrillic-ok: matched text
     tools: VIDEO_TOOLS,
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?(фото|картинк|афиш|постер|видео|ролик|файл)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?${GAP}(фото|картинк|афиш|постер|видео|ролик|файл)`
+    ), // cyrillic-ok: matched text
     tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
   {
-    re: /\bI(?:'ve| have)? (made|created|generated|drew) (the |a |an |your )?(poster|image|picture|banner|cover|video)\b/i,
+    re: claim(
+      String.raw`\bI(?:'ve| have)? (made|created|generated|drew) ${GAP}(the |a |an |your )?(poster|image|picture|banner|cover|video)\b`
+    ),
     tools: [...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
@@ -122,12 +149,16 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(голосов|аудио|войс)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)`
+    ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
-    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?(текст|пост|сценари|ответ|сообщени|письм)/i, // cyrillic-ok: matched text
+    re: claim(
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(текст|пост|сценари|ответ|сообщени|письм)`
+    ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
@@ -137,7 +168,9 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'voice',
   },
   {
-    re: /\bI(?:'ve| have)? (recorded|sent)( you)? (a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b/i,
+    re: claim(
+      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b`
+    ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
@@ -177,6 +210,38 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
+ * Whitespace has ONE definition, applied ONCE at the entry (#3728 round 6).
+ * Rounds 3-5 folded exotic whitespace site by site, and each round found a
+ * site still reading the raw text: REFERS_BACK and the plan headers spell a
+ * plain space, so "в\u00a0прошлом сообщении" gained a needless note. Now
+ * every exported function that takes answer text normalises it first, and
+ * nothing inside this module ever sees anything but "\n" and " ":
+ * - every line break -- "\r\n", "\r", "\n", "\v", "\f", U+0085 (NEL, which
+ *   "\s" does not cover), U+2028, U+2029 -- becomes "\n";
+ * - every other whitespace character ("\s" minus the breaks: a tab, the
+ *   U+00A0 Russian typography puts after a short word, a thin or an
+ *   ideographic space) becomes " ".
+ * A line break still ends a clause (round 3); an inline space never does.
+ */
+const LINE_BREAKS = '\\n\\r\\v\\f\\u0085\\u2028\\u2029'
+const LINE_BREAK = new RegExp(`\\r\\n|[${LINE_BREAKS}]`, 'g')
+const INLINE_SPACE = new RegExp(`[^\\S${LINE_BREAKS}]`, 'g')
+
+/** The one form this module reads; every exported text entry calls it. */
+function normalised(text: string): string {
+  return text.replace(LINE_BREAK, '\n').replace(INLINE_SPACE, ' ')
+}
+
+/*
+ * The form every claim pattern reads (#3728 round 4). Patterns spell a space
+ * literally ("на экране вижу", "I clicked"), and a model wraps lines
+ * anywhere, so the line breaks of the normalised text become spaces too. It
+ * keeps the length, so a match index in it is the same index in the
+ * normalised text, where the clause rules read the breaks.
+ */
+const flatOf = (text: string): string => text.replace(/\n/g, ' ')
+
+/*
  * "I sent you the poster above" points at an earlier turn, whose call is
  * not among this turn's events. A false note there is worse than none.
  * It excuses the media and voice claims of ITS OWN sentence only (#3677): one
@@ -194,7 +259,13 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(text))
+  const norm = normalised(text)
+  const flat = flatOf(norm)
+  return CLAIMS.some(
+    c =>
+      kindOf(c) === 'browser' &&
+      [...flat.matchAll(everyMatch(c))].some(m => gapHolds(norm, m, false))
+  )
 }
 
 /** How many browser tools the turn really called, from its events. Pure. */
@@ -207,8 +278,10 @@ export function unbackedClaims(
   text: string,
   events: Array<Record<string, unknown>>
 ): string[] {
-  return unbacked(text, events).map(c => c.tools[0])
+  return toolsOf(unbacked(normalised(text), events))
 }
+
+const toolsOf = (claims: typeof CLAIMS) => claims.map(c => c.tools[0])
 
 /*
  * Where a sentence ends (#3677 review). A dot before a space is not enough:
@@ -269,11 +342,14 @@ function isHeader(line: string): boolean {
  * paragraph" rule only ever failed for that case, since a plain line after
  * a plain line joins it.
  */
-function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
-  const clean = raw
+type Sentence = { text: string; flat: string; back: boolean }
+
+// reads normalised text only: see normalised()
+function sentencesOf(norm: string): Sentence[] {
+  const clean = norm
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
-  const out: Array<{ text: string; back: boolean }> = []
+  const out: Sentence[] = []
   const items: Array<{ text: string; listed: boolean }> = []
   for (const block of clean.split(/\n\s*\n/)) {
     const first = items.length
@@ -282,7 +358,7 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
       const last = items.length > first ? items[items.length - 1] : undefined
       // a plain line continues plain text, or an item it is indented under
       const continues = last && !listed && (!last.listed || /^\s/.test(line))
-      if (continues) last.text += ' ' + line
+      if (continues) last.text += '\n' + line.trimStart()
       else items.push({ text: line, listed })
     }
   }
@@ -303,6 +379,7 @@ function sentencesOf(raw: string): Array<{ text: string; back: boolean }> {
     body.split(SENTENCE_END).forEach((text, k) =>
       out.push({
         text,
+        flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
       })
     )
@@ -334,6 +411,28 @@ const OTHER_SUBJECT = new Set([
   'он',
   'она',
   'они', // cyrillic-ok: matched words
+  // roles a CRM line names as the subject (#3723: no capital makes them a name)
+  'менеджер',
+  'администратор',
+  'админ',
+  'мастер',
+  'курьер',
+  'партнёр',
+  'партнер',
+  'коллега',
+  'подруга',
+  'друг',
+  'муж',
+  'жена',
+  'мама',
+  'папа',
+  'владелец',
+  'владелица',
+  'дизайнер',
+  'фотограф',
+  'client',
+  'customer',
+  'manager',
   'кто-то',
   'кто-нибудь', // cyrillic-ok: matched words
 ])
@@ -350,7 +449,7 @@ const AGENT_SELF = new Set([
   'agent',
   'bot',
   'assistant',
-  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4) // cyrillic-ok: quoted input
+  // the addressee: "Тебе отправила видео" is the agent's (#3693 round 4)
   'тебе',
   'тебя',
   'вам',
@@ -389,6 +488,22 @@ const PREPOSITION = new Set([
   'за',
   'о',
   'об', // cyrillic-ok: matched words
+  // #3734: a preposition right before an object makes it oblique ("ссылку на // cyrillic-ok: quoted input
+  // фото"); in ownVerb these only read one more capital as the agent's // cyrillic-ok: quoted input
+  'без',
+  'кроме',
+  'вместо',
+  'после',
+  'до',
+  'перед',
+  'над',
+  'между', // cyrillic-ok: matched words
+  'about',
+  'of',
+  'after',
+  'before',
+  'without',
+  'except',
   'for',
   'in',
   'on',
@@ -401,81 +516,110 @@ const PREPOSITION = new Set([
 ])
 /*
  * A capital before the verb is ambiguous: "Анна записала" names someone,
- * "Короче сделала" opens the agent's sentence. Only for a capitalised word
- * is a closed list of sentence adverbs read as the agent's; any other
- * capitalised word is a name. A lowercase word is never a name.
+ * "Утром сделала" opens the agent's sentence. Rounds 2-6 of #3693 and #3723
+ * closed the list on the agent's side -- sentence adverbs read as the
+ * agent's, any other capital as a name -- and every round found one more
+ * opener the list missed, each a silent miss. So the list is closed on the
+ * OTHER side (#3723): a capital is someone else's only when it has a
+ * person's shape (personShaped). A name this list lacks gets a needless note
+ * -- the safe side of a miss.
  */
-const LEAD_ADVERB = new Set([
-  'короче',
-  'ну',
-  'теперь',
-  'наконец',
-  'наконец-то', // cyrillic-ok: matched words
-  'быстро',
-  'снова',
-  'заново',
-  'опять',
-  'сразу',
-  'уже', // cyrillic-ok: matched words
-  'вот',
-  'итак',
-  'готово',
-  'отлично',
-  'хорошо',
-  'супер', // cyrillic-ok: matched words
-  'сейчас',
-  'сегодня',
-  'вчера',
-  'только',
-  'тоже',
-  'также',
-  'ещё',
-  'еще', // cyrillic-ok: matched words
-  'всё',
-  'так',
-  'да',
-  'ок',
-  'окей',
-  'ok',
-  'конечно',
-  'кстати',
-  'просто', // cyrillic-ok: matched words
-  'сначала',
-  'потом',
-  'затем',
-  'тут',
-  'здесь',
-  'ладно',
-  'сама',
-  'сам',
-  'специально', // cyrillic-ok: matched words
-  // interjections and imperatives that open the agent's line (#3693 round 3)
-  'ага',
-  'ой',
-  'ура',
-  'вуаля',
-  'пожалуйста', // cyrillic-ok: matched words
-  'держи',
-  'лови',
-  'смотри',
-  'подожди',
-  'минутку', // cyrillic-ok: matched words
-  'почти',
-  'еле',
-  'мигом', // cyrillic-ok: matched words
-  // interjections an LLM writes without a comma (#3693 round 4)
-  'блин',
-  'эх',
-  'хоп',
-  'бац',
-  'ладушки', // cyrillic-ok: matched words
+export const FIRST_NAMES: ReadonlySet<string> = new Set(
+  [
+    // Russian, full and everyday forms, nominative (a subject is nominative),
+    // written with ye for yo (nameKey)
+    'александр александра алексей алена алина алиса алла анастасия анатолий',
+    'андрей анжела анна антон арина арсений артем борис вадим валентин',
+    'валентина валерий валерия варвара василий вера вероника виктор виктория',
+    'виталий владимир владислав галина георгий глеб григорий даниил дарья денис',
+    'диана дмитрий евгений евгения егор екатерина елена елизавета жанна захар',
+    'зоя иван игорь илья инна ирина карина кирилл кристина ксения лариса лев',
+    'леонид лидия лилия любовь людмила максим маргарита марина мария матвей',
+    'милана михаил надежда наталья наталия никита николай нина оксана олег',
+    'ольга павел петр полина роман руслан светлана семен сергей софия софья',
+    'станислав степан тамара татьяна тимофей тимур ульяна федор эдуард',
+    'элина юлия юрий яна ярослав ярослава',
+    'саша маша даша паша миша гриша наташа катя лена таня оля аня ира юля',
+    'света настя ксюша женя дима сережа леша вова костя толя',
+    'коля петя вася витя ваня рома влад стас макс лиза соня поля вика',
+    'кристи лера алеша марго',
+    // English and Latin-script names a Russian line carries as written
+    'anna maria olga elena ivan alex alexander alexey andrew anton boris daniel',
+    'david dmitry elizabeth emily emma george helen jack james jane john julia',
+    'kate kevin laura linda mark mary michael mike nick nina oliver paul peter',
+    'robert sam sarah sergey sophia tom victor william',
+  ]
+    .join(' ')
+    .split(' ')
+)
+
+// Pyotr is spelled with and without the yo letter: look names up with yo
+// read as ye, so the list carries one form (#3728 review).
+function nameKey(word: string): string {
+  return word.toLowerCase().replace(/ё/g, 'е') // cyrillic-ok: matched letters
+}
+
+/*
+ * A surname has a surname's shape (#3728 round 3): any capital after a first
+ * name read as one, so "Анна Готово сделала" -- the agent greeting Anna, then
+ * its own sentence -- stayed quiet. Russian surnames and patronymics end in a
+ * few suffixes, on a stem of three letters or more ("Снова", "Только" are
+ * not surnames); a surname without one gets a needless note, the safe side.
+ */ // cyrillic-ok: quoted input
+const SURNAME =
+  /^\p{Lu}\p{L}{2,}(?:ов|ова|ев|ева|ёв|ёва|ин|ина|ын|ына|ский|ская|цкий|цкая|енко|ук|юк|ович|евич|ич|овна|евна|ична|инична)$/u // cyrillic-ok: matched suffixes
+const LATIN = /^\p{Script=Latin}+$/u
+
+/*
+ * Someone else's subject: a known first name, a surname-shaped word after a
+ * first name ("Елена Петровна", "Ксюша Петрова"), any Latin capital after a
+ * Latin first name ("Anna Smith"), or a capital right after a role word
+ * ("Клиентка Мария"). Anything else capitalised -- "Утром", "Значит",
+ * "Готово", "Канва" -- reads as the agent's.
+ */ // cyrillic-ok: quoted input
+function personShaped(words: string[], at: number): boolean {
+  const word = words[at]
+  if (FIRST_NAMES.has(nameKey(word))) return true
+  const prev = words[at - 1]
+  if (!prev) return false
+  if (OTHER_SUBJECT.has(prev.toLowerCase())) return true
+  if (!FIRST_NAMES.has(nameKey(prev))) return false
+  if (LATIN.test(prev) && LATIN.test(word)) return true
+  return SURNAME.test(word)
+}
+/*
+ * A clause starts after a comma, a colon, a dash, a bracket, "and", a line
+ * break, an emoji or any other symbol (#3728 round 3): "Анна 🙌 Готово cyrillic-ok: quoted input
+ * сделала" and "Анна\nГотово сделала" greet Anna, then start the agent's own cyrillic-ok: quoted input
+ * clause. "@" stays inside, it marks a handle; "-" inside a word too.
+ */ // cyrillic-ok: quoted input
+const CLAUSE_BREAK = /[^\p{L}\p{N}\p{M} @'’-]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
+// a name right after a greeting is the addressee, not the subject
+const GREETING = new Set([
+  'привет',
+  'здравствуй',
+  'здравствуйте',
+  'здрасте',
+  'добрый',
+  'доброе',
+  'доброй',
+  'дорогая',
+  'дорогой',
+  'уважаемая',
+  'уважаемый', // cyrillic-ok: matched words
+  'hi',
+  'hello',
+  'hey',
+  'dear',
 ])
-// a clause starts after a comma, a colon, a dash, a bracket or "and"
-const CLAUSE_BREAK = /[,;:—–()]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
 
 function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   const verbAt = (m.index ?? 0) + (m[1] ?? '').length
-  const clause = sentence.slice(0, verbAt).split(CLAUSE_BREAK).pop() ?? ''
+  // a capitalised verb inside a sentence opens its own clause: "Анна // cyrillic-ok: quoted input
+  // Сделала афишу" greets, then claims (#3728 round 3) // cyrillic-ok: quoted input
+  if (/\p{Lu}/u.test(sentence[verbAt] ?? '')) return true
+  const head = sentence.slice(0, verbAt)
+  const clause = head.split(CLAUSE_BREAK).pop() ?? ''
   const words = clause.match(/\p{L}+(?:-\p{L}+)*/gu) ?? []
   const before = words.at(-1)
   if (!before) return true
@@ -490,15 +634,11 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
   // a name three words after "for" is still oblique (#3693 round 5).
   const lead = words.slice(0, at)
   if (lead.some(w => PREPOSITION.has(w.toLowerCase()))) return true
-  /*
-   * Every claim verb here is masculine or feminine past, so a neuter "-o"
-   * word cannot be its subject: "Оперативно", "Красиво", "Заодно" are
-   * adverbs, a whole family closed with no list (#3693 round 3). The price:
-   * a foreign masculine name in "-o" ("Бруно прислал") reads as the agent's
-   * and gets a needless note -- the safe side of a miss.
-   */
-  if (/о$/u.test(low)) return true // cyrillic-ok: matched letter
-  return LEAD_ADVERB.has(low)
+  if (!personShaped(words, at)) return true
+  // a greeting earlier in the sentence makes the name the addressee:
+  // "Привет, Анна сделала афишу" is the agent's (#3728 round 3) // cyrillic-ok: quoted input
+  const said = head.match(/\p{L}+/gu) ?? []
+  return said.some(w => GREETING.has(w.toLowerCase()))
 }
 
 /*
@@ -508,7 +648,7 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
  * verb-led claim asks only when the "?" closes the matched word itself
  * ("Записал голосовое?"), so "Сделала афишу нравится?" claims too.
  */
-const CLAUSE_END = /\n|[^\p{L}\p{N} \t'’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
+const CLAUSE_END = /\n|[^\p{L}\p{N} '’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
 
 function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
   const rest = sentence.slice((m.index ?? 0) + m[0].length)
@@ -517,27 +657,206 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
   return !verbLed || /^\p{L}*$/u.test(rest.slice(0, end))
 }
 
+/*
+ * Does the gap between the verb and its object stay inside the verb's own
+ * clause (#3734)? The regex lets any run of words through; this bounds it.
+ * - No clause break (CLAUSE_BREAK: a symbol, " - ", "и"). A line break before // cyrillic-ok: quoted input
+ *   a small letter or a digit is a wrapped line (round 4), not a break; one
+ *   before a capital starts a new clause.
+ * - Every word in it is gap-shaped (gapShaped, round 2): an addressee
+ *   pronoun, a person's name in an oblique case, a time or manner adverb, a
+ *   number, an article or an adjective. Round 1 let any word through, and the
+ *   gap swallowed the verb's REAL object: "Сделала сценарий видео" made a // cyrillic-ok: quoted input
+ *   script, "Отправила вам ссылку на оплату видео" a link, "I made sure the // cyrillic-ok: quoted input
+ *   poster is right" made nothing at all. Telling a noun from the rest needs
+ *   a dictionary the module does not have, so the list is closed on the gap's
+ *   side: a word it lacks ends the match, and the claim stays silent -- what
+ *   main did for every gapped claim, so never worse than main.
+ * - No preposition right before the object: "Сделала текст для афиши" made // cyrillic-ok: quoted input
+ *   a text, not a poster. "для" is gap-shaped only before a person: "для // cyrillic-ok: quoted input
+ *   Анны", "для вас". // cyrillic-ok: quoted input
+ * - For a Russian verb, no other subject inside the gap: "Прислала Анна // cyrillic-ok: quoted input
+ *   фото" is Anna's verb, inverted. The same person rule as before the verb. // cyrillic-ok: quoted input
+ */
+const GAP_WORD = new Set([
+  // the addressee, in the dative
+  'мне',
+  'тебе',
+  'вам',
+  'нам',
+  'ему',
+  'ей',
+  'им',
+  'себе',
+  'лично', // cyrillic-ok: matched words
+  // time and manner
+  'только',
+  'что',
+  'уже',
+  'сегодня',
+  'утром',
+  'днём',
+  'днем',
+  'вечером',
+  'ночью',
+  'вчера',
+  'сейчас',
+  'сразу',
+  'недавно',
+  'ещё',
+  'еще',
+  'тоже',
+  'также',
+  'наконец',
+  'снова',
+  'опять',
+  'заново',
+  'повторно',
+  'специально',
+  'быстро',
+  'срочно',
+  'вот',
+  'тут',
+  'здесь', // cyrillic-ok: matched words
+  // how many
+  'все',
+  'всё',
+  'один',
+  'одну',
+  'одно',
+  'два',
+  'две',
+  'три',
+  'четыре',
+  'пять',
+  'пару',
+  'несколько', // cyrillic-ok: matched words
+  'you',
+  'her',
+  'him',
+  'them',
+  'me',
+  'us',
+  'just',
+  'now',
+  'already',
+  'today',
+  'tonight',
+  'this',
+  'morning',
+  'evening',
+  'yesterday',
+  'finally',
+  'also',
+  'again',
+  'quickly',
+  'here',
+  'the',
+  'a',
+  'an',
+  'your',
+  'new',
+  'another',
+  'fresh',
+  'final',
+  'two',
+  'three',
+])
+// a pronoun in the genitive, gap-shaped right after the preposition "for"
+const FOR_WHOM = new Set([
+  'тебя',
+  'вас',
+  'меня',
+  'нас',
+  'него',
+  'неё',
+  'нее',
+  'них',
+  'себя', // cyrillic-ok: matched words
+])
+// a Russian adjective in the accusative: "новую", "готовые", "другое" // cyrillic-ok: quoted input
+const ADJECTIVE = /^\p{Ll}{2,}(?:ую|юю|ое|ее|ый|ой|ые)$/u // cyrillic-ok: matched endings
+// a name in an oblique case: "Анне", "Ивану", "Марии", "Игорю", "Анны" // cyrillic-ok: quoted input
+const CASE_ENDING = ['ой', 'ей', 'е', 'у', 'ю', 'и', 'ы', 'а', 'я', ''] // cyrillic-ok: matched endings
+const NOMINATIVE_END = ['', 'а', 'я', 'й', 'ь'] // cyrillic-ok: matched endings
+const SURNAME_OBLIQUE =
+  /^\p{Lu}\p{L}{2,}(?:ову|еву|ёву|ину|ыну|овой|евой|иной|ыной|скому|ской|цкому|цкой|енко|уку|юку|ичу|овне|евне|ичне)$/u // cyrillic-ok: matched suffixes
+
+function nameInGap(words: string[], at: number): boolean {
+  const word = words[at]
+  if (word[0] === word[0].toLowerCase()) return false
+  const key = nameKey(word)
+  for (const end of CASE_ENDING) {
+    if (!key.endsWith(end)) continue
+    const stem = key.slice(0, key.length - end.length)
+    if (NOMINATIVE_END.some(n => FIRST_NAMES.has(stem + n))) return true
+  }
+  const prev = words[at - 1]
+  if (!prev || !nameInGap(words, at - 1)) return false
+  if (LATIN.test(prev) && LATIN.test(word)) return true
+  return SURNAME_OBLIQUE.test(word)
+}
+
+function gapShaped(words: string[], at: number): boolean {
+  const word = words[at]
+  const low = word.toLowerCase()
+  if (GAP_WORD.has(low) || /^\p{N}+$/u.test(word)) return true
+  if (ADJECTIVE.test(word) || nameInGap(words, at)) return true
+  if (FOR_WHOM.has(low)) return words[at - 1]?.toLowerCase() === 'для' // cyrillic-ok: matched word
+  if (low !== 'для') return false // cyrillic-ok: matched word
+  const next = words[at + 1]
+  return (
+    !!next && (FOR_WHOM.has(next.toLowerCase()) || nameInGap(words, at + 1))
+  )
+}
+const ONE_BREAK = new RegExp(CLAUSE_BREAK.source, 'u')
+
+function gapHolds(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
+  const at = m.indices?.groups?.gap
+  if (!at || at[0] === at[1]) return true
+  // the gap and the first letter of the object, as the clause rules read it
+  const gap = sentence
+    .slice(at[0], at[1] + 1)
+    .replace(/\n(?=[\p{Ll}\p{N}])/gu, ' ')
+    .slice(0, -1)
+  if (ONE_BREAK.test(gap)) return false
+  const words = gap.match(/[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu) ?? []
+  if (!words.every((_, i) => gapShaped(words, i))) return false
+  if (PREPOSITION.has(words.at(-1)!.toLowerCase())) return false
+  if (!verbLed) return true
+  return !words.some(
+    (w, i) =>
+      OTHER_SUBJECT.has(w.toLowerCase()) ||
+      (w[0] !== w[0].toLowerCase() && personShaped(words, i))
+  )
+}
+
+const everyMatch = (c: { re: RegExp }) =>
+  new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
+
 /* A verb-led Russian claim: its group 1 is the boundary before the verb. */
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
 // every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
-function claimedIn(
-  c: (typeof CLAIMS)[number],
-  s: { text: string; back: boolean }
-) {
-  if (kindOf(c) === 'browser') return c.re.test(s.text)
-  if (s.back) return false
+// every family matches s.flat; the breaks are read from s.text, where "\n"
+// is the only character that is not a plain space (#3728 rounds 4-6)
+function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   const verbLed = VERB_LED(c)
-  const all = new RegExp(c.re.source, c.re.flags.replace('g', '') + 'g')
-  for (const m of s.text.matchAll(all)) {
+  const matches = [...s.flat.matchAll(everyMatch(c))].filter(m =>
+    gapHolds(s.text, m, verbLed)
+  )
+  if (kindOf(c) === 'browser') return matches.length > 0
+  if (s.back) return false
+  for (const m of matches) {
     if (asked(s.text, m, verbLed)) continue
     if (!verbLed || ownVerb(s.text, m)) return true
   }
   return false
 }
 
-function unbacked(raw: string, events: Array<Record<string, unknown>>) {
-  const sentences = sentencesOf(raw)
+// reads normalised text only: see normalised()
+function unbacked(norm: string, events: Array<Record<string, unknown>>) {
+  const sentences = sentencesOf(norm)
   const called = new Set(calledTools(events))
   return CLAIMS.filter(c => sentences.some(s => claimedIn(c, s))).filter(
     c => !c.tools.some(t => called.has(t))
@@ -549,7 +868,11 @@ export function unbackedKinds(
   text: string,
   events: Array<Record<string, unknown>>
 ): ClaimKind[] {
-  const kinds = new Set(unbacked(text, events).map(kindOf))
+  return kindsOf(unbacked(normalised(text), events))
+}
+
+function kindsOf(claims: typeof CLAIMS): ClaimKind[] {
+  const kinds = new Set(claims.map(kindOf))
   return (['browser', 'media', 'voice'] as ClaimKind[]).filter(k =>
     kinds.has(k)
   )
@@ -572,9 +895,10 @@ export function honestyLogFields(
   browserCalls: number
   toolCalls: number
 } {
+  const claims = unbacked(normalised(text), events)
   return {
-    claim: unbackedKinds(text, events).join('+'),
-    unbacked: unbackedClaims(text, events),
+    claim: kindsOf(claims).join('+'),
+    unbacked: toolsOf(claims),
     browserCalls: browserCalls(events),
     toolCalls: calledTools(events).length,
   }
@@ -606,7 +930,7 @@ export function honestyNote(
   text: string,
   events: Array<Record<string, unknown>>
 ): string {
-  return unbackedKinds(text, events)
+  return kindsOf(unbacked(normalised(text), events))
     .map(k => NOTES[k])
     .join('')
 }
