@@ -204,7 +204,8 @@ CHECKS THAT EACH COST A CYCLE
         merged PR's head (or inside one), already in origin/main, or every
         commit is there as the same patch (git cherry). Detached trees count.
         A named branch with 0 commits ahead and no merged PR of that name is
-        NEW, not finished, until its branch is 6 h old (a bee's fresh tree).
+        NEW, not finished, until both its branch and its worktree are 6 h old
+        (a bee's fresh tree, or an old branch checked out into one today).
         --apply removes finished trees that are clean, unlocked, untouched for
         an hour, with no live process inside, no nested tree, and no ignored
         file we cannot rebuild (an ignored .env stays). Branches stay.
