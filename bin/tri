@@ -143,6 +143,7 @@ tri — оболочка Trinity S³AI
   tri alive      дышит ли продавец: сколько прошло с последнего обхода
   tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
   tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
+  tri jam [--json]  review jam: each open PR's case and the Queen's next move (rc 1 = dispatch, 2 = unread)
   tri stale [N…]  не сделано ли то, что лежит в PR, уже на main
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri spelling   тесты, сторожащие написание исходника, а не свойство
@@ -2095,6 +2096,7 @@ PYEOF
 
   stale)  shift; bash "$ROOT/bin/helpers/stale.sh" "$ROOT" "$@" ;;
   queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
+  jam)    shift; bash "$ROOT/bin/helpers/jam.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;

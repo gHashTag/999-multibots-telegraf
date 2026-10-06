@@ -147,7 +147,11 @@ describe('an empty answer after tools', () => {
 
     // The follow-up went back to the model that holds the context, with the
     // tool results already in the history and the request after them.
-    expect(asked.map(a => a.model)).toEqual(['glm-4.7-flash', 'glm-4.7-flash', 'glm-4.7-flash'])
+    expect(asked.map(a => a.model)).toEqual([
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+    ])
     const followUp = asked[2].messages
     expect(followUp[followUp.length - 1]).toEqual({
       role: 'user',
