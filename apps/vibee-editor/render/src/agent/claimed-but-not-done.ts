@@ -68,6 +68,38 @@ const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
 const GAP = String.raw`(?<gap>(?:[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*\s+)*?)`
 const claim = (source: string) => new RegExp(source, 'diu')
 
+/*
+ * Plural objects (#3744). The English nouns ended in \b, so "I generated
+ * two images" stopped at "image" + "s" and the claim stayed silent, the
+ * unsafe side. Every English object noun takes its plural through EN_NOUN
+ * and ends at EN_END: not a letter and not an apostrophe, so "two
+ * posters' worth of notes" and "the poster's text" name something else
+ * and stay silent. Russian objects match by stem, so their plurals already
+ * held; only the "вот ..." openers listed singular forms. // cyrillic-ok: quoted input
+ */
+const EN_END = String.raw`(?![\p{L}'’])`
+/*
+ * Number agreement (#3748 round 2). After "here are" a singular noun can
+ * only be a modifier -- "Here are the poster ideas:", "Here are the image
+ * sizes Instagram accepts" -- so an opener that fixes the number takes only
+ * the forms that agree with it: 'one' the singular, 'many' the plural.
+ * Both come from the same noun list, so no list is written twice.
+ */
+type EnNumber = 'one' | 'many' | 'any'
+const enForm = (noun: string, num: EnNumber) => {
+  const stem = noun.endsWith('y') ? noun.slice(0, -1) : noun
+  const [one, many] = noun.endsWith('y') ? ['y', 'ies'] : ['', 's']
+  if (num === 'one') return noun
+  if (num === 'many') return stem + many
+  return `${stem}(?:${one}|${many})`
+}
+const EN_NOUN = (nouns: readonly string[], num: EnNumber = 'any') =>
+  `(${nouns.map(n => enForm(n, num)).join('|')})${EN_END}`
+const PICTURE_NOUNS = ['poster', 'image', 'picture', 'banner', 'cover']
+const VOICE_NOUNS = ['note', 'message', 'reply', 'clip']
+const EN_MEDIA = EN_NOUN([...PICTURE_NOUNS, 'video'])
+const EN_VOICE = EN_NOUN(VOICE_NOUNS)
+
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   {
@@ -118,7 +150,9 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
-    re: /(^|[\s.,:;—-])вот\s+(тво[яй]|ваш[аи]?|готов[аяы]{1,2})\s+(афиш|картинк|постер|обложк|баннер)/i, // cyrillic-ok: matched text
+    // a stem followed by the adjective suffix is a modifier, not the object:
+    // "вот твои постерные идеи" names ideas (#3748 round 2) // cyrillic-ok: quoted input
+    re: /(^|[\s.,:;—-])вот\s+(тво[яйи]|ваш[аи]?|готов(?:ая|ый|ые|а|ы))\s+(афиш|картинк|постер|обложк|баннер)(?!н)/i, // cyrillic-ok: matched text
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -138,13 +172,17 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   },
   {
     re: claim(
-      String.raw`\bI(?:'ve| have)? (made|created|generated|drew) ${GAP}(the |a |an |your )?(poster|image|picture|banner|cover|video)\b`
+      String.raw`\bI(?:'ve| have)? (made|created|generated|drew|drawn) ${GAP}(the |a |an |your )?` +
+        EN_MEDIA
     ),
     tools: [...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
   },
   {
-    re: /\bhere(?:'s| is) (the |your )(poster|image|picture|banner|cover)\b/i,
+    re: claim(
+      String.raw`\bhere(?:'s| is) (the |your )${EN_NOUN(PICTURE_NOUNS, 'one')}` +
+        String.raw`|\bhere are (the |your )${EN_NOUN(PICTURE_NOUNS, 'many')}`
+    ),
     tools: IMAGE_TOOLS,
     kind: 'media',
   },
@@ -163,24 +201,28 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'voice',
   },
   {
-    re: /(^|[\s.,:;—-])(вот\s+(тво[её]|ваше)\s+голосовое|голосовое\s+(сообщение\s+)?готово)/i, // cyrillic-ok: matched text
+    re: /(^|[\s.,:;—-])(вот\s+(тво[её]|ваше|твои|ваши)\s+голосов(?:ое|ые)|голосовое\s+(сообщение\s+)?готово|голосовые\s+(сообщения\s+)?готовы)/i, // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
     re: claim(
-      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio) ?(note|message|reply|clip)?\b`
+      String.raw`\bI(?:'ve| have)? (recorded|sent)( you)? ${GAP}(a |an |the |your )?(voice|audio)(?: ${EN_VOICE}|${EN_END})`
     ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
-    re: /\bI(?:'ve| have)? voiced (it|this|the|your)\b|\b(?:your |the )?voice (?:note|message) is ready\b/i,
+    re: /\bI(?:'ve| have)? voiced (it|this|these|them|the|your)\b|\b(?:your |the )?voice (?:note is|message is|notes are|messages are) ready\b/i,
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
   {
-    re: /\bhere(?:'s| is) (the |your )(audio|voice (?:note|message|reply))\b|\b(?:voice|audio) (?:note|message|reply) (?:is |has been )?sent\b/i,
+    re: claim(
+      String.raw`\bhere(?:'s| is) (the |your )(audio${EN_END}|voice ${EN_NOUN(VOICE_NOUNS, 'one')})` +
+        String.raw`|\bhere are (the |your )voice ${EN_NOUN(VOICE_NOUNS, 'many')}` +
+        String.raw`|\b(?:voice|audio) (?:(?:note|message|reply) (?:is |has been )?|(?:notes|messages|replies) (?:are |have been )?)sent\b`
+    ),
     tools: AUDIO_TOOLS,
     kind: 'voice',
   },
@@ -761,6 +803,16 @@ const GAP_WORD = new Set([
   'final',
   'two',
   'three',
+  'four',
+  'five',
+  'six',
+  'several',
+  'both',
+  'few',
+  'these',
+  'those',
+  'more',
+  'all',
 ])
 // a pronoun in the genitive, gap-shaped right after the preposition "for"
 const FOR_WHOM = new Set([
@@ -775,7 +827,7 @@ const FOR_WHOM = new Set([
   'себя', // cyrillic-ok: matched words
 ])
 // a Russian adjective in the accusative: "новую", "готовые", "другое" // cyrillic-ok: quoted input
-const ADJECTIVE = /^\p{Ll}{2,}(?:ую|юю|ое|ее|ый|ой|ые)$/u // cyrillic-ok: matched endings
+const ADJECTIVE = /^\p{Ll}{2,}(?:ую|юю|ое|ее|ый|ой|ые|ых|их)$/u // cyrillic-ok: matched endings
 // a name in an oblique case: "Анне", "Ивану", "Марии", "Игорю", "Анны" // cyrillic-ok: quoted input
 const CASE_ENDING = ['ой', 'ей', 'е', 'у', 'ю', 'и', 'ы', 'а', 'я', ''] // cyrillic-ok: matched endings
 const NOMINATIVE_END = ['', 'а', 'я', 'й', 'ь'] // cyrillic-ok: matched endings
