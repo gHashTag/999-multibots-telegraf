@@ -71,6 +71,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
+import { SOCIAL_PROMPT_LINE } from './social-tools'
 import {
   MARKETPLACE_AGENTS,
   marketplaceAgentById,
@@ -1416,8 +1417,7 @@ function ownerSideSection(surface?: string): string {
     'Почта владельца (Zoho): список, поиск, чтение писем (mail_*); письмо ' +
     'уходит только после нажатия владельца на карточке mail_send. ' +
     /* social-tools.ts: the owner's networks by their own APIs, one tap. */
-    'Его соцсети (Threads, Facebook, LinkedIn, X): что подключено — ' + // cyrillic-ok: prompt copy
-    'social_status; пост — social_post, уходит только по нажатию. ' + // cyrillic-ok: prompt copy
+    SOCIAL_PROMPT_LINE +
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
     '«Подключи мои сети» — browser_logins, затем каждую signed_out и refused по ' + // cyrillic-ok: prompt copy
