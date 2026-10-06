@@ -595,6 +595,358 @@ describe('a preposition anywhere earlier in the clause, not only two words back 
   }
 })
 
+describe("a capital is someone else only in a person's shape (#3723)", () => {
+  // Quiet on main: an opener the adverb list lacked. A rare name the name
+  // list lacks ("Милослава") gets a needless note -- the safe side. // cyrillic-ok: quoted input
+  for (const said of [
+    'Утром сделала афишу', // cyrillic-ok: test input
+    'Вечером отправила видео', // cyrillic-ok: test input
+    'Ночью сделала афишу', // cyrillic-ok: test input
+    'Днём сделала афишу', // cyrillic-ok: test input
+    'Сперва сделала афишу', // cyrillic-ok: test input
+    'Вновь сделала афишу', // cyrillic-ok: test input
+    'Даже сделала афишу!', // cyrillic-ok: test input
+    'Вдобавок сделала афишу', // cyrillic-ok: test input
+    'Плюс сделала афишу', // cyrillic-ok: test input
+    'Пока сделала афишу', // cyrillic-ok: test input
+    'Вообще сделала афишу', // cyrillic-ok: test input
+    'Типа сделала афишу', // cyrillic-ok: test input
+    'Значит сделала афишу', // cyrillic-ok: test input
+    'Вроде сделала афишу', // cyrillic-ok: test input
+    'Кажется сделала афишу', // cyrillic-ok: test input
+    'Похоже сделала афишу', // cyrillic-ok: test input
+    'Наверное сделала афишу', // cyrillic-ok: test input
+    'Разумеется сделала афишу', // cyrillic-ok: test input
+    'Впрочем сделала афишу', // cyrillic-ok: test input
+    'Хм сделала афишу', // cyrillic-ok: test input
+    'Эээ сделала афишу', // cyrillic-ok: test input
+    'Готово. Утром сделала афишу', // cyrillic-ok: test input
+    'Канва сделала афишу', // cyrillic-ok: test input
+    'Милослава прислала фото', // cyrillic-ok: test input
+  ]) {
+    it(`flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'Саша прислал фото', // cyrillic-ok: test input
+    'Наташа прислала фото', // cyrillic-ok: test input
+    'Ксюша записала голосовое', // cyrillic-ok: test input
+    'Артём прислал фото', // cyrillic-ok: test input
+    'Ксюша Петрова прислала фото', // cyrillic-ok: test input
+    'Клиент Милослава прислала фото', // cyrillic-ok: test input
+    'Anna прислала фото', // cyrillic-ok: test input
+    'John отправил видео', // cyrillic-ok: test input
+    'Kate сделала афишу', // cyrillic-ok: test input
+    'Курьер привёз фото', // cyrillic-ok: test input
+    'Дизайнер сделал афишу', // cyrillic-ok: test input
+    'Фотограф прислал фото', // cyrillic-ok: test input
+    'Подруга Милослава прислала видео', // cyrillic-ok: test input
+    'Сегодня клиентка Милослава прислала фото', // cyrillic-ok: test input
+    'Вчера подруга Зарина прислала видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's verb stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
+describe('a surname follows a known first name, not any capital (#3728 review)', () => {
+  for (const said of [
+    'Ура Готово сделала афишу', // cyrillic-ok: test input
+    'Ну Вот отправила видео.', // cyrillic-ok: test input
+    'Итак Наконец сделала афишу', // cyrillic-ok: test input
+    'Ок Теперь записала голосовое', // cyrillic-ok: test input
+    'Да Сразу отправила видео.', // cyrillic-ok: test input
+    'Ага Уже сделала афишу', // cyrillic-ok: test input
+    'Сегодня Утром сделала афишу', // cyrillic-ok: test input
+  ]) {
+    it(`two openers are no name, flagged: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).not.toBe('')
+    })
+  }
+  for (const said of [
+    'Пётр прислал видео.', // cyrillic-ok: test input
+    'Петр прислал видео.', // cyrillic-ok: test input
+    'Анна Петрова прислала фото.', // cyrillic-ok: test input
+    'Артём Иванов отправил видео.', // cyrillic-ok: test input
+  ]) {
+    it(`a name, with or without yo and a surname, stays quiet: ${JSON.stringify(said)}`, () => {
+      expect(honestyNote(said, [])).toBe('')
+    })
+  }
+})
+
+/*
+ * The greeting-then-claim grid (#3728 round 3). Rounds 1-6 of #3693 and
+ * rounds 1-2 of #3728 each patched one line a reviewer found, and the next
+ * reviewer found its neighbour. This walks every combination of greeting,
+ * addressee, separator, opener and verb, and derives the expected answer from
+ * one rule: the claim is someone else's only when a person-shaped subject
+ * stands right before the verb in the verb's own clause, with no greeting
+ * that would make the name the addressee.
+ */
+describe('greeting, addressee, separator, opener, verb: one rule (#3728 round 3)', () => {
+  const GREETINGS = ['', 'Привет ', 'Привет, '] // cyrillic-ok: test input
+  const ADDRESSEES = ['', 'Анна', 'Анна Петрова'] // cyrillic-ok: test input
+  const SEPARATORS = [' ', ', ', '\n', ' 🙌 ', '! ', '. ', ' — ']
+  const OPENERS = ['', 'Готово', 'Вот', 'Ура', 'Сегодня'] // cyrillic-ok: test input
+  const VERBS = ['сделала', 'отправила', 'Сделала'] // cyrillic-ok: test input
+  const rows = new Map<string, boolean>()
+  for (const g of GREETINGS)
+    for (const a of ADDRESSEES)
+      for (const sep of SEPARATORS)
+        for (const o of OPENERS)
+          for (const v of VERBS) {
+            const lead = a ? g + a + sep : g
+            const said = (lead + (o ? o + ' ' : '') + v + ' афишу').trim() // cyrillic-ok: test input
+            // quiet only: a name, nothing between it and a lowercase verb
+            const quiet =
+              a !== '' &&
+              g === '' &&
+              sep === ' ' &&
+              o === '' &&
+              v === v.toLowerCase()
+            rows.set(said, !quiet)
+          }
+  it('covers the whole grid', () => {
+    expect(rows.size).toBeGreaterThan(400)
+  })
+  it('every row follows the rule', () => {
+    const wrong = [...rows].filter(
+      ([said, flagged]) => unbackedKinds(said, []).length > 0 !== flagged
+    )
+    expect(wrong).toEqual([])
+  })
+  // representative rows, named so a failure reads at a glance
+  for (const said of [
+    'Анна\nГотово сделала афишу', // cyrillic-ok: test input
+    'Анна 🙌 Готово сделала афишу', // cyrillic-ok: test input
+    'Привет Анна 🙂 Готово сделала афишу', // cyrillic-ok: test input
+    'Анна Вот сделала афишу', // cyrillic-ok: test input
+    'Анна Ура сделала афишу', // cyrillic-ok: test input
+    'Привет, Анна 👋\nСделала афишу', // cyrillic-ok: test input
+    'Анна 👋 Сделала афишу', // cyrillic-ok: test input
+    'Привет Анна Сделала афишу', // cyrillic-ok: test input
+    'Привет, Анна сделала афишу', // cyrillic-ok: test input
+    'Анна Снова сделала афишу', // cyrillic-ok: test input
+    'Анна Только сделала афишу', // cyrillic-ok: test input
+  ]) {
+    it(`the agent's own claim after a name: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+    })
+  }
+  for (const said of [
+    'Анна сделала афишу', // cyrillic-ok: test input
+    'Анна Петрова сделала афишу', // cyrillic-ok: test input
+    'Иван Шевченко прислал фото', // cyrillic-ok: test input
+    'Anna Smith прислала фото', // cyrillic-ok: test input
+    'Менеджер Зорро отправил видео', // cyrillic-ok: test input
+  ]) {
+    it(`someone else's: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+  }
+})
+
+/*
+ * A wrapped claim is still a claim, in every family (#3728 round 4). Round 3
+ * joined wrapped lines with a line break and folded it for media and voice
+ * only, so a browser claim that wrapped went quiet. This walks every claim
+ * example of every family and puts a line break at EVERY space, one at a
+ * time: the family must stay flagged wherever the spaced line is flagged.
+ */
+describe('a line break at any space keeps every family flagged (#3728 round 4)', () => {
+  const EXAMPLES: Record<string, string[]> = {
+    browser: [
+      'Открываю страницу входа в кабинет.', // cyrillic-ok: test input
+      'Сделал скриншот экрана для проверки.', // cyrillic-ok: test input
+      'Читаю текст страницы целиком.', // cyrillic-ok: test input
+      'Нажимаю кнопку входа через Google.', // cyrillic-ok: test input
+      'Прокручиваю ленту вниз до конца.', // cyrillic-ok: test input
+      'Сейчас проверяю все вкладки, минутку.', // cyrillic-ok: test input
+      'Зашла в кабинет, и на экране сейчас вижу форму оплаты.', // cyrillic-ok: test input
+      "I'm opening the login page now.",
+      'Done, I am opening the page now.',
+      'Хорошо, I clicked the button.', // cyrillic-ok: test input
+      'I took a screenshot of it.',
+    ],
+    media: [
+      'Сделала для вас афишу в стиле нуар.', // cyrillic-ok: test input
+      'Вот ваша афиша к открытию кафе.', // cyrillic-ok: test input
+      'Смонтировала тебе видео про кафе.', // cyrillic-ok: test input
+      'Отправила вам фото с примеркой.', // cyrillic-ok: test input
+      'I made the poster for you.',
+      'Here is your poster for the event.',
+    ],
+    voice: [
+      'Записала тебе голосовое сообщение с ответом.', // cyrillic-ok: test input
+      'Озвучила для вас текст поста.', // cyrillic-ok: test input
+      'Вот ваше голосовое к посту.', // cyrillic-ok: test input
+      'Голосовое сообщение готово, слушайте.', // cyrillic-ok: test input
+      'I recorded you a voice note.',
+      'I have voiced it for you.',
+      'Here is your voice note for today.',
+      'The voice message is ready now.',
+    ],
+  }
+  const rows: Array<[string, string, string]> = []
+  for (const [kind, lines] of Object.entries(EXAMPLES))
+    for (const spaced of lines)
+      for (let i = spaced.indexOf(' '); i >= 0; i = spaced.indexOf(' ', i + 1))
+        rows.push([
+          kind,
+          spaced,
+          spaced.slice(0, i) + '\n' + spaced.slice(i + 1),
+        ])
+  it('every example is flagged with its spaces', () => {
+    const quiet = Object.entries(EXAMPLES).flatMap(([kind, lines]) =>
+      lines.filter(l => !unbackedKinds(l, []).includes(kind as never))
+    )
+    expect(quiet).toEqual([])
+  })
+  it('covers every space of every example', () => {
+    expect(rows.length).toBeGreaterThan(100)
+  })
+  it('a line break at any space keeps the family flagged', () => {
+    const silent = rows.filter(
+      ([kind, spaced, wrapped]) =>
+        unbackedKinds(spaced, []).includes(kind as never) &&
+        !unbackedKinds(wrapped, []).includes(kind as never)
+    )
+    expect(silent).toEqual([])
+  })
+  it('claimsBrowserWork reads a wrapped line the same way', () => {
+    const silent = rows.filter(
+      ([kind, , wrapped]) => kind === 'browser' && !claimsBrowserWork(wrapped)
+    )
+    expect(silent).toEqual([])
+  })
+  // the five answers of the round-3 review, flagged on main, silent on round 3
+  for (const said of [
+    'Зашла в кабинет, и на экране\nвижу форму оплаты.', // cyrillic-ok: test input
+    'Сейчас проверяю\nвкладки, минутку.', // cyrillic-ok: test input
+    'Хорошо, I\nclicked the button.', // cyrillic-ok: test input
+    'Done, I am\nopening the page now.',
+    'I took a\nscreenshot of it.',
+  ]) {
+    it(`a wrapped browser claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['browser'])
+      expect(honestyNote(said, [text(said)])).toBe(HONESTY_NOTE)
+    })
+  }
+})
+
+/*
+ * Every whitespace character but a line break is a plain space (#3728 round
+ * 5). Round 4 listed " " and "\t" by hand where a clause breaks, so U+00A0
+ * between a name and its verb ended the clause and the person's verb read
+ * as the agent's. This puts every inline whitespace at every space of each
+ * person row and each opener row: the verdict must be the plain-space one.
+ */
+describe('a no-break or any inline space reads as a plain space (#3728 round 5)', () => {
+  const INLINE = ['\t', '\u00a0', '\u2009', '\u202f', '\u3000']
+  // the round-4 review: silent on main, a needless note on round 4
+  const REVIEW = [
+    'Он прислал фото', // cyrillic-ok: test input
+    'Анна прислала фото', // cyrillic-ok: test input
+    'Она записала голосовое', // cyrillic-ok: test input
+    'Клиент отправил видео', // cyrillic-ok: test input
+    'Привет, Анна прислала фото', // cyrillic-ok: test input
+    'Вчера Анна прислала фото', // cyrillic-ok: test input
+  ]
+  // honest person rows of the rounds above, and openers that must still claim
+  const ROWS = [
+    ...REVIEW,
+    'Анна записала голосовое', // cyrillic-ok: test input
+    'Мария отправила фото чека', // cyrillic-ok: test input
+    'Вчера Анна записала голосовое.', // cyrillic-ok: test input
+    'Короче, Анна прислала фото.', // cyrillic-ok: test input
+    'Клиентка прислала голосовое.', // cyrillic-ok: test input
+    'Кто-то скинул видео в чат.', // cyrillic-ok: test input
+    'Вчера клиент прислал голосовое.', // cyrillic-ok: test input
+    'Потом он озвучил текст для ролика.', // cyrillic-ok: test input
+    '@anna прислала голосовое.', // cyrillic-ok: test input
+    'Ольга прислала видео', // cyrillic-ok: test input
+    'Менеджер отправил фото', // cyrillic-ok: test input
+    'Сегодня Анна прислала фото чека', // cyrillic-ok: test input
+    'Клиент прислал фото', // cyrillic-ok: test input
+    'Иван сделал афишу.', // cyrillic-ok: test input
+    'Клиентка Мария прислала фото.', // cyrillic-ok: test input
+    'Елена Петровна отправила видео.', // cyrillic-ok: test input
+    'Саша прислал фото', // cyrillic-ok: test input
+    'Ксюша Петрова прислала фото', // cyrillic-ok: test input
+    'Anna прислала фото', // cyrillic-ok: test input
+    'John отправил видео', // cyrillic-ok: test input
+    'Подруга Милослава прислала видео', // cyrillic-ok: test input
+    'Пётр прислал видео.', // cyrillic-ok: test input
+    'Анна Петрова прислала фото.', // cyrillic-ok: test input
+    'Anna Smith прислала фото', // cyrillic-ok: test input
+    'Менеджер Зорро отправил видео', // cyrillic-ok: test input
+    'Ура Готово сделала афишу', // cyrillic-ok: test input
+    'Ага сделала афишу', // cyrillic-ok: test input
+    'Привет Анна Сделала афишу', // cyrillic-ok: test input
+    'Анна Вот сделала афишу', // cyrillic-ok: test input
+    'Я сделал афишу для тебя.', // cyrillic-ok: test input
+    'Записал голосовое?', // cyrillic-ok: test input
+  ]
+  const rows: Array<[string, string]> = []
+  for (const spaced of ROWS)
+    for (let i = spaced.indexOf(' '); i >= 0; i = spaced.indexOf(' ', i + 1))
+      for (const ws of INLINE)
+        rows.push([spaced, spaced.slice(0, i) + ws + spaced.slice(i + 1)])
+  it('covers every inline whitespace at every space', () => {
+    expect(rows.length).toBe(490)
+  })
+  it('the honest rows are silent and the openers flagged with plain spaces', () => {
+    const silent = ROWS.filter(r => unbackedKinds(r, []).length === 0)
+    expect(silent.length).toBeGreaterThan(30)
+    expect(ROWS.length - silent.length).toBe(6)
+  })
+  it('any inline whitespace gives the plain-space verdict', () => {
+    const wrong = rows.filter(
+      ([spaced, other]) =>
+        JSON.stringify(unbackedKinds(other, [])) !==
+        JSON.stringify(unbackedKinds(spaced, []))
+    )
+    expect(wrong).toEqual([])
+  })
+  // the greeting row is the agent's own by the round-3 greeting rule; the
+  // others are someone else's. U+00A0 changes neither.
+  for (const said of REVIEW)
+    it(`U+00A0 between subject and verb: ${JSON.stringify(said)}`, () => {
+      const nbsp = said.replace(/ (?=\S+ \S+$)/u, '\u00a0')
+      expect(nbsp).toContain('\u00a0')
+      const plain = said.startsWith('Привет') ? ['media'] : [] // cyrillic-ok: test input
+      expect(unbackedKinds(said, [])).toEqual(plain)
+      expect(unbackedKinds(nbsp, [])).toEqual(plain)
+    })
+})
+
+/*
+ * A Windows or old-Mac line break inside a claim is a line break (#3728
+ * round 5). Round 4's reviewer made the CRLF fold a no-op and all tests
+ * passed while 39 wrapped English claims went silent: "a\r\nscreenshot"
+ * folds to two spaces, and the English patterns spell one.
+ */
+describe('a CRLF or a lone CR inside a claim keeps it flagged (#3728 round 5)', () => {
+  for (const [said, kind] of [
+    ['I took a\r\nscreenshot of it.', 'browser'],
+    ['Done, I am\r\nopening the page now.', 'browser'],
+    ['I made the\r\nposter for you.', 'media'],
+    ['I recorded you a\r\nvoice note.', 'voice'],
+    ['I took a\rscreenshot of it.', 'browser'],
+    ['I made the\rposter for you.', 'media'],
+    ['I recorded you a\rvoice note.', 'voice'],
+  ] as const)
+    it(`${kind}: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+  it('claimsBrowserWork reads a CRLF the same way', () => {
+    expect(claimsBrowserWork('I took a\r\nscreenshot of it.')).toBe(true)
+  })
+})
+
 describe('the media backing list covers the tool registry', () => {
   it('names every media-looking tool, either backing or excused', () => {
     const dir = __dirname
@@ -618,4 +970,105 @@ describe('the media backing list covers the tool registry', () => {
     )
     expect(loose).toEqual([])
   })
+})
+
+/*
+ * The class, not the sites (#3728 round 6). Rounds 3-5 fixed exotic
+ * whitespace one reader at a time, and each review found one more reader
+ * (REFERS_BACK, the plan headers) still matching a plain space only. The
+ * module now normalises once at every exported entry, and this enforces it:
+ * EVERY string literal of this file that reads as an answer -- honest or a
+ * claim -- must get the same verdict from every exported function when each
+ * plain space becomes each inline whitespace, and each "\n" each line break.
+ */
+describe('whitespace is normalised once, at every entry (#3728 round 6)', () => {
+  const INLINE = [
+    '\t',
+    '\u00a0',
+    '\u2009',
+    '\u202f',
+    '\u3000',
+    '\u2000',
+    '\u1680',
+    '\ufeff',
+  ]
+  const BREAKS = ['\r\n', '\r', '\u2028', '\u2029', '\u0085', '\v', '\f']
+  const src = readFileSync(__filename, 'utf8')
+  const literal = /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g
+  const corpus = [
+    ...new Set(
+      [...src.matchAll(literal)]
+        .map(m => {
+          try {
+            return new Function(`return ${m[0]}`)() as string
+          } catch {
+            return ''
+          }
+        })
+        .filter(s => /[ \n]/.test(s) && /\p{L}{2}/u.test(s))
+    ),
+  ]
+  const events = [text('x'), call('crm_find')]
+  const verdict = (said: string) =>
+    JSON.stringify([
+      claimsBrowserWork(said),
+      unbackedClaims(said, events),
+      unbackedKinds(said, events),
+      honestyNote(said, events),
+      honestyLogFields(said, events),
+    ])
+  const variants = (said: string) => [
+    ...INLINE.map(ws => said.replaceAll(' ', ws)),
+    // a "\n" that is half of a CRLF already is not a break of its own
+    ...BREAKS.map(br => said.replace(/(?<!\r)\n/g, br)),
+  ]
+  it('reaches every answer of this file', () => {
+    expect(corpus.length).toBeGreaterThan(380)
+    expect(corpus.filter(s => s.includes('\n')).length).toBeGreaterThan(40)
+    expect(
+      corpus.filter(s => verdict(s) !== verdict('')).length
+    ).toBeGreaterThan(100)
+  })
+  it('every exported function gives every variant the plain verdict', () => {
+    const wrong: string[] = []
+    for (const said of corpus) {
+      const plain = verdict(said)
+      for (const other of variants(said))
+        if (verdict(other) !== plain) wrong.push(JSON.stringify(other))
+    }
+    expect(wrong).toEqual([])
+  })
+
+  // the round-5 review: a no-break space inside the "previous message" and the
+  // plan headers gained a needless note
+  for (const said of [
+    'Отправила афишу в прошлом сообщении.', // cyrillic-ok: test input
+    'По шагам:\n1. Сделала афишу для тебя', // cyrillic-ok: test input
+    'Что я сделаю:\n- Записала голосовое для вас', // cyrillic-ok: test input
+  ])
+    it(`a no-break space inside a back-reference or a plan: ${JSON.stringify(said)}`, () => {
+      const nbsp = said.replace(/ /g, '\u00a0')
+      expect(nbsp).not.toBe(said)
+      expect(unbackedKinds(nbsp, [])).toEqual([])
+      expect(unbackedKinds(said, [])).toEqual([])
+      expect(honestyNote(said, [])).toBe('')
+      expect(honestyNote(nbsp, [])).toBe('')
+    })
+
+  // U+2028, U+2029 and U+0085 are line breaks: a plan header heads the list
+  // under it (on one line it heads nothing), and a wrapped claim still claims
+  for (const br of ['\u2028', '\u2029', '\u0085'])
+    it(`U+${br.codePointAt(0)!.toString(16).padStart(4, '0')} is a line break`, () => {
+      expect(unbackedKinds(`Шаги:${br}- сделала афишу`, [])).toEqual([]) // cyrillic-ok: test input
+      expect(unbackedKinds('Шаги: - сделала афишу', [])).toEqual(['media']) // cyrillic-ok: test input
+      expect(unbackedKinds(`I took a${br}screenshot of it.`, [])).toEqual([
+        'browser',
+      ])
+      expect(
+        claimsBrowserWork(`I made the${br}poster. I took a${br}screenshot.`)
+      ).toBe(true)
+      expect(unbackedKinds(`I recorded you a${br}voice note.`, [])).toEqual([
+        'voice',
+      ])
+    })
 })
