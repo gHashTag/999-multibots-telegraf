@@ -117,6 +117,8 @@ export interface ContentState {
   /** The seller's own photo URL, `source photo` for her avatar, or null. */
   face: string | null
   ideas: string[]
+  /** The script picked in the gallery and its lines as edited; absent -- none. */
+  template?: { id: string; language: 'ru' | 'en'; lines: string[] }
 }
 
 /** What one line of a client's thread tells the agent about the screen. */

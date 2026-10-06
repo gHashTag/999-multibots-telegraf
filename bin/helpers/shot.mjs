@@ -167,6 +167,38 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE TEMPLATE GALLERY of the story panel: the host's own templates, each
+   * priced on its card before the tap (PRICE_BEFORE_PRESS); the tap fills
+   * the fields and spends nothing.
+   */
+  'story-gallery': {
+    page: 'story-palette',
+    tool: 'crm_story_reel',
+    fixture: { templates: true, jobs: JOBS },
+    root: '[data-testid=story-reel-gallery]',
+    scope: '.crm-client',
+    within: 'section',
+    before: [
+      ['[data-testid=story-reel-gallery]', 'section .crm-client__duet-go'],
+    ],
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('[data-testid=story-reel-gallery]').waitFor(),
+      },
+      {
+        id: 'picked',
+        ready: async p => {
+          await p
+            .locator('[data-testid="story-reel-template-hook-studio:en"]')
+            .click()
+          await p.locator('.story-reel__lines textarea').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE WHOLE CLIENT CARD (/crm/:id): six panels and the story panel, as the
    * seller sees them on a phone. The story tool is the host's; the other six
    * answer with the shapes CrmClient.test.tsx holds against the page's

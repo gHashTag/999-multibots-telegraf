@@ -137,6 +137,41 @@ describe("the widgets reach the agent in a client's thread", () => {
     expect(system).toContain('Weekly post plan')
   })
 
+  it('a script picked in the gallery reaches the agent with its edited lines', async () => {
+    const sent = widgetContext({
+      chosen: 'blogger',
+      open: 'content',
+      content: {
+        ...PANEL,
+        template: {
+          id: 'hook-studio',
+          language: 'en',
+          lines: ['My edited hook', 'Second line'],
+        },
+      },
+      templates: [],
+      templateAgents: AGENTS,
+    })
+    const w = widgetsOfTurn(sent, true)
+    expect(w?.content?.template).toEqual({
+      id: 'hook-studio',
+      language: 'en',
+      lines: ['My edited hook', 'Second line'],
+    })
+    const system = await systemOf({ client: CLIENT, widgets: w })
+    expect(system).toContain('hook-studio (en)')
+    expect(system).toContain('- My edited hook')
+    // A script with no lines is not a script: nothing is reported.
+    const empty = widgetsOfTurn(
+      {
+        ...sent,
+        content: { ...sent.content, template: { id: 'x', lines: [] } },
+      },
+      true
+    )
+    expect(empty?.content?.template).toBeUndefined()
+  })
+
   it('a widget the owner does not see is not in the prompt', async () => {
     // The Blogger swapped for Job: the panel's topic is still in memory,
     // and the chat does not report it (player lib/clientWidgets.ts)...
