@@ -50,7 +50,7 @@ import {
   type BrowserSession,
   type Queryable,
 } from './sessions'
-import { agentMayOpen, mayAct } from './guard'
+import { agentMayOpen, mayAct, placeOf } from './guard'
 import {
   FRAMES_PROBE,
   addressesOfAct,
@@ -159,6 +159,7 @@ async function mustBeAllowedToAct(
     /* No page found means we cannot see where we are, and guard.ts refuses. */
     url: url ?? '',
     allowedAtMs: session?.allowedAtMs ?? null,
+    allowedHost: session?.allowedHost ?? null,
     nowMs: Date.now(),
     alsoSensitive: url !== null && ruleFor(url, rules) === 'ask',
   })
@@ -285,10 +286,14 @@ async function mustBeAllowedInFrame(
   const rules = await siteRulesOf(pool, ctx.telegramId)
   if (rules === null) throw new Error(UNREADABLE_LIST)
   const session = await readSession(pool, ctx.telegramId)
+  /* A yes given on this tab covers the frames the person saw on it. */
+  const tabUrl = targets.find(t => t.id === targetId)?.url ?? null
   const verdictOf = (url: string) =>
     mayAct({
       url,
       allowedAtMs: session?.allowedAtMs ?? null,
+      allowedHost: session?.allowedHost ?? null,
+      tabUrl,
       nowMs: Date.now(),
       alsoSensitive: ruleFor(url, rules) === 'ask',
     })
@@ -718,6 +723,24 @@ async function podOf(
   return { cdp: session.cdpEndpoint, targetId: page.id }
 }
 
+/**
+ * The address of the tab the agent acts on, WITHOUT starting a browser
+ * (podOf would): asking a question must stay a question. Null when there is
+ * no live browser or the tab cannot be read.
+ */
+async function whereTheAgentIs(ctx: ToolContext): Promise<string | null> {
+  const session = await readSession(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (session?.state !== 'live' || !session.cdpEndpoint) return null
+  const targets = await listTargetsForFront(session.cdpEndpoint)
+  const page =
+    pickFront(targets, chosenFront(ctx.telegramId)) ??
+    (await frontPage(session.cdpEndpoint))
+  return page.url || null
+}
+
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
 
 /*
@@ -905,7 +928,18 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       const pool = ctx.pool as unknown as Queryable
       const what = String(args.what || '').trim()
       if (!what) throw new Error('say what exactly will happen')
-      const id = await requestPermission(pool, ctx.telegramId, what)
+      /*
+       * A YES IS FOR ONE PLACE: the host the agent is on now. No browser or
+       * an unreadable tab = null, and that yes opens nothing (fail closed).
+       */
+      const here = await whereTheAgentIs(ctx).catch(() => null)
+      const id = await requestPermission(
+        pool,
+        ctx.telegramId,
+        what,
+        undefined,
+        placeOf(here) || null
+      )
 
       /*
        * ASKING IS INSTANT; WAITING IS A CHOICE.
@@ -926,7 +960,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         if (answer && answer.state !== 'pending') {
           /* A yes opens the guarded door for a few minutes; see guard.ts. */
           if (answer.state === 'allowed')
-            await markAllowed(pool, ctx.telegramId)
+            await markAllowed(pool, ctx.telegramId, answer.actHost)
           return { decision: answer.state, what }
         }
       }
@@ -2168,13 +2202,19 @@ export async function requestPermission(
   telegramId: string,
   what: string,
   /** A desk that waits a day passes a day; a click keeps the ten minutes. */
-  ttlMs?: number
+  ttlMs?: number,
+  /**
+   * The page host a yes lets the agent act on (browser_ask_permission only).
+   * Left out, the yes answers this question and opens no guarded page.
+   */
+  actHost?: string | null
 ): Promise<string> {
   await ensureApprovals(pool)
   const { id, allowToken, denyToken } = await askFor(pool, {
     telegramId,
     what,
     ttlMs,
+    actHost,
     newId: newApprovalToken,
     newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
   })
