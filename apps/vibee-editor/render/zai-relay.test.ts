@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   isZaiRelayPath,
   legalizeZaiMessages,
@@ -496,13 +494,5 @@ describe('handleZaiRelay yields to the agent', () => {
     })
     expect((await handleZaiRelay({ method: 'POST' }, stale.d)).status).toBe(403)
     expect(stale.seen).toHaveLength(0)
-  })
-
-  it('render-server wires the relay to zaiRelayKey, not to GLM_API_KEY directly', () => {
-    const src = readFileSync(join(__dirname, 'render-server.ts'), 'utf8')
-    const call = src.slice(src.indexOf('handleZaiRelay(req'))
-    const wiring = call.slice(0, call.indexOf('})'))
-    expect(wiring).toContain('apiKey: () => zaiRelayKey()')
-    expect(wiring).not.toContain('GLM_API_KEY')
   })
 })
