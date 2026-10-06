@@ -18,6 +18,7 @@
  */
 
 import { chosenProvider } from './provider-choice'
+import * as SPEC from '../spec/agent-provider-chain.gen'
 
 export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'reserve' | 'ollama'
 
@@ -166,7 +167,13 @@ const CATALOG: Record<
       'https://api.z.ai/api/coding/paas/v4'
     ),
     env: 'GLM_API_KEY',
-    model: 'glm-5.3',
+    // The FREE flash models, owner's rule 2026-10-04. Measured that day on a
+    // key with zero balance: glm-5.3 and glm-4.5 answer 1113 "Insufficient
+    // balance" on both endpoints, glm-4.5-flash and glm-4.7-flash answer 200
+    // with tool calls, thinking on or off. A busy free tier says 1305
+    // "overloaded", which is why zai-lite runs the OTHER flash model.
+    // Skill: zai-free-flash.
+    model: 'glm-4.7-flash',
     thinking: true,
     tools: true,
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
@@ -183,8 +190,8 @@ const CATALOG: Record<
    * агент просто молчал. Владелец сказал прямо: «у нас z.ai».
    *
    * Подписка кодерская и живёт на том же эндпоинте, поэтому запасной путь
-   * ничего не стоит: та же аутентификация, другая модель. glm-4.5 легче и
-   * отвечает, когда glm-5.3 занята или недоступна.
+   * ничего не стоит: та же аутентификация, другая модель. glm-4.5-flash is
+   * free like glm-4.7-flash and still answers when that one is overloaded.
    */
   'zai-lite': {
     base: endpointBase(
@@ -192,7 +199,7 @@ const CATALOG: Record<
       'https://api.z.ai/api/coding/paas/v4'
     ),
     env: 'GLM_API_KEY',
-    model: 'glm-4.5',
+    model: 'glm-4.5-flash',
     thinking: false,
     tools: true,
     // Same endpoint, same refusal.
@@ -301,7 +308,8 @@ function available(id: ProviderId): { key: string } | null {
 /**
  * The order providers are tried in: the paid ones first by default, our
  * own model last as the safety net. AGENT_PROVIDER moves any of them to
- * the front; the rest keep their order behind it.
+ * the front; the rest keep their order behind it. This is the WANTED order;
+ * `providerChain` drops absent providers and demotes a head without tools.
  */
 export function providerOrder(): ProviderId[] {
   // The owner's choice from the bot, then the deploy-time variable.
@@ -363,7 +371,7 @@ export function reserveEnv(): {
 }
 
 /** Spec: agent-provider-chain.t27 RESERVE_MAX_TOKENS_DEFAULT. */
-export const RESERVE_MAX_TOKENS_DEFAULT = 1024
+export const RESERVE_MAX_TOKENS_DEFAULT = SPEC.RESERVE_MAX_TOKENS_DEFAULT
 
 /**
  * RESERVE_MAX_TOKENS as a positive integer, else the default. "0", "-5",
@@ -413,15 +421,62 @@ function build(id: ProviderId, key: string): Provider {
   }
 }
 
-export function allProviders(): Provider[] {
-  const order = providerOrder()
+/**
+ * A HEAD WITHOUT TOOLS IS DEMOTED (#3659, spec agent-provider-chain.t27 v2).
+ * 2026-10-05: AGENT_PROVIDER=ollama put qwen3:1.7b (tools: false) at the
+ * head of every chat turn, and the agent "made the poster" without calling a
+ * single tool. The bot button is the owner's explicit pick and still wins;
+ * any other head that cannot call tools (the variable, or the default order
+ * once absent providers drop out) moves right behind the first provider that
+ * can. A chain where nobody calls tools keeps its order. Mirrors the spec's
+ * `demote_head`, `head_note` and `demoted_index`.
+ */
+export function demoteHead(
+  fromBot: boolean,
+  headTools: boolean,
+  anyTools: boolean
+): boolean {
+  return !fromBot && !headTools && anyTools
+}
+
+export function headNote(
+  fromBot: boolean,
+  headTools: boolean,
+  anyTools: boolean
+): string {
+  if (headTools) return SPEC.NOTE_NONE
+  if (fromBot) return SPEC.NOTE_BOT_PICK
+  if (anyTools) return SPEC.NOTE_DEMOTED
+  return SPEC.NOTE_NO_TOOLS
+}
+
+/** `restIndex`: the first tools-capable provider's index without the head. */
+export function demotedIndex(restIndex: number): number {
+  return restIndex + 1
+}
+
+/** The available chain, head rule applied, and what to say about its head. */
+export function providerChain(): { chain: Provider[]; note: string } {
   const out: Provider[] = []
-  for (const id of order) {
+  for (const id of providerOrder()) {
     const have = available(id)
     if (!have) continue
     out.push(build(id, have.key))
   }
-  return out
+  const head = out[0]
+  if (!head) return { chain: out, note: SPEC.NOTE_NONE }
+  const fromBot = chosenProvider() === head.id
+  const rest = out.slice(1)
+  const firstTools = rest.findIndex(p => p.tools)
+  const anyTools = firstTools >= 0
+  const note = headNote(fromBot, head.tools, anyTools)
+  if (!demoteHead(fromBot, head.tools, anyTools)) return { chain: out, note }
+  const at = demotedIndex(firstTools)
+  return { chain: [...rest.slice(0, at), head, ...rest.slice(at)], note }
+}
+
+export function allProviders(): Provider[] {
+  return providerChain().chain
 }
 
 export function diagnose(id: ProviderId, status: number, body: string): string {

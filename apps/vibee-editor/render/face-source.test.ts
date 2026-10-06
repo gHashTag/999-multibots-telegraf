@@ -26,6 +26,7 @@ import {
   readFaceSourceFile,
   FPS,
 } from './src/face-source'
+import { HOUSE_CALL_COLOR } from './src/spec/split-reel.gen'
 
 const CLIP = 'https://app.t27.ai/lipsync/lipsync.mp4'
 const BROLL = 'https://app.t27.ai/backgrounds/business/bg00.mp4'
@@ -148,6 +149,18 @@ describe('a valid face source becomes props the composition accepts', () => {
     )
     expect(r.props.backgroundMusic).toBe(MUSIC)
     expect(typeof r.props.musicVolume).toBe('number')
+  })
+
+  it("the house autopilot's call is the house's own: drawn in its gold (split-reel v10)", () => {
+    const r = ok(
+      buildFaceReelProps({ ...BASE, durationSeconds: 5, ctaText: 'Go' })
+    )
+    expect(r.props.ctaText).toBe('Go')
+    expect(r.props.ctaColor).toBe(HOUSE_CALL_COLOR)
+    // No call, no colour: nothing is drawn in the pause.
+    const bare = ok(buildFaceReelProps({ ...BASE, durationSeconds: 5 }))
+    expect(bare.props.ctaColor).toBeUndefined()
+    expect(SplitTalkingHeadSchema.safeParse(r.props).success).toBe(true)
   })
 })
 

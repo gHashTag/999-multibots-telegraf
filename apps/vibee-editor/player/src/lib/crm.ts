@@ -846,7 +846,44 @@ export interface StoryReady {
   /** The look and the call the next reel uses when nothing is typed. */
   style: string | null
   cta: string | null
+  /**
+   * Finished scripts the seller can press for her (crm-story-reel v20,
+   * TEMPLATES_FROM_SERVER): the gallery draws exactly these; [] from an
+   * older server.
+   */
+  templates: StoryTemplate[]
 }
+
+/** One template of the gallery, as the server lists it. */
+export interface StoryTemplate {
+  id: string
+  language: 'ru' | 'en'
+  /** Spoken lines, one per studio shot, the hook first. */
+  lines: string[]
+  /** The call on the end card. */
+  call: string
+  /** The end card's button. */
+  button: string
+  scenes: number
+  /** The longest the reel can run, seconds. */
+  maxSeconds: number
+}
+
+const toStoryTemplates = (v: unknown): StoryTemplate[] =>
+  (Array.isArray(v) ? v : [])
+    .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')
+    .map(t => ({
+      id: str(t['id']) ?? '',
+      language: (t['language'] === 'en' ? 'en' : 'ru') as 'ru' | 'en',
+      lines: (Array.isArray(t['lines']) ? t['lines'] : [])
+        .map(l => (typeof l === 'string' ? l : ''))
+        .filter(Boolean),
+      call: str(t['call']) ?? '',
+      button: str(t['button']) ?? '',
+      scenes: num(t['scenes']) ?? 0,
+      maxSeconds: num(t['max_seconds']) ?? 0,
+    }))
+    .filter(t => t.id && t.lines.length)
 
 export interface StoryScenes {
   default: number
@@ -863,6 +900,13 @@ export interface StoryStartOptions {
   cta?: string
   /** Send the finished reel to her DM as a gift (the tool's `to: "dm"`). */
   toDm?: boolean
+  /** A template from the gallery, with the seller's edits (v20). */
+  template?: {
+    id: string
+    language: 'ru' | 'en'
+    lines: string[]
+    button?: string
+  }
 }
 
 const toStoryScenes = (v: unknown): StoryScenes | null => {
@@ -924,6 +968,7 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     scenes: toStoryScenes(r['scenes']),
     style: str(r['style']),
     cta: str(r['cta']),
+    templates: toStoryTemplates(r['templates']),
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({
@@ -1060,7 +1105,18 @@ export const startStoryReel = async (
       lead,
       start: true,
       ...(topic.trim() ? { topic: topic.trim() } : {}),
-      ...(opts.sceneCount != null ? { scene_count: opts.sceneCount } : {}),
+      ...(opts.template
+        ? {
+            template: opts.template.id,
+            language: opts.template.language,
+            scenes: opts.template.lines.map(line => ({ line: line.trim() })),
+            ...(opts.template.button?.trim()
+              ? { end_card: { button: opts.template.button.trim() } }
+              : {}),
+          }
+        : opts.sceneCount != null
+          ? { scene_count: opts.sceneCount }
+          : {}),
       ...(opts.style?.trim() ? { style: opts.style.trim() } : {}),
       ...(opts.cta?.trim() ? { cta: opts.cta.trim() } : {}),
       ...(opts.toDm ? { to: 'dm' } : {}),

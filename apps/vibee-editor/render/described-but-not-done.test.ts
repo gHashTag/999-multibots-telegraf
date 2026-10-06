@@ -86,6 +86,7 @@ describe('the honesty log says what was unbacked and what really ran', () => {
       tool('crm_client_card'),
     ]
     expect(honestyLogFields(INVENTED, events)).toEqual({
+      claim: 'browser',
       unbacked: ['browser_open', 'browser_screenshot'],
       browserCalls: 2,
       toolCalls: 3,

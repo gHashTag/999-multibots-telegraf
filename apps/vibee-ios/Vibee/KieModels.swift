@@ -134,7 +134,7 @@ enum КаталогKie {
     Модель(id: "gpt-5-2", название: "GPT-5.2 — сценарий", вид: .сценарий, живая: true, требует: "тема", опасная: false, ценаUSD: nil, единица: nil, входИзвне: false, нуженИсходник: false, видИсходника: nil, notSold: false), // cyrillic-ok: generated UI catalogue
     Модель(id: "gemini-3-pro", название: "Gemini 3 Pro — сценарий", вид: .сценарий, живая: true, требует: "тема", опасная: false, ценаUSD: nil, единица: nil, входИзвне: false, нуженИсходник: false, видИсходника: nil, notSold: false), // cyrillic-ok: generated UI catalogue
     Модель(id: "gemini-2.5-flash", название: "Gemini 2.5 Flash — сценарий", вид: .сценарий, живая: true, требует: "тема", опасная: false, ценаUSD: nil, единица: nil, входИзвне: false, нуженИсходник: false, видИсходника: nil, notSold: false), // cyrillic-ok: generated UI catalogue
-    Модель(id: "glm-5.3", название: "GLM-5.3 — сценарий", вид: .сценарий, живая: true, требует: "тема", опасная: false, ценаUSD: nil, единица: nil, входИзвне: false, нуженИсходник: false, видИсходника: nil, notSold: false), // cyrillic-ok: generated UI catalogue
+    Модель(id: "glm-4.7-flash", название: "GLM-4.7 Flash — сценарий", вид: .сценарий, живая: true, требует: "тема", опасная: false, ценаUSD: nil, единица: nil, входИзвне: false, нуженИсходник: false, видИсходника: nil, notSold: false), // cyrillic-ok: generated UI catalogue
   ]
 
   static func поВиду(_ в: Модель.Вид) -> [Модель] { все.filter { $0.вид == в } }

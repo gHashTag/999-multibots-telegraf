@@ -80,6 +80,10 @@ export const firesBefore = (nowS: number, fireS: number, startsS: number) =>
 export const snoozeAllowed = (nowS: number, startsS: number) =>
   nowS + SPEC.SNOOZE_MIN * 60 < startsS
 
+/** A snooze is added only while none of its own still waits (spec v2). */
+export const snoozeAdds = (pendingSnoozes: number) =>
+  pendingSnoozes < SPEC.SNOOZES_PENDING_MAX
+
 export const followsUp = (nowS: number, endsS: number, cancelled: boolean) =>
   !cancelled && nowS >= endsS + SPEC.FOLLOWUP_AFTER_END_MIN * 60
 
@@ -825,10 +829,26 @@ export async function answerTap(
     case 'later':
       if (!snoozeAllowed(nowS, startsS))
         return { said: s.tooLate, markup: settledMarkup(m, a, s.tooLate) }
-      await pool.query(
-        `INSERT INTO ${SPEC.REMINDERS_TABLE} (meeting_id, kind, fire_at) VALUES ($1, 'before', $2)`,
-        [m.id, new Date(now.getTime() + SPEC.SNOOZE_MIN * MIN_MS)]
-      )
+      {
+        /*
+         * IDEMPOTENT, so a relay that lost the answer may give the buttons
+         * back. A snooze is the one 'before' row with no offset; while one
+         * still waits, a second press adds none and answers the same -- true,
+         * the first one will ring. Planned reminders carry an offset and do
+         * not count.
+         */
+        const pending = await pool.query(
+          `SELECT count(*)::int AS n FROM ${SPEC.REMINDERS_TABLE}
+            WHERE meeting_id = $1 AND kind = 'before'
+              AND offset_min IS NULL AND sent_at IS NULL`,
+          [m.id]
+        )
+        if (snoozeAdds(Number(pending.rows?.[0]?.n ?? 0)))
+          await pool.query(
+            `INSERT INTO ${SPEC.REMINDERS_TABLE} (meeting_id, kind, fire_at) VALUES ($1, 'before', $2)`,
+            [m.id, new Date(now.getTime() + SPEC.SNOOZE_MIN * MIN_MS)]
+          )
+      }
       return { said: s.later, markup: settledMarkup(m, a, s.laterShort) }
     case 'cancel':
       await setStatus('cancelled')

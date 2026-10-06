@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import * as SPEC from '@/spec/kanban-card-chat.gen'
 import {
   CARD_SHEET,
+  cardFromAnchor,
   cardFromHistory,
   cardFromHref,
   cardFromMessage,
@@ -88,6 +89,42 @@ describe('cardFromHref', () => {
     expect(cardFromHref('https://github.com/gHashTag/t27/issues/01')).toBeNull()
     expect(cardFromHref('not a url')).toBeNull()
     expect(cardFromHref(undefined)).toBeNull()
+  })
+})
+
+describe('cardFromAnchor', () => {
+  // The board as shipped (QUEEN_REF) draws this; the sheet said "untitled".
+  const board = (title: string | null, strong: string) => {
+    const host = document.createElement('div')
+    host.innerHTML = `<article class="queen27-column is-running"><header><h3>running</h3></header><div class="queen27-cards"><a class="queen27-card" href="https://github.com/gHashTag/t27/issues/5673"><div><b>#5673</b></div><strong>${strong}</strong><span>6 criteria</span></a></div></article>`
+    const a = host.querySelector('a')!
+    if (title !== null) a.setAttribute('title', title)
+    return a
+  }
+
+  it('reads the whole title and the column from the drawn card', () => {
+    const full =
+      'Port gHashTag/trios:crates/trios-cli/src/lock.rs (Rust, 5 functions) into the spec of the same name, five functions and all of their callers'
+    expect(cardFromAnchor(board(full, 'Port gHashTag/trios:cr'))).toEqual({
+      task: 'gHashTag/t27#5673',
+      repo: 'gHashTag/t27',
+      number: 5673,
+      title: full,
+      column: 'running',
+    })
+  })
+
+  it('falls back to the drawn text, caps a hostile title, refuses a stranger', () => {
+    expect(cardFromAnchor(board(null, '  Two\n  lines '))?.title).toBe(
+      'Two lines'
+    )
+    expect(
+      cardFromAnchor(board('x'.repeat(SPEC.TITLE_MAX + 50), ''))?.title
+    ).toHaveLength(SPEC.TITLE_MAX)
+    const a = board('t', 't')
+    a.setAttribute('href', 'https://evil.com/gHashTag/t27/issues/1')
+    expect(cardFromAnchor(a)).toBeNull()
+    expect(cardFromAnchor(null)).toBeNull()
   })
 })
 

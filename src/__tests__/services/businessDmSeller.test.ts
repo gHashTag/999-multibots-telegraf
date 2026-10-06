@@ -74,6 +74,13 @@ async function fresh() {
   vi.resetModules()
   const svc = await import('@/services/businessBotService')
   svc.handleBusinessConnection(connection() as any)
+  /*
+   * Wait for the mocked modelSwitch to finish loading (#3662). The connection
+   * handler starts its own dynamic import of it, and the mock's async factory
+   * is still inside importOriginal; an import racing that window received
+   * the REAL module, whose wasAgentSent says false without RENDER_API_KEY.
+   */
+  await import('@/services/modelSwitch')
   return svc
 }
 

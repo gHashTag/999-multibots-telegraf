@@ -2,6 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Readable } from 'node:stream'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * /mcp SPEAKS TO AN MCP CLIENT OVER HTTP, NOT ONLY TO curl.
  *
@@ -60,7 +68,7 @@ beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   vi.resetModules()
   routes = await import('./src/agent/routes')
-})
+}, SLOW_IMPORT_TIMEOUT_MS)
 
 afterEach(() => {
   for (const [k, v] of Object.entries(saved)) {

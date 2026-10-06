@@ -132,6 +132,7 @@ const NAMES: Record<string, string> = {
   'gift-late': 'портрет рисуется дольше хода, придёт позже', // cyrillic-ok: report text
   'gift-recovered': 'поздний портрет готов и сохранён', // cyrillic-ok: report text
   'sweep-failed': 'обход продавца: сбой',
+  'sweep-deferred': 'обход продавца: отложен, провайдер занят', // cyrillic-ok: report text
   /*
    * Three kinds that printed as their own token in a Russian report, found
    * by `tri contracts` on 2026-09-24. Not a silence -- the reader saw

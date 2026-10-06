@@ -284,7 +284,7 @@ describe('the owner s own community gets the article too', () => {
     /* One subreddit, named in one place: a cron that posts a project's own
        article into other people's communities is what spam is. */
     const u = shareUrls(article)
-    const subs = u.reddit.match(/\/r\/([^/]+)\//g) ?? []
+    const subs = u.reddit!.match(/\/r\/([^/]+)\//g) ?? []
     expect(subs).toHaveLength(1)
   })
 
@@ -347,7 +347,7 @@ describe('Threads gets the article too (owner, 24.09: all three next steps)', ()
     const words = Array.from({ length: 300 }, (_, i) => 'w'.repeat(1 + (i % 9)))
     const title = words.join(' ')
     const long = { ...article, title }
-    const fromUrl = new URL(shareUrls(long).reddit).searchParams.get('title')!
+    const fromUrl = new URL(shareUrls(long).reddit!).searchParams.get('title')!
     const fromDesk = postFor(
       { name: 't27ai', why: 'his own', promo: 'own', everyHours: 24 },
       long
