@@ -1270,7 +1270,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(25)
+    expect(SPEC.VERSION).toBe(26)
   })
 
   it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {
@@ -1316,9 +1316,13 @@ describe("the spec's tests hold against the host", () => {
       text: SPEC.INK_WHITE_HEX,
       accent: SPEC.INK_WHITE_HEX,
     })
-    // The house's own reel keeps what was given: StoryReel's defaults fill it.
+    // The house's own reel keeps what was given, and since v26
+    // (card_complete) the rest is the house's defaults, never left empty.
     expect(endCardForReel({ bg: '#10182a' }, true, 'Hi')).toEqual({
       bg: '#10182a',
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
     })
   })
 
@@ -1343,7 +1347,79 @@ describe("the spec's tests hold against the host", () => {
     })
     // No call and no card: the pause shows nothing, so nothing is made.
     expect(endCardForReel(null, false, '   ')).toBeNull()
-    expect(endCardForReel(null, true, 'Write to me')).toBeNull()
+    expect(endCardForReel(null, true, '   ')).toBeNull()
+  })
+
+  it('a reel whose client is the caller himself is his own, and his lines may name the house', async () => {
+    // reel_is_own(house_own, lead_is_caller); line_way on the result. The
+    // voice step that reads it (audio_generate's name check) is held below.
+    const { reelIsOwn } = await import('../agent/story-reel-tool')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.CALLER_OWN_LEAD_IS_OWN_REEL).toBe(true)
+    expect(reelIsOwn(false, true)).toBe(true)
+    expect(reelIsOwn(true, false)).toBe(true)
+    expect(reelIsOwn(true, true)).toBe(true)
+    expect(reelIsOwn(false, false)).toBe(false)
+    expect(lineWay(true, reelIsOwn(false, true), SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_KEPT
+    )
+    expect(lineWay(true, reelIsOwn(false, false), SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_REFUSED
+    )
+    // The host: the voice step judges the house's name on reelIsOwn, with
+    // for_lead compared to the caller -- not on the house's turn alone.
+    const tools = readFileSync(join(HERE, '..', 'agent', 'tools.ts'), 'utf8')
+    expect(tools).toMatch(
+      /reelIsOwn\(\s*houseReel,\s*!!forLead && forLead === String\(ctx\.telegramId \?\? ''\)\s*\)/
+    )
+    expect(tools).toMatch(/!houseNameAllowed\(\s*ownReel,/)
+  })
+
+  it('every end card the pause shows has a ground and a readable call and button', async () => {
+    // card_complete(own_reel, has_end_card, call_chars)
+    const { cardComplete, endCardForReel, contrastX10, endCardReadable } =
+      await import('../agent/story-reel-tool')
+    expect(SPEC.OWN_CARD_FILLED).toBe(true)
+    expect(cardComplete(true, false, 14)).toBe(true)
+    expect(cardComplete(true, true, 0)).toBe(true)
+    expect(cardComplete(true, false, 1)).toBe(true)
+    expect(cardComplete(false, false, 14)).toBe(true)
+    expect(cardComplete(false, true, 0)).toBe(true)
+    expect(cardComplete(true, false, 0)).toBe(false)
+    expect(cardComplete(false, false, 0)).toBe(false)
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).toBe(SPEC.END_CARD_DEFAULT_TITLE)
+    // The numbers of the law, measured by the host's own contrast.
+    expect(
+      contrastX10(SPEC.END_CARD_DEFAULT_TITLE, SPEC.END_CARD_DEFAULT_BG)
+    ).toBe(SPEC.DEFAULT_TITLE_CONTRAST_X10)
+    expect(
+      contrastX10(SPEC.END_CARD_DEFAULT_TEXT, SPEC.END_CARD_DEFAULT_BG)
+    ).toBe(SPEC.DEFAULT_TEXT_CONTRAST_X10)
+    expect(SPEC.DEFAULT_TITLE_CONTRAST_X10).toBe(140)
+    expect(SPEC.DEFAULT_TEXT_CONTRAST_X10).toBe(196)
+    expect(endCardReadable(SPEC.DEFAULT_TITLE_CONTRAST_X10)).toBe(true)
+    expect(endCardReadable(SPEC.DEFAULT_TEXT_CONTRAST_X10)).toBe(true)
+    // Job 11: the template passed only the button. The card drawn has a
+    // ground and every colour, and the button's text reads on the button.
+    const card = endCardForReel({ button: 'Write' }, true, 'Write to me')!
+    expect(card).toEqual({
+      button: 'Write',
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+    })
+    expect(endCardReadable(contrastX10(card.title!, card.bg!))).toBe(true)
+    expect(endCardReadable(contrastX10(card.bg!, card.accent!))).toBe(true)
+    // story_reel fills the card it renders, on any reel.
+    const tool = readFileSync(
+      join(HERE, '..', 'agent', 'story-reel-tool.ts'),
+      'utf8'
+    )
+    expect(tool).toContain(
+      'const drawnCard = endCardForReel(endCard, !lead || lead === me, cta)'
+    )
+    expect(tool).toContain('...(drawnCard ? { endCard: drawnCard } : {}),')
   })
 
   it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {
