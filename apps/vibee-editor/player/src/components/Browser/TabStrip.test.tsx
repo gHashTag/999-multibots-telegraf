@@ -9,9 +9,9 @@ const TWO: BrowserTab[] = [
 ]
 
 const readBrowserTabs = vi.fn(async (): Promise<BrowserTab[] | null> => TWO)
-const actOnBrowserTab = vi.fn(
-  async (_a: string, _id?: string): Promise<BrowserTab[] | null> => TWO
-)
+const actOnBrowserTab = vi.fn<
+  (action: string, id?: string) => Promise<BrowserTab[] | null>
+>(async () => TWO)
 
 vi.mock('@/lib/remoteBrowser', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/remoteBrowser')>()),
