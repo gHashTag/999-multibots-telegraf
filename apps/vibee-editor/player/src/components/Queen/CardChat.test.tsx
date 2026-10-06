@@ -23,6 +23,8 @@ const TITLE =
 let history: unknown[] = []
 let github: () => Response = () => new Response('[]')
 let live: (() => Response) | null = null
+// v7: render's door to the bee's log on the card; `null` = an old render.
+let beeDoor: (() => Response) | null = null
 
 describe('CardChat on the board', () => {
   let host: HTMLDivElement
@@ -35,6 +37,7 @@ describe('CardChat on the board', () => {
     history = []
     github = () => new Response('[]')
     live = null
+    beeDoor = null
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) =>
@@ -42,7 +45,11 @@ describe('CardChat on the board', () => {
           ? github()
           : String(url).includes('/api/agent/history/live') && live
             ? live()
-            : new Response(JSON.stringify({ messages: history }))
+            : String(url).includes('/api/card-work')
+              ? beeDoor
+                ? beeDoor()
+                : new Response('{}', { status: 404 })
+              : new Response(JSON.stringify({ messages: history }))
       )
     )
   })
@@ -52,7 +59,7 @@ describe('CardChat on the board', () => {
     vi.unstubAllGlobals()
   })
 
-  const open = async () => {
+  const open = async (column = 'running') => {
     await act(async () => {
       root.render(
         <JotaiProvider>
@@ -62,13 +69,19 @@ describe('CardChat on the board', () => {
               repo: 'gHashTag/t27',
               number: 5382,
               title: TITLE,
-              column: 'running',
+              column,
             }}
             onClose={() => {}}
           />
         </JotaiProvider>
       )
     })
+  }
+
+  // A running card opens on its bee (v7); the chat is one tap away.
+  const toChat = async () => {
+    const tab = host.querySelector<HTMLButtonElement>('#card-chat-tab-chat')
+    await act(async () => tab?.click())
   }
 
   it('says the whole title in a disclosure the thumb opens', async () => {
@@ -144,6 +157,7 @@ describe('CardChat on the board', () => {
       },
     ]
     await open()
+    await toChat()
     const bubble = host.querySelector('.card-chat__msg--assistant')
     expect(bubble?.textContent).toBe('Two ways.')
     expect(host.querySelector('.agent-cards')?.textContent).toContain(
@@ -173,6 +187,7 @@ describe('CardChat on the board', () => {
       })
     }
     await open()
+    await toChat()
     await act(async () => new Promise(r => setTimeout(r, 10)))
     expect(host.querySelector('.card-chat__doing')).toBeNull()
     await say('event: work\ndata: {"kind":2,"name":"gh_read"}\n\n')
@@ -197,8 +212,144 @@ describe('CardChat on the board', () => {
     expect(column?.textContent).not.toBe('running')
   })
 
-  it('opens at HALF with the compact handle: no second, cut title', async () => {
+  const BEE = {
+    configured: true,
+    measured: true,
+    prose: false,
+    bee: {
+      conversation: '11111111-2222-4333-8444-555555555555',
+      branch: 'queen/5382',
+      model: 'glm-5.3',
+      dispatchedAt: '2026-10-03T10:00:00Z',
+      finishedAt: null,
+      outcome: null,
+      running: true,
+    },
+    rows: [
+      {
+        seq: 1,
+        at: '2026-10-03T10:00:01Z',
+        kind: 'tool',
+        tool: 'bash',
+        text: 'tri card 5382',
+      },
+      {
+        seq: 2,
+        at: '2026-10-03T10:00:02Z',
+        kind: 'result',
+        ok: true,
+        text: 'ok',
+        lines: 3,
+      },
+      {
+        seq: 3,
+        at: '2026-10-03T10:00:03Z',
+        kind: 'tool',
+        tool: 'read',
+        text: 'specs/x',
+      },
+      {
+        seq: 4,
+        at: '2026-10-03T10:00:04Z',
+        kind: 'result',
+        ok: false,
+        text: 'FAILED  no such file',
+      },
+    ],
+    next: 4,
+  }
+
+  it('opens a running card on its bee: each call, the CLI picked out, the outcome under it (v7)', async () => {
+    beeDoor = () => new Response(JSON.stringify(BEE))
     await open()
+    const bee = host.querySelector<HTMLButtonElement>('#card-chat-tab-bee')
+    expect(bee?.getAttribute('aria-selected')).toBe('true')
+    // A log is read by its height: the bee's face is FULL, not HALF.
+    expect(host.querySelector('.card-chat-sheet')?.className).toContain(
+      'detent-sheet--full'
+    )
+    expect(bee?.querySelector('.card-chat__tab-live')).not.toBeNull()
+    expect(bee?.querySelector('.card-chat__tab-count')?.textContent).toBe('2')
+    const log = host.querySelector('.bee-log')
+    expect(log?.getAttribute('data-state')).toBe('running')
+    expect(log?.querySelector('.bee-log__meta')?.textContent).toContain(
+      'glm-5.3 · queen/5382'
+    )
+    const rows = log?.querySelectorAll('.bee-log__row') ?? []
+    expect(rows).toHaveLength(4)
+    expect(rows[0].querySelector('.bee-log__cli')?.textContent).toBe('tri')
+    expect(rows[0].querySelector('.bee-log__cmd')?.textContent).toBe(
+      'tri card 5382'
+    )
+    expect(rows[1].className).toContain('bee-log__row--ok')
+    expect(rows[1].textContent).toContain('+2 lines')
+    expect(rows[2].querySelector('.bee-log__cli')).toBeNull()
+    expect(rows[3].className).toContain('bee-log__row--failed')
+    // The chat is not drawn behind it, and is one tap away.
+    expect(host.querySelector('.card-chat__log')).toBeNull()
+    await toChat()
+    expect(host.querySelector('.card-chat__log')).not.toBeNull()
+    expect(host.querySelector('.bee-log')).toBeNull()
+  })
+
+  it("says the bee's log is not connected when render has no door -- not that there is no bee", async () => {
+    await open()
+    const note = host.querySelector('.bee-log')
+    expect(note?.getAttribute('data-state')).toBe('off')
+    expect(note?.textContent).toBe(
+      "The bee's log is not connected on this server yet"
+    )
+  })
+
+  it('opens a card no bee is on at its chat, and sending from the bee goes back to it', async () => {
+    beeDoor = () =>
+      new Response(
+        JSON.stringify({ configured: true, measured: true, bee: null })
+      )
+    await act(async () => {
+      root.render(
+        <JotaiProvider>
+          <CardChat
+            card={{
+              task: 'gHashTag/t27#5390',
+              repo: 'gHashTag/t27',
+              number: 5390,
+              title: 'A backlog card',
+              column: 'backlog',
+            }}
+            onClose={() => {}}
+          />
+        </JotaiProvider>
+      )
+    })
+    expect(
+      host.querySelector('#card-chat-tab-chat')?.getAttribute('aria-selected')
+    ).toBe('true')
+    const bee = host.querySelector<HTMLButtonElement>('#card-chat-tab-bee')
+    await act(async () => bee?.click())
+    expect(host.querySelector('.bee-log')?.getAttribute('data-state')).toBe(
+      'none'
+    )
+    const starter = host.querySelector<HTMLButtonElement>('.card-chat__starter')
+    expect(starter).toBeNull()
+    const input = host.querySelector<HTMLTextAreaElement>('.card-chat__input')
+    const form = host.querySelector<HTMLFormElement>('.card-chat__composer')
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        'value'
+      )?.set
+      set?.call(input, 'what is left?')
+      input?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => form?.requestSubmit())
+    expect(
+      host.querySelector('#card-chat-tab-chat')?.getAttribute('aria-selected')
+    ).toBe('true')
+  })
+
+  it('opens at HALF with the compact handle: no second, cut title', async () => {
+    await open('review')
     const sheet = host.querySelector('.card-chat-sheet')
     expect(sheet?.className).toContain('detent-sheet--half')
     expect(sheet?.className).toContain('detent-sheet--compact')

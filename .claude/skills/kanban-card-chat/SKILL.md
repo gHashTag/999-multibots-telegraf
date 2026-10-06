@@ -191,6 +191,31 @@ pre-commit`; an older `tri` says "unknown command: hooks". Build it:
 - **iOS "system shell probably crashed"** is the simulator: `simctl shutdown`,
   `boot`, `bootstatus -b`, then `test-without-building` -- 22/22.
 
+- **The bee's own log (v7) is not the chat agent's work (v6).** v6 names the
+  tools of the agent answering IN the sheet. The bee a Queen round dispatched
+  onto the card writes elsewhere: the Queen's `/queen/feed/data?issue=N`
+  (Bearer `TRIOS_API_TOKEN`, trios-agent-server). Render proxies it as
+  `GET /api/card-work` (`render/src/agent/card-work.ts`); without the token
+  on vibee-render it answers 503 and the sheet says "not connected" --
+  never "no bee". Rows are ONE attempt (the newest conversation), resumed
+  by `conversation` + `since`; a new attempt resets the list.
+- **Two faces, chosen by the column.** A running card opens on "Bee at work"
+  at FULL (`BEE_FACE_FIRST_RUNNING`, `BEE_FACE_DETENT`): `tri shot
+card-chat-bee` at HALF showed two lines of log. Sending a message flips to
+  the chat (`SEND_SHOWS_CHAT`). Tests that open a `running` card must click
+  `#card-chat-tab-chat` before looking for chat turns.
+- **`SPEC.COL_*` are numeric ranks**, not the board's column names: compare
+  through `columnCode(card.column)` (`lib/cardMove.ts`), never
+  `card.column === SPEC.COL_RUNNING` (always false, and tsc does not say so
+  when `column` is `string`).
+- **Fixture paths look like citations.** `check-t27-specs.mjs` reads any
+  `specs/<dir>/<name>.t27` string as a spec citation (law `cited`). Fixture
+  data (paths a bee worked on) drops the `specs/` prefix.
+- **player-lint ratchet (pre-push):** a hook exported from a component file
+  breaks `react-refresh/only-export-components`, and `ref.current = x` in
+  render breaks `react-hooks/refs`. Hooks go in `player/src/hooks/`; refs are
+  written in an effect. Run `npx eslint <files>` in `player/` before pushing.
+
 ## Speed: `tri card`
 
 ```bash
