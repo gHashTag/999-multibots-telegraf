@@ -31,6 +31,22 @@
  * never be pointed at anybody else's account through a caller-chosen key.
  * Route: ZEP_LLM_OPENAI_ENDPOINT=https://<render>/api/zai/relay -- zep's
  * vendored langchaingo appends "/chat/completions" itself.
+ *
+ * BACKGROUND YIELDS TO THE PERSON'S TURN (measured 2026-10-06, vibee-render
+ * production logs 05:00-11:32 UTC). The agent (AGENT_PROVIDER=zai,
+ * glm-4.7-flash) and zep's memory share ONE Z.AI key. In 6.5 h the relay
+ * made 630 upstream calls (~97/h, in bursts of 15-30 back to back) against
+ * ~45 agent turns; the agent got Z.AI's 429 33 times (zai-lite 6 more), and
+ * 15 of the 45 turns ended in an error -- the fallbacks behind zai were
+ * exhausted, unfunded, or "talked instead of calling" tools. The person saw
+ * the agent stop mid-task. Memory is background work and can wait; the
+ * person cannot. So the relay holds at most ZAI_RELAY_MAX_INFLIGHT upstream
+ * calls at once (default 1) and starts them at least ZAI_RELAY_MIN_GAP_MS
+ * apart (default 3000). Over either line it answers 429 with Retry-After
+ * at once, WITHOUT touching Z.AI: zep retries, the agent keeps the quota.
+ * ZAI_RELAY_API_KEY, when set, moves memory to a quota of its own (see
+ * zaiRelayKey): it is then BOTH the key forwarded and the bearer expected,
+ * so zep's ZEP_OPENAI_API_KEY must change to the same value at the same time.
  */
 import { createHash, timingSafeEqual } from 'node:crypto'
 
@@ -38,6 +54,45 @@ export const ZAI_RELAY_UPSTREAM =
   'https://api.z.ai/api/coding/paas/v4/chat/completions'
 
 const RELAY_TIMEOUT_MS = 120_000
+
+const DEFAULT_MAX_INFLIGHT = 1
+const DEFAULT_MIN_GAP_MS = 3000
+
+/**
+ * The relay's share of the Z.AI quota. One per process in production (see
+ * processGate); tests hand in their own so nothing leaks between them.
+ */
+export interface ZaiRelayGate {
+  inFlight: number
+  /** When the last upstream call started, by deps.now(). */
+  lastStartAt: number
+}
+
+export function createZaiRelayGate(): ZaiRelayGate {
+  return { inFlight: 0, lastStartAt: Number.NEGATIVE_INFINITY }
+}
+
+const processGate = createZaiRelayGate()
+
+/**
+ * The one key the relay runs on: ZAI_RELAY_API_KEY when set (memory on its
+ * own quota), else GLM_API_KEY (shared with the agent). Forwarded upstream
+ * AND expected as the caller's bearer -- one key, so a caller can never
+ * spend a key it does not hold. Blank counts as unset.
+ */
+export function zaiRelayKey(
+  env: Record<string, string | undefined> = process.env
+): string | undefined {
+  return env.ZAI_RELAY_API_KEY?.trim() || env.GLM_API_KEY || undefined
+}
+
+/** A whole number from the environment at or above `min`, else `fallback`. */
+function envInt(name: string, fallback: number, min: number): number {
+  const raw = process.env[name]
+  if (raw === undefined || raw.trim() === '') return fallback
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= min ? n : fallback
+}
 
 export function isZaiRelayPath(path: string): boolean {
   return /^\/api\/zai\/relay\/chat\/completions\/?$/.test(path)
@@ -77,11 +132,38 @@ export interface ZaiRelayDeps {
   readBody: (req: unknown) => Promise<string>
   /** The caller's Authorization header, verbatim. */
   bearerOf: (req: unknown) => string | undefined
-  /** Render's own GLM_API_KEY; absent means the relay is off. */
+  /** zaiRelayKey(): forwarded and expected; absent means the relay is off. */
   apiKey: () => string | undefined
   fetchImpl: typeof fetch
   /** Overridable so tests never leave the machine. */
   upstream?: string
+  /** Defaults to the one process-wide gate. */
+  gate?: ZaiRelayGate
+  /** Milliseconds; defaults to Date.now. Tests move time by hand. */
+  now?: () => number
+}
+
+export interface ZaiRelayResult {
+  status: number
+  body: string
+  /** Extra response headers, e.g. Retry-After on a busy 429. */
+  headers?: Record<string, string>
+}
+
+/** The relay's own 429, in the error shape an OpenAI client expects. */
+function busy(why: string, retryAfterMs: number): ZaiRelayResult {
+  const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000))
+  return {
+    status: 429,
+    headers: { 'Retry-After': String(seconds) },
+    body: JSON.stringify({
+      error: {
+        message: `zai relay busy: ${why}; the agent's turn goes first`,
+        type: 'rate_limit',
+        code: 'relay_busy',
+      },
+    }),
+  }
 }
 
 /**
@@ -97,7 +179,7 @@ function bearerMatches(bearer: string | undefined, key: string): boolean {
 export async function handleZaiRelay(
   req: { method?: string },
   deps: ZaiRelayDeps
-): Promise<{ status: number; body: string }> {
+): Promise<ZaiRelayResult> {
   if (req.method !== 'POST') {
     return { status: 405, body: JSON.stringify({ error: 'POST only' }) }
   }
@@ -106,7 +188,9 @@ export async function handleZaiRelay(
     // Fail closed: without our own key there is nothing honest to forward.
     return {
       status: 503,
-      body: JSON.stringify({ error: 'GLM_API_KEY is not set' }),
+      body: JSON.stringify({
+        error: 'neither ZAI_RELAY_API_KEY nor GLM_API_KEY is set',
+      }),
     }
   }
   if (!bearerMatches(deps.bearerOf(req), key)) {
@@ -147,23 +231,42 @@ export async function handleZaiRelay(
   if (typeof body.thinking !== 'object' || body.thinking === null) {
     body.thinking = { type: 'disabled' }
   }
-  let response: Response
-  try {
-    response = await deps.fetchImpl(upstream, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
-    })
-  } catch (e) {
-    return {
-      status: 502,
-      body: JSON.stringify({ error: `upstream unreachable: ${String(e)}` }),
-    }
+  // Background yields: take a slot or step aside before Z.AI is touched.
+  const gate = deps.gate ?? processGate
+  const now = (deps.now ?? Date.now)()
+  const maxInFlight = envInt('ZAI_RELAY_MAX_INFLIGHT', DEFAULT_MAX_INFLIGHT, 1)
+  const minGapMs = envInt('ZAI_RELAY_MIN_GAP_MS', DEFAULT_MIN_GAP_MS, 0)
+  if (gate.inFlight >= maxInFlight) {
+    return busy(`${gate.inFlight} call(s) in flight`, Math.max(minGapMs, 1000))
   }
-  // Verbatim: whatever Z.AI said, including its 4xx, is the answer.
-  return { status: response.status, body: await response.text() }
+  const sinceLast = now - gate.lastStartAt
+  if (sinceLast < minGapMs) {
+    return busy(`last call ${sinceLast} ms ago`, minGapMs - sinceLast)
+  }
+  gate.inFlight++
+  gate.lastStartAt = now
+  try {
+    let response: Response
+    try {
+      response = await deps.fetchImpl(upstream, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+      })
+    } catch (e) {
+      return {
+        status: 502,
+        body: JSON.stringify({ error: `upstream unreachable: ${String(e)}` }),
+      }
+    }
+    // Verbatim: whatever Z.AI said, including its 4xx, is the answer.
+    return { status: response.status, body: await response.text() }
+  } finally {
+    // Every way out frees the slot, a throw while reading the body included.
+    gate.inFlight--
+  }
 }
