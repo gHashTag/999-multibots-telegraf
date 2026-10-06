@@ -2446,6 +2446,10 @@ section "The agent says only what it did".
    comma ends the clause, then "I attached it"; the next sentence delivers
    the picture). Every reviewer prompt asks for an independent adversarial
    probe against main, aimed at each condition of the new rule.
+   The reviewer runs `tri guard-diff <claims|prices>` over
+   `scripts/guard-corpus/<guard>.jsonl` with its own extra rows appended
+   (`--head <PR>`; rc 1 = a lost claim or a wrong confirm vs main, #3772),
+   and commits the rows that found a hole, so the probe outlives its round.
 8. **A rule that silences must prove the object ENDS.** A "this noun is only
    a modifier" rule (`poster text`, `voice menu`) silences a claim, so it
    must check the whole rest of the message: no second media noun, no

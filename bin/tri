@@ -169,6 +169,9 @@ tri — оболочка Trinity S³AI
   tri deps       вылечить node_modules: npm ci, а не install
   tri wt-deps [tree]   a linked worktree's node_modules: root by symlink, render by APFS clone (#3674)
   tri holders [branch] who already holds a branch: worktrees, dirty count, ALARM on a mass staged delete
+  tri guard-diff <claims|prices> <rows|-> [--base REF] [--head REF|PR|DIR]
+                 an honesty guard at base vs head over a rows file: lost claims,
+                 wrong confirms, needless notes; rc 1 on a regression (#3772)
   tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
   tri blind <файл> <было> <стало> <тест>
                  сломать код и посмотреть, покраснеет ли тест
@@ -2020,6 +2023,10 @@ PYEOF
     # Who already holds a branch, before an author is dispatched to it.
     shift
     exec bash "$ROOT/bin/helpers/holders.sh" "$@" ;;
+  guard-diff)
+    # The reviewer's base-vs-head probe of an honesty guard, kept (#3772).
+    shift
+    exec node "$ROOT/bin/helpers/guard-diff.mjs" "$@" ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
     #
