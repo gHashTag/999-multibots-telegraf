@@ -15,6 +15,9 @@ import { join } from 'node:path'
 /* The server reads these once, on import: a test key and a scratch dir. */
 process.env.CHECK_RUNNER_KEY = 'test-key'
 process.env.CHECK_WORK = mkdtempSync(join(tmpdir(), 'check-runner-work-'))
+process.env.CHECK_CACHE = join(process.env.CHECK_WORK, 'cache')
+/* A queued client hears its place every 100 ms instead of every 20 s. */
+process.env.CHECK_BEAT_MS = '100'
 const {
   SNAPSHOT,
   WEBSITE_SCRIPT,
@@ -27,6 +30,8 @@ const {
   skipWatcher,
   SKIPPED_BROWSER,
   server,
+  run,
+  queueState,
 } = await import('./server.mjs')
 
 /* The hook's GIT_DIR must not aim these fixtures at the real repository. */
@@ -546,5 +551,175 @@ describe('mutants: tri mutants in the runner tree, reverted by git', () => {
       runMutants(root, LIST, { out: sink(), env: NO_GIT_ENV }),
       UNMEASURED
     )
+  })
+})
+
+/*
+ * The queue (2026-10-06): a guard run's grandchild outlived its killed shell
+ * and held the pipe, so the queue head never finished, and every request
+ * behind it was a client long gone. A run's whole process group dies with
+ * it; a client that left is skipped in the queue and stopped while running.
+ */
+const { existsSync, readFileSync } = await import('node:fs')
+const http = await import('node:http')
+
+const alive = pid => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    return e.code !== 'ESRCH'
+  }
+}
+async function until(what, ok, ms = 10_000) {
+  const end = Date.now() + ms
+  while (!ok()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`)
+    await new Promise(r => setTimeout(r, 50))
+  }
+}
+const pidIn = file => () =>
+  existsSync(file) && Number(readFileSync(file, 'utf8').trim()) > 0
+const readPid = file => Number(readFileSync(file, 'utf8').trim())
+
+describe('a run takes its whole process group with it', () => {
+  it('a child that exits leaving a grandchild on the pipe still finishes', async () => {
+    const d = scratch()
+    const pidf = join(d, 'pid')
+    const t0 = Date.now()
+    const code = await run(`sleep 30 & echo $! > ${pidf}; exit 0`, d, sink())
+    assert.equal(code, 0)
+    assert.ok(Date.now() - t0 < 4000, `took ${Date.now() - t0} ms`)
+    const pid = readPid(pidf)
+    await until(`sleep ${pid} to die`, () => !alive(pid), 3000)
+  })
+
+  it('an aborted run kills the grandchild too, at once', async () => {
+    const d = scratch()
+    const pidf = join(d, 'pid')
+    const ac = new AbortController()
+    const p = run(
+      `sleep 30 & echo $! > ${pidf}; wait`,
+      d,
+      sink(),
+      {},
+      ac.signal
+    )
+    await until('the grandchild to start', pidIn(pidf))
+    const t0 = Date.now()
+    ac.abort()
+    assert.notEqual(await p, 0)
+    assert.ok(Date.now() - t0 < 4000, `took ${Date.now() - t0} ms`)
+    const pid = readPid(pidf)
+    await until(`sleep ${pid} to die`, () => !alive(pid), 3000)
+  })
+})
+
+describe('the queue drops a client that left', () => {
+  /* An archive whose guard suite is a script of ours. */
+  const archive = script => {
+    const d = scratch()
+    mkdirSync(join(d, 'scripts'))
+    writeFileSync(join(d, 'scripts', 'test-guard.cjs'), script)
+    return execFileSync('tar', ['-czf', '-', '-C', d, '.'], {
+      env: { ...process.env, COPYFILE_DISABLE: '1' },
+    })
+  }
+  /* A request we can hang up on, its body as it arrives. */
+  const open = (base, body) => {
+    const st = { text: '', ended: false }
+    st.req = http.request(`${base}/run?suites=guard`, {
+      method: 'POST',
+      headers: { 'x-check-key': 'test-key' },
+    })
+    st.req.on('response', r => {
+      r.setEncoding('utf8')
+      r.on('data', d => (st.text += d))
+      r.on('end', () => (st.ended = true))
+      r.on('error', () => {})
+    })
+    st.req.on('error', () => {})
+    st.req.end(body)
+    return st
+  }
+  const status = async (base, key) => {
+    const r = await fetch(`${base}/status`, {
+      headers: key ? { 'x-check-key': key } : {},
+    })
+    return { status: r.status, text: await r.text() }
+  }
+
+  it('skips a queued client that left, stops a running one, says the place', async () => {
+    mkdirSync(process.env.CHECK_WORK, { recursive: true })
+    await new Promise(r => server.listen(0, '127.0.0.1', r))
+    const base = `http://127.0.0.1:${server.address().port}`
+    const marks = scratch()
+    const aPid = join(marks, 'a.pid')
+    const aKid = join(marks, 'a-kid.pid')
+    const ranB = join(marks, 'ran-b')
+    const ranC = join(marks, 'ran-c')
+    const pids = []
+    try {
+      /* A blocks: it and a grandchild on its pipe, until the test is over. */
+      const a = open(
+        base,
+        archive(
+          `const fs = require('fs')
+const kid = require('child_process').spawn('sleep', ['30'], { stdio: 'inherit' })
+fs.writeFileSync(${JSON.stringify(aKid)}, String(kid.pid))
+fs.writeFileSync(${JSON.stringify(aPid)}, String(process.pid))
+setTimeout(() => {}, 30000)
+`
+        )
+      )
+      await until('A to run', () => pidIn(aPid)() && pidIn(aKid)())
+      pids.push(readPid(aPid), readPid(aKid))
+
+      const mark = file =>
+        archive(`require('fs').writeFileSync(${JSON.stringify(file)}, 'ran')\n`)
+      const b = open(base, mark(ranB))
+      await until('B to hear its place', () =>
+        b.text.includes(':: queued, 1 ahead')
+      )
+      const c = open(base, mark(ranC))
+      await until('C to hear its place', () =>
+        c.text.includes(':: queued, 2 ahead')
+      )
+
+      assert.equal((await status(base)).status, 401)
+      assert.equal((await status(base, 'wrong')).status, 401)
+      assert.deepEqual(JSON.parse((await status(base, 'test-key')).text), {
+        running: 'guard',
+        queued: 2,
+      })
+
+      /* B hangs up while queued: C moves up, and B never runs. */
+      b.req.destroy()
+      const seen = c.text.length
+      await until('C to move up', () =>
+        c.text.slice(seen).includes(':: queued, 1 ahead')
+      )
+      assert.deepEqual(queueState(), { running: 'guard', queued: 1 })
+
+      /* A hangs up while running: its group dies and C runs at once. */
+      a.req.destroy()
+      await until('C to finish', () => c.ended)
+      assert.match(c.text, /::result \{"guard":0\}/, c.text)
+      assert.ok(existsSync(ranC), 'C ran')
+      assert.ok(!existsSync(ranB), 'B, whose client left, never ran')
+      for (const pid of pids)
+        await until(`A's process ${pid} to die`, () => !alive(pid), 3000)
+      /* C's dir is removed after its answer; then the queue is empty. */
+      await until('the queue to empty', () => queueState().running === null)
+      assert.deepEqual(queueState(), { running: null, queued: 0 })
+    } finally {
+      for (const pid of pids)
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {}
+      server.closeAllConnections()
+      await new Promise(r => server.close(r))
+      rmSync(process.env.CHECK_WORK, { recursive: true, force: true })
+    }
   })
 })
