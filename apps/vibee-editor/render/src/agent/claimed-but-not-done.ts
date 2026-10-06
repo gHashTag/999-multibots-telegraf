@@ -177,15 +177,41 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
+ * Whitespace has ONE definition here (#3728 round 5): "\s", split into line
+ * breaks and everything else. A line break ends a clause; every other
+ * whitespace character -- a tab, the U+00A0 Russian typography puts after
+ * a short pronoun, a thin or an ideographic space -- is a plain space. Round 4 listed
+ * " " and "\t" by hand in CLAUSE_BREAK, so a no-break space between a name
+ * and its verb ended the clause, cut the subject off and read someone else's
+ * verb as the agent's. Both folds keep the length, so a match index in one
+ * form is the same index in the other.
+ */
+const LINE_BREAKS = '\\n\\r\\u2028\\u2029'
+const LINE_BREAK = new RegExp(`[${LINE_BREAKS}]`, 'g')
+const INLINE_SPACE = new RegExp(`[^\\S${LINE_BREAKS}]`, 'g')
+
+/*
+ * The structural form the clause and person rules read: only line breaks
+ * stay, every other whitespace character is " ".
+ */
+const structuralOf = (text: string): string => text.replace(INLINE_SPACE, ' ')
+
+/*
  * The ONE form every claim pattern reads (#3728 round 4). Patterns spell a
  * space literally ("на экране вижу", "I clicked"), and a model wraps lines
- * anywhere, so each whitespace character becomes one space here and nowhere
- * else: round 3 folded line breaks for media and voice only, and a wrapped
- * browser claim went quiet. The fold keeps the length, so a match index in
- * the flat form is the same index in the structural text, where a line break
- * still ends a clause for the opener and person rules.
+ * anywhere, so each whitespace character becomes one space: round 3 folded
+ * line breaks for media and voice only, and a wrapped browser claim went
+ * quiet. It is the structural form with its line breaks folded too.
  */
-const flatOf = (text: string): string => text.replace(/\s/g, ' ')
+const flatOf = (text: string): string =>
+  structuralOf(text).replace(LINE_BREAK, ' ')
+
+/*
+ * "\r\n" and a lone "\r" are one line break (#3728 round 5): unfolded, a
+ * wrapped "I took a\r\nscreenshot" flattens to two spaces, and the English
+ * patterns spell one. Every entry point folds them first.
+ */
+const oneLineBreak = (text: string): string => text.replace(/\r\n?/g, '\n')
 
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
@@ -205,7 +231,7 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  const flat = flatOf(text)
+  const flat = flatOf(oneLineBreak(text))
   return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(flat))
 }
 
@@ -284,8 +310,7 @@ function isHeader(line: string): boolean {
 type Sentence = { text: string; flat: string; back: boolean }
 
 function sentencesOf(raw: string): Sentence[] {
-  const clean = raw
-    .replace(/\r\n?/g, '\n')
+  const clean = oneLineBreak(raw)
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Sentence[] = []
@@ -317,7 +342,7 @@ function sentencesOf(raw: string): Sentence[] {
     const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
     body.split(SENTENCE_END).forEach((text, k) =>
       out.push({
-        text,
+        text: structuralOf(text),
         flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
       })
@@ -516,7 +541,7 @@ function personShaped(words: string[], at: number): boolean {
  * сделала" and "Анна\nГотово сделала" greet Anna, then start the agent's own cyrillic-ok: quoted input
  * clause. "@" stays inside, it marks a handle; "-" inside a word too.
  */ // cyrillic-ok: quoted input
-const CLAUSE_BREAK = /[^\p{L}\p{N}\p{M} \t@'’-]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
+const CLAUSE_BREAK = /[^\p{L}\p{N}\p{M} @'’-]|\s-\s|(?<!\p{L})и(?!\p{L})/gu // cyrillic-ok: matched words
 // a name right after a greeting is the addressee, not the subject
 const GREETING = new Set([
   'привет',
@@ -571,7 +596,7 @@ function ownVerb(sentence: string, m: RegExpMatchArray): boolean {
  * verb-led claim asks only when the "?" closes the matched word itself
  * ("Записал голосовое?"), so "Сделала афишу нравится?" claims too.
  */
-const CLAUSE_END = /\n|[^\p{L}\p{N} \t'’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
+const CLAUSE_END = /\n|[^\p{L}\p{N} '’"«»-]|(?<!\p{L})-|-(?!\p{L})/u
 
 function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
   const rest = sentence.slice((m.index ?? 0) + m[0].length)
@@ -584,7 +609,8 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
 // every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
-// every family matches s.flat; the breaks are read from s.text (#3728 round 4)
+// every family matches s.flat; the breaks are read from s.text, where only
+// a line break is not a plain space (#3728 rounds 4-5)
 function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   if (kindOf(c) === 'browser') return c.re.test(s.flat)
   if (s.back) return false
