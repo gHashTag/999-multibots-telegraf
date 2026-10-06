@@ -47,6 +47,8 @@ export interface Article {
    * the line that names what is not proven.
    */
   evidence?: string
+  /* The feed's pubDate in epoch ms, absent when the feed gives none. */
+  published?: number
 }
 
 const tag = (xml: string, name: string): string => {
@@ -99,11 +101,12 @@ export function parseRss(xml: string): Article[] {
     const label = /^\[([^\]]*)\]\s*/.exec(description)
     const summary = label ? description.slice(label[0].length) : description
     const evidence = label?.[1].trim()
-    out.push(
-      evidence
-        ? { slug, title, link, summary, evidence }
-        : { slug, title, link, summary }
-    )
+    const published = Date.parse(tag(item, 'pubDate'))
+    const article: Article = evidence
+      ? { slug, title, link, summary, evidence }
+      : { slug, title, link, summary }
+    if (Number.isFinite(published)) article.published = published
+    out.push(article)
   }
   return out
 }
@@ -333,16 +336,35 @@ export function queueOrder(text: string, slugs: readonly string[]): string[] {
 }
 
 /**
- * The next article to offer: the first queued one the feed carries and
+ * How young an article must be to go ahead of the owner's queue. On
+ * 2026-10-04..06 the queue (written once, its first items from August) sent
+ * three August articles to X on three days while the articles of 10-04 waited
+ * behind seven more old ones: the owner asked why the agent posts OLD
+ * releases. A fresh article now goes first; the queue orders the rest.
+ * Spec debt: specs/automation/blog-share.t27 v3 still says the queue comes
+ * first unconditionally (newest_goes_next) -- v4 must carry this window.
+ */
+export const FRESH_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * The next article to offer: the newest offerable one published within
+ * FRESH_MS of nowMs (when nowMs is given); else the first queued one the feed carries and
  * nobody was asked about; only when none is left, the newest such -- the
  * feed lists newest first. Pure.
  */
 export function nextArticle(
   articles: readonly Article[],
   known: ReadonlySet<string>,
-  queue: readonly string[]
+  queue: readonly string[],
+  nowMs?: number
 ): { article: Article; queued: boolean } | undefined {
   const offerable = articles.filter(a => !known.has(a.slug))
+  if (nowMs !== undefined) {
+    const fresh = offerable.find(
+      a => a.published !== undefined && nowMs - a.published <= FRESH_MS
+    )
+    if (fresh) return { article: fresh, queued: false }
+  }
   for (const slug of queue) {
     const article = offerable.find(a => a.slug === slug)
     if (article) return { article, queued: true }
@@ -524,7 +546,7 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     queueText ?? '',
     articles.map(a => a.slug)
   )
-  const pick = nextArticle(articles, known, queue)
+  const pick = nextArticle(articles, known, queue, d.now())
   if (!pick) return 'every article was offered already'
   const next = pick.article
   const id = await d.ask(questionFor(next))
