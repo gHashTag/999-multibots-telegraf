@@ -16,9 +16,17 @@ send real cards (`ask`, `tidy ask`) without a reason written here first.
 
 ## СЕЙЧАС В РАБОТЕ
 
-2026-10-06: coder bees on A, B, D resumed (their worktrees held uncommitted
-work after a session restart); N1 and N2 dispatched. Every PR carries
-`owner-approved-foreign` with the owner's chat approval of 2026-10-06 quoted.
+2026-10-06 ~12:00 UTC, dispatched by hand before the Queen took the plan; these
+items are TAKEN until the date below + 24 h:
+
+- A -> `fix/userbot-plain-errors`
+- B -> `fix/browser-yes-is-for-one-place`
+- D -> `fix/crm-duet-dry-run-by-default`
+- N1 -> `fix/zai-relay-yields-to-agent`
+- N2 -> `fix/zai-lite-own-key`
+
+Every PR carries `owner-approved-foreign` with the owner's chat approval of
+2026-10-06 quoted. The bee that merges an item removes its line here.
 
 ## Что уже есть
 

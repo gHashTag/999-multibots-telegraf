@@ -31,6 +31,9 @@ copy items here. Each round:
 - re-reads it from `origin/main`;
 - moves the open PRs of its items (step 2 below) before starting new ones;
 - gives the next unchecked items to at most two coder bees, on disjoint files;
+  an item named under "СЕЙЧАС В РАБОТЕ" with a branch is TAKEN -- skip it
+  unless that branch has had no push and no open PR for 24 h (then say so in
+  the report and re-dispatch); a branch with no push yet is still taken;
 - has each bee tick its item and add one journal line in its own PR, so the
   plan on main is always what really merged.
 
