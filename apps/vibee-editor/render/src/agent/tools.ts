@@ -91,19 +91,30 @@ import {
 } from './client-face'
 import { makeClientFaceTool } from './client-face-tool'
 import { isClientFacing } from './client-facing'
+
+/**
+ * The agent gets a URL, not the picture. Measured 2026-10-05: it described
+ * "your photo, the date, the venue in gold" on a stamped picture of a
+ * stranger with no text at all. Said in every image result.
+ */
+const UNSEEN_PICTURE_HINT =
+  'Ты картинку не видел: не описывай, что на ней, — отдай ссылку как есть или сначала посмотри её' // cyrillic-ok: the tools’ answer text
 import { LIVE_NOTES, makeLeadVoiceTool } from './crm-voice-clone-tool'
-import { makeStoryReelTool, type StillTask } from './story-reel-tool'
+import { makeStoryReelTool, reelIsOwn, type StillTask } from './story-reel-tool'
 import { makeSplitReelTool, SERVER_SENSES } from './split-reel-tool'
 import { stillShowsAFace } from './still-face'
-import { HOUSE_TELEGRAM_IDS, asksElevenLabs, isHouse } from '../house-ids'
+import { lookAtOwnPicture, missingFactsNote } from './look-at-own-picture'
+import { HOUSE_TELEGRAM_IDS, isHouse } from '../house-ids'
+import {
+  agentSuppliedHouseName,
+  houseNameAllowed,
+  houseOwnTurn,
+  ownerVoiceAllowed,
+  voiceRefused,
+} from '../split-reel-plan'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { makeStoryDeps } from './story-deps'
-import {
-  cloneOnReplicate,
-  joinVoiceNotes,
-  leadVoiceOf,
-  ownVoiceOf,
-} from './lead-voice'
+import { cloneFor, cloneOnReplicate, joinVoiceNotes } from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
 import { ROOM_PEOPLE_TOOLS } from './room-people'
 
@@ -167,6 +178,13 @@ export interface ToolContext {
    * view of what the agent did is not filled with checks nobody asked for.
    */
   probe?: boolean
+  /**
+   * The chat lane this turn runs in (browser/lanes.ts): a lane other than
+   * main works in a window of its own in the person's one browser. Absent is
+   * main. Set only by code -- the chat route, after checking its shape and the
+   * cap -- never from tool arguments.
+   */
+  lane?: string
   /**
    * The caller will charge somebody ELSE for this work at a later, confirmed
    * moment (a service delivered in a DM: the recipient pays at the owner's
@@ -256,6 +274,13 @@ export interface ToolContext {
    * files the client's fault under this owner.
    */
   dmSeller?: string
+  /**
+   * What a picture may print (printed-facts.ts, #3661): the person's own
+   * words in this conversation, plus the agent's last answer if they said yes
+   * to it. Set by the chat route from the request's history; absent for
+   * sweeps and MCP calls, which then print without the check.
+   */
+  heard?: string
 }
 
 export interface AgentTool {
@@ -995,6 +1020,22 @@ async function ownerVoiceViaOurClone(
 }
 
 /**
+ * What a failed lipsync tells the person about the money, and only what is
+ * true: "returned" when the refund went through, "nothing was charged" when
+ * nothing was (the house, a delivery paid later), and the failure of the
+ * refund when it failed -- the line used to say "returned" in all three.
+ */
+export function lipsyncRefundWords(
+  charged: number | undefined,
+  refunded: boolean
+): string {
+  if (!charged) return 'Ничего не списано.'
+  return refunded
+    ? `Токены возвращены (${charged}).`
+    : `Возврат ${charged} ток. не прошёл — это видно в журнале, его вернут вручную.`
+}
+
+/**
  * ВОЗВРАТ токенов, если работа не сделана.
  *
  * ЦЕНА ОТСУТСТВИЯ, ИЗМЕРЕННАЯ. Списание стояло ПЕРЕД вызовом провайдера, а
@@ -1028,7 +1069,7 @@ async function refundTokens(
    * redeploy killed that watch -- and only one of them may pay.
    */
   ref?: string
-): Promise<void> {
+): Promise<boolean> {
   const price =
     typeof exact === 'number' && exact > 0 ? exact : TOKEN_PRICES[tool]
   if (!price) {
@@ -1038,7 +1079,7 @@ async function refundTokens(
     console.error(
       `[токены] ВОЗВРАТ НЕВОЗМОЖЕН: нет суммы для «${tool}» (${why})` // cyrillic-ok: existing log text
     )
-    return
+    return false
   }
 
   /**
@@ -1058,7 +1099,7 @@ async function refundTokens(
     console.log(
       `[токены] дом не возвращает себе: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
   /*
    * NOTHING TAKEN, NOTHING GIVEN BACK -- the same mirror, for chargeLater.
@@ -1074,7 +1115,7 @@ async function refundTokens(
     console.log(
       `[токены] списано не было, возвращать нечего: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
-    return
+    return false
   }
 
   try {
@@ -1091,7 +1132,7 @@ async function refundTokens(
       console.log(
         `[токены] возврат не повторён (${moved.reason}): «${tool}» ${ref ?? ''}`
       ) // cyrillic-ok: log text
-      return
+      return false
     }
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
     /*
@@ -1111,6 +1152,7 @@ async function refundTokens(
       what: `${tool}: ${why}`,
       severity: 'attention',
     })
+    return true
   } catch (e) {
     console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
     /*
@@ -1126,6 +1168,7 @@ async function refundTokens(
       what: `refund for "${tool}" did not go through`,
       severity: 'alarm',
     })
+    return false
   }
 }
 
@@ -1149,6 +1192,34 @@ export async function refundLateImage(
     why,
     t.charged ?? 0,
     lateRefundRef(t.task)
+  )
+}
+
+/**
+ * GIVE BACK A VOICE SPLIT_REEL PAID FOR AND THEN REFUSED FOR ITS LENGTH --
+ * at most once per voice (split-reel.t27 v8, REFUND_TOO_LONG_VOICE).
+ *
+ * split_reel estimates a voice from its text before paying for it, at the
+ * pace of the one voice the repo has measured. A slower voice passes that
+ * estimate and is measured past the ceiling only once it exists: the one
+ * refusal after the charge. The sum goes back exactly as audio_generate's
+ * receipt named it, under the voice's own ledger reference; a charge of
+ * nothing (the house, chargeLater) gives nothing back. True only when the
+ * tokens moved, so the answer never says "given back" for a refund that
+ * the ledger refused or the database dropped.
+ */
+export async function refundTooLongVoice(
+  ctx: ToolContext,
+  voice: { url: string; charged: number },
+  why: string
+): Promise<boolean> {
+  if (!(voice.charged > 0)) return false
+  return refundTokens(
+    ctx,
+    'audio_generate',
+    why,
+    voice.charged,
+    `split-reel-too-long:${voice.url}`
   )
 }
 
@@ -1221,6 +1292,83 @@ import {
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
+import { confirmFirst, factsIn, unconfirmedFacts } from './printed-facts'
+import {
+  backgroundPrompt,
+  overlayFactsOnPicture,
+  overlayRefusedHint,
+} from './poster-facts-draw'
+import {
+  backgroundFor,
+  keepBackground,
+  sizeKey,
+  type Background,
+} from './poster-backgrounds'
+
+/** Whose background it is: the person, the client this turn draws for, the surface. */
+const backgroundOwner = (ctx: ToolContext): string =>
+  [
+    ctx.telegramId,
+    ctx.faceOf ?? '',
+    ctx.sellerSweep ? 'sweep' : '',
+    ctx.surface ?? '',
+  ].join('\n')
+
+/**
+ * The title drawn on a background already paid for (#3733): no provider
+ * call, no charge, nothing spent from the daily cap.
+ */
+async function redrawOnKeptBackground(
+  args: Record<string, any>,
+  ctx: ToolContext,
+  kept: Background,
+  title: string
+): Promise<unknown> {
+  const prompt = String(args.prompt ?? '')
+  const drawn = await overlayFactsOnPicture(
+    factsIn(prompt),
+    kept.bytes,
+    kept.contentType,
+    { title }
+  )
+  const ext = drawn.contentType.includes('png')
+    ? 'png'
+    : drawn.contentType.includes('webp')
+      ? 'webp'
+      : 'jpg'
+  const up = await selfFetch(`${selfBase()}/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': drawn.contentType,
+      'X-Filename': `agent-image-${Date.now()}.${ext}`,
+    },
+    body: new Uint8Array(drawn.bytes),
+  })
+  const upData: any = await up.json().catch(() => null)
+  if (!up.ok || !upData?.directUrl)
+    return {
+      сделано: false, // cyrillic-ok: the tools’ answer fields
+      причина: `S3 не принял файл: HTTP ${up.status}`, // cyrillic-ok: the tools’ answer fields
+    }
+  const r = await ctx.pool.query(
+    `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+     VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+     RETURNING id, created_at::text`,
+    [ctx.telegramId, upData.directUrl, prompt]
+  )
+  const unprinted = overlayRefusedHint(drawn.note)
+  return {
+    сделано: true, // cyrillic-ok: the tools’ answer fields
+    url: upData.directUrl,
+    id: r.rows[0]?.id,
+    provider: kept.provider,
+    watermark: null,
+    tried: [],
+    redrawn: true,
+    ...(drawn.note ? { factsOverlay: drawn.note } : {}),
+    подсказка: `Название дорисовано на прежний фон: новой генерации и списания не было. ${unprinted ? unprinted + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
+  }
+}
 
 export const TOOLS: AgentTool[] = [
   {
@@ -1738,7 +1886,7 @@ export const TOOLS: AgentTool[] = [
     name: 'image_edit',
     description:
       'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url — аватарка ВЫЗЫВАЮЩЕГО ' +
-      '(«историю про меня»); это владелец, не клиент: портрет клиента — crm_deliver_photo ' +
+      '(«историю про меня», афиша или обложка «с моим фото»); это владелец, не клиент: портрет клиента — crm_deliver_photo ' +
       '(в диалоге о клиенте лицо клиента берётся само). Лицо сохраняется. Файл — в S3 ' +
       'и «мои файлы», годится для reel_render и ленты.',
     parameters: {
@@ -1797,6 +1945,9 @@ export const TOOLS: AgentTool[] = [
       // Each img2img model is sold at its own cost x markup: nano-banana-edit
       // is `image_edit` (billing-shared), no longer the text-to-image price.
       const op = isGptImage25Edit(model) ? 'gpt_image_edit' : 'image_edit'
+      // A date, time or price nobody confirmed is not printed (#3661).
+      const unsaid = unconfirmedFacts(String(args.prompt ?? ''), ctx.heard)
+      if (unsaid.length) return { done: false, reason: confirmFirst(unsaid) }
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           done: false,
@@ -1976,6 +2127,7 @@ export const TOOLS: AgentTool[] = [
         // Named so a caller can tell "the file is in the shop window" from
         // "the file exists but nobody can find it".
         inGallery: kept.assetId != null,
+        hint: UNSEEN_PICTURE_HINT,
         ...(kept.assetError ? { galleryError: kept.assetError } : {}),
         source: sourceNote,
         model,
@@ -1988,11 +2140,10 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_generate',
     description:
-      'Сгенерировать картинку по описанию. ' +
+      'Картинка по описанию; с фото человека — image_edit. ' +
       imageChainShortNote() +
-      ' В ответе «провайдер» — кто нарисовал, «отказы» — кто не смог или пропущен и почему. ' +
-      'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
-      'её можно сразу отдавать в reel_render или публиковать в ленту.',
+      ' В ответе provider — кто нарисовал, tried — кто не смог и почему. ' +
+      'Файл — в «мои файлы»; ссылку отдавай в reel_render или в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -2019,6 +2170,11 @@ export const TOOLS: AgentTool[] = [
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
+        title: {
+          type: 'string',
+          description:
+            'название афиши; при дате/цене — сразу, его печатает код',
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
@@ -2029,6 +2185,27 @@ export const TOOLS: AgentTool[] = [
       // does not cover (src/agent/flat-price-model.ts).
       const refused = imageModelRefusal(args.model)
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      // A date, time or price nobody confirmed is not printed (#3661) --
+      // in the drawn title either (#3729).
+      const title = typeof args.title === 'string' ? args.title : ''
+      const unsaid = unconfirmedFacts(
+        `${String(args.prompt ?? '')}\n${title}`,
+        ctx.heard
+      )
+      if (unsaid.length)
+        return {
+          сделано: false, // cyrillic-ok: the tool's own response fields
+          причина: confirmFirst(unsaid), // cyrillic-ok: the tool's own response fields
+        }
+      // A title for a background paid for a moment ago only redraws the
+      // overlay: no new generation, no charge (#3733).
+      const who = backgroundOwner(ctx)
+      // Another size is another picture, never the old one returned (#3736).
+      const size = sizeKey(args.width, args.height)
+      const keptBg = title
+        ? backgroundFor(who, String(args.prompt ?? ''), size)
+        : null
+      if (keptBg) return redrawOnKeptBackground(args, ctx, keptBg, title)
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
@@ -2050,12 +2227,15 @@ export const TOOLS: AgentTool[] = [
        * unattended sweep, which works for leads only.
        */
       const clientPrompt = ctx.faceOf || ctx.sellerSweep ? NO_PERSON_PREFIX : ''
+      // The confirmed date, time and price are drawn by code, so the
+      // background is asked for no text at all (#3717).
+      const printed = factsIn(String(args.prompt ?? ''))
       const base = selfBase()
       const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: clientPrompt + String(args.prompt),
+          prompt: clientPrompt + backgroundPrompt(String(args.prompt), printed),
           model: args.model,
           width: args.width,
           height: args.height,
@@ -2108,16 +2288,20 @@ export const TOOLS: AgentTool[] = [
         }
       }
       /*
-       * A STAMPED PICTURE NEVER REACHES A CLIENT'S CHAT (bee review of #3414).
+       * A STAMPED PICTURE IS NEVER HANDED OUT (bee review of #3414; owner,
+       * 2026-10-05).
        *
        * On the business surface every word the agent writes goes to the
        * client in the owner's name, so a URL in this result is a URL the
        * client sees -- and the free leg prints "pollinations.ai" on whatever
-       * it draws. The hint below used to be the only thing in the way, and a
-       * hint is a request. Here the client is refunded and the model gets no
-       * URL to pass on: nothing stamped is saved in the client's files.
+       * it draws. The owner's own chat used to get it "as a draft": asked for
+       * a poster with his photo, the agent sent a stamped stranger and
+       * described a poster it never looked at. The owner called it garbage.
+       * So every surface is refunded and gets no URL; the owner's surface is
+       * pointed at image_edit, which draws on Kie from his own photo.
        */
-      if (watermark && isClientFacing(ctx.surface)) {
+      if (watermark) {
+        const forClient = isClientFacing(ctx.surface)
         await refundTokens(
           ctx,
           'image_generate',
@@ -2126,7 +2310,9 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `сейчас картинку рисует только бесплатный провайдер, и на ней знак ${watermark} — клиенту такое не отдаём; деньги возвращены. Скажи клиенту честно, что картинку по описанию сейчас не сделать; его собственную можно сделать по его фото через image_edit. Ничего от имени владельца не обещай: ему об этом никто не сообщит`, // cyrillic-ok: the tools’ answer fields
+          причина: forClient // cyrillic-ok: the tools’ answer fields
+            ? `сейчас картинку рисует только бесплатный провайдер, и на ней знак ${watermark} — клиенту такое не отдаём; деньги возвращены. Скажи клиенту честно, что картинку по описанию сейчас не сделать; его собственную можно сделать по его фото через image_edit. Ничего от имени владельца не обещай: ему об этом никто не сообщит` // cyrillic-ok: the tools’ answer fields
+            : `сейчас картинку по описанию рисует только бесплатный провайдер, и на ней знак ${watermark} — такое не отдаём; деньги возвращены. Если на картинке должен быть сам человек (его фото, афиша, обложка) — image_edit без image_url, по его аватарке. Иначе скажи честно, что картинку сейчас не сделать, и не описывай картинку, которой нет`, // cyrillic-ok: the tools’ answer fields
           provider: servedBy,
           watermark,
           tried: refusals,
@@ -2151,12 +2337,29 @@ export const TOOLS: AgentTool[] = [
           sourceUrl: genData.url,
         }
       }
-      const bytes = Buffer.from(await img.arrayBuffer())
+      // The facts are drawn onto the picture before it is stored; a fact
+      // that does not fit is refused and named, never cut (#3717).
+      const background = Buffer.from(await img.arrayBuffer())
+      const backgroundType = img.headers.get('content-type') || 'image/jpeg'
+      const drawn = await overlayFactsOnPicture(
+        printed,
+        background,
+        backgroundType,
+        { title }
+      )
+      // A textless background is kept, so a title added next costs nothing.
+      if (printed.length)
+        keepBackground(who, String(args.prompt ?? ''), size, {
+          bytes: background,
+          contentType: backgroundType,
+          provider: servedBy,
+        })
+      const bytes = drawn.bytes
       // The extension follows the bytes. It used to be hard-coded .jpg while
       // Kie hands back image/png (measured), so every Kie poster was stored
       // under a name that lied about its own format -- harmless until something
       // downstream trusts the extension instead of the header.
-      const contentType = img.headers.get('content-type') || 'image/jpeg'
+      const contentType = drawn.contentType
       const ext = contentType.includes('png')
         ? 'png'
         : contentType.includes('webp')
@@ -2192,6 +2395,11 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, upData.directUrl, String(args.prompt)]
       )
+      // The facts in the prompt are read back off the picture (#3660);
+      // a slow or absent vision adds nothing and delays nothing past 20 s.
+      const look = await lookAtOwnPicture(String(args.prompt), bytes)
+      const unseenFacts = missingFactsNote(look)
+      const unprinted = overlayRefusedHint(drawn.note)
       return withTokens(ctx, 'image_generate', {
         сделано: true,
         url: upData.directUrl,
@@ -2201,14 +2409,13 @@ export const TOOLS: AgentTool[] = [
         // talking heads spend from at 18 credits a second; a caller that
         // cannot tell that from a free-ish Replicate hit cannot budget.
         provider: servedBy,
-        // The free leg prints its name on the picture whatever we ask
-        // (image-chain.ts, watermarkOf). Said here, so the agent does not put
-        // a stamped picture on a brand page or into a public post.
+        // Always null here: a stamped picture was refused above. Kept so the
+        // answer has one shape on every path.
         watermark,
         tried: refusals,
-        подсказка: watermark
-          ? `на картинке знак ${watermark}: годится как черновик, но не для бренда и не для поста — чистую даёт image_edit (Kie)`
-          : 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
+        ...(look.missing.length ? { notOnPicture: look.missing } : {}),
+        ...(drawn.note ? { factsOverlay: drawn.note } : {}),
+        подсказка: `${unseenFacts ? unseenFacts + ' ' : ''}${unprinted ? unprinted + ' ' : ''}ссылка готова: отдай её в reel_render как слой или в feed_publish. ${UNSEEN_PICTURE_HINT}`, // cyrillic-ok: the tools’ answer fields
       })
     },
   },
@@ -2217,16 +2424,19 @@ export const TOOLS: AgentTool[] = [
     name: 'audio_generate',
     description:
       'Озвучить текст. for_lead — голосом клиента (его клон из crm_voice_clone), только для материалов ' +
-      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. Без for_lead и voice_id — ' +
-      'клон владельца, а если своего нет — библиотечный голос ElevenLabs (нужен его ключ), и это ' +
-      'будет сказано в ответе. Ошибка — скажи честно, что именно, и собери рилс без звука.',
+      'ему же: это MiniMax на Replicate, ключ ElevenLabs ему НЕ нужен. В разговоре с клиентом без for_lead ' +
+      'и voice_id — тоже его голос, клон владельца там не звучит. Без for_lead и voice_id клон ' +
+      'владельца звучит только в рилсе самого владельца; у остальных — отказ до списания: нужен ' +
+      'voice_id или свой клон (crm_voice_clone, потом for_lead со своим id), чужим голосом не ' +
+      'озвучиваем. Ошибка — скажи честно, что именно, и собери рилс без звука.',
     parameters: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'текст для озвучки' },
         voice_id: {
           type: 'string',
-          description: 'идентификатор голоса ElevenLabs, необязателен',
+          description:
+            'идентификатор голоса Kie (список /api/voices), необязателен',
         },
         for_lead: {
           type: 'string',
@@ -2238,26 +2448,22 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const charge = await spendTokens(ctx, 'audio_generate')
-      if (!charge.ok) return { сделано: false, причина: charge.причина }
-      const base = selfBase()
-      /**
-       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
-       *
-       * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
-       * правило, готовый голос из библиотеки. Владелец спросил напрямую:
-       * «в рилсах клон голоса мой где?» — нигде. Понятия «мой голос» в коде
-       * не существовало вовсе, и рилсы озвучивались чужим тембром.
-       *
-       * ElevenLabs помечает происхождение голоса полем `category`:
-       * `premade` — библиотечный, `cloned`/`professional`/`generated` — свой.
-       * Берём первый НЕ библиотечный; если своих нет — библиотечный, но об
-       * этом честно сообщаем в ответе, чтобы агент мог предложить записать
-       * клон.
-       *
-       * Поле `id`, а не `voice_id`: /api/voices переименовывает его при
-       * упрощении ответа, и обращение к `voice_id` давало undefined —
-       * то есть запасной путь молча не срабатывал.
+      /*
+       * EVERY REFUSAL HERE COMES BEFORE THE CHARGE (split-reel v7,
+       * REFUSED_BEFORE_SPEND). Whose voice it is, and whether that voice
+       * exists, is read first -- from code-set fields and our own tables,
+       * nothing paid -- and only a voice that will be tried is charged. Both
+       * refusals below used to follow the charge with a refund: for the house
+       * that refund was 0 (the house is never charged), and a caller who pays
+       * was charged and refunded for a voice that never existed.
+       */
+      /*
+       * NO STRANGER'S VOICE (split-reel v8, voice_refused). The default voice
+       * is never the first one some account lists: an ordinary caller who
+       * names no voice and has no clone is refused before the charge, and
+       * the house speaks with the owner's clone. The ElevenLabs lookup that
+       * used to fill the gap (`/api/voices`, first custom voice else the
+       * first library one) ran after the charge and is gone (#3561).
        */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       let голосВладельца = false
@@ -2268,26 +2474,61 @@ export const TOOLS: AgentTool[] = [
        */
       let cloneVoice = ''
       let голосКлиента = false // cyrillic-ok: local flag next to голосВладельца
-      if (args.for_lead) {
+      /*
+       * WHOSE VOICE (split-reel v7): the owner's clone is the house's own
+       * reel's alone. On a turn for a client (faceOf, set by code) with no
+       * voice named, the voice is HERS -- her clone, or a refusal before the
+       * charge -- never the owner's.
+       */
+      const forLead = args.for_lead
+        ? String(args.for_lead)
+        : !args.voice_id && ctx.faceOf
+          ? String(ctx.faceOf)
+          : ''
+      const houseReel = houseOwnTurn(
+        {
+          house: isHouse(ctx.telegramId),
+          faceOf: ctx.faceOf,
+          sellerSweep: ctx.sellerSweep,
+        },
+        forLead
+      )
+      /*
+       * A house name the agent put into a voice the house did not order
+       * (split-reel v7 house_name_allowed; her own words judged line by line
+       * by house-names.ts): refused before the charge. A line she typed
+       * herself this turn stands.
+       */
+      /*
+       * A reel whose client is the caller himself is his own (crm-story-reel
+       * v26, reel_is_own): the job of his own crm_story_reel names him as
+       * for_lead, and his own lines naming the house were refused. Only the
+       * name check reads it; the owner's clone stays the house's own turn's.
+       */
+      const ownReel = reelIsOwn(
+        houseReel,
+        !!forLead && forLead === String(ctx.telegramId ?? '')
+      )
+      if (
+        !houseNameAllowed(
+          ownReel,
+          agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)
+        )
+      ) {
+        const why =
+          'голос не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
+      const ownerVoiceMay = ownerVoiceAllowed(houseReel)
+      if (forLead) {
         // Her own voice for her own reel; anybody else's only by its owner.
-        const self =
-          String(args.for_lead).replace(/^@/, '') === String(ctx.telegramId)
-        const theirs = await (
-          self
-            ? ownVoiceOf(ctx.pool, String(ctx.telegramId))
-            : leadVoiceOf(
-                ctx.pool,
-                String(ctx.telegramId),
-                String(args.for_lead)
-              )
+        // split_reel resolves the same clone through the same rule (v9).
+        const theirs = await cloneFor(
+          ctx.pool,
+          String(ctx.telegramId),
+          forLead
         ).catch(() => null)
         if (!theirs) {
-          await refundTokens(
-            ctx,
-            'audio_generate',
-            'клона голоса клиента нет',
-            charge['потрачено']
-          )
           const why =
             'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'
           return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
@@ -2297,23 +2538,36 @@ export const TOOLS: AgentTool[] = [
         voiceId = ''
       }
       /*
-       * The house never asks ElevenLabs (crm-story-reel v19,
-       * HOUSE_SKIPS_ELEVENLABS): a voice of its own there raised the
-       * owner-voice flag and so skipped the owner's clone below -- his reel
-       * spoke a voice found in an ElevenLabs account.
+       * A sweep for leads that names no lead and no voice (split-reel v7):
+       * the house asks no library, so only the owner's voice could speak
+       * it, and that voice is not lent -- refused before the charge, never
+       * a stranger's voice.
        */
-      if (asksElevenLabs(isHouse(ctx.telegramId), voiceId, cloneVoice)) {
-        const v = await selfFetch(`${base}/api/voices`)
-        const vData: any = await v.json().catch(() => null)
-        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
-        const свой = list.find(
-          x => String(x?.category || '').toLowerCase() !== 'premade'
-        )
-        voiceId = String(
-          (свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || ''
-        )
-        голосВладельца = !!свой
+      if (
+        isHouse(ctx.telegramId) &&
+        !voiceId &&
+        !cloneVoice &&
+        !ownerVoiceMay
+      ) {
+        const why =
+          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
+      /*
+       * An ordinary caller with no voice of her own (split-reel v8
+       * voice_refused): no voice_id, no clone chosen above. There is no
+       * stock voice to give her -- a voice found in some account is not
+       * hers -- so she is refused before the charge, and told how to get
+       * her own. The house keeps its own path below (crm-story-reel v19).
+       */
+      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {
+        const why =
+          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
+      const charge = await spendTokens(ctx, 'audio_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
+      const base = selfBase()
       /*
        * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
        * down (its env var holds the key's identifier, not the key): the
@@ -2325,6 +2579,7 @@ export const TOOLS: AgentTool[] = [
         !args.voice_id &&
         !cloneVoice &&
         !голосВладельца && // cyrillic-ok: existing local
+        ownerVoiceMay &&
         HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
       ) {
         cloneVoice = OWNER_MINIMAX_CLONE
@@ -2393,18 +2648,15 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
+          причина: 'не нашёлся ни один голос — нужен voice_id или свой клон', // cyrillic-ok: the tools’ answer fields
         }
       }
-      // Агент должен знать, чьим голосом озвучено: если библиотечным —
-      // стоит предложить человеку записать свой клон.
+      // The agent is told whose voice spoke the line.
       const голос = голосКлиента // cyrillic-ok: local flag
         ? 'клон клиента'
-        : args.voice_id
-          ? 'выбран явно'
-          : голосВладельца
-            ? 'клон владельца'
-            : 'библиотечный — своего клона в аккаунте нет, предложи записать'
+        : голосВладельца // cyrillic-ok: existing local
+          ? 'клон владельца'
+          : 'выбран явно'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2444,12 +2696,20 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, direct, String(args.text).slice(0, 500)]
       )
-      return withTokens(ctx, 'audio_generate', {
-        сделано: true,
-        url: direct,
-        id: r.rows[0]?.id,
-        голос,
-      })
+      // The receipt names what the charge took, not the table price: the
+      // house and chargeLater were charged 0, and split_reel gives back
+      // exactly this sum when it refuses the voice for its length.
+      return withTokens(
+        ctx,
+        'audio_generate',
+        {
+          сделано: true, // cyrillic-ok: the tools’ answer fields
+          url: direct,
+          id: r.rows[0]?.id,
+          голос, // cyrillic-ok: the tools’ answer fields
+        },
+        charge['потрачено'] ?? 0
+      )
     },
   },
 
@@ -2786,7 +3046,7 @@ export const TOOLS: AgentTool[] = [
             charge['потрачено']
           )
         } catch (e) {
-          await refundTokens(
+          const refunded = await refundTokens(
             ctx,
             'lipsync_generate',
             'липсинк не сделан',
@@ -2794,7 +3054,7 @@ export const TOOLS: AgentTool[] = [
           )
           return {
             done: false,
-            reason: `липсинк не сделан: ${String(e instanceof Error ? e.message : e).slice(0, 240)}. Токены возвращены.`,
+            reason: `липсинк не сделан: ${String(e instanceof Error ? e.message : e).slice(0, 240)}. ${lipsyncRefundWords(charge['потрачено'], refunded)}`,
           }
         }
       } finally {
@@ -3935,7 +4195,8 @@ TOOLS.push(
         ? { ok: true, spent: c['потрачено'] ?? 0 }
         : { ok: false, why: String(c.причина) } // cyrillic-ok: the tools’ answer fields
     },
-    refund: (ctx, why, spent) => refundTokens(ctx, 'voice_clone', why, spent),
+    refund: (ctx, why, spent) =>
+      refundTokens(ctx, 'voice_clone', why, spent).then(() => undefined),
     put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
     join: joinVoiceNotes,
     clone: url =>

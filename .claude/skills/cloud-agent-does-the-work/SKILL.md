@@ -172,6 +172,102 @@ omnihuman), хотя вопрос каждый раз был «работает 
 Python и отвечает «не запускалось», а не выдумывает вывод. Из сессии тот же
 прогон — `tri code [--lang ts|js] ФАЙЛ` (нужен Deno на PATH; в образе есть).
 
+## The agent says only what it did (2026-10-06)
+
+Two guards in `apps/vibee-editor/render/src/agent/` stand between the
+model's words and the person, plus one deploy setting:
+
+- `claimed-but-not-done.ts` (issue #3658, PR #3667; scope PR #3680): an
+  answer that claims a picture, a video, a sent file or a browser action with
+  no matching tool call in the same turn gets an honesty note. Quoted text is
+  not a claim; a back-reference header ("Above I:", "**Earlier I:**", an
+  emoji or `###` header, with or without a colon or a blank line) covers only
+  the FIRST sentence of each item of the list directly under it -- a plain
+  line after the list or a second sentence in an item is judged on its own.
+  Voice claims: #3684, merged in PR #3693 (5041a5673); rare openers left: #3723.
+- `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
+  picture prompt must be one the person wrote, or one the agent showed and
+  the person answered a PLAIN yes to. A yes is a closed list of yes words --
+  any other word (a new day, "later") asks once more. Otherwise
+  `image_generate` / `image_edit` refuse BEFORE the charge and name the facts.
+  Leftovers: #3686. A bare number after a price word ("price 20") is a
+  currency-less price and matches the same amount in any currency (#3692).
+- The deploy setting, not a file: a provider head with no tool support
+  narrates work it cannot do (memory `agent-provider-ollama-has-no-tools`).
+
+While a tool runs, every chat surface (DM, business DM, managed bots, the
+hive) shows the tool's own chat action -- upload_photo / upload_video /
+upload_voice -- from the explicit map `TOOL_ACTIONS`, read by `actionForTool`
+in `src/helpers/telegramLongAnswer.ts` (#3682, #3688). A new tool whose name
+sounds like media (image, video, voice, audio, reel...) without an entry turns
+`toolActionEverywhere.test.ts` red: add the entry. A media tool with a neutral
+name is NOT caught -- add its entry by hand when you add the tool.
+
+Lesson from five review rounds (2026-10-06): an OPEN list of "change words"
+never ends -- the reviewer always finds one more correction that reads as yes.
+A CLOSED list of what counts as yes, with "ask again" as the default, ended
+it in one round. Same for headers: decide what IS a header, not what is not.
+
+But a closed list is not always the safe one. Close the list on the side
+where a MISS is safe. "What counts as yes": a miss asks once more -- safe.
+"What may stand before the agent's verb": a miss hides a real claim -- unsafe.
+That closed list dropped ordinary adverbs ("Ну сделала афишу", "Теперь…",
+"Короче…") and let the claim through (#3693, review round 2). Two more from
+the same round:
+
+- A question excuses a claim only inside the claim's OWN clause. "Сделала
+  афишу — как тебе?" is still a claim; the "?" belongs to the next clause.
+- Check EVERY match of a claim pattern, not only the first: a harmless first
+  match must not shadow a real claim later in the answer.
+
+"Whose verb is it?" took SIX review rounds (#3693). Each round fixed a list
+and the reviewer found the next position: openers, then pronouns and
+prepositions, then a preposition three words back. A fixed window ("the two
+words before the name") is a closed list in disguise -- the boundary is
+always in the wrong place. What ended it was a rule tied to the grammar: a
+capitalised word is someone else's subject only at the start of its clause
+with no preposition anywhere earlier in that clause. Before patching a
+list, ask what STRUCTURE the misses share.
+
+A grid before review, a fixed class instead of a fixed site, a list closed on
+the safe side, and a usability bar: the long form, with this guard's #3728
+and #3730 as evidence, lives in `continuous-improvement-loop`, section
+"Lessons of the night of 2026-10-06".
+
+Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
+(U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
+Both readers share `DIGIT_JOINERS`: `look-at-own-picture.ts` since #3705,
+`printed-facts.ts` since #3716 (79c96bd84).
+
+Measure, do not guess: `tri honesty` prints the deploy-time provider head
+(tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
+any flag or a toolless head (#3670).
+
+Can the agent read its own picture? `tri vision-bench` runs the render's own
+vision (llama.cpp, Qwen3-VL-2B, ONE slot) inside vibee-render and prints a row
+per read: ms, hits, and whether the slot was busy just before. Measured
+2026-10-06, vision idle:
+
+- synthetic posters (four lines, fonts 26-72 px at 1536): 4/4 facts at every
+  size; a 448 px height reads in ~1.2 s, 768 px in ~2.4 s. 448 is enough.
+- the SAME JPEG bytes a second time read in ~0.45 s at any size: llama.cpp
+  reused its cached image prompt. The bench draws a fresh background every run
+  so the number is a cold read; a bench that repeats a picture measures the
+  cache, not the model.
+- a real `agent-image` "poster" of 2026-10-05 (prompt: title, "8 October ·
+  11:30", venue) read as `© pollinations.ai` and nothing else -- and it is
+  right: the picture is a stock portrait with no text at all. That is the
+  case the self-check (#3660) exists for; a reading of 0/N is a finding about
+  the picture before it is a finding about vision.
+
+`--image URL --expect "11:30,500"` scores any real picture; rc 1 on a miss.
+
+Pollinations draws no lettering. The newest prod poster scored 0/4 on the
+bench (#3701). The self-check of #3660 (merged 1cfe53604, false-missing fix
+5458846f9) makes the agent SAY the facts are missing -- it does not put them
+on the picture. Exact dates, times and prices need the facts overlay drawn
+by code, spec first (#3701); never promise them from the image model.
+
 ## Related Resources
 
 - `mcp-owner-access` — ключ агента и `/mcp`

@@ -31,9 +31,11 @@ const log = vi.hoisted(() => ({
 vi.mock('@/utils/logger', () => ({ logger: log, default: log }))
 
 // Park the other three so the count belongs to exactly one provider. Replicate
-// is the one whose probe maps an HTTP status straight onto `available`.
+// is the one whose probe maps an HTTP status straight onto `available`; it is
+// off by design (skill kie-only), so it is watched here on purpose.
 const ENV: Record<string, string> = {
   HEALTH_SKIP_PROVIDERS: 'fal.ai,zai,elevenlabs',
+  HEALTH_WATCH_PROVIDERS: 'replicate',
   REPLICATE_API_TOKEN: 'test-replicate-token', // secret-guard-ok: invented fixture, never issued
   // notifyAdmin returns early without an address, and an early return would
   // make "no Telegram message was sent" true for the wrong reason.

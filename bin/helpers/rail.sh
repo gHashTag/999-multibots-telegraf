@@ -48,3 +48,20 @@ rlogs() {
   shift
   railway logs --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$svc" "$@"
 }
+
+# rdeploy_ids SERVICE HOURS -> ids of every deploy that ran inside the last
+# HOURS, space-separated. `railway logs` without an id reads only the current
+# deployment: the first `tri relays` said "no failures in 24 h" eight hours
+# after 401s that lived in the deploy before. Empty output = Railway silent.
+rdeploy_ids() {
+  local svc="${1:?service required}" hours="${2:-24}"
+  railway deployment list --json --project "$RAIL_PROJECT" \
+    --environment "$RAIL_ENV" --service "$svc" 2>/dev/null |
+    HOURS="$hours" python3 -c 'import json,os,sys,datetime as d
+cut = d.datetime.now(d.timezone.utc) - d.timedelta(hours=int(os.environ["HOURS"]))
+rows = [x for x in json.load(sys.stdin) if x.get("status") in ("SUCCESS","REMOVED","CRASHED")]
+# A deploy that ran inside the window: created after the cut, or the last one before it.
+before = [x for x in rows if d.datetime.fromisoformat(x["createdAt"].replace("Z","+00:00")) < cut]
+keep = [x for x in rows if x not in before] + before[:1]
+print(" ".join(x["id"] for x in keep))' 2>/dev/null
+}

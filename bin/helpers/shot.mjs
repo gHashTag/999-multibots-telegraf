@@ -167,6 +167,41 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE TEMPLATE GALLERY of the story panel: the host's own templates, each
+   * priced on its card before the tap (PRICE_BEFORE_PRESS); the tap fills
+   * the fields and spends nothing.
+   */
+  'story-gallery': {
+    page: 'story-palette',
+    tool: 'crm_story_reel',
+    fixture: { templates: true, jobs: JOBS },
+    root: '[data-testid=story-reel-gallery]',
+    scope: '.crm-client',
+    within: 'section',
+    before: [
+      ['[data-testid=story-reel-gallery]', 'section .crm-client__duet-go'],
+    ],
+    // Every template card stands on its own: tall enough to read, never
+    // drawn over another (it once passed green while collapsed).
+    cards: { sel: '.story-reel__template', min: 40 },
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('[data-testid=story-reel-gallery]').waitFor(),
+      },
+      {
+        id: 'picked',
+        ready: async p => {
+          await p
+            .locator('[data-testid="story-reel-template-hook-studio:en"]')
+            .click()
+          await p.locator('.story-reel__lines textarea').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE WHOLE CLIENT CARD (/crm/:id): six panels and the story panel, as the
    * seller sees them on a phone. The story tool is the host's; the other six
    * answer with the shapes CrmClient.test.tsx holds against the page's
@@ -760,7 +795,7 @@ if (name === 'all') {
     const r = results[i]
     const verdict = r.stdout
       .split('\n')
-      .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+      .filter(x => /^== shot|^\s+(small|cut|overlap|order|card|error) /.test(x))
     for (const x of verdict) console.log(x)
     if (!verdict.length)
       console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
@@ -799,7 +834,7 @@ const answer = (tool, args) => {
 }
 
 /* Measured in the page: the target is the page's own --touch-target. */
-function measure({ root, scope, within: area, before = [] }) {
+function measure({ root, scope, within: area, before = [], cards: deck }) {
   const target =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -918,7 +953,34 @@ function measure({ root, scope, within: area, before = [] }) {
         : `${first} is not above ${then}`
     })
     .filter(x => x !== null)
+  /*
+   * CARDS: a harness that names its cards gets each one held to a minimum
+   * height and to no overlap with any other card. No cards found is "not
+   * measured", which counts as a failure, never as a pass.
+   */
+  const card = []
+  if (deck) {
+    const els = [...document.querySelectorAll(deck.sel)]
+    if (!els.length) card.push(`${deck.sel}: not measured (no cards)`)
+    const rs = els.map(el => el.getBoundingClientRect())
+    rs.forEach((r, i) => {
+      if (r.height < deck.min)
+        card.push(
+          `${deck.sel}#${i} height ${Math.round(r.height)}px < ${deck.min}px`
+        )
+    })
+    for (let i = 0; i < rs.length; i++)
+      for (let j = i + 1; j < rs.length; j++) {
+        const a = rs[i]
+        const b = rs[j]
+        const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (x > 0 && y > 0 && x * y > 1)
+          card.push(`${deck.sel}#${i} ∩ #${j} (${Math.round(x * y)}px²)`)
+      }
+  }
   return {
+    card,
     order,
     target,
     controls: controls.length,
@@ -1046,6 +1108,7 @@ try {
       scope: h.scope,
       within: h.within,
       before: h.before,
+      cards: h.cards,
     })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
@@ -1072,16 +1135,20 @@ try {
       m.small.length +
       m.cut.length +
       m.overlap.length +
-      m.order.length
+      m.order.length +
+      m.card.length
     bad += wrong
     lines.push(
       `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
-        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length} · ${file}`
+        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length}` +
+        (h.cards ? `, card ${m.card.length}` : '') +
+        ` · ${file}`
     )
     for (const x of m.small) lines.push(`       small   ${x}`)
     for (const x of m.cut) lines.push(`       cut     ${x}`)
     for (const x of m.overlap) lines.push(`       overlap ${x}`)
     for (const x of m.order) lines.push(`       order   ${x}`)
+    for (const x of m.card) lines.push(`       card    ${x}`)
   }
   if (errors.length) {
     bad += errors.length

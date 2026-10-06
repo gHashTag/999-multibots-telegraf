@@ -4,6 +4,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * THE SIGN-IN FUNNEL LEAVES EVIDENCE, AND NO SECRETS.
  *
@@ -637,46 +645,58 @@ describe('privileged path classes are counted per bot', () => {
     ])
   })
 
-  it('/mcp counts tg_* and owner or keeper tool calls made with initData, and nothing for other credentials', async () => {
-    const agent = await import('./src/agent/routes')
-    const tools = await import('./src/agent/tools')
-    for (const name of ['tg_dialogs', 'whoami'])
-      vi.spyOn(tools.TOOLS_BY_NAME.get(name)!, 'handler').mockResolvedValue({})
-    const call = async (headers: Record<string, string>, name: string) => {
-      const res = response()
-      await agent.handleMcp(
-        request('/mcp', headers, {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: { name },
-        }),
-        res,
-        () => routesDb().pool
+  it(
+    '/mcp counts tg_* and owner or keeper tool calls made with initData, and nothing for other credentials',
+    async () => {
+      const agent = await import('./src/agent/routes')
+      const tools = await import('./src/agent/tools')
+      for (const name of ['tg_dialogs', 'whoami'])
+        vi.spyOn(tools.TOOLS_BY_NAME.get(name)!, 'handler').mockResolvedValue(
+          {}
+        )
+      const call = async (headers: Record<string, string>, name: string) => {
+        const res = response()
+        await agent.handleMcp(
+          request('/mcp', headers, {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name },
+          }),
+          res,
+          () => routesDb().pool
+        )
+        expect(res.body?.error, JSON.stringify(res.body)).toBeUndefined()
+      }
+
+      await call(
+        { 'x-telegram-init-data': launch(OWNER, TOKEN_A) },
+        'tg_dialogs'
       )
-      expect(res.body?.error, JSON.stringify(res.body)).toBeUndefined()
-    }
+      await call({ 'x-telegram-init-data': launch(KEEPER, TOKEN_B) }, 'whoami')
+      await call(
+        { 'x-telegram-init-data': launch(ALICE, TOKEN_B) },
+        'tg_dialogs'
+      )
+      await call({ 'x-telegram-init-data': launch(ALICE, TOKEN_A) }, 'whoami')
+      expect(await privileged()).toEqual([
+        `${BOT_A}:owner_tool:1`,
+        `${BOT_A}:tg_tool:1`,
+        `${BOT_B}:keeper_tool:1`,
+        `${BOT_B}:tg_tool:1`,
+      ])
 
-    await call({ 'x-telegram-init-data': launch(OWNER, TOKEN_A) }, 'tg_dialogs')
-    await call({ 'x-telegram-init-data': launch(KEEPER, TOKEN_B) }, 'whoami')
-    await call({ 'x-telegram-init-data': launch(ALICE, TOKEN_B) }, 'tg_dialogs')
-    await call({ 'x-telegram-init-data': launch(ALICE, TOKEN_A) }, 'whoami')
-    expect(await privileged()).toEqual([
-      `${BOT_A}:owner_tool:1`,
-      `${BOT_A}:tg_tool:1`,
-      `${BOT_B}:keeper_tool:1`,
-      `${BOT_B}:tg_tool:1`,
-    ])
-
-    // The same calls with an app session count nothing.
-    const app = session.signAccessToken({
-      telegramId: OWNER,
-      sessionId: 's-owner-app',
-      deviceKeyThumbprint: '',
-    })
-    await call({ authorization: `Bearer ${app}` }, 'tg_dialogs')
-    expect(await privileged()).toEqual([])
-  })
+      // The same calls with an app session count nothing.
+      const app = session.signAccessToken({
+        telegramId: OWNER,
+        sessionId: 's-owner-app',
+        deviceKeyThumbprint: '',
+      })
+      await call({ authorization: `Bearer ${app}` }, 'tg_dialogs')
+      expect(await privileged()).toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
   it('initDataBotOf names the bot only when that initData proved this very person, digits only', async () => {
     const auth = await import('./auth')

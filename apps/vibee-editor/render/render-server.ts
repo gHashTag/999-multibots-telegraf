@@ -13,17 +13,15 @@ import { serviceOwnerFromKey } from './src/auth/service-owner'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
-import {
-  ГОЛОСА_MINIMAX,
-  входМиниМакс,
-  имяДляElevenLabs,
-  isCloneVoiceId,
-  скоростьРечи,
-} from './src/agent/minimax-voices'
+import { входМиниМакс, isCloneVoiceId } from './src/agent/minimax-voices'
+import { speakOnKie, voicesAnswer } from './src/agent/kie-speech'
 import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
   состояниеЗадания as getKieJobState, // cyrillic-ok
+  runKieJob,
+  KieTaskFailed,
+  type RunKieJobOptions,
 } from './src/agent/kie-run'
 import {
   reviewedKieModel,
@@ -64,7 +62,11 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
-import { stampRefusalCode, refusalCodeFor } from './generation-refusal'
+import {
+  stampRefusalCode,
+  refusalCodeFor,
+  failureAfterCharge,
+} from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -211,7 +213,7 @@ import {
   isContributorKeyPath,
   handleContributorKeys,
 } from './src/hive/contributor-keys-route'
-import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
+import { isZaiRelayPath, handleZaiRelay, zaiRelayKey } from './src/zai-relay'
 import {
   isPayOutcomePath,
   handlePayOutcome,
@@ -244,6 +246,7 @@ import path from 'node:path'
 import {
   hasServerKey,
   authenticate,
+  logsRefusal,
   authMode,
   verifyTelegramInitData,
   verifiedTelegramId,
@@ -306,50 +309,17 @@ function assertFetchable(
   return u
 }
 
-/** The body Kie's ElevenLabs TTS takes, for the first leg and the last. */
-function kieSpeechInput(
-  text: string,
-  voice_name: unknown,
-  speed: unknown
-): Record<string, unknown> {
-  return {
-    text,
-    // Only a name ElevenLabs knows ("Rachel"): the app's list is MiniMax names
-    // now, and a foreign string costs a refusal on the leg tried first.
-    voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
-    stability: 0.5,
-    similarity_boost: 0.75,
-    style: 0,
-    speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
-    timestamps: false,
-    previous_text: '',
-    next_text: '',
-    language_code: '',
-  }
-}
-
 async function runExplicitKieJob(
   model: string,
   input: Record<string, unknown>,
-  options: { attempts?: number; intervalMs?: number } = {}
+  options: RunKieJobOptions = {}
 ): Promise<{ url: string; taskId: string }> {
-  const started = await startKieJob(model, input)
-  if (!started.taskId) {
-    throw new Error(started['отказ'] || 'Kie.ai не принял задачу')
-  }
-
-  const attempts = options.attempts ?? 100
-  const intervalMs = options.intervalMs ?? 3_000
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, intervalMs))
-    const state = await getKieJobState(started.taskId)
-    if (state.url) return { url: state.url, taskId: started.taskId }
-    if (state['отказ']) throw new Error(state['отказ'])
-  }
-
-  throw new Error(
-    `Kie.ai ещё выполняет задачу ${started.taskId}; повторная генерация может списать кредиты снова`
-  )
+  // The loop lives in src/agent/kie-run.ts so it can be tested without this
+  // file; a failed task throws KieTaskFailed with Kie's failCode and failMsg.
+  return runKieJob(model, input, options, {
+    start: startKieJob,
+    state: getKieJobState,
+  })
 }
 
 /**
@@ -441,44 +411,8 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  *
  * Возвращает true и САМ отвечает 404, если сегментов больше ожидаемого.
  */
-/**
- * Ключ ElevenLabs — с проверкой формы, а не только наличия.
- *
- * ЧТО СЛУЧИЛОСЬ. В переменной лежал ИДЕНТИФИКАТОР ключа вместо самого ключа.
- * ElevenLabs отвечал на это 400 с внятным текстом:
- *
- *   "API key ID used as API key - only valid API keys can be used.
- *    API keys start with 'sk_' and are shown when the key is created."
- *
- * А наружу уходило «ElevenLabs API error: 400» — тело ответа выбрасывалось.
- * По такому сообщению нельзя понять ни причину, ни что делать; список
- * голосов и озвучка (платная, 6 токенов) просто не работали, и почему —
- * снаружи было не видно.
- *
- * Проверка формы стоит одну строку и отвечает ДО сетевого запроса: ключ,
- * не начинающийся с `sk_`, не заработает никогда.
- */
 /** Ответ /api/providers живёт минуту: за ним пять чужих сервисов. */
 let providersCache: { at: number; data: Record<string, unknown> } | null = null
-
-function elevenLabsKey(): string {
-  const key = process.env.ELEVENLABS_API_KEY
-  if (!key) {
-    throw new Error(
-      'ELEVENLABS_API_KEY не задан. Ключ создаётся в кабинете ElevenLabs ' +
-        '(Profile → API Keys) и начинается с «sk_».'
-    )
-  }
-  if (!key.startsWith('sk_')) {
-    throw new Error(
-      'ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор: настоящий ключ ' +
-        `начинается с «sk_», а этот — с «${key.slice(0, 3)}». ElevenLabs на такой ` +
-        'отвечает 400 (invalid_api_key). Ключ показывается один раз при создании ' +
-        'или ротации в кабинете ElevenLabs — его и нужно положить в переменную.'
-    )
-  }
-  return key
-}
 
 function rejectExtraSegments(
   req: IncomingMessage,
@@ -606,11 +540,6 @@ import {
   type ShelfStore,
 } from './src/lib/shelf-route'
 import { handleCrmMedia } from './src/agent/media-library-route'
-import {
-  captionsFromCharacterAlignment,
-  type CharacterAlignment,
-  type TimedCaption,
-} from './src/lib/timedCaptions'
 /**
  * РАСПОЗНАВАНИЕ ЛИЦА ГРУЗИТСЯ ЛЕНИВО, и это не оптимизация.
  *
@@ -658,7 +587,10 @@ let faceApiНедоступен: string | null = null
 
 /** Почему кадрирование по лицу недоступно, или null если доступно. */
 export function faceCroppingUnavailable(): string | null {
-  return faceApiНедоступен
+  // Two ways to be unavailable: the module failed to import (the old shape,
+  // before faceDetection.ts loaded its engine lazily), or the module loaded
+  // and its engine did not -- tfjs-node is not in the image (#888).
+  return faceApiНедоступен ?? faceApiReady?.faceDetectionUnavailable() ?? null
 }
 
 function faceApi(): Promise<FaceApi> {
@@ -3840,7 +3772,9 @@ const server = createServer(async (req, res) => {
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
   // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
   // Подробности механизмов — в ./auth.ts.
-  if (auth.wouldReject) {
+  // An OAuth discovery probe with no credential gets the same 401 without a
+  // stderr line; see logsRefusal in ./auth.ts. Every other refusal is logged.
+  if (logsRefusal(req, auth)) {
     console.warn(
       `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
@@ -5374,7 +5308,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
+  // POST /api/generate/audio - Generate TTS on Kie (src/agent/kie-speech.ts)
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
     stampRefusalCode(res)
     let body = ''
@@ -5387,7 +5321,7 @@ const server = createServer(async (req, res) => {
       // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание,
       // а `model` объявлена внутри try и из catch не видна.
       let requestedModel: string | undefined
-      // Same charge, two possible providers below (KieAI, then ElevenLabs or
+      // One charge: Kie speaks (a clone, only with REPLICATE_LIVE=1, on
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
       let billedSpendId: number | undefined
@@ -5401,8 +5335,7 @@ const server = createServer(async (req, res) => {
          * A CLONE (the owner's, or a client's from crm_voice_clone) comes only
          * in `clone_voice`, and only the service's own calls may send one --
          * audio_generate fills it from WHO is asking, never from the model's
-         * words. It lives on MiniMax, so the ElevenLabs leg is skipped: it
-         * would answer in some other voice, or not at all.
+         * words. It lives on MiniMax, which Kie cannot speak.
          */
         const cloneVoice =
           authenticate(req).via === 'api-key' && isCloneVoiceId(clone_voice)
@@ -5433,6 +5366,21 @@ const server = createServer(async (req, res) => {
           return
         }
 
+        /*
+         * A CLONE KIE CANNOT SPEAK IS REFUSED BEFORE THE CHARGE, as a plain
+         * 422 -- not a 500 with a stack after a charge and a refund. Kie has
+         * no speech cloning; a MiniMax clone speaks only while Replicate is
+         * switched on (src/replicate-off.ts).
+         */
+        if (cloneVoice && !replicateLive()) {
+          console.warn(`🎤 [Generate] clone refused: ${CLONE_NEEDS_REPLICATE}`)
+          res.writeHead(422, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({ success: false, error: CLONE_NEEDS_REPLICATE })
+          )
+          return
+        }
+
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
@@ -5452,8 +5400,8 @@ const server = createServer(async (req, res) => {
          * запрос без `model` оставлял множитель единицей, и 20 000 знаков
          * стоили 12 токенов вместо 480. Дыру открыл я сам, закрывая соседнюю.
          *
-         * Условие и не нужно: все ноги этого маршрута — KieAI ElevenLabs,
-         * прямой ElevenLabs, Replicate — тарифицируются провайдером за знаки.
+         * No condition is needed: Kie's TTS (and Replicate for a clone)
+         * bills per character.
          */
         оплаченныеТысячи = тысячиЗнаковКОплате(text)
 
@@ -5499,173 +5447,59 @@ const server = createServer(async (req, res) => {
         receipt = billed.receipt
         billedSpendId = billed.spendId
 
-        // A clone is not a Kie voice: Kie would answer it in Rachel's.
-        if (
-          !cloneVoice &&
-          typeof model === 'string' &&
-          model.startsWith('kie/')
-        ) {
-          /**
-           * ОТКАЗ KIE НЕ ЗАВЕРШАЕТ ЗАПРОС — переходим на запасной путь ниже.
-           *
-           * Раньше `runExplicitKieJob` бросал прямо наружу, и человек получал
-           * 500 «Internal Error, Please try again later» — дословный ответ
-           * KieAI. Замер: единственная разрешённая для звука модель
-           * `elevenlabs/text-to-speech-multilingual-v2` отвечает этой ошибкой
-           * стабильно, а путь ниже (ElevenLabs → Replicate) в ту же секунду
-           * отдаёт готовый mp3. То есть озвучка была технически доступна и
-           * недоступна на практике: приложение всегда шлёт `kie/…`.
-           *
-           * Правило уже сформулировано двумя строками ниже — «провайдер лёг,
-           * идём к следующему, симметрично картинкам». KIE просто в нём не
-           * участвовал.
-           *
-           * ДЕНЬГИ. Списание произошло выше. Отдать результат запасным путём
-           * ЧЕСТНЕЕ, чем вернуть отказ и возврат: человек платил за озвучку,
-           * а не за конкретного подрядчика, и получает именно её. Кто
-           * исполнил на самом деле — сказано в `provider` ответа, не выдумано.
-           */
-          try {
-            const kieModel = reviewedKieModel('audio', model)!
-            const result = await runExplicitKieJob(
-              kieModel,
-              kieSpeechInput(text, voice_name, speed)
-            )
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: true,
-                url: result.url,
-                id: result.taskId,
-                provider: model,
-                ...receipt,
-              })
-            )
-            return
-          } catch (kieError) {
-            // Не глушим: причина отказа KieAI должна остаться в логе, иначе
-            // «почему-то всегда Replicate» станет загадкой на месяц.
-            console.warn(
-              `⚠️ Kie.ai TTS отказал (${model}), идём запасным путём:`,
-              kieError instanceof Error ? kieError.message : kieError
-            )
-          }
-        }
-
-        // ElevenLabs is the primary path; if it is unavailable (the key stored
-        // is an identifier, not an sk_ key, OR the API errors) fall back to
-        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
+        /*
+         * KIE SPEAKS (owner rule, kie-only skill). There used to be three
+         * legs: Kie for an explicit `kie/` model, then ElevenLabs directly,
+         * then Replicate or Kie again. The direct ElevenLabs leg could never
+         * work -- the env var holds a key id, not a key -- and every line of
+         * speech paid a failed round trip and an error in the log for it.
+         *
+         * A clone is the one thing Kie cannot speak (no speech cloning on
+         * Kie): it goes to Replicate only when Replicate was switched back on
+         * (REPLICATE_LIVE=1), and is refused before the charge otherwise.
+         */
         let audioBuffer: Buffer
-        let timedCaptions: TimedCaption[] | undefined
-        let audioProvider = 'elevenlabs'
-        try {
-          if (cloneVoice) throw new Error('a MiniMax clone speaks on MiniMax')
-          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
-          const ttsResponse = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
+        let audioProvider: string
+        let audioTaskId: string | undefined
+        if (cloneVoice) {
+          const audioUrl = await generateAudioViaReplicate(text, {
+            // `voice_id` — то, что прислал клиент; чужой идентификатор
+            // `входМиниМакс` отбросит сам, а не отправит провайдеру.
+            voice: voice_id,
+            clone: cloneVoice,
+            speed,
+            // A MiniMax clone is honoured only when the service itself asks
+            // (the agent's audio_generate), never from a person.
+            trustedClone: authenticate(req).via === 'api-key',
+          })
+          const dl = await fetch(audioUrl)
+          if (!dl.ok) {
+            throw new Error(`Replicate audio download failed: ${dl.status}`)
+          }
+          audioBuffer = Buffer.from(await dl.arrayBuffer())
+          audioProvider = 'replicate/minimax-speech-02-turbo'
+        } else {
+          const spoken = await speakOnKie(
+            text,
             {
-              method: 'POST',
-              headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-              body: JSON.stringify({
-                text,
-                model_id: 'eleven_multilingual_v2',
-                /*
-                 * СКОРОСТЬ ПЕРЕДАЁТСЯ И ЗДЕСЬ.
-                 *
-                 * Ползунок терялся на ВСЕХ трёх ногах; две уже починены, а
-                 * эта осталась бы мёртвой ровно до того дня, когда почините
-                 * ключ ElevenLabs, — и слайдер снова перестал бы значить
-                 * что-либо, без единой правки в коде.
-                 *
-                 * Поле документировано провайдером как `speed` внутри
-                 * `voice_settings`: double, по умолчанию 1
-                 * (elevenlabs.io/docs/api-reference/text-to-speech/convert,
-                 * снято 06.09.2026). Границ там НЕ УКАЗАНО, поэтому свои не
-                 * выдумываем, а берём ту же, что умеет породить наш ползунок
-                 * (0.5–2.0 в вебе, три значения в приложении): за её
-                 * пределами значение прийти не может, и обещать провайдеру
-                 * то, чего он не обещал, не приходится.
-                 *
-                 * Единицу не шлём: это и есть значение по умолчанию.
-                 */
-                voice_settings: {
-                  stability: 0.5,
-                  similarity_boost: 0.75,
-                  ...(скоростьРечи(speed) != null && скоростьРечи(speed) !== 1
-                    ? { speed: скоростьРечи(speed) }
-                    : {}),
-                },
-              }),
-            }
-          )
-          if (!ttsResponse.ok) {
-            throw new Error(
-              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
-            )
-          }
-          const timedSpeech = (await ttsResponse.json()) as {
-            audio_base64?: unknown
-            alignment?: CharacterAlignment
-            normalized_alignment?: CharacterAlignment
-          }
-          if (
-            typeof timedSpeech.audio_base64 !== 'string' ||
-            timedSpeech.audio_base64.length === 0
-          ) {
-            throw new Error('ElevenLabs timestamp response has no audio')
-          }
-          audioBuffer = Buffer.from(timedSpeech.audio_base64, 'base64')
-          timedCaptions = captionsFromCharacterAlignment(
-            timedSpeech.normalized_alignment ?? timedSpeech.alignment!
-          )
-        } catch (elevenErr) {
-          if (!replicateLive()) {
-            /*
-             * REPLICATE IS OFF (src/replicate-off.ts): the last leg is Kie's
-             * ElevenLabs, the funded purse. A clone cannot be spoken there --
-             * Kie has no speech cloning -- so it is refused, and the catch
-             * below refunds what was charged, rather than read in a stranger's
-             * voice under the person's name.
-             */
-            if (cloneVoice) throw new Error(CLONE_NEEDS_REPLICATE)
-            console.warn(
-              `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Kie TTS`
-            )
-            const kieTts = 'elevenlabs/text-to-speech-multilingual-v2'
-            const spoken = await runExplicitKieJob(
-              kieTts,
-              kieSpeechInput(text, voice_name, speed)
-            )
-            const got = await fetch(spoken.url)
-            if (!got.ok)
-              throw new Error(`Kie audio download failed: ${got.status}`)
-            audioBuffer = Buffer.from(await got.arrayBuffer())
-            audioProvider = `kie/${kieTts}`
-          } else {
-            console.warn(
-              `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
-            )
-            const audioUrl = await generateAudioViaReplicate(text, {
-              // `voice_id` — то, что прислал клиент; чужой идентификатор
-              // `входМиниМакс` отбросит сам, а не отправит провайдеру.
-              voice: voice_id,
-              clone: cloneVoice,
+              model:
+                typeof model === 'string' && model.startsWith('kie/')
+                  ? (reviewedKieModel('audio', model) ?? undefined)
+                  : undefined,
+              voiceId: voice_id,
+              voiceName: voice_name,
               speed,
-              // A MiniMax clone is honoured only when the service itself asks
-              // (the agent's audio_generate), never from a person.
-              trustedClone: authenticate(req).via === 'api-key',
-            })
-            const dl = await fetch(audioUrl)
-            if (!dl.ok) {
-              throw new Error(`Replicate audio download failed: ${dl.status}`)
-            }
-            audioBuffer = Buffer.from(await dl.arrayBuffer())
-            audioProvider = 'replicate/minimax-speech-02-turbo'
+            },
+            runExplicitKieJob
+          )
+          // Kie's links expire: the file is kept in our own bucket.
+          const got = await fetch(spoken.url)
+          if (!got.ok) {
+            throw new Error(`Kie audio download failed: ${got.status}`)
           }
+          audioBuffer = Buffer.from(await got.arrayBuffer())
+          audioProvider = spoken.provider
+          audioTaskId = spoken.taskId
         }
         console.log(
           `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
@@ -5689,10 +5523,7 @@ const server = createServer(async (req, res) => {
             success: true,
             url: uploadResult.url,
             provider: audioProvider,
-            id: Date.now().toString(),
-            ...(timedCaptions && timedCaptions.length > 0
-              ? { timed_captions: timedCaptions }
-              : {}),
+            id: audioTaskId ?? Date.now().toString(),
             ...receipt,
           })
         )
@@ -5721,138 +5552,18 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // GET /api/voices - Get available ElevenLabs voices
+  /*
+   * GET /api/voices -- the voices of the TTS we actually use: Kie's
+   * multilingual model (src/agent/kie-speech.ts, list in @vibee/atoms).
+   *
+   * This used to ask ElevenLabs directly, with a key that was never a key:
+   * every call logged an error with a stack, then fell back to MiniMax ids
+   * that the Kie leg could not speak. Now it is a constant answer -- no key,
+   * no network call, nothing to log.
+   */
   if (req.url === '/api/voices' && req.method === 'GET') {
-    try {
-      const ELEVENLABS_API_KEY = elevenLabsKey()
-      console.log(`🎤 [Voices] Fetching ElevenLabs voices...`)
-
-      const response = await fetch('https://api.elevenlabs.io/v1/voices', {
-        method: 'GET',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        // Тело — вместе с кодом. Именно в теле ElevenLabs объясняет, что не
-        // так; без него «error: 400» не говорит ничего и чинить нечего.
-        const detail = await response.text().catch(() => '')
-        throw new Error(
-          `ElevenLabs ответил ${response.status}${detail ? `: ${detail.slice(0, 400)}` : ''}`
-        )
-      }
-
-      const data = await response.json()
-      const voices = data.voices || []
-
-      console.log(`✅ [Voices] Found ${voices.length} voices`)
-
-      // Filter out voices that are not fine-tuned (professional clones need fine-tuning)
-      const readyVoices = voices.filter((voice: any) => {
-        // Premade voices always work
-        if (voice.category === 'premade') {
-          return true
-        }
-
-        // Check fine_tuning status for cloned voices
-        if (voice.fine_tuning) {
-          const state = voice.fine_tuning.fine_tuning_state
-          const isAllowed = voice.fine_tuning.is_allowed_to_fine_tune
-
-          // Log for debugging
-          console.log(
-            `🔍 [Voices] ${voice.name} (${voice.voice_id}): category=${voice.category}, state=${state}, isAllowed=${isAllowed}`
-          )
-
-          // Skip if fine-tuning is required but not complete
-          if (state && state !== 'fine_tuned' && state !== 'not_started') {
-            console.log(
-              `⚠️ [Voices] Skipping ${voice.name}: not fine-tuned (state=${state})`
-            )
-            return false
-          }
-
-          // Skip if not allowed to use (professional voices that need fine-tuning)
-          if (isAllowed === false && state !== 'fine_tuned') {
-            console.log(
-              `⚠️ [Voices] Skipping ${voice.name}: not allowed and not fine-tuned`
-            )
-            return false
-          }
-        }
-        return true
-      })
-
-      console.log(
-        `✅ [Voices] ${readyVoices.length} ready voices (filtered from ${voices.length})`
-      )
-
-      // Map to simplified format
-      const simplifiedVoices = readyVoices.map((voice: any) => ({
-        id: voice.voice_id,
-        name: voice.name,
-        category: voice.category || 'custom',
-        labels: voice.labels || {},
-        preview_url: voice.preview_url,
-      }))
-
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          success: true,
-          voices: simplifiedVoices,
-          provider: 'elevenlabs',
-        })
-      )
-    } catch (error) {
-      console.error('❌ [Voices] Error:', error)
-      /**
-       * ОТКАЗ ElevenLabs НЕ ОСТАВЛЯЕТ ЭКРАН БЕЗ ГОЛОСОВ — потому что звук всё
-       * равно будет сделан, только другим провайдером.
-       *
-       * Здесь стоял 500, и это был не сбой, а ПОСТОЯННОЕ состояние: замер на
-       * боевом сервере даёт «ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его
-       * идентификатор». Веб на отказе подставлял три запасных имени — `sarah`,
-       * `rachel`, `josh`, — которые не являются идентификаторами голоса нигде.
-       * Человек выбирал из трёх выдуманных и получал голос MiniMax по
-       * умолчанию.
-       *
-       * Отдаём голоса ТОЙ ноги, которая доедет: маршрут озвучки падает с
-       * ElevenLabs на Replicate minimax, и её голоса провайдер понимает
-       * дословно. Порядок здесь тот же, что в маршруте, — одна правда о том,
-       * кто озвучивает.
-       *
-       * Починят ключ — первая ветка снова ответит своими голосами, и этот код
-       * менять не придётся.
-       */
-      if (ГОЛОСА_MINIMAX.length > 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            success: true,
-            voices: ГОЛОСА_MINIMAX,
-            provider: 'replicate/minimax-speech-02-turbo',
-            // Причина не прячется: без неё «почему голоса другие» станет
-            // загадкой на месяц, как уже было с «почему всегда Replicate».
-            note:
-              error instanceof Error
-                ? `ElevenLabs недоступен: ${error.message.slice(0, 200)}`
-                : 'ElevenLabs недоступен',
-          })
-        )
-        return
-      }
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          success: false,
-          error:
-            error instanceof Error ? error.message : 'Failed to fetch voices',
-        })
-      )
-    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(voicesAnswer()))
     return
   }
 
@@ -6032,9 +5743,13 @@ const server = createServer(async (req, res) => {
                 prompt: 'person speaking naturally',
               },
               // The wait grows with the voice (lipsync-voice.ts says why).
+              // A transient Kie failure ("please try again later") gets one
+              // more task of the SAME model inside the same wait; content and
+              // validation failures do not (kie-run.ts isTransientKieFailure).
               {
                 attempts: lipsyncPollAttempts(billedSeconds),
                 intervalMs: LIPSYNC_POLL_INTERVAL_MS,
+                retryTransientOnce: true,
               }
             )
             res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -6144,8 +5859,16 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Lipsync generation timeout')
       } catch (error) {
-        console.error('❌ [Generate] Lipsync error:', error)
-        await refundMiniAppUser(
+        // Kie's own failCode and failMsg, not only its sentence: the message
+        // of KieTaskFailed carries both, and the fields are named again so a
+        // log search by code finds them.
+        console.error(
+          '❌ [Generate] Lipsync error:',
+          error instanceof KieTaskFailed
+            ? `${error.message} [task=${error.taskId} failCode=${error.failCode ?? '-'} transient=${error.transient}]`
+            : error
+        )
+        const refundedOk = await refundMiniAppUser(
           billedTid,
           'lipsync_generate',
           billedSeconds || 1,
@@ -6155,10 +5878,12 @@ const server = createServer(async (req, res) => {
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
-          })
+          JSON.stringify(
+            failureAfterCharge(
+              error instanceof Error ? error.message : 'Generation failed',
+              refundedOk ? (receipt.charged ?? 0) : 0
+            )
+          )
         )
       }
     })
@@ -6363,9 +6088,29 @@ const server = createServer(async (req, res) => {
           mediaUrl.endsWith('.mp4') ||
           mediaUrl.endsWith('.webm') ||
           mediaUrl.endsWith('.mov')
-        const faceBox = isVideo
-          ? await detectFaceInVideo(filePath)
-          : await detectFaceInImage(filePath)
+        let faceBox: Awaited<ReturnType<typeof detectFaceInImage>>
+        try {
+          faceBox = isVideo
+            ? await detectFaceInVideo(filePath)
+            : await detectFaceInImage(filePath)
+        } catch (detectError) {
+          // The engine missing from the process is not this request's fault:
+          // it was said once at startup, and the caller gets the center crop
+          // with the reason instead of a 500 and an error line per request.
+          const unavailable = faceCroppingUnavailable()
+          if (!unavailable) throw detectError
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              faceDetected: false,
+              faceDetectionAvailable: false,
+              cropSettings: { offsetX: 0, offsetY: 0, scale: 1 },
+              message: `Face detection unavailable: ${unavailable}`,
+            })
+          )
+          return
+        }
 
         if (!faceBox) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -9182,10 +8927,13 @@ const server = createServer(async (req, res) => {
     const out = await handleZaiRelay(req, {
       readBody: r => readBody(r as any),
       bearerOf: r => (r as any).headers?.authorization,
-      apiKey: () => process.env.GLM_API_KEY,
+      apiKey: () => zaiRelayKey(),
       fetchImpl: fetch,
     })
-    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      ...out.headers,
+    })
     res.end(out.body)
     return
   }
@@ -9385,7 +9133,10 @@ const server = createServer(async (req, res) => {
      */
     if (state === 'allowed') {
       const who = byToken?.telegramId || (await approvalOwner(pool, subject))
-      if (who) await markAllowed(pool, who)
+      /* Only a question about acting on a page opens the guard, for its host. */
+      const { allowedActHost } = await import('./src/browser/approvals')
+      if (who)
+        await markAllowed(pool, who, await allowedActHost(pool, subject, who))
     }
     const said =
       state === 'allowed'
@@ -12603,7 +12354,7 @@ const server = createServer(async (req, res) => {
         имя: 'z.ai',
         url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
         key: process.env.GLM_API_KEY,
-        model: 'glm-5.3',
+        model: 'glm-4.7-flash',
       },
       {
         имя: 'KieAI',
@@ -12680,7 +12431,7 @@ const server = createServer(async (req, res) => {
             имя: 'z.ai',
             url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
             key: process.env.GLM_API_KEY,
-            модели: ['glm-5.3'],
+            модели: ['glm-4.7-flash'],
           },
           {
             имя: 'KieAI',

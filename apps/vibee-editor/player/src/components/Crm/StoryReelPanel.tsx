@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useSetAtom } from 'jotai'
 // Its own classes: the panel used to live only on the CRM client page, which
 // imported these for it. It now mounts in the chat aside too, where neither
 // page css is loaded -- so it carries them itself (vibee-stack-hard-won: a
@@ -12,6 +13,8 @@ import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
 import { StoryPalette } from '@/components/Crm/StoryPalette'
+import { StoryTemplateGallery } from '@/components/Crm/StoryTemplateGallery'
+import { clientWidgetsAtom } from '@/atoms/clientWidgets'
 import {
   loadStoryIdeas,
   loadStoryReel,
@@ -21,6 +24,8 @@ import {
   type StoryReady,
   type StoryScenes,
   type StoryStart,
+  templateKey,
+  type StoryTemplate,
 } from '@/lib/crm'
 
 /**
@@ -139,6 +144,9 @@ export function StoryReelPanel({
   // The finished reel goes straight to her DM unless the seller says not.
   const [toDm, setToDm] = useState(true)
   const [result, setResult] = useState<Reached<StoryStart> | null>(null)
+  // The script picked in the gallery, with the seller's edits of its lines.
+  const [template, setTemplate] = useState<StoryTemplate | null>(null)
+  const [lines, setLines] = useState<string[]>([])
 
   const reload = useCallback(async () => {
     if (clientId) setState(await loadStoryReel(clientId))
@@ -172,8 +180,89 @@ export function StoryReelPanel({
   const n = Math.min(range.max, Math.max(range.min, count ?? range.default))
   // The price of the chosen count when the server priced it, else the
   // default reel's -- never a figure computed here.
-  const price =
-    s?.scenes?.priceTokens[n] ?? (n === range.default ? s?.priceTokens : null)
+  const priceOf = (k: number) =>
+    s?.scenes?.priceTokens[k] ?? (k === range.default ? s?.priceTokens : null)
+  const price = priceOf(n)
+
+  // A tap on a script fills the fields: its frames, its call, its hook as
+  // the topic, its lines to edit. A second tap on it lets it go.
+  const pick = (tpl: StoryTemplate | null) => {
+    setTemplate(tpl)
+    setLines(tpl ? [...tpl.lines] : [])
+    if (!tpl) return
+    setCount(tpl.scenes || tpl.lines.length)
+    setCta(tpl.call)
+    setTopic(tpl.lines[0] ?? '')
+  }
+
+  /*
+   * THE AGENT SEES WHAT THIS PANEL IS SET TO (owner, 2026-10-03: it sent an
+   * old render while the panel stood open on a new topic). Mirrored into the
+   * client's entry of clientWidgetsAtom while the panel is mounted, cleared
+   * when it goes; the chat reads it when a line is sent. Empty style and call
+   * are the template's, so the template's are what the agent is told.
+   */
+  const setWidgets = useSetAtom(clientWidgetsAtom)
+  const faceNow = s
+    ? s.faceCustom && s.face
+      ? s.face
+      : s.face
+        ? 'source photo'
+        : null
+    : null
+  const ctaNow = cta || s?.cta || ''
+  const styleNow = style || s?.style || ''
+  const shown = Boolean(s) && !state.refused
+  useEffect(() => {
+    if (!clientId) return
+    setWidgets(all => ({
+      ...all,
+      [clientId]: {
+        ...all[clientId],
+        content: shown
+          ? {
+              topic,
+              scenes: n,
+              style: styleNow,
+              cta: ctaNow,
+              toDm,
+              face: faceNow,
+              ideas,
+              ...(template
+                ? {
+                    template: {
+                      id: template.id,
+                      language: template.language,
+                      lines,
+                    },
+                  }
+                : {}),
+            }
+          : null,
+      },
+    }))
+  }, [
+    clientId,
+    shown,
+    topic,
+    n,
+    styleNow,
+    ctaNow,
+    toDm,
+    faceNow,
+    ideas,
+    template,
+    lines,
+    setWidgets,
+  ])
+  useEffect(() => {
+    if (!clientId) return
+    return () =>
+      setWidgets(all => ({
+        ...all,
+        [clientId]: { ...all[clientId], content: null },
+      }))
+  }, [clientId, setWidgets])
 
   // From the previous count, not this render's: two quick taps are two steps.
   const step = (d: number) =>
@@ -188,11 +277,22 @@ export function StoryReelPanel({
       style,
       cta,
       toDm,
+      ...(template
+        ? {
+            template: {
+              id: template.id,
+              language: template.language,
+              lines,
+              ...(template.button ? { button: template.button } : {}),
+            },
+          }
+        : {}),
     })
     setResult(r)
     setBusy(false)
     if (r.data?.started) {
       setTopic('')
+      pick(null)
       void reload()
     }
   }
@@ -271,6 +371,35 @@ export function StoryReelPanel({
 
           {s.ready ? (
             <>
+              <StoryTemplateGallery
+                templates={s.templates}
+                card={s.endCard}
+                priceOf={priceOf}
+                chosen={template ? templateKey(template) : null}
+                disabled={busy}
+                onPick={pick}
+              />
+              {template ? (
+                <div className="story-reel__lines">
+                  {lines.map((line, i) => (
+                    <label key={i}>
+                      <span className="story-reel__label">
+                        {t('crm.client.story.gallery.line', { n: i + 1 })}
+                      </span>
+                      <textarea
+                        value={line}
+                        rows={2}
+                        disabled={busy}
+                        onChange={e =>
+                          setLines(all =>
+                            all.map((l, j) => (j === i ? e.target.value : l))
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : null}
               <textarea
                 className="story-reel__topic"
                 value={topic}

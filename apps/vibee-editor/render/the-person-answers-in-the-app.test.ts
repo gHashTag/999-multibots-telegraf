@@ -17,16 +17,30 @@ type Row = {
   what: string
   state: string
   fresh: boolean
+  /** The page host of a question about acting on a page; absent otherwise. */
+  act_host?: string | null
 }
 
 function pool(rows: Row[]) {
   const said: string[] = []
+  /* What the session was told: [telegram id, host] per opened window. */
+  const opened: unknown[][] = []
   return {
     said,
+    opened,
     async query(sql: string, params: unknown[] = []) {
       said.push(sql)
       const s = sql.trim().toUpperCase()
       if (s.startsWith('CREATE') || s.startsWith('ALTER')) return { rows: [] }
+      if (s.startsWith('SELECT ACT_HOST FROM BROWSER_APPROVALS')) {
+        const r = rows.find(
+          r =>
+            r.id === params[0] &&
+            r.telegram_id === params[1] &&
+            r.state === 'allowed'
+        )
+        return { rows: r ? [{ act_host: r.act_host ?? null }] : [] }
+      }
       if (s.includes('FROM BROWSER_APPROVALS') && s.startsWith('SELECT')) {
         const r = rows
           .filter(
@@ -48,7 +62,10 @@ function pool(rows: Row[]) {
         r.state = state
         return { rows: [{ state }] }
       }
-      if (s.startsWith('UPDATE BROWSER_SESSIONS')) return { rows: [] }
+      if (s.startsWith('UPDATE BROWSER_SESSIONS')) {
+        if (/ALLOWED_AT = NOW\(\)/.test(s)) opened.push(params)
+        return { rows: [] }
+      }
       if (s.startsWith('SELECT')) return { rows: [] }
       return { rows: [] }
     },
@@ -97,6 +114,7 @@ describe('the question in the app, answered by the person', () => {
         what: 'x',
         state: 'pending',
         fresh: true,
+        act_host: 'accounts.google.com',
       },
     ]
     const p = pool(rows)
@@ -107,6 +125,31 @@ describe('the question in the app, answered by the person', () => {
     expect(out.status).toBe(200)
     expect(rows[0].state).toBe('allowed')
     expect(p.said.some(q => /allowed_at = now\(\)/.test(q))).toBe(true)
+    /* ...for the place it was asked about, and nowhere else. */
+    expect(p.opened).toEqual([['9000000051', 'accounts.google.com']])
+  })
+
+  it('A YES TO CLOSING TABS OR A BLOG POST OPENS NO GUARDED PAGE', async () => {
+    /* browser_tidy and the desks ask with no page host (2026-10-03). */
+    const rows: Row[] = [
+      {
+        id: 'tidy1',
+        telegram_id: '9000000051',
+        what: 'close 3 tabs',
+        state: 'pending',
+        fresh: true,
+        act_host: null,
+      },
+    ]
+    const p = pool(rows)
+    const out = await handleBrowser(
+      req('POST'),
+      deps(p, 'person', JSON.stringify({ id: 'tidy1', allow: true }))
+    )
+    expect(out.status).toBe(200)
+    expect(rows[0].state).toBe('allowed')
+    expect(p.opened).toEqual([])
+    expect(p.said.some(q => /allowed_at = now\(\)/.test(q))).toBe(false)
   })
 
   it('a no is a no, and opens nothing', async () => {

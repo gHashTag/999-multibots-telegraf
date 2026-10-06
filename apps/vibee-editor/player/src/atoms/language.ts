@@ -129,6 +129,11 @@ const en: Translations = {
   'browser.choice.done': '✓ Done',
   'browser.choice.cannot': 'Cannot',
   'browser.keys.label': 'Keys for the page',
+  'browser.tabs.label': 'Open tabs',
+  'browser.tabs.new': 'New tab',
+  'browser.tabs.close': 'Close tab {title}',
+  'browser.tabs.untitled': 'Untitled',
+  'browser.tabs.refused': 'The browser did not take it',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
   'browser.ask.title': '🛡 The agent asks your permission',
@@ -581,6 +586,12 @@ const en: Translations = {
   'crm.aside.gifts': 'Gifts',
   'crm.aside.gift.portrait.give': 'Give',
   'crm.aside.gift.portrait.send': 'Send',
+  'crm.aside.menu': 'Widgets',
+  'crm.aside.widget.moves': 'Moves',
+  'crm.aside.widget.group': 'Group',
+  'crm.aside.widget.content': 'Content',
+  'crm.aside.widget.templates': 'Templates',
+  'crm.aside.moves.none': 'No move to suggest right now.',
   'crm.aside.package.none': 'No client package: no rules written yet.',
   'crm.aside.plan.none': 'No content plan yet.',
   'crm.aside.note.placeholder': 'A note about this client…',
@@ -716,6 +727,17 @@ const en: Translations = {
   'crm.client.story.quick.3': 'Before and after',
   'crm.client.story.quick.4': 'Why people choose me',
   'crm.client.story.price': 'About {n} tokens a reel, from your balance',
+  'crm.client.story.gallery': 'Ready scripts',
+  'crm.client.story.gallery.hint':
+    'Tap a script: its lines, frames and call fill the fields below.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Hook: my voice, my AI',
+  'crm.client.story.gallery.price': '≈ {n} tokens',
+  'crm.client.story.gallery.noPrice': 'price on press',
+  'crm.client.story.gallery.chosen': 'Chosen',
+  'crm.client.story.gallery.clear': 'Without a script',
+  'crm.client.story.gallery.line': 'Line {n}',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
     'Started: «{topic}». It comes to you in the bot in 5–10 minutes: check it and forward it to the client.',
@@ -1749,7 +1771,7 @@ const en: Translations = {
   'feed.remixBasedOn': 'Based on another template',
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
-  'app.title': 'Trinity S³AI — reels on autopilot',
+  'app.title': 'TRINITY S³AI — AGI game — play, direct, earn',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -3157,6 +3179,11 @@ const ru: Translations = {
   'browser.choice.done': '✓ Готово', // cyrillic-ok
   'browser.choice.cannot': 'Не получается', // cyrillic-ok
   'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
+  'browser.tabs.label': 'Открытые вкладки', // cyrillic-ok
+  'browser.tabs.new': 'Новая вкладка', // cyrillic-ok
+  'browser.tabs.close': 'Закрыть вкладку {title}', // cyrillic-ok
+  'browser.tabs.untitled': 'Без названия', // cyrillic-ok
+  'browser.tabs.refused': 'Браузер не принял это', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
   'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
@@ -3600,6 +3627,12 @@ const ru: Translations = {
   'crm.aside.gifts': 'Подарки',
   'crm.aside.gift.portrait.give': 'Подарить',
   'crm.aside.gift.portrait.send': 'Отправить',
+  'crm.aside.menu': 'Виджеты',
+  'crm.aside.widget.moves': 'Ходы',
+  'crm.aside.widget.group': 'Группа',
+  'crm.aside.widget.content': 'Контент',
+  'crm.aside.widget.templates': 'Шаблоны',
+  'crm.aside.moves.none': 'Сейчас ходов не предложено.',
   'crm.aside.package.none': 'Пакета нет: правила не записаны.',
   'crm.aside.plan.none': 'Контент-плана пока нет.',
   'crm.aside.note.placeholder': 'Заметка о клиенте…',
@@ -3732,6 +3765,17 @@ const ru: Translations = {
   'crm.client.story.quick.3': 'До и после',
   'crm.client.story.quick.4': 'Почему выбирают меня',
   'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
+  'crm.client.story.gallery': 'Готовые сценарии',
+  'crm.client.story.gallery.hint':
+    'Нажмите сценарий: его строки, кадры и призыв заполнят поля ниже.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Хук: мой голос, моя нейросеть',
+  'crm.client.story.gallery.price': '≈ {n} токенов',
+  'crm.client.story.gallery.noPrice': 'цена при запуске',
+  'crm.client.story.gallery.chosen': 'Выбран',
+  'crm.client.story.gallery.clear': 'Без сценария',
+  'crm.client.story.gallery.line': 'Строка {n}',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
     'Запущен: «{topic}». Придёт тебе в бот через 5–10 минут — проверь и перешли клиенту.',
@@ -4720,7 +4764,7 @@ const ru: Translations = {
   'feed.ageMonth': ' мес',
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
-  'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'app.title': 'TRINITY S³AI — AGI-игра — играй, управляй, зарабатывай',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 

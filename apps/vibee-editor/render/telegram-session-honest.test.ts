@@ -35,10 +35,14 @@ describe('вход проверяется, а не предполагается'
      * Подключение — это сокет, а не вход. Разница стоит одного запроса и
      * превращает непонятный отказ в инструкцию.
      */
-    expect(ИСХОДНИК).toContain('await c.checkAuthorization()')
+    // A direct probe, not checkAuthorization(): that one says false on ANY
+    // error, a timeout included (telegram-tools-sockets.test.ts drives it).
+    const PROBE = 'await c.invoke(new Api.updates.GetState())'
+    expect(ИСХОДНИК).toContain(PROBE)
+    expect(ИСХОДНИК).not.toContain('await c.checkAuthorization()')
     // Проверка обязана стоять ДО возврата клиента: иначе вызывающий получит
     // объект, который умеет только падать.
-    expect(ИСХОДНИК.indexOf('await c.checkAuthorization()')).toBeLessThan(
+    expect(ИСХОДНИК.indexOf(PROBE)).toBeLessThan(
       ИСХОДНИК.indexOf('unavailableReason = null')
     )
   })
@@ -74,7 +78,14 @@ describe('вход проверяется, а не предполагается'
 
 describe('скрипт входа существует и не делает лишнего', () => {
   const СКРИПТ = fs.readFileSync(
-    path.join(__dirname, '..', '..', '..', 'scripts', 'telegram-session-login.ts'),
+    path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      'scripts',
+      'telegram-session-login.ts'
+    ),
     'utf8'
   )
 

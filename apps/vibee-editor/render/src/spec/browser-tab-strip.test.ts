@@ -1,0 +1,206 @@
+/**
+ * The tests of browser-tab-strip.t27, run against the code that carries it:
+ * src/browser/tab-strip.ts (the rules and the strip's I/O) and the player's
+ * TabStrip, which reads the byte copy of the generated module.
+ */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { beforeEach, describe, expect, it } from 'vitest'
+import * as SPEC from './browser-tab-strip.gen'
+import {
+  clipTitle,
+  handleStrip,
+  hostOnly,
+  isStripTab,
+  mayClose,
+  mayOpen,
+  resetStripMemory,
+  stripOf,
+  type StripIo,
+} from '../browser/tab-strip'
+import { TAB_CAP } from '../browser/tab-sweep'
+import type { CdpTarget } from '../browser/cdp'
+import type { Queryable } from '../browser/sessions'
+
+const PLAYER = join(__dirname, '..', '..', '..', 'player', 'src')
+
+/* One live session row and every statement the strip sent. */
+function livePool() {
+  const statements: string[] = []
+  const pool: Queryable = {
+    async query(sql: string) {
+      const s = sql.replace(/\s+/g, ' ').trim()
+      statements.push(s)
+      if (/^select/i.test(s) && /browser_sessions/i.test(s))
+        return {
+          rows: [
+            {
+              telegram_id: 'tg-1',
+              session_id: 's',
+              pod_id: 'p',
+              endpoint: '127.0.0.1:1',
+              cdp_endpoint: '127.0.0.1:9222',
+              state: 'live',
+              view_token: 'v',
+              admin_token: 'a',
+              last_seen_at: new Date(),
+            },
+          ],
+        }
+      return { rows: [] }
+    },
+  } as unknown as Queryable
+  return { pool, statements }
+}
+
+function fakeIo(list: CdpTarget[]): StripIo {
+  return {
+    list: async () => list,
+    visible: async () => new Set<string>(),
+    activate: async () => {},
+    open: async (_, url) => ({ id: 'N', type: 'page', title: '', url }),
+    close: async () => {},
+  }
+}
+
+const page = (id: string, url: string, title = id): CdpTarget => ({
+  id,
+  type: 'page',
+  title,
+  url,
+})
+
+beforeEach(() => resetStripMemory())
+
+describe('browser-tab-strip.t27 against the host', () => {
+  it("only real pages are tabs, never the browser's own", () => {
+    expect(isStripTab(page('a', 'https://a.example/'))).toBe(true)
+    expect(isStripTab(page('c', `${SPEC.HIDDEN_CHROME}settings`))).toBe(false)
+    expect(isStripTab(page('d', `${SPEC.HIDDEN_DEVTOOLS}x`))).toBe(false)
+    expect(isStripTab(page('e', `${SPEC.HIDDEN_EXTENSION}abc/p.html`))).toBe(
+      false
+    )
+    expect(isStripTab({ type: 'service_worker', url: 'https://a/' })).toBe(
+      false
+    )
+    expect(SPEC.TAB_TYPE).toBe('page')
+  })
+
+  it("the strip is the person's door, an agent key gets 403", () => {
+    /* The door itself is in routes.ts; browser-broker.test.ts drives it. */
+    const routes = readFileSync(
+      join(__dirname, '..', 'browser', 'routes.ts'),
+      'utf8'
+    )
+    const at = routes.indexOf(`'${SPEC.STRIP_DOOR}'`)
+    expect(at).toBeGreaterThan(-1)
+    const block = routes.slice(routes.indexOf(`=== '${SPEC.STRIP_DOOR}'`))
+    expect(block.slice(0, 600)).toMatch(/actor[^\n]*!== 'person'/)
+    expect(block.slice(0, 600)).toContain(String(SPEC.AGENT_STATUS))
+    expect(SPEC.PERSON_ONLY).toBe(true)
+  })
+
+  it('the last page is never closed', async () => {
+    expect(mayClose(0)).toBe(false)
+    expect(mayClose(1)).toBe(false)
+    expect(mayClose(2)).toBe(true)
+    const { pool } = livePool()
+    const io = fakeIo([
+      page('a', 'https://a.example/'),
+      page('x', `${SPEC.HIDDEN_CHROME}newtab`),
+    ])
+    const out = await handleStrip(
+      pool,
+      'tg-1',
+      JSON.stringify({ action: SPEC.ACTION_CLOSE, id: 'a' }),
+      io
+    )
+    expect(out.status).toBe(SPEC.REFUSED_STATUS)
+  })
+
+  it("a new tab respects the pod's cap", async () => {
+    expect(SPEC.MAX_TABS_SHOWN).toBe(TAB_CAP)
+    expect(mayOpen(1)).toBe(true)
+    expect(mayOpen(SPEC.MAX_TABS_SHOWN - 1)).toBe(true)
+    expect(mayOpen(SPEC.MAX_TABS_SHOWN)).toBe(false)
+    const { pool } = livePool()
+    const full = Array.from({ length: SPEC.MAX_TABS_SHOWN }, (_, i) =>
+      page(`p${i}`, `https://s${i}.example/`)
+    )
+    const out = await handleStrip(
+      pool,
+      'tg-1',
+      JSON.stringify({ action: SPEC.ACTION_NEW }),
+      fakeIo(full)
+    )
+    expect(out.status).toBe(SPEC.REFUSED_STATUS)
+  })
+
+  it('only a clipped title and a host leave the pod', () => {
+    expect([...clipTitle('x'.repeat(200))].length).toBe(SPEC.TITLE_MAX_CHARS)
+    expect(clipTitle('x'.repeat(SPEC.TITLE_MAX_CHARS))).toBe(
+      'x'.repeat(SPEC.TITLE_MAX_CHARS)
+    )
+    expect(clipTitle('  short  ')).toBe('short')
+    expect(hostOnly('https://mail.example.com:8443/u/0?token=t#x')).toBe(
+      'mail.example.com:8443'
+    )
+    expect(hostOnly('not a url')).toBe('')
+    const tabs = stripOf(
+      [page('a', 'https://mail.example.com/reset?token=secret', 'Reset')],
+      new Set(),
+      null
+    )
+    expect(Object.keys(tabs[0]).sort()).toEqual([
+      'active',
+      'host',
+      'id',
+      'title',
+    ])
+    expect(JSON.stringify(tabs)).not.toContain('secret')
+    expect(SPEC.RETURNS_PATH).toBe(false)
+    expect(SPEC.RETURNS_PAGE_TEXT).toBe(false)
+  })
+
+  it("every action renews the person's wheel", async () => {
+    const io = fakeIo([
+      page('a', 'https://a.example/'),
+      page('b', 'https://b.example/'),
+    ])
+    for (const body of [
+      { action: SPEC.ACTION_ACTIVATE, id: 'a' },
+      { action: SPEC.ACTION_NEW },
+      { action: SPEC.ACTION_CLOSE, id: 'b' },
+    ]) {
+      const { pool, statements } = livePool()
+      const out = await handleStrip(pool, 'tg-1', JSON.stringify(body), io)
+      expect(out.status).toBe(200)
+      expect(
+        statements.some(s => /person_wheel_until = now\(\)/i.test(s))
+      ).toBe(true)
+    }
+    expect(SPEC.ACTION_RENEWS_WHEEL).toBe(true)
+  })
+
+  it('the strip is read every three seconds and fits a finger', () => {
+    expect(SPEC.POLL_MS).toBe(3000)
+    /* The player reads the same module, byte for byte. */
+    expect(
+      readFileSync(join(PLAYER, 'spec', 'browser-tab-strip.gen.ts'), 'utf8')
+    ).toBe(readFileSync(join(__dirname, 'browser-tab-strip.gen.ts'), 'utf8'))
+    const strip = readFileSync(
+      join(PLAYER, 'components', 'Browser', 'TabStrip.tsx'),
+      'utf8'
+    )
+    expect(strip).toContain('SPEC.POLL_MS')
+    const css = readFileSync(
+      join(PLAYER, 'components', 'Browser', 'TabStrip.css'),
+      'utf8'
+    )
+    expect(css).toContain('min-height: var(--touch-target, 44px)')
+    expect(css).toContain('min-width: var(--touch-target, 44px)')
+    const root = readFileSync(join(PLAYER, 'index.css'), 'utf8')
+    const px = Number(/--touch-target:\s*(\d+)px/.exec(root)?.[1])
+    expect(px).toBeGreaterThanOrEqual(SPEC.MIN_TOUCH_PX)
+  })
+})

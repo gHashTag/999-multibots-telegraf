@@ -8,8 +8,8 @@
   {
     "name": "the page does not pass the chosen specialist",
     "file": "../player/src/pages/Chat.tsx",
-    "from": "              agent={helper}\n",
-    "to": ""
+    "from": "              client={client}\n              agent={helper}\n              open={queenOpen}\n",
+    "to": "              client={client}\n              open={queenOpen}\n"
   },
   {
     "name": "a named task ignores the name",
@@ -28,5 +28,60 @@
     "file": "../player/src/lib/queen.ts",
     "from": "if (named && callable.includes(named)) return { client, agent: named }",
     "to": "if (named) return { client, agent: named }"
+  },
+  {
+    "name": "a specialist's widget shows under anyone",
+    "file": "../player/src/lib/clientWidgets.ts",
+    "from": "  return owner === null || owner === chosen\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "the content widget belongs to the client, not the Blogger",
+    "file": "../player/src/lib/clientWidgets.ts",
+    "from": "{ id: 'content', owner: CONTENT_WIDGET_AGENT },",
+    "to": "{ id: 'content', owner: null },"
+  },
+  {
+    "name": "choosing a specialist does not open its widget",
+    "file": "../player/src/lib/clientWidgets.ts",
+    "from": "  if (own) return own.id\n",
+    "to": ""
+  },
+  {
+    "name": "the page does not tell the card who is chosen",
+    "file": "../player/src/pages/Chat.tsx",
+    "from": "              onName={onClientName}\n              agent={helper}\n",
+    "to": "              onName={onClientName}\n"
+  },
+  {
+    "name": "the chat reports a widget it hid",
+    "file": "../player/src/lib/clientWidgets.ts",
+    "from": "if (a.content && shown.includes('content'))",
+    "to": "if (a.content && true)"
+  },
+  {
+    "name": "the route forgets body.widgets",
+    "file": "src/agent/routes.ts",
+    "from": "            body.widgets,\n",
+    "to": "            undefined,\n"
+  },
+  {
+    "name": "the server reports hidden widgets and the Queen gets them",
+    "file": "src/agent/client-widgets.ts",
+    "from": "  return shown && clientThread\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "a widget value is not capped",
+    "file": "src/agent/client-widgets.ts",
+    "from": "  return one.slice(0, capped(one.length, WS.WIDGET_TEXT_MAX_CHARS))\n",
+    "to": "  return one\n"
+  },
+  {
+    "name": "the widgets block is not injected into the prompt",
+    "file": "src/agent/chat.ts",
+    "from": "    widgetsContext +\n",
+    "to": "",
+    "tests": ["src/agent/client-widgets.test.ts"]
   }
 ]

@@ -3,9 +3,10 @@
  *
  * Owner's decision, 2026-09-22 (asked and answered): new articles of the
  * t27.ai blog are shared on the owner's LinkedIn and X, which were connected
- * that day in their own browser through Google. Once a day the newest
- * article not offered before becomes a question -- "share it?" -- on the
- * owner's screen and in Telegram (browser approvals). Nothing is posted
+ * that day in their own browser through Google. Once a day the next
+ * article not offered before -- the first of the owner's queue, else the
+ * newest (spec v3, QUEUE_SKILL below) -- becomes a question -- "share it?"
+ * -- on the owner's screen and in Telegram (browser approvals). Nothing is posted
  * without that yes: posting on somebody's public accounts is outward and
  * cannot be taken back.
  *
@@ -46,6 +47,8 @@ export interface Article {
    * the line that names what is not proven.
    */
   evidence?: string
+  /* The feed's pubDate in epoch ms, absent when the feed gives none. */
+  published?: number
 }
 
 const tag = (xml: string, name: string): string => {
@@ -98,11 +101,12 @@ export function parseRss(xml: string): Article[] {
     const label = /^\[([^\]]*)\]\s*/.exec(description)
     const summary = label ? description.slice(label[0].length) : description
     const evidence = label?.[1].trim()
-    out.push(
-      evidence
-        ? { slug, title, link, summary, evidence }
-        : { slug, title, link, summary }
-    )
+    const published = Date.parse(tag(item, 'pubDate'))
+    const article: Article = evidence
+      ? { slug, title, link, summary, evidence }
+      : { slug, title, link, summary }
+    if (Number.isFinite(published)) article.published = published
+    out.push(article)
   }
   return out
 }
@@ -202,8 +206,17 @@ export function xText(a: Article, limit = X_LIMIT - X_LINK): string {
  * The subreddit the owner keeps for Trinity S3AI. Theirs, and the only one
  * an article is posted to: posting a project's own article into somebody
  * else's community is what spam is, and no cron of ours will do it.
+ *
+ * SWITCHED OFF BY THE OWNER (spec v3, network_used): Reddit closed r/t27ai
+ * on 2026-10-03. BLOG_SHARE_SUBREDDIT=off gives null here, and a null
+ * subreddit is neither named in the question nor posted to. Pure.
  */
-export const SUBREDDIT = process.env.BLOG_SHARE_SUBREDDIT || 't27ai'
+export function subredditOf(raw: string | undefined): string | null {
+  const v = (raw ?? '').trim()
+  if (v.toLowerCase() === 'off') return null
+  return v || 't27ai'
+}
+export const SUBREDDIT = subredditOf(process.env.BLOG_SHARE_SUBREDDIT)
 
 /** Threads' own composer limit, in characters. */
 export const THREADS_LIMIT = 500
@@ -240,11 +253,17 @@ export const SHARE_LABELS = {
   Threads: ['post', 'опубликовать'], // cyrillic-ok: Threads' Russian label
 } as const
 
-/** Each network's own share page, already filled in. Pure. */
-export function shareUrls(a: Article): {
+/**
+ * Each network's own share page, already filled in; Reddit's is null when
+ * the owner switched it off (subredditOf). Pure.
+ */
+export function shareUrls(
+  a: Article,
+  subreddit: string | null = SUBREDDIT
+): {
   x: string
   linkedin: string
-  reddit: string
+  reddit: string | null
   threads: string
 } {
   return {
@@ -263,16 +282,98 @@ export function shareUrls(a: Article): {
      * nothing posted in six months -- and a blog that writes itself is
      * exactly what it lacks (measured 2026-09-23 on r/t27ai).
      */
-    reddit: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?title=${encodeURIComponent(clip(a.title, 280))}&url=${encodeURIComponent(linkFor(a, 'reddit'))}&type=LINK`,
+    reddit:
+      subreddit === null
+        ? null
+        : `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/submit?title=${encodeURIComponent(clip(a.title, 280))}&url=${encodeURIComponent(linkFor(a, 'reddit'))}&type=LINK`,
   }
 }
 
-/** The question the owner is asked, in their words. Pure. */
-export function questionFor(a: Article): string {
+/**
+ * The question the owner is asked, in their words. It names every place the
+ * yes will post to, and no place it will not (spec v3, network_used). Pure.
+ */
+export function questionFor(
+  a: Article,
+  subreddit: string | null = SUBREDDIT
+): string {
+  const where =
+    subreddit === null
+      ? 'LinkedIn, X, Threads, Instagram и Facebook' // cyrillic-ok: shown to the owner
+      : `LinkedIn, X, Threads, Instagram, Facebook и r/${subreddit}` // cyrillic-ok: shown to the owner
   return (
-    `Опубликовать статью блога в LinkedIn, X, Threads, Instagram, Facebook и r/${SUBREDDIT}: ` + // cyrillic-ok: shown to the owner
+    `Опубликовать статью блога в ${where}: ` + // cyrillic-ok: shown to the owner
     `«${a.title}» (${a.link})`
   )
+}
+
+/**
+ * THE OWNER'S QUEUE COMES FIRST (spec v3, offerable / newest_goes_next).
+ *
+ * 2026-10-04: the owner ranked the blog -- "the blog starts with its
+ * successes" -- and the ranking was saved as their Blogger agent's skill.
+ * The desk kept asking about the newest article, so the order reached the
+ * agent and not the desk. The order has one home, that skill; the desk reads
+ * it there (blog-share-wiring.ts) and keeps no copy. A slug named anywhere in
+ * it counts as queued, in the order it is first named; every question still
+ * waits for the owner's yes.
+ */
+export const QUEUE_SKILL = 'Blogger: очередь публикаций блога' // cyrillic-ok: the owner's skill name, as saved
+
+/**
+ * The feed's slugs in the order the owner's text first names them. A slug
+ * counts only whole: "the-fpga-row" inside "the-fpga-row-was-corrected" is
+ * not a mention of it. Pure.
+ */
+export function queueOrder(text: string, slugs: readonly string[]): string[] {
+  const at = new Map<string, number>()
+  for (const slug of slugs) {
+    const quoted = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = new RegExp(`(?<![a-z0-9-])${quoted}(?![a-z0-9-])`, 'i').exec(text)
+    if (m) at.set(slug, m.index)
+  }
+  return [...at.keys()].sort((a, b) => at.get(a)! - at.get(b)!)
+}
+
+/**
+ * How young an article must be to go ahead of the owner's queue. On
+ * 2026-10-04..06 the queue (written once, its first items from August) sent
+ * three August articles to X on three days while the articles of 10-04 waited
+ * behind seven more old ones: the owner asked why the agent posts OLD
+ * releases. A fresh article now goes first; the queue orders the rest.
+ * The window is the spec's (specs/automation/blog-share.t27 v4 FRESH_MS).
+ */
+export const FRESH_MS = SPEC.FRESH_MS
+
+/** The spec's is_fresh: the edge (exactly FRESH_MS old) is still fresh. Pure. */
+export function isFresh(ageMs: number): boolean {
+  return ageMs <= FRESH_MS
+}
+
+/**
+ * The next article to offer: the newest offerable one published within
+ * FRESH_MS of nowMs (when nowMs is given); else the first queued one the feed carries and
+ * nobody was asked about; only when none is left, the newest such -- the
+ * feed lists newest first. Pure.
+ */
+export function nextArticle(
+  articles: readonly Article[],
+  known: ReadonlySet<string>,
+  queue: readonly string[],
+  nowMs?: number
+): { article: Article; queued: boolean } | undefined {
+  const offerable = articles.filter(a => !known.has(a.slug))
+  if (nowMs !== undefined) {
+    const fresh = offerable.find(
+      a => a.published !== undefined && isFresh(nowMs - a.published)
+    )
+    if (fresh) return { article: fresh, queued: false }
+  }
+  for (const slug of queue) {
+    const article = offerable.find(a => a.slug === slug)
+    if (article) return { article, queued: true }
+  }
+  return offerable[0] ? { article: offerable[0], queued: false } : undefined
 }
 
 let ready = false
@@ -328,6 +429,45 @@ export function outcomeOf(
     : 'failed'
 }
 
+/** The community a Reddit press line names at its end (redditPressLine). */
+const PRESSED_IN = /· r\/([A-Za-z0-9_]{2,30})$/
+
+/** The Reddit line of a press, naming the community it went to. Pure. */
+export function redditPressLine(line: string, subreddit: string): string {
+  return `${line} · r/${subreddit}`
+}
+
+/**
+ * Every `<subreddit>/<slug>` (lower case) this desk pressed "Post" for on
+ * Reddit, from its own blog_shares rows -- the Reddit desk (reddit.ts) reads
+ * it so the same article is not posted to the same community twice. A press
+ * line written before it named its community went to the default one, the
+ * only one this desk ever used. Pure.
+ */
+export function redditPressedKeys(
+  rows: Array<{ slug?: unknown; detail?: unknown }>
+): string[] {
+  const out: string[] = []
+  for (const row of rows) {
+    const detail = (
+      typeof row.detail === 'string' ? safeParse(row.detail) : row.detail
+    ) as { result?: Record<string, unknown> } | null
+    const line = String(detail?.result?.Reddit ?? '')
+    if (!PRESSED.test(line)) continue
+    const sub = PRESSED_IN.exec(line)?.[1] ?? subredditOf(undefined)
+    out.push(`${sub}/${String(row.slug ?? '')}`.toLowerCase())
+  }
+  return out
+}
+
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
 
 /** The spec's `still_waiting`: pending and younger than the approval's lifetime. */
@@ -364,12 +504,18 @@ export interface ShareDeps {
   /** Posts on both networks; returns what each did, in words. */
   publish: (a: Article) => Promise<Record<string, string>>
   tell: (text: string) => Promise<void>
+  /**
+   * The owner's queue as they wrote it (QUEUE_SKILL), '' when there is none.
+   * Absent: the newest article goes next, as before spec v3.
+   */
+  queue?: () => Promise<string>
 }
 
 /**
  * One tick. First the open question, if any: a yes posts, a no or silence
- * closes it. Then, at most once a day, the newest article not offered yet
- * becomes a question. Returns what it did, for the log.
+ * closes it. Then, at most once a day, the next article not offered yet --
+ * the owner's queue first, else the newest -- becomes a question. Returns
+ * what it did, for the log.
  */
 export async function blogShareTick(d: ShareDeps): Promise<string> {
   await ensureBlogShares(d.pool)
@@ -437,15 +583,26 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
   if (!articles.length) return 'the feed is empty'
   const { rows: seen } = await d.pool.query(`SELECT slug FROM blog_shares`)
   const known = new Set((seen as Array<{ slug: string }>).map(r => r.slug))
-  const next = articles.find(a => !known.has(a.slug))
-  if (!next) return 'every article was offered already'
+  /* An unreadable queue is said in the log, and the newest goes next. */
+  const queueText = d.queue ? await d.queue().catch(() => null) : ''
+  const queue = queueOrder(
+    queueText ?? '',
+    articles.map(a => a.slug)
+  )
+  const pick = nextArticle(articles, known, queue, d.now())
+  if (!pick) return 'every article was offered already'
+  const next = pick.article
   const id = await d.ask(questionFor(next))
   await d.pool.query(
     `INSERT INTO blog_shares (slug, state, approval_id, detail) VALUES ($1, 'asked', $2, $3::jsonb)
      ON CONFLICT (slug) DO NOTHING`,
     [next.slug, id, JSON.stringify(next)]
   )
-  return `asked about ${next.slug}`
+  return pick.queued
+    ? `asked about ${next.slug} (the owner's queue)`
+    : queueText === null
+      ? `asked about ${next.slug} (newest: the queue could not be read)`
+      : `asked about ${next.slug}`
 }
 
 /**

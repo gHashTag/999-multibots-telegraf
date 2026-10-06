@@ -38,8 +38,9 @@ export async function probeSeller(
   ctx: ToolContext | undefined,
   telegramId: string
 ): Promise<{ alive: boolean; error?: string }> {
-  // `client()` already runs checkAuthorization and throws with a human
-  // reason when the session is dead; a returned client means alive.
+  // `client()` already probes the login (updates.GetState) and throws with a
+  // human reason when the session is dead or Telegram did not answer; a
+  // returned client means alive.
   const asSeller = { ...(ctx ?? {}), telegramId } as ToolContext
   try {
     const c = (await client(asSeller)) as {

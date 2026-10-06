@@ -14,7 +14,7 @@ export class GLMProvider {
   )
     .replace(/\/+$/, '')
     .replace(/\/chat\/completions$/, '')
-  private readonly model = process.env.GLM_MODEL || 'glm-5.3'
+  private readonly model = process.env.GLM_MODEL || 'glm-4.7-flash'
 
   constructor(apiKey: string) {
     this.apiKey = apiKey

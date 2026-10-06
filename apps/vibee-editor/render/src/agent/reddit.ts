@@ -164,6 +164,127 @@ export function rulesUrl(name: string): string {
   return `https://www.reddit.com/r/${encodeURIComponent(name)}/about/rules.json`
 }
 
+/**
+ * IS THE COMMUNITY STILL THERE TO POST TO?
+ *
+ * Reddit banned r/t27ai on 2026-10-03 (gHashTag/t27#5916, #3572). Both desks
+ * kept aiming at it: the blog-share desk opened the dead submit page on every
+ * run and left an unfinished form in the owner's browser, and this desk still
+ * listed it as `own`. A community Reddit closed is not posted to and not
+ * opened.
+ *
+ * The answer comes from the community's own `about.json`, and only its BODY
+ * decides: Reddit answers 404 `{"reason":"banned"}` for a banned community and
+ * 403 `{"reason":"private"}` for a private one, but it also answers 403 with an
+ * HTML page to any client its network filter blocks (measured 2026-10-06 from
+ * a plain curl). A status alone would read that block as "private" and switch
+ * every community off; a failed read is `unknown`, and `unknown` keeps the
+ * desks doing what they did before.
+ */
+export type CommunityState = 'open' | 'banned' | 'private' | 'unknown'
+
+/** A community's own description, as JSON. Pure. */
+export function aboutUrl(name: string): string {
+  return `https://www.reddit.com/r/${encodeURIComponent(name)}/about.json`
+}
+
+/** What `about.json` says about the community. Never throws. Pure. */
+export function communityStateOf(raw: unknown): CommunityState {
+  const data = typeof raw === 'string' ? safeJson(raw.trim()) : raw
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'unknown'
+  const d = data as Record<string, unknown>
+  const reason = String(d.reason ?? '').toLowerCase()
+  if (reason === 'banned') return 'banned'
+  if (reason === 'private') return 'private'
+  /* The community's own record came back: it is there and readable. */
+  if (d.kind === 't5' && d.data && typeof d.data === 'object') return 'open'
+  return 'unknown'
+}
+
+/** Closed by Reddit: neither posted to nor opened. Pure. */
+export function isClosed(state: CommunityState): boolean {
+  return state === 'banned' || state === 'private'
+}
+
+/** The owner's line for a community Reddit closed. Pure. */
+export function closedLine(name: string, state: CommunityState): string {
+  return `сообщество r/${name} закрыто Reddit-ом (${state}) — ничего не открыто` // cyrillic-ok: told to the owner
+}
+
+/**
+ * The community's state, by each reader in turn until one gives a definite
+ * answer: the server's own anonymous read first (cheap, often blocked), then
+ * whatever the caller adds. A reader that throws is a reader that did not
+ * know. Never throws.
+ */
+export async function subredditOpen(
+  name: string,
+  reads: Array<(url: string) => Promise<unknown>>
+): Promise<CommunityState> {
+  if (!/^[A-Za-z0-9_]{2,30}$/.test(name)) return 'unknown'
+  for (const read of reads) {
+    const state = communityStateOf(
+      await Promise.resolve()
+        .then(() => read(aboutUrl(name)))
+        .catch(() => null)
+    )
+    if (state !== 'unknown') return state
+  }
+  return 'unknown'
+}
+
+/** about.json read by the server itself, with a short timeout. */
+export async function readAnonymously(
+  url: string,
+  timeoutMs = 8_000
+): Promise<string> {
+  const r = await fetch(url, {
+    headers: { 'user-agent': 'web:ai.t27.render:v1 (community check)' },
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  /* The body decides, whatever the status (see CommunityState). */
+  return await r.text()
+}
+
+/**
+ * ONE ARTICLE, ONE POST PER COMMUNITY, WHICHEVER DESK MAKES IT. On 2026-10-03
+ * both desks posted the same article to r/t27ai about three hours apart (the
+ * blog-share link post at 08:36 UTC, this desk's text post at 11:30 UTC) --
+ * the likely trigger of the ban. Before the blog-share desk opens a
+ * community's submit page it asks two things here: is the community open,
+ * and did this desk already post or ask to post the article there. The line
+ * for the owner, or null to go ahead. Never throws.
+ */
+export async function redditShareRefusal(
+  sub: string,
+  slug: string,
+  d: {
+    state: (name: string) => Promise<CommunityState>
+    deskPosted: (sub: string, slug: string) => Promise<boolean>
+  }
+): Promise<string | null> {
+  const state = await d.state(sub).catch((): CommunityState => 'unknown')
+  if (isClosed(state)) return closedLine(sub, state)
+  if (await d.deskPosted(sub, slug).catch(() => false))
+    return `статья уже предложена или опубликована в r/${sub} Reddit-столом — второй раз не открыто` // cyrillic-ok: told to the owner
+  return null
+}
+
+/** Did this desk post, or ask to post, `slug` in `sub`? */
+export async function deskPostedTo(
+  q: Queryable,
+  sub: string,
+  slug: string
+): Promise<boolean> {
+  const { rows } = await q.query(
+    `SELECT 1 FROM reddit_acts
+      WHERE kind = 'post' AND lower(target) = lower($1)
+        AND state IN ('asked', 'done') LIMIT 1`,
+    [`${sub}/${slug}`]
+  )
+  return rows.length > 0
+}
+
 /** The pages the desk WALKS on a round: the inbox first, then the feeds. */
 export function redditSites(subs: Subreddit[] = SUBREDDITS): Array<{
   name: string
@@ -476,6 +597,13 @@ export interface RedditDeps {
   /** One line about the project, for the draft. */
   about: string
   subs?: Subreddit[]
+  /** Whether Reddit still lets the community be posted to (subredditOpen). */
+  communityState?: (name: string) => Promise<CommunityState>
+  /**
+   * What the blog-share desk already pressed "Post" for on Reddit, as
+   * `<subreddit>/<slug>`, lower case (blog-share.ts redditPressedKeys).
+   */
+  blogPosted?: () => Promise<string[]>
 }
 
 /** Every act, newest first. */
@@ -535,6 +663,21 @@ export async function redditTick(d: RedditDeps): Promise<string> {
       typeof row.detail === 'string' ? safeJson(row.detail) : row.detail
     ) as Record<string, unknown> | null
     const body = String(row.body ?? '')
+    /*
+     * A yes given before the community closed, or before the blog-share desk
+     * posted the same article there, is not acted on: the post would be the
+     * second copy, or a press on a dead page.
+     */
+    if (String(row.kind) === 'post') {
+      const target = String(row.target ?? '')
+      const sub = target.split('/')[0]
+      const why = await whyNotPost(d, sub, target)
+      if (why) {
+        await close(d, id, 'skipped', { why })
+        await d.tell(`Reddit: r/${sub} — ${why}`).catch(() => {})
+        return `${id}: skipped, ${why}`
+      }
+    }
     const said = await (
       String(row.kind) === 'post'
         ? d.submit(detail as unknown as PlannedPost)
@@ -598,16 +741,38 @@ export async function redditTick(d: RedditDeps): Promise<string> {
   }
 
   /* 3. At most one post, and only where posting is welcome. */
-  const sub = dueSubreddit(subs, acts, d.now())
-  if (!sub) return inbox.length ? 'every reply is handled' : 'nothing to answer'
+  /* A community Reddit closed is passed over, and the next due one is taken. */
+  let left = subs
+  let sub = dueSubreddit(left, acts, d.now())
+  const closed: string[] = []
+  while (sub && d.communityState) {
+    const state = await d
+      .communityState(sub.name)
+      .catch((): CommunityState => 'unknown')
+    if (!isClosed(state)) break
+    closed.push(`r/${sub.name} ${state}`)
+    const shut = sub
+    left = left.filter(s => s !== shut)
+    sub = dueSubreddit(left, acts, d.now())
+  }
+  if (!sub)
+    return closed.length
+      ? `nothing to post: closed by Reddit (${closed.join(', ')})`
+      : inbox.length
+        ? 'every reply is handled'
+        : 'nothing to answer'
   if (!promoRatioOk(acts))
     return `not earned yet: fewer than ${ANSWERS_PER_POST} answers since the last post`
   const articles = parseRss(await d.fetchRss().catch(() => ''))
   const postedSlugs = new Set(
     acts.filter(a => a.kind === 'post').map(a => a.target)
   )
+  const byBlog = new Set(await blogPostedKeys(d))
   const article = articles.find(
-    a => !postedSlugs.has(`${sub.name}/${a.slug}`) && !postedSlugs.has(a.slug)
+    a =>
+      !postedSlugs.has(`${sub.name}/${a.slug}`) &&
+      !postedSlugs.has(a.slug) &&
+      !byBlog.has(`${sub.name}/${a.slug}`.toLowerCase())
   )
   if (!article) return `nothing new to post in r/${sub.name}`
   const planned = postFor(sub, article)
@@ -625,6 +790,29 @@ export async function redditTick(d: RedditDeps): Promise<string> {
     planned
   )
   return `asked about posting in r/${sub.name}`
+}
+
+/** The blog-share desk's Reddit posts, or none when they cannot be read. */
+async function blogPostedKeys(d: RedditDeps): Promise<string[]> {
+  if (!d.blogPosted) return []
+  return await d.blogPosted().catch(() => [])
+}
+
+/** Why an approved post must not go out now, or '' when it may. */
+async function whyNotPost(
+  d: RedditDeps,
+  sub: string,
+  target: string
+): Promise<string> {
+  if (d.communityState) {
+    const state = await d
+      .communityState(sub)
+      .catch((): CommunityState => 'unknown')
+    if (isClosed(state)) return closedLine(sub, state)
+  }
+  if ((await blogPostedKeys(d)).includes(target.toLowerCase()))
+    return 'статья уже опубликована там столом блога — второй раз не отправлено' // cyrillic-ok: told to the owner
+  return ''
 }
 
 async function remember(
