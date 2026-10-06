@@ -130,83 +130,230 @@ const CURRENCY_RUN = new RegExp(
   '^(?:руб\\p{L}*|р|rub\\p{L}*|roubl\\p{L}*|dollars?|доллар\\p{L}*|бакс\\p{L}*|usd|евро|euros?|eur|gbp|бат\\p{L}*|baht|thb)\\.?$', // cyrillic-ok: currency words
   'iu'
 )
+/* Hedge words (#3746): "about", "or so", "-ish", a Russian "about". */
+const HEDGE_WORDS =
+  'so|thereabouts|ish|about|around|roughly|approx|approximately|circa|около|примерно|приблизительно|порядка' // cyrillic-ok: hedge words
+const HEDGE_RUN = new RegExp(`^(?:${HEDGE_WORDS})$`, 'iu')
 /*
  * Words that are never a multiplier: "$5 per person", "$5 и $5000",
  * "$5 за вход". A CLOSED list on the safe side -- a word missing here is read
  * as an unknown multiplier, and the agent asks once more.
  */
 const FILLER_RUN = new RegExp(
-  '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total)$', // cyrillic-ok: filler words
+  '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total|' + // cyrillic-ok: filler words
+    // Hedges (#3746): "$5 or so k", "$5-ish k", a Russian "about". A hedge
+    // is never a multiplier, and it does not break the chain to a later one.
+    HEDGE_WORDS +
+    ')$',
   'iu'
 )
 /*
- * A LATER MULTIPLIER SPREADS BACK (#3730 round 7). "$5-10k", "$5 to 10k",
- * "₽5 до 10 тыс", "$5 or 6 million", "₽5 плюс тыс": a reader may scale the
- * FIRST amount by the multiplier printed after the next number. The rule is
- * one shape, not a word per connector: after an amount, a chain of
- * connectors (a dash, or any FILLER_RUN word), further numbers and half
- * words, inside one clause, that ENDS in a multiplier makes that multiplier
- * a possible reading of every amount before it. The chain must hold a
- * connector or a second number before the multiplier. It stops at anything
- * else -- a noun ("$25 per person"), punctuation, a line break -- so a
+ * A LATER MULTIPLIER SPREADS BACK (#3730 round 7, widened in #3746).
+ * "$5-10k", "$5 to 10k", "₽5 до 10 тыс", "$5 or 6 million", "₽5 плюс тыс":
+ * a reader may scale the FIRST amount by the multiplier printed after the
+ * next number. The rule is one shape, not a word per connector: after an
+ * amount, a chain of connectors (a dash, a comma right after an amount, or
+ * any FILLER_RUN word, hedges included), further numbers and fractions (a
+ * half word, or a digit fraction "1/2", "½", "3/4"), inside one clause, that
+ * ENDS in a multiplier makes that multiplier a possible reading of every
+ * amount before it. The chain must hold a connector or a second number
+ * before the multiplier. It stops at anything else -- a noun
+ * ("$25 per person, 2k seats"), other punctuation, a line break -- so a
  * range with no multiplier ("$10-15", "$3 until 8") stays the bare amount.
- * A half word right after the connectors ("$1 and a half million",
- * "₽5 с половиной тысяч") adds a half of the multiplier to the first amount.
+ * A comma is a connector only right after an amount (#3746): "$5, 10k" is a
+ * list or a range a reader may take as "$5k".
+ * A LOOSE chain -- one that passed a comma or a hedge (#3758) -- keeps
+ * spreading its multiplier back UNLESS a COUNTED_NOUNS word follows the
+ * multiplier: "$20, 2k seats", "$5 - about 10k people", "₽500, 2 тыс
+ * гостей" stay the bare amount. Any other word, a currency, punctuation or
+ * the end keeps the multiplier on the price (#3758 round 4, #3769):
+ * "$5, 10k", "$5, 10k budget", "$5 about 10k quid", "₽5, 10 тыс сумма" ask.
+ * A BARE hedge (no comma, no dash before it: "$5 about 10k people") never
+ * releases the price (#3758 round 8): the multiplier stays on it, as on
+ * main, whatever follows. Rounds 4-7 each found a new way a noun after a
+ * bare hedge still names money (modifiers, joiners, symbols, brackets,
+ * operator emoji); the release waits for its own issue.
+ * A loose spread is also echoed exactly: the person's identical text
+ * confirms it (see Fact.exact).
+ * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
+ * spreading: there the dash or "to" binds the two numbers into one range,
+ * and the noun is what the whole range prices.
+ * A fraction right after the connectors ("$1 and a half million",
+ * "₽5 с половиной тысяч", "$1 1/2 million", "$1½ million") adds that
+ * fraction of the multiplier to the first amount.
  * A glued or short run the table does not know after the second number
  * ("$5 to 10zorg") is an unknown multiplier. Time words after the second
  * number ("$3 until 8 pm") are a clock, never a multiplier.
  */
+/*
+ * COUNTED NOUNS (#3758 round 4, #3769): after a LOOSE chain, the one kind of
+ * word that leaves the bare price standing -- "$20, 2k seats", "₽500, 2 тыс
+ * гостей", "$15, 1k free drinks". A CLOSED list on the SAFE side: money words
+ * are an open set (quid, payout, profit, a Russian "sum"...), so the list names what
+ * people COUNT instead, and any word missing here keeps the multiplier on the
+ * price, so the agent asks once more. Optionally one word from a closed set
+ * of adjectives before the noun. Strings: the Cyrillic guard reads regex
+ * literals as code.
+ */
+const COUNTED_ADJECTIVES = [
+  'free',
+  'new',
+  'real',
+  'active',
+  'live',
+  'бесплатн(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+  'нов(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+  'жив(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+].join('|')
+const COUNTED_NOUN_WORDS = [
+  'followers?',
+  'subscribers?',
+  'fans?',
+  'views?',
+  'likes?',
+  'seats?',
+  'guests?',
+  'people',
+  'persons?',
+  'attendees?',
+  'visitors?',
+  'tickets?',
+  'members?',
+  'users?',
+  'customers?',
+  'clients?',
+  'students?',
+  'participants?',
+  'drinks?',
+  'posts?',
+  'reels?',
+  'photos?',
+  'downloads?',
+  'plays?',
+  'streams?',
+  'viewers?',
+  'readers?',
+  'listeners?',
+  'players?',
+  'подписчик(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'гост(?:ь|я|ей|и)', // cyrillic-ok: counted nouns
+  'человек', // cyrillic-ok: counted nouns
+  'людей|люди', // cyrillic-ok: counted nouns
+  'мест(?:а|о)?', // cyrillic-ok: counted nouns
+  'зрител(?:ь|я|ей|и)', // cyrillic-ok: counted nouns
+  'просмотр(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+  'лайк(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'участник(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'клиент(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+  'учеников|ученика|ученики|ученик', // cyrillic-ok: counted nouns
+  'билет(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+].join('|')
+const COUNTED_NOUNS = new RegExp(
+  `^[ \\t\\u00a0]*(?:(?:${COUNTED_ADJECTIVES})[ \\t\\u00a0]+)?(?:${COUNTED_NOUN_WORDS})(?![\\p{L}\\d])`,
+  'iu'
+)
 const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
 const TIME_RUN = new RegExp(
   '^(?:[ap]\\.?m\\.?|h|hrs?|hours?|min|mins|ч|час\\p{L}*|мин\\p{L}*)$', // cyrillic-ok: time words
   'iu'
 )
+/* A digit fraction: "1/2", "3/4", or a vulgar fraction glyph (#3746). */
+const GLYPH_FRACTIONS: Readonly<Record<string, number>> = {
+  '½': 0.5,
+  '¼': 0.25,
+  '¾': 0.75,
+}
+const FRACTION = '([½¼¾]|[1-9]\\/[1-9]\\d?)(?![\\d/])'
+/** The value of a FRACTION match; undefined when it is no proper fraction. */
+function fractionValue(f: string): number | undefined {
+  if (f in GLYPH_FRACTIONS) return GLYPH_FRACTIONS[f]
+  const [n, d] = f.split('/').map(Number)
+  return n < d ? n / d : undefined
+}
 type Spread = {
   zeros: number | 'unknown'
   alsoBare: boolean
-  halfOnFirst: boolean
+  /** The fraction of the multiplier added to the FIRST amount, 0 for none. */
+  fractionOnFirst: number
   text: string
+  /** The chain passed a comma or a hedge: its exact echo confirms it. */
+  loose: boolean
 }
-function laterMultiplier(tail: string, joined: boolean): Spread | undefined {
+function laterMultiplier(
+  tail: string,
+  joined: boolean,
+  atAmount: boolean
+): Spread | undefined {
   const token = new RegExp(
-    `^[${DIGIT_JOINERS}\\t]*(?:([-–—])|([$€₽฿£]\\s?)?${NUM}|(\\p{L}+\\.?))`,
+    `^[${DIGIT_JOINERS}\\t]*(?:([-–—])|(,)|${FRACTION}|([$€₽฿£]\\s?)?${NUM}|(\\p{L}+\\.?))`,
     'iu'
   )
   let rest = tail
   let used = ''
   let second = false
-  let halfOnFirst = false
+  let fractionOnFirst = 0
   let afterNumber = false
+  let loose = false
+  // A dash before the chain's hedge, or a comma: then it is no bare hedge.
+  let dashed = false
+  // The chain was loosened only by a bare hedge ("$5 about 10k", #3758
+  // round 5): no comma, no dash before the hedge.
+  let hedgeOnly = false
+  // A loose chain ends at a multiplier that a counted noun follows (see
+  // above). Closed on the safe side (#3758 round 4, #3769): only a word in
+  // COUNTED_NOUNS leaves the bare price; any other word, a currency or a
+  // filler keeps the multiplier on the price, so it asks. A bare hedge
+  // never releases it (#3758 round 8): "$5 about 10k people" asks, as on
+  // main.
+  const countsNoun = () => loose && !hedgeOnly && COUNTED_NOUNS.test(rest)
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined
+    // A comma joins only right after an amount: "$5, 10k", "$5 to 6, 10k".
+    // After a noun ("$20 entry, 2k seats") the clause is a new one.
+    if (t[2] && !afterNumber && !(atAmount && !used.trim())) return undefined
     used += t[0]
     rest = rest.slice(t[0].length)
-    if (t[1]) {
+    if (t[2]) loose = true
+    if (t[1]) dashed = true
+    if (t[1] || t[2]) {
       joined = true
       afterNumber = false
       continue
     }
-    if (t[3] !== undefined) {
+    const fraction = t[3] === undefined ? undefined : fractionValue(t[3])
+    if (t[3] !== undefined && fraction === undefined) return undefined
+    if (fraction !== undefined || HALF_RUN.test(t[6] ?? '')) {
+      if (!second) fractionOnFirst = fraction ?? 0.5
       second = true
       afterNumber = true
       continue
     }
-    const word = t[4]
+    if (t[5] !== undefined) {
+      second = true
+      afterNumber = true
+      continue
+    }
+    const word = t[6]
     const spaced = /^\s/u.test(t[0])
     const s = suffixReading(word)
     if (s !== 'unknown' && s.zeros) {
       if (!joined && !second) return undefined
-      return { zeros: s.zeros, alsoBare: s.alsoBare, halfOnFirst, text: used }
-    }
-    if (HALF_RUN.test(word)) {
-      if (!second) halfOnFirst = true
-      second = true
-      afterNumber = true
-      continue
+      if (countsNoun()) return undefined
+      return {
+        zeros: s.zeros,
+        alsoBare: s.alsoBare,
+        fractionOnFirst,
+        text: used,
+        loose,
+      }
     }
     if (afterNumber && TIME_RUN.test(word)) return undefined
     if (FILLER_RUN.test(word)) {
+      if (HEDGE_RUN.test(word)) {
+        if (!dashed && !loose) hedgeOnly = true
+        loose = true
+      }
       joined = true
       afterNumber = false
       continue
@@ -217,9 +364,16 @@ function laterMultiplier(tail: string, joined: boolean): Spread | undefined {
     }
     if (
       afterNumber &&
-      (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS)
+      (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS) &&
+      !countsNoun()
     )
-      return { zeros: 'unknown', alsoBare: false, halfOnFirst, text: used }
+      return {
+        zeros: 'unknown',
+        alsoBare: false,
+        fractionOnFirst,
+        text: used,
+        loose,
+      }
     return undefined
   }
   return undefined
@@ -235,7 +389,15 @@ function suffixReading(run: string | undefined): Suffix {
   if (!run) return NO_SUFFIX
   for (const [re, zeros, alsoBare] of MULTIPLIER_RES)
     if (re.test(run)) return { zeros, alsoBare }
-  if (CURRENCY_RUN.test(run) || FILLER_RUN.test(run) || HALF_RUN.test(run))
+  // A hedge is a connector only INSIDE a chain (laterMultiplier). As the
+  // price's own run ("$5 about", "$5ish", a Russian "about") it stays an
+  // unknown run, as on main (#3758 round 9): read as filler, it let
+  // "$5 about two million" or "$5ish, 10k" confirm the bare "$5".
+  if (
+    CURRENCY_RUN.test(run) ||
+    (FILLER_RUN.test(run) && !HEDGE_RUN.test(run)) ||
+    HALF_RUN.test(run)
+  )
     return NO_SUFFIX
   return 'unknown'
 }
@@ -346,6 +508,17 @@ function amount(raw: string): string {
 }
 
 /*
+ * A CURRENCY-FIRST DOT GROUP (#3746). "$1.500" is $1500 to a European reader
+ * and $1.50 to an English one, so a printed "$1.500", "€2.000" carries both
+ * readings, 1500 and 1 (cents are dropped, as for "$1.50"), and only a person
+ * who confirmed both, or wrote that exact text, confirms it. A heard "€1.500"
+ * is just as ambiguous, so it confirms no single amount ("€1500" asks once).
+ * A trailing currency ("1.500 ₽") stays the group: that is how Russian and
+ * Thai posters write thousands, and no English reader starts a price there.
+ */
+const DOT_GROUP = /^(\d{1,3})\.\d{3}$/
+
+/*
  * The readings of a price, scaled by `zeros` from the multiplier table.
  * Before a multiplier the decimal is part of the amount, not cents: "1.5k"
  * and "1,5 тыс" are 1500, so "$1k" does not confirm "$1.5k" (#3697), and
@@ -417,6 +590,15 @@ export interface Fact {
    * the amount. The bare reading holds only if the person wrote this word.
    */
   word?: string
+  /**
+   * A price with more than one reading, as written, whitespace dropped: a
+   * currency-first dot group with no multiplier ("€1.500", #3746) or a price
+   * a LOOSE chain scaled ("$5, 10k", "$5 about 10k budget", #3758 round 4).
+   * The person's identical text confirms it, ambiguity and all; a reordered
+   * or other form does not. Tight chains ("$5-10k") and adjacent multipliers
+   * ("€1.500k") carry no exact echo and still ask (rounds 4 and 7).
+   */
+  exact?: string
 }
 
 function monthOf(word: string): number | null {
@@ -459,6 +641,23 @@ function priceFact(
     ...[...readings].map(d => `p${d}`),
     ...unknown.map(u => u.replace(/\s/g, '').toLowerCase()),
   ]
+  // A currency-first dot group ("$1.500") is $1.50 or $1500 (see DOT_GROUP).
+  const dot = lead ? raw.trim().match(DOT_GROUP) : null
+  const bare = () => {
+    const r = priceReadings(raw, 0)
+    if (dot) r.push(String(Number(dot[1])))
+    return r
+  }
+  let scaled = false
+  let looseSpread = false
+  // The price as written, for the exact echo (see Fact.exact): an unscaled
+  // dot group, or a price a loose chain scaled ("$5, 10k").
+  const exact = () => {
+    const as = (t: string) => t.replace(/\s/g, '').toLowerCase()
+    if (dot && !scaled)
+      return as(m[0].slice(0, m[0].length - (run?.length ?? 0)))
+    return looseSpread ? as(shown) : undefined
+  }
   /*
    * A later multiplier may scale this amount too (see laterMultiplier). A
    * trailing currency ("500 ₽ - 1000 ₽") closes the amount first; a run
@@ -473,24 +672,28 @@ function priceFact(
     // and after an echoed noun, which joins like a connector.
     const own = !echoed && run ? run : ''
     const head = m[0].slice(0, m[0].length - own.length)
-    const spread = closed ? undefined : laterMultiplier(own + next, echoed)
+    const spread = closed
+      ? undefined
+      : laterMultiplier(own + next, echoed, !echoed && !own)
     if (!spread) return
+    scaled = true
+    looseSpread = spread.loose
     shown = (head + spread.text).replace(/\s+$/u, '')
     if (spread.zeros === 'unknown') {
       unknown.push(`u${raw}${run ?? ''}${spread.text}`)
       return
     }
-    const half = spread.halfOnFirst ? 5 * 10 ** (spread.zeros - 1) : 0
+    const part = Math.round(spread.fractionOnFirst * 10 ** spread.zeros)
     for (const r of priceReadings(raw, spread.zeros))
-      readings.add(String(Number(r) + half))
-    if (spread.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
+      readings.add(String(Number(r) + part))
+    if (spread.alsoBare) for (const r of bare()) readings.add(r)
   }
   if (suffix === 'unknown') {
     const word = lead ? echoCandidate(m[0], run) : undefined
     if (word) {
       // An echoed noun is no multiplier, and no wall either: in
       // "$5 tickets to 10k" the later "k" may still scale the $5.
-      const readings = new Set(priceReadings(raw, 0))
+      const readings = new Set(bare())
       if (!readings.size) return undefined
       const unknown: string[] = []
       spreadInto(readings, unknown, true)
@@ -499,19 +702,28 @@ function priceFact(
         text: shown.trim(),
         keys: keys(readings, unknown),
         word,
+        exact: exact(),
       }
     }
     const key = `u${raw}${run}`.replace(/\s/g, '').toLowerCase()
     return { kind: 'price', text: shown.trim(), keys: [key] }
   }
   const readings = new Set(priceReadings(raw, suffix.zeros))
-  if (suffix.alsoBare) for (const r of priceReadings(raw, 0)) readings.add(r)
+  if (suffix.alsoBare) for (const r of bare()) readings.add(r)
   if (SPACED_K.test(m[0]) && !K_THOUSAND_NEXT.test(next))
-    for (const r of priceReadings(raw, 0)) readings.add(r)
+    for (const r of bare()) readings.add(r)
   const unknown: string[] = []
-  if (!suffix.zeros) spreadInto(readings, unknown, false)
+  if (!suffix.zeros) {
+    for (const r of bare()) readings.add(r)
+    spreadInto(readings, unknown, false)
+  } else scaled = true
   if (!readings.size) return undefined
-  return { kind: 'price', text: shown.trim(), keys: keys(readings, unknown) }
+  return {
+    kind: 'price',
+    text: shown.trim(),
+    keys: keys(readings, unknown),
+    exact: exact(),
+  }
 }
 
 /** Every date, time and price in `text`, normalised. Pure. */
@@ -691,6 +903,14 @@ function confirmedBy(f: Fact, known: Fact[], heard: string): boolean {
   if (f.kind !== 'price')
     return known.some(h => h.keys.some(k => f.keys.includes(k)))
   if (f.word && !wordWritten(heard, f.word)) return false
+  /*
+   * EXACT ECHO (#3746, widened in #3758 round 4): a printed "€1.500" or
+   * "$5, 10k" the person wrote in the identical form is their own notation,
+   * not an invented fact -- and an ask could never end, since every "yes"
+   * re-reads the same two readings. Any other form of it asks, a reordered
+   * one too ("$10, 5k"); a heard one confirms no other price.
+   */
+  if (f.exact && known.some(h => h.exact === f.exact)) return true
   const sure = known.filter(
     h => h.kind === 'price' && h.keys.length === 1 && sameCurrency(h, f)
   )

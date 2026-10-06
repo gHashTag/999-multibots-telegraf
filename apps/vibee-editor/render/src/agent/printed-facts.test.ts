@@ -636,7 +636,13 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
    * same. Liveness too: one amount on both sides, the same, confirms.
    */
   describe('grid: a price is confirmed only by the one amount it can mean', () => {
-    type Form = { text: string; means: number[]; cur: string | undefined }
+    type Form = {
+      text: string
+      means: number[]
+      cur: string | undefined
+      // The person's identical text confirms it (#3746 exact echo).
+      exact?: true
+    }
     const ambiguousTails = [
       ' утру',
       ' вечеру',
@@ -701,6 +707,10 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         means: [a * 1000 + 500, (a * 1000 + 500) * 1000],
         cur,
       },
+      // A currency-first dot group is $a.50 or $a 500 (#3746); a trailing
+      // currency keeps the group only.
+      { text: `${sign}${a}.500`, means: [a * 1000 + 500, a], cur, exact: true },
+      { text: `${a}.500 ${word}`, means: [a * 1000 + 500], cur },
       { text: `${a} тыс ${word}`, means: [a * 1000], cur },
       { text: `${a} млн ${word}`, means: [a * 1e6], cur },
       { text: `${a} к ${word}`, means: [a * 1000], cur },
@@ -738,7 +748,7 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
         )
       }
       expect(all.length).toBe(
-        2 * 2 * (10 + thousandTails.length + ambiguousTails.length) + 2
+        2 * 2 * (12 + thousandTails.length + ambiguousTails.length) + 2
       )
     })
 
@@ -753,10 +763,11 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
               f => f.kind === 'price'
             ).length === 0
           const should =
-            printed.means.length === 1 &&
-            heard.means.length === 1 &&
-            printed.means[0] === heard.means[0] &&
-            (!printed.cur || !heard.cur || printed.cur === heard.cur)
+            (printed.means.length === 1 &&
+              heard.means.length === 1 &&
+              printed.means[0] === heard.means[0] &&
+              (!printed.cur || !heard.cur || printed.cur === heard.cur)) ||
+            (printed.exact === true && printed.text === heard.text)
           expect(
             ok,
             `printed ${JSON.stringify(printed.text)} heard ${JSON.stringify(heard.text)}`
@@ -1088,6 +1099,26 @@ describe('shape plus echo (#3730 round 6)', () => {
     { printed: '₽700 обед', heard: 'Обед за 700 ₽' },
     { printed: '฿500 massage', heard: 'massage 500 baht' },
     { printed: '฿300 entry', heard: 'entry 300 THB' },
+    // #3746 shapes written honestly: the same notation, a list of amounts.
+    { printed: '€1.500 rent', heard: 'rent is €1.500' },
+    { printed: '$1,500 deposit', heard: 'deposit $1,500' },
+    { printed: '$5, $10 and $15 tickets', heard: 'tickets $5, $10 and $15' },
+    { printed: '$2.50 coffee, $3 cake', heard: 'coffee $2.50, cake $3' },
+    { printed: '$20 entry, 2k seats', heard: '$20 entry' },
+    // #3758 round 2: a later multiplier that counts a noun, not the price.
+    { printed: 'Ticket $20', heard: 'Ticket $20, 2k seats' },
+    { printed: 'Entry $10', heard: 'Entry $10, 5k followers on insta' },
+    { printed: 'вход ₽500', heard: 'вход ₽500, 2 тыс гостей' }, // cyrillic-ok: poster text
+    { printed: 'ticket $15', heard: 'ticket $15, 1k free drinks' },
+    { printed: 'ticket $5', heard: 'ticket $5, 10k followers' },
+    { printed: 'ticket $5', heard: 'ticket $5, and 10k followers' },
+    { printed: 'ticket $5', heard: 'ticket $5, about 10k people came' },
+    { printed: 'ticket $5', heard: 'ticket $5 - about 10k people' },
+    // #3758 round 4: the person's own loose chain, printed back exactly.
+    { printed: '$5, 10k', heard: '$5, 10k' },
+    { printed: '$5, 10k budget', heard: '$5, 10k budget' },
+    { printed: '₽5, 10 тыс бюджет', heard: '₽5, 10 тыс бюджет' }, // cyrillic-ok: poster text
+    { printed: '$5, 2-1 win', heard: '$5, 2-1 win' },
   ]
   const needless = corpus.filter(r => !r.legit && asks(r.printed, r.heard))
   const counted = corpus.filter(r => !r.legit).length
@@ -1355,6 +1386,19 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
    * filler word, written out here, plus none.
    */
   describe('grid: a later multiplier is never confirmed by the bare first amount', () => {
+    // #3746: a comma right after an amount, and hedges -- the LOOSE chain.
+    const LOOSE_CONNECTORS = [
+      ', ',
+      ' , ',
+      ' or so ',
+      ' or thereabouts ',
+      '-ish ',
+      ' about ',
+      ' около ',
+      ' примерно ', // cyrillic-ok: hedge words
+    ]
+    // The hedge is the price's own run: a space, then the hedge word.
+    const HEDGE_RUN_CONNECTORS = [' about ', ' около ', ' примерно '] // cyrillic-ok: hedge words
     const connectors = [
       '-',
       '–',
@@ -1401,6 +1445,18 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
       ' всего ',
       ' только ',
       ' плюс ', // cyrillic-ok: connector words
+      // #3746: a comma right after an amount, and hedges.
+      ...LOOSE_CONNECTORS,
+    ]
+    // [text, value]: a half word (per sign) or a digit fraction (#3746).
+    const fractions: ReadonlyArray<[string | undefined, number]> = [
+      [undefined, 0.5],
+      ['1/2', 0.5],
+      ['½', 0.5],
+      ['1/4', 0.25],
+      ['¼', 0.25],
+      ['3/4', 0.75],
+      ['¾', 0.75],
     ]
     // [sign, table [word, zeros, glued], unknown short words, half word]
     const signs: ReadonlyArray<
@@ -1444,39 +1500,53 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
       for (const [sign, table, unknowns, halfWord] of signs)
         for (const a of amounts)
           for (const c of connectors)
-            for (const second of ['number', 'none', 'half'] as const) {
+            for (const [second, [fracText, frac]] of [
+              ['number', fractions[0]] as const,
+              ['none', fractions[0]] as const,
+              ...fractions.map(f => ['half', f] as const),
+            ]) {
+              const halfText = fracText ?? halfWord
               const glue = (w: string, glued: boolean) =>
                 second === 'number'
                   ? `${c}10${glued ? '' : ' '}${w}`
                   : second === 'half'
-                    ? `${c}${halfWord} ${w}`
+                    ? `${c}${halfText} ${w}`
                     : `${c}${w}`
               const bare = `${sign}${a}`
               const and = sign === '$' ? ' and ' : ' и ' // cyrillic-ok: conjunction
               const adjacent = second === 'none' && c === ' '
+              // A loose chain (#3746 comma and hedges) is echoed exactly:
+              // the person's identical text confirms it (#3758 round 4).
+              // The tight round-7 connectors still ask on an echo.
+              const loose = LOOSE_CONNECTORS.includes(c)
+              // #3758 round 9: a hedge as the price's OWN run ("$5 about
+              // 10k", a Russian "about") is an unknown 4+ letter run, as on
+              // main: the bare amount never confirms it, and only its echo
+              // with no multiplier after it does ("$5 about 10"). A scaled
+              // chain after it keeps no exact echo (until #3780).
+              const own = HEDGE_RUN_CONNECTORS.includes(c)
               // No multiplier: the first amount is the bare amount.
               if (c.trim() || second !== 'none') {
                 const tail =
                   second === 'number'
                     ? `${c}10`
                     : second === 'half'
-                      ? `${c}${halfWord}`
+                      ? `${c}${halfText}`
                       : c
                 const printed = `${bare}${tail}`.trimEnd()
-                cell(printed, bare, 0)
+                cell(printed, bare, own ? 1 : 0)
                 cell(printed, printed, 0)
-                cell(printed, `${bare}${and}${sign}${a * 1000}`, 0)
+                cell(printed, `${bare}${and}${sign}${a * 1000}`, own ? 1 : 0)
               }
               // A table multiplier: bare AND scaled, unless it is adjacent.
               for (const [w, zeros, glued] of table) {
                 const scaled =
-                  a * 10 ** zeros +
-                  (second === 'half' ? 5 * 10 ** (zeros - 1) : 0)
+                  a * 10 ** zeros + (second === 'half' ? frac * 10 ** zeros : 0)
                 const printed = `${bare}${glue(w, glued && second === 'number')}`
                 cell(printed, bare, 1)
                 cell(printed, `${sign}${scaled}`, adjacent ? 0 : 1)
-                cell(printed, `${bare}${and}${sign}${scaled}`, 0)
-                cell(printed, printed, adjacent ? 0 : 1)
+                cell(printed, `${bare}${and}${sign}${scaled}`, own ? 1 : 0)
+                cell(printed, printed, adjacent || (loose && !own) ? 0 : 1)
               }
               // An unknown short multiplier after a second number or a half:
               // no amount confirms it, nor the same ambiguous text. Right
@@ -1490,10 +1560,830 @@ describe('a later multiplier spreads back over the first amount (#3730 round 7)'
                   cell(printed, bare, 1)
                   cell(printed, `${sign}${a * 1000}`, 1)
                   cell(printed, `${bare}${and}${sign}${a * 1000}`, 1)
-                  cell(printed, printed, 1)
+                  cell(printed, printed, loose && !own ? 0 : 1)
                 }
             }
-      expect(cells).toBe(11688)
+      expect(cells).toBe(43024)
+    })
+  })
+})
+
+describe('four price shapes that read as another amount (#3746)', () => {
+  const asks = (printed: string, heard: string) =>
+    unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+
+  it('the issue rows ask, each with both readings', () => {
+    const rows: ReadonlyArray<[string, string, string[]]> = [
+      ['$1.500', '$1,500', ['p1500', 'p1']],
+      ['$5, 10k', '$5', ['p5', `p${5e3}`]],
+      ['$5 or so k', '$5', ['p5', `p${5e3}`]],
+      ['$1 1/2 million', '$1', ['p1', `p${1.5e6}`]],
+    ]
+    for (const [printed, heard, want] of rows) {
+      expect(new Set(factsIn(printed)[0].keys), printed).toEqual(new Set(want))
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(1)
+    }
+  })
+
+  it('each shape by class, not by string', () => {
+    // (a) a currency-first dot group, any sign or code.
+    for (const p of ['€2.000', '£1.500', '₽3.000', 'USD 1.500'])
+      expect(factsIn(p)[0].keys.length, p).toBe(2)
+    // ...a trailing currency or more groups keep the one reading.
+    expect(prices('1.500 ₽')).toEqual(['p1500'])
+    expect(prices('$1.500.000')).toEqual([`p${1.5e6}`])
+    expect(prices('$1.500,50')).toEqual(['p1500'])
+    // (b) a comma right after an amount, also after a second amount.
+    expect(asks('₽5, 10 тыс', '₽5')).toBe(1)
+    expect(asks('$5 to 6, 10k', '$5')).toBe(1)
+    // (c) digit fractions and glyphs, glued or spaced.
+    expect(prices('$1½ million')).toEqual([`p1|p${1.5e6}`])
+    expect(prices('$2 3/4k')).toEqual([`p2|p${2750}`])
+    expect(prices('$2 and ¼ million')).toEqual([`p2|p${2.25e6}`])
+    // ...an improper "fraction" is no fraction and no chain.
+    expect(prices('$2 5/4 million')).toEqual(['p2'])
+    // (d) hedges, English and Russian, glued with a dash too.
+    for (const p of [
+      '$5 or thereabouts k',
+      '$5-ish k',
+      '$5 about 10k',
+      '₽5 около тыс',
+      '₽5 примерно 10 тыс', // cyrillic-ok: hedge word
+    ])
+      expect(asks(p, p.slice(0, 2)), p).toBe(1)
+  })
+
+  it('honest prints still confirm', () => {
+    expect(asks('$1,500', '$1,500')).toBe(0)
+    expect(asks('$1.50', '$1.50')).toBe(0)
+    expect(asks('$1.5', '$1.50')).toBe(0)
+    expect(asks('$5, 10', '$5, 10')).toBe(0)
+    expect(asks('$5, then $10', '$5 then $10')).toBe(0)
+    expect(asks('$5 or so', '$5')).toBe(0)
+    expect(asks('$1 1/2', '$1')).toBe(0)
+    expect(asks('$5, 10k', `$5 and $${5e3}`)).toBe(0)
+    expect(asks('$1 1/2 million', `$1 and $${1.5e6}`)).toBe(0)
+    expect(asks('$1.500', '$1 and $1500')).toBe(0)
+  })
+
+  /*
+   * EXACT ECHO, decided here: a printed "€1.500" the person wrote as
+   * "€1.500" confirms. It is their own notation, not a fact the agent made
+   * up, and asking could never end -- the agent's "Печатаю €1.500?" and the
+   * person's yes re-read the same two readings. The heard side stays narrow:
+   * a heard "€1.500" confirms no other form, and no single amount.
+   */
+  it('exact echo: the identical dot group confirms, nothing else does', () => {
+    expect(asks('€1.500', '€1.500')).toBe(0)
+    expect(asks('€1.500 entry', 'entry €1.500')).toBe(0)
+    expect(asks('€1.500', 'Price: €1.500 per night')).toBe(0)
+    // Another sign, another form, another amount: each asks.
+    expect(asks('€1.500', '$1.500')).toBe(1)
+    expect(asks('€1.500', 'EUR 1.500')).toBe(1)
+    expect(asks('€1.500', '€1500')).toBe(1)
+    expect(asks('€1500', '€1.500')).toBe(1)
+    expect(asks('€1.50', '€1.500')).toBe(1)
+    expect(asks('€1.500k', '€1.500k')).toBe(1)
+    expect(asks('€1.500 to 2k', '€1.500 to 2k')).toBe(1)
+    // A word the person did not write still needs its echo.
+    expect(asks('€1.500 entry', '€1.500')).toBe(1)
+    // A yes to the agent's own confirm question ends the ask.
+    const history = [
+      { role: 'user', content: 'a poster, rent 1500 euro' },
+      { role: 'assistant', content: 'Печатаю €1.500 — верно?' },
+      { role: 'user', content: 'да' },
+    ]
+    expect(asks('€1.500', heardFrom(history))).toBe(0)
+  })
+  /*
+   * A LOOSE CHAIN AND A COUNTED NOUN (#3758 round 2). After a comma, or a
+   * hedge, a later multiplier spreads back only when it ends the price
+   * phrase. A word after it counts that noun: "$20, 2k seats" is $20.
+   */
+  it('the round-1 regression rows confirm the bare price', () => {
+    const rows: ReadonlyArray<[string, string]> = [
+      ['Ticket $20, 2k seats', 'Ticket $20'],
+      ['Entry $10, 5k followers on insta', 'Entry $10'],
+      ['вход ₽500, 2 тыс гостей', 'вход ₽500'], // cyrillic-ok: poster text
+      ['ticket $15, 1k free drinks', 'ticket $15'],
+      ['ticket $5, 10k followers', 'ticket $5'],
+      ['ticket $5, and 10k followers', 'ticket $5'],
+      ['ticket $5, about 10k people came', 'ticket $5'],
+      ['ticket $5 - about 10k people', 'ticket $5'],
+    ]
+    for (const [heard, printed] of rows)
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(0)
+    // The trailing-currency form agrees with the leading one.
+    expect(asks('вход 500 ₽', 'вход 500 ₽, 2 тыс гостей')).toBe(0) // cyrillic-ok: poster text
+    expect(asks('вход ₽500', 'вход ₽500, 2 тыс гостей')).toBe(0) // cyrillic-ok: poster text
+  })
+
+  describe('grid: price x loose connector x multiplier x what follows', () => {
+    // [sign, amount, connectors, multipliers [text, zeros], currency word]
+    const signs: ReadonlyArray<
+      [string, number, string[], ReadonlyArray<[string, number]>, string]
+    > = [
+      [
+        '$',
+        5,
+        [', ', ', and ', ', about ', ' - about ', ', or so '],
+        [
+          ['10k', 3],
+          ['10 thousand', 3],
+          ['2 million', 6],
+          ['3m', 6],
+        ],
+        ' usd',
+      ],
+      [
+        '₽',
+        500,
+        [', ', ', и ', ', около ', ' - примерно '], // cyrillic-ok: connector words
+        [
+          ['2 тыс', 3], // cyrillic-ok: multiplier word
+          ['10к', 3], // cyrillic-ok: multiplier word
+          ['3 млн', 6], // cyrillic-ok: multiplier word
+        ],
+        ' рублей', // cyrillic-ok: currency word
+      ],
+    ]
+    const ends = ['', '.', '!', ';', '\n', ', doors at 8']
+    const nouns = [
+      ' seats',
+      ' followers on insta',
+      ' people came',
+      ' free drinks',
+      ' гостей', // cyrillic-ok: noun
+      ' человек', // cyrillic-ok: noun
+    ]
+    it('end, punctuation or a currency asks; a noun confirms', () => {
+      let cells = 0
+      for (const [sign, a, connectors, mults, currency] of signs)
+        for (const c of connectors)
+          for (const [m, zeros] of mults) {
+            const bare = `ticket ${sign}${a}`
+            for (const tail of [...ends, currency]) {
+              const full = `${bare}${c}${m}${tail}`
+              // The bare price never confirms a multiplier ending the phrase.
+              // (A currency word makes "10k usd" a price of its own, too.)
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              // The scaled reading alone does not confirm it either.
+              expect(
+                asks(full, `${sign}${a * 10 ** zeros}`),
+                `${full} / scaled`
+              ).toBeGreaterThan(0)
+              cells += 3
+            }
+            for (const noun of nouns) {
+              const full = `${bare}${c}${m}${noun}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+              expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+              cells += 2
+            }
+          }
+      expect(cells).toBe(5 * 4 * (7 * 3 + 6 * 2) + 4 * 3 * (7 * 3 + 6 * 2))
+    })
+  })
+
+  /*
+   * A MONEY WORD IS NO COUNTED NOUN (#3758 round 3, #3765). After a loose
+   * chain -- a comma, a hedge, or both -- a currency, a filler or a word from
+   * MONEY_WORDS after the multiplier still lets it scale the price, so the
+   * bare price asks, in both directions.
+   */
+  it('a hedge or a comma, then a money word, asks both ways', () => {
+    const rows: ReadonlyArray<[string, string]> = [
+      // Round 2: a hedge without a comma (asked on main).
+      ['$5', '$5 about 10k total'],
+      ['$5', '$5 about 10k budget'],
+      ['$5', '$5 around 10k a month'],
+      ['$5', '$5 about 10k per month'],
+      ['$5', '$5 roughly 10k fee'],
+      ['$5', '$5 approx 10k salary'],
+      ['$5', '$5 around 10k revenue'],
+      ['$5', '$5 about 10k each'],
+      ['$5', '$5 about 10k per seat'],
+      ['₽5', '₽5 около 10 тыс бюджет'], // cyrillic-ok: poster text
+      ['₽5', '₽5 около 10 тыс в месяц'], // cyrillic-ok: poster text
+      // #3765: a comma or a dash plus a hedge (confirmed on main too).
+      ['$5', '$5, 10k budget'],
+      ['ticket $5', 'ticket $5, 10k total'],
+      ['price $5', 'price $5, 10k each'],
+      ['$5', '$5, 10k a month'],
+      ['$5', '$5, 10k per month'],
+      ['₽5', '₽5, 10 тыс бюджет'], // cyrillic-ok: poster text
+      ['₽500', '₽500, 2 тыс в месяц'], // cyrillic-ok: poster text
+      ['₽500', '₽500, 2 тыс зарплата'], // cyrillic-ok: poster text
+      ['$5', '$5 - about 10k total'],
+      ['$5', '$5 - about 10k a month'],
+    ]
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  describe('grid: hedge without a comma x multiplier x what follows', () => {
+    // [sign, amount, hedges, multipliers [text, zeros], nouns, money, fillers]
+    const signs: ReadonlyArray<
+      [
+        string,
+        number,
+        string[],
+        ReadonlyArray<[string, number]>,
+        string[],
+        string[],
+        string[],
+      ]
+    > = [
+      [
+        '$',
+        5,
+        [' about ', ' around ', ' roughly ', ' approx ', ' or so '],
+        [
+          ['10k', 3],
+          ['10 thousand', 3],
+          ['2 million', 6],
+          ['3m', 6],
+        ],
+        [' people', ' seats', ' followers. On insta', ' free drinks'],
+        [
+          ' total',
+          ' budget',
+          ' revenue',
+          ' salary',
+          ' fee',
+          ' costs',
+          ' price',
+          ' each',
+          ' per seat',
+          ' a month',
+          ' monthly',
+          ' a year',
+          ' annually',
+          ' an hour',
+          ' daily',
+          ' dollars',
+        ],
+        [' for the hall', ' and up', ' in cash', ' or more', ' the lot'],
+      ],
+      [
+        '₽',
+        500,
+        [' около ', ' примерно ', ' порядка '], // cyrillic-ok: hedge words
+        [
+          ['2 тыс', 3], // cyrillic-ok: multiplier word
+          ['10к', 3], // cyrillic-ok: multiplier word
+          ['3 млн', 6], // cyrillic-ok: multiplier word
+        ],
+        [' гостей', ' человек', ' подписчиков'], // cyrillic-ok: nouns
+        [
+          ' бюджет', // cyrillic-ok: money word
+          ' итого', // cyrillic-ok: money word
+          ' всего', // cyrillic-ok: money word
+          ' зарплата', // cyrillic-ok: money word
+          ' выручка', // cyrillic-ok: money word
+          ' доход', // cyrillic-ok: money word
+          ' цена', // cyrillic-ok: money word
+          ' стоимость', // cyrillic-ok: money word
+          ' в месяц', // cyrillic-ok: money word
+          ' в год', // cyrillic-ok: money word
+          ' в час', // cyrillic-ok: money word
+          ' рублей', // cyrillic-ok: money word
+        ],
+        [' за зал', ' на всех', ' с человека'], // cyrillic-ok: filler words
+      ],
+    ]
+    // #3758 round 8 (variant B): a bare hedge never releases the price,
+    // so a counted noun asks here too, as on main.
+    it('a counted noun, a money word or a filler: all ask', () => {
+      let cells = 0
+      let expected = 0
+      for (const [sign, a, hedges, mults, nouns, money, fillers] of signs) {
+        expected +=
+          hedges.length *
+          mults.length *
+          (nouns.length * 2 + (money.length + fillers.length) * 3)
+        for (const h of hedges)
+          for (const [m, zeros] of mults) {
+            const bare = `ticket ${sign}${a}`
+            for (const noun of nouns) {
+              const full = `${bare}${h}${m}${noun}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              cells += 2
+            }
+            for (const tail of [...money, ...fillers]) {
+              const full = `${bare}${h}${m}${tail}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              expect(
+                asks(full, `${sign}${a * 10 ** zeros}`),
+                `${full} / scaled`
+              ).toBeGreaterThan(0)
+              cells += 3
+            }
+          }
+      }
+      expect(cells).toBe(expected)
+      expect(cells).toBe(
+        5 * 4 * (4 * 2 + (16 + 5) * 3) + 3 * 3 * (3 * 2 + (12 + 3) * 3)
+      )
+    })
+  })
+})
+
+/*
+ * COUNTED NOUNS, NOT MONEY WORDS (#3758 round 4, #3769). Round 3 closed a
+ * list of money words on the UNSAFE side: every money word it missed
+ * ("quid", "payout", "сумма") confirmed the bare price silently. The list
+ * now names what people COUNT, and only those words leave the bare price
+ * standing after a loose chain. The words below are written here from what
+ * they mean, never read from the module.
+ */
+describe('only a counted noun leaves the bare price after a loose chain (#3758 round 4)', () => {
+  const asks = (printed: string, heard: string) =>
+    unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+
+  it('the round-3 reviewer rows and the #3769 rows ask, both ways', () => {
+    const rows: ReadonlyArray<[string, string]> = [
+      // Round-3 review: a bare hedge, then a money word not in the old list.
+      ['$5', '$5 about 10k quid'],
+      ['$5', '$5 about 10k payout'],
+      ['$5', '$5 around 10k bucks'],
+      ['$5', '$5 roughly 10k profit'],
+      ['$5', '$5 approx 10k bonus'],
+      ['$5', '$5 circa 10k rent'],
+      ['₽5', '₽5 около 10 тыс прибыль'], // cyrillic-ok: poster text
+      ['₽5', '₽5 примерно 10 тыс выплата'], // cyrillic-ok: poster text
+      ['₽5', '₽5 порядка 10 тыс сумма'], // cyrillic-ok: poster text
+      // #3769: a comma, or a dash plus a hedge, then a money word.
+      ...[
+        'bucks',
+        'grand',
+        'spend',
+        'spending',
+        'payout',
+        'bill',
+        'charge',
+        'turnover',
+        'profit',
+        'cash',
+        'income',
+        'earnings',
+        'deposit',
+        'prize',
+        'rent',
+        'pounds',
+        'apiece',
+      ].map(w => ['$5', `$5, 10k ${w}`] as [string, string]),
+      ['$5', '$5 - about 10k profit'],
+      ['$5', '$5 or so 10k bucks'],
+      ['$5', '$5 or so 10k profit'],
+      ['$5', '$5 or so 10k quid'],
+      ...[
+        'выплата',
+        'оплата',
+        'прибыль',
+        'сумма',
+        'оборот',
+        'аренда',
+        'взнос', // cyrillic-ok: money words
+      ].map(w => ['₽5', `₽5, 10 тыс ${w}`] as [string, string]), // cyrillic-ok: multiplier word
+    ]
+    expect(rows.length).toBe(9 + 17 + 4 + 7)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun that only modifies a money word, asks both ways (#3758 round 5)', () => {
+    // Round-4 review: main asks on every row, round 4 confirmed them.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k ticket revenue'],
+      ['$5', 'Tickets $5 about 10k ticket revenue expected'],
+      ['$5', '$5 about 10k ticket sales'],
+      ['$5', '$5 around 10k user fees'],
+      ['$5', '$5 about 10k fan budget'],
+      ['$5', '$5 roughly 10k member payout'],
+      ['$5', '$5 approx 10k seat revenue'],
+      ['$5', '$5 about 10k client budget'],
+      ['$5', '$5 about 10k student fees'],
+      ['$5', '$5 about 10k tickets revenue'],
+      ['$5', '$5 about 10k people budget'],
+      ['₽5', '₽5 около 10 тыс клиент бюджет'], // cyrillic-ok: poster text
+      ['₽5', '₽5 около 10 тыс человек бюджет'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс билетов выручка'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(14)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun the clause continues past, asks both ways (#3758 round 6)', () => {
+    // Round-5 review: main asks on every row, round 5 confirmed them. A
+    // joiner or a space round 5 did not know, or a filler that joins two
+    // modifiers of one money word.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k ticket-revenue'],
+      ['$5', '$5 about 10k ticket/revenue'],
+      ['$5', '$5 about 10k ticket\u202Frevenue'],
+      ['$5', '$5 about 10k ticket\u2009revenue'],
+      ['$5', '$5 about 10k ticket\u2007revenue'],
+      ['₽500', '₽500 около 2 тыс билетов\u202Fвыручка'], // cyrillic-ok: poster text
+      ['$5', '$5 about 10k ticket and merch revenue'],
+      ['$5', '$5 about 10k ticket and bar sales'],
+      ['$5', '$5 about 10k ticket plus bar revenue'],
+      ['$5', '$5 about 10k ticket or bar sales'],
+      // The round-5 control, flipped: "insta" is no filler, main asks.
+      ['$5', '$5 about 10k followers on insta'],
+      ['ticket $5', 'ticket $5 about 10k followers on insta'],
+      // The author's own probe: other joiners, zero-width and ideographic
+      // spaces, "&", a counted noun + a counted noun + a money word, a rate.
+      ['$5', '$5 about 10k ticket\u2011revenue'],
+      ['$5', '$5 about 10k ticket\u200Brevenue'],
+      ['$5', '$5 about 10k ticket\u3000revenue'],
+      ['$5', '$5 about 10k ticket & bar revenue'],
+      ['$5', '$5 about 10k ticket&bar revenue'],
+      ['$5', '$5 about 10k people\u2019s budget'],
+      ['$5', '$5 about 10k ticket fan revenue'],
+      ['$5', '$5 about 10k tickets plus seats budget'],
+      ['$5', '$5 about 10k people per seat'],
+      ['$5', '$5 about 10k ticket 💰 revenue'],
+      ['₽500', '₽500 около 2 тыс билетов и бар выручка'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс билетов-выручка'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс гостей с человека'], // cyrillic-ok: poster text
+      // The word after the joiner is a filler: only the mark keeps these
+      // asking (round 7: no mark but a space or an emoji may follow).
+      ['$5', '$5 about 10k ticket-plus'],
+      ['$5', '$5 about 10k seats/only'],
+      // A rate word with nothing after it (round 7: no word list of rates,
+      // a word outside the tail lists asks).
+      ['$5', '$5 about 10k people each'],
+      ['$5', '$5 about 10k tickets per'],
+      ['₽500', '₽500 около 2 тыс гостей за'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(30)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+    // Round 8 (variant B): a noun that ends the phrase asks too -- a bare
+    // hedge never releases the price, as on main.
+    for (const [bare, full] of [
+      ['$5', '$5 about 10k tickets'],
+      ['$5', '$5 about 10k people'],
+      ['$5', '$5 about 10k people.'],
+      ['$5', '$5 about 10k people\nDoors at 7'],
+      ['$5', '$5 about 10k followers. On insta'],
+      ['$5', '$5 about 10k people and more'],
+      ['$5', '$5 about 10k people 🎉'],
+      ['$5', '$5 about 10k people and fans.'],
+      ['$5', '$5 about 10k tickets, revenue'],
+      ['₽500', '₽500 около 2 тыс гостей и больше'], // cyrillic-ok: poster text
+      ['₽500', '₽500 около 2 тыс гостей'], // cyrillic-ok: poster text
+    ] as const) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun and a rate written with a mark or in brackets, asks both ways (#3758 round 7)', () => {
+    // Round-6 review: main asks on every row, round 6 confirmed them. The
+    // clause check skipped every mark, and a bracket ended the clause.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 circa 10k people /person'],
+      ['$5', '$5 about 10k tickets / person'],
+      ['$5', '$5 about 10k tickets @ person'],
+      ['$5', '$5 around 10k guests \u00d7 ticket'],
+      ['$5', '$5 roughly 10k fans \u00f7 guest'],
+      ['$5', '$5 approx 10k people / guest'],
+      ['$5', '$5 approx 10k guests (per head)'],
+      ['$5', '$5 circa 10k fans (each)'],
+      ['\u20ac3', '\u20ac3 around 5k members / user'],
+      ['$12', '$12 about 1k students /user'],
+      ['$7', '$7 approximately 20k subscribers \u00d7 member'],
+      ['$12', '$12 about 1k customers @ viewer'],
+      ['\u00a34', '\u00a34 roughly 8k attendees (per user)'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс зрителей / человек'], // cyrillic-ok: poster text
+      ['\u20bd500', '\u20bd500 примерно 2 тыс гостей (с человека)'], // cyrillic-ok: poster text
+      ['\u20bd300', '\u20bd300 примерно 5 тыс людей (с каждого)'], // cyrillic-ok: poster text
+      // The author's round-7 probe: a money emoji, "and"/"plus" before a
+      // money word, a colon, NBSP and thin spaces around a rate, a bracket
+      // glued to a money word, a lone variation selector before a rate.
+      ['$5', '$5 about 10k tickets \u{1F4B5}'],
+      ['$5', '$5 about 10k tickets \u{1F4B0}'],
+      ['$5', '$5 about 10k tickets and revenue'],
+      ['$5', '$5 about 10k people plus fees'],
+      ['$5', '$5 about 10k tickets in total revenue'],
+      ['$5', '$5 about 10k tickets all-in'],
+      ['$5', '$5 about 10k tickets: revenue'],
+      ['$5', '$5 about 10k tickets(revenue)'],
+      ['\u20ac3', '\u20ac3 around 5k members\u00a0/\u00a0user'],
+      ['\u20ac3', '\u20ac3 around 5k members\u2009per\u2009user'],
+      ['$5', '$5 about 10k tickets \uFE0F per head'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс билетов всего выручка'], // cyrillic-ok: poster text
+    ]
+    expect(rows.length).toBe(28)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+    // Round 8 (variant B): spaces of every kind, emoji, brackets around
+    // allowed words, and count words ask too -- a bare hedge never releases
+    // the price, as on main.
+    for (const [bare, full] of [
+      ['$5', '$5 about 10k tickets \u{1F39F}\uFE0F'],
+      ['$5', '$5 about 10k people \u{1F44D}\u{1F3FD}'],
+      ['$5', '$5 about 10k\u00a0tickets'],
+      ['$5', '$5 about 10k tickets\u202f!'],
+      ['$5', '$5 about 10k tickets in total'],
+      ['$5', '$5 about 10k tickets (and more)'],
+      ['$5', '$5 about 10k tickets sold'],
+      ['$5', '$5 about 10k subscribers and counting'],
+      ['\u20bd500', '\u20bd500 примерно 2 тыс гостей (и больше)'], // cyrillic-ok: poster text
+    ] as const) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('a bare hedge, then a counted noun and an operator or money emoji, asks both ways (#3758 round 8)', () => {
+    // Round-7 review: main asks on every row, round 7 confirmed them.
+    // Variant B asks on every bare-hedge row, so these hold as must-ask.
+    const rows: ReadonlyArray<[string, string]> = [
+      ['$5', '$5 about 10k people \u2716\uFE0F ticket'],
+      ['$5', '$5 around 10k tickets \u2716 person'],
+      ['$5', '$5 roughly 10k tickets \u2797 person'],
+      ['$5', '$5 approx 10k guests \u2797 guest'],
+      ['$9', '$9 roughly 8k viewers \u2716\uFE0F viewer'],
+      ['\u20ac7', '\u20ac7 approx 3k users \u2797 user'],
+      ['\u00a32', '\u00a32 circa 4k guests \u2716 seat'],
+      ['\u00a32', '\u00a32 about 8k students \u2716 student'],
+      ['$30', '$30 around 2k readers \u2797 reader'],
+      ['$9', '$9 about 3k listeners \u2716\uFE0F listener \u{1F389}'],
+      ['$15', '$15 around 1k seats \u2716\uFE0F seat'],
+      ['\u20ac25', '\u20ac25 approx 2k plays \u2797 play'],
+      ['\u00a38', '\u00a38 roughly 3k streams \u2716 stream'],
+      ['\u20ac25', '\u20ac25 approximately 3k photos \u2716 photo'],
+      ['\u00a38', '\u00a38 around 4k reels \u2797 reel'],
+      ['$15', '$15 about 7k fans \u2716\uFE0Ffan'],
+      ['\u00a38', '\u00a38 approximately 9k guests \u2716 persons'],
+      ['\u20bd400', '\u20bd400 около 3 тыс гостей \u2716\uFE0F гость'], // cyrillic-ok: poster text
+      ['\u20bd700', '\u20bd700 примерно 3 тыс мест \u2797 место'], // cyrillic-ok: poster text
+      ['$30', '$30 approx 7k members \u{1F9E7}'],
+      ['$5', '$5 about 10k people \u{1F3F7}\uFE0F'],
+      ['$9', '$9 circa 3k people \u{1F4B9}'],
+    ]
+    expect(rows.length).toBe(22)
+    for (const [bare, full] of rows) {
+      expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+      expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('exact echo: the identical loose chain confirms, a reordered one asks', () => {
+    // The person's own text, printed back character for character.
+    for (const e of [
+      '$5, 10k',
+      '$5, 10k budget',
+      '₽5, 10 тыс бюджет', // cyrillic-ok: poster text
+      '$5, 2-1 win',
+      '$5 - about 10k profit',
+    ])
+      expect(asks(e, e), e).toBe(0)
+    // #3758 round 9: a hedge as the price's own run keeps no exact echo,
+    // as on main (until #3780).
+    for (const e of ['$5 about 10k quid', '$5 about 10k', '₽500 около 2 тыс']) // cyrillic-ok: poster text
+      expect(asks(e, e), e).toBe(1)
+    // Inside a longer message, and with other whitespace.
+    expect(asks('$5, 10k budget', 'Poster: $5, 10k budget, Friday')).toBe(0)
+    expect(asks('$5,  10k', '$5, 10k')).toBe(0)
+    // A reordering, another connector, another multiplier or currency asks.
+    const near: ReadonlyArray<[string, string]> = [
+      ['$5, 10k', '$10, 5k'],
+      ['$5, 2-1 win', '$5, 1-2 win'],
+      ['₽5, 10 тыс', '₽10, 5 тыс'], // cyrillic-ok: multiplier word
+      ['$5, 10k', '$5 about 10k'],
+      ['$5, 10k', '$5, 10m'],
+      ['$5, 10k', '€5, 10k'],
+      ['$5, 10k', '$5, 10k people'],
+    ]
+    for (const [printed, heard] of near)
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(1)
+    // The tight round-7 chain and an adjacent multiplier keep no exact echo.
+    expect(asks('$5-10k', '$5-10k')).toBe(1)
+    expect(asks('$5 to 10k', '$5 to 10k')).toBe(1)
+    expect(asks('€1.500k', '€1.500k')).toBe(1)
+    // A yes to the agent's own confirm question ends the ask.
+    const history = [
+      { role: 'user', content: 'a poster, ticket five dollars' },
+      { role: 'assistant', content: 'Печатаю $5, 10k — верно?' },
+      { role: 'user', content: 'да' },
+    ]
+    expect(asks('$5, 10k', heardFrom(history))).toBe(0)
+  })
+
+  describe('grid: price x connector x multiplier x next word', () => {
+    // [sign, amount, connectors, multipliers, counted, unlisted, money]
+    const signs: ReadonlyArray<
+      [
+        string,
+        number,
+        string[],
+        ReadonlyArray<[string, number]>,
+        string[],
+        string[],
+        string[],
+      ]
+    > = [
+      [
+        '$',
+        5,
+        // comma, comma+and, comma+hedge, dash+hedge, bare hedge
+        [', ', ', and ', ', about ', ' - about ', ' about ', ' or so '],
+        [
+          ['10k', 3],
+          ['10 thousand', 3],
+          ['2 million', 6],
+        ],
+        [
+          ...[
+            'follower',
+            'subscriber',
+            'fan',
+            'view',
+            'like',
+            'seat',
+            'guest',
+            'attendee',
+            'visitor',
+            'ticket',
+            'member',
+            'user',
+            'customer',
+            'client',
+            'student',
+            'participant',
+            'drink',
+            'post',
+            'reel',
+            'photo',
+            'download',
+            'play',
+            'stream',
+            'viewer',
+            'reader',
+            'listener',
+            'player',
+          ].flatMap(n => [n, `${n}s`]),
+          'people',
+          'person',
+          'free drinks',
+          'new members',
+          'real fans',
+          'active users',
+          'live viewers',
+          'Followers',
+        ],
+        [
+          'quid',
+          'payout',
+          'profit',
+          'bucks',
+          'widgets',
+          'things',
+          'bonus',
+          'tip',
+          'free money',
+          'fanfare',
+        ],
+        [
+          'budget',
+          'total',
+          'a month',
+          'per month',
+          'each',
+          'fee',
+          'salary',
+          'revenue',
+          'usd',
+          'dollars',
+        ],
+      ],
+      [
+        '₽',
+        500,
+        [', ', ', и ', ', около ', ' - примерно ', ' около '], // cyrillic-ok: connector words
+        [
+          ['2 тыс', 3], // cyrillic-ok: multiplier word
+          ['10к', 3], // cyrillic-ok: multiplier word
+          ['3 млн', 6], // cyrillic-ok: multiplier word
+        ],
+        [
+          'подписчиков',
+          'подписчика',
+          'подписчики',
+          'гостей',
+          'гостя',
+          'человек',
+          'людей',
+          'мест',
+          'места',
+          'зрителей',
+          'просмотров',
+          'лайков',
+          'участников',
+          'клиентов',
+          'учеников',
+          'билетов',
+          'бесплатных билетов',
+          'новых подписчиков',
+          'живых зрителей', // cyrillic-ok: counted nouns
+        ],
+        ['сумма', 'прибыль', 'выплата', 'оплата', 'вещей', 'виджетов'], // cyrillic-ok: unlisted nouns
+        ['бюджет', 'в месяц', 'рублей', 'итого', 'зарплата'], // cyrillic-ok: money words
+      ],
+    ]
+    // #3758 round 8 (variant B): after a bare hedge a counted noun asks
+    // too, as on main; the exact echo confirms every loose chain, except
+    // one whose hedge is the price's own run (round 9): that asks, as on
+    // main.
+    const HEDGE_OWN_RUN = new RegExp('^ (?:about|около) $', 'u') // cyrillic-ok: hedge words
+    it('a counted noun confirms both ways (not after a bare hedge); any other word asks, and its exact echo confirms (not after an own-run hedge)', () => {
+      let cells = 0
+      let expected = 0
+      for (const [
+        sign,
+        a,
+        connectors,
+        mults,
+        counted,
+        unlisted,
+        money,
+      ] of signs) {
+        expected +=
+          connectors.length *
+          mults.length *
+          (counted.length * 2 +
+            (sign === '$' ? 3 : 0) +
+            (unlisted.length + money.length) * 4)
+        for (const c of connectors)
+          for (const [m, zeros] of mults) {
+            const bare = `ticket ${sign}${a}`
+            const bareHedge = !/[,-]/u.test(c)
+            // #3758 round 9: the hedge right after the amount is the
+            // price's own run, an unknown run as on main, so even the exact
+            // echo asks (until #3780).
+            const ownHedge = HEDGE_OWN_RUN.test(c)
+            for (const n of counted) {
+              const full = `${bare}${c}${m} ${n}`
+              const back = asks(full, bare)
+              if (bareHedge) {
+                expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+                expect(back, `${full} / ${bare}`).toBeGreaterThan(0)
+              } else {
+                expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+                expect(back, `${full} / ${bare}`).toBe(0)
+              }
+              cells += 2
+            }
+            // #3758 round 5: a counted noun with a word after it ("people
+            // came") leaves the bare price after a comma or a dash, but not
+            // after a bare hedge (round 8: no bare hedge releases it).
+            for (const n of sign === '$' ? ['people came'] : []) {
+              const full = `${bare}${c}${m} ${n}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(
+                bareHedge ? 1 : 0
+              )
+              const back = asks(full, bare)
+              if (bareHedge)
+                expect(back, `${full} / ${bare}`).toBeGreaterThan(0)
+              else expect(back, `${full} / ${bare}`).toBe(0)
+              expect(asks(full, full), `${full} / echo`).toBe(ownHedge ? 1 : 0)
+              cells += 3
+            }
+            for (const w of [...unlisted, ...money]) {
+              const full = `${bare}${c}${m} ${w}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              expect(
+                asks(full, `${sign}${a * 10 ** zeros}`),
+                `${full} / scaled`
+              ).toBeGreaterThan(0)
+              expect(asks(full, full), `${full} / echo`).toBe(ownHedge ? 1 : 0)
+              cells += 4
+            }
+          }
+      }
+      expect(cells).toBe(expected)
+      expect(cells).toBe(
+        6 * 3 * (62 * 2 + 1 * 3 + 20 * 4) + 5 * 3 * (19 * 2 + 11 * 4)
+      )
     })
   })
 })
