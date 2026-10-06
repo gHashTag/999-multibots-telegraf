@@ -105,3 +105,296 @@
 {"heard": "₽5, 10 тыс бюджет", "printed": "₽5, 10 тыс бюджет", "expect": "confirm"}
 {"heard": "$5, 2-1 win", "printed": "$5, 2-1 win", "expect": "confirm"}
 {"heard": "€1.500", "printed": "€1.500", "expect": "confirm"}
+# #3758 round 7: the round-6 reviewer's 16 clear rows, the author's fresh probe (money emoji, a variation selector, brackets, colons, NBSP/thin spaces, and/plus before money) and its held-out set, both directions.
+{"heard": "$5", "printed": "$5 circa 10k people /person", "expect": "ask"}
+{"heard": "$5 circa 10k people /person", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets / person", "expect": "ask"}
+{"heard": "$5 about 10k tickets / person", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets @ person", "expect": "ask"}
+{"heard": "$5 about 10k tickets @ person", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around 10k guests × ticket", "expect": "ask"}
+{"heard": "$5 around 10k guests × ticket", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 roughly 10k fans ÷ guest", "expect": "ask"}
+{"heard": "$5 roughly 10k fans ÷ guest", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 approx 10k people / guest", "expect": "ask"}
+{"heard": "$5 approx 10k people / guest", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 approx 10k guests (per head)", "expect": "ask"}
+{"heard": "$5 approx 10k guests (per head)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 circa 10k fans (each)", "expect": "ask"}
+{"heard": "$5 circa 10k fans (each)", "printed": "$5", "expect": "ask"}
+{"heard": "€3", "printed": "€3 around 5k members / user", "expect": "ask"}
+{"heard": "€3 around 5k members / user", "printed": "€3", "expect": "ask"}
+{"heard": "$12", "printed": "$12 about 1k students /user", "expect": "ask"}
+{"heard": "$12 about 1k students /user", "printed": "$12", "expect": "ask"}
+{"heard": "$7", "printed": "$7 approximately 20k subscribers × member", "expect": "ask"}
+{"heard": "$7 approximately 20k subscribers × member", "printed": "$7", "expect": "ask"}
+{"heard": "$12", "printed": "$12 about 1k customers @ viewer", "expect": "ask"}
+{"heard": "$12 about 1k customers @ viewer", "printed": "$12", "expect": "ask"}
+{"heard": "£4", "printed": "£4 roughly 8k attendees (per user)", "expect": "ask"}
+{"heard": "£4 roughly 8k attendees (per user)", "printed": "£4", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс зрителей / человек", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс зрителей / человек", "printed": "₽500", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей (с человека)", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей (с человека)", "printed": "₽500", "expect": "ask"}
+{"heard": "₽300", "printed": "₽300 примерно 5 тыс людей (с каждого)", "expect": "ask"}
+{"heard": "₽300 примерно 5 тыс людей (с каждого)", "printed": "₽300", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets 💵", "expect": "ask"}
+{"heard": "$5 about 10k tickets 💵", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets 💰", "expect": "ask"}
+{"heard": "$5 about 10k tickets 💰", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 around 10k fans 🎟️ 💸", "expect": "ask"}
+{"heard": "$5 around 10k fans 🎟️ 💸", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets and revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets and revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k people plus fees", "expect": "ask"}
+{"heard": "$5 about 10k people plus fees", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets in total revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets in total revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets all-in", "expect": "ask"}
+{"heard": "$5 about 10k tickets all-in", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k guests total spend", "expect": "ask"}
+{"heard": "$5 about 10k guests total spend", "printed": "$5", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс билетов всего выручка", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс билетов всего выручка", "printed": "₽500", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей с каждого", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей с каждого", "printed": "₽500", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей/чел", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей/чел", "printed": "₽500", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets-worth", "expect": "ask"}
+{"heard": "$5 about 10k tickets-worth", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets—revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets—revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k people’s budget", "expect": "ask"}
+{"heard": "$5 about 10k people’s budget", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k people (budget)", "expect": "ask"}
+{"heard": "$5 about 10k people (budget)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets: revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets: revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets : per head", "expect": "ask"}
+{"heard": "$5 about 10k tickets : per head", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k fans x ticket", "expect": "ask"}
+{"heard": "$5 about 10k fans x ticket", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k fans x2", "expect": "ask"}
+{"heard": "$5 about 10k fans x2", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k fans 2x", "expect": "ask"}
+{"heard": "$5 about 10k fans 2x", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets $", "expect": "ask"}
+{"heard": "$5 about 10k tickets $", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets USD", "expect": "ask"}
+{"heard": "$5 about 10k tickets USD", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets and $", "expect": "ask"}
+{"heard": "$5 about 10k tickets and $", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets + more", "expect": "ask"}
+{"heard": "$5 about 10k tickets + more", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets [per head]", "expect": "ask"}
+{"heard": "$5 about 10k tickets [per head]", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets {each}", "expect": "ask"}
+{"heard": "$5 about 10k tickets {each}", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets each 🎉", "expect": "ask"}
+{"heard": "$5 about 10k tickets each 🎉", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k people a head", "expect": "ask"}
+{"heard": "$5 about 10k people a head", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k users/mo", "expect": "ask"}
+{"heard": "$5 about 10k users/mo", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k users per month", "expect": "ask"}
+{"heard": "$5 about 10k users per month", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k members monthly", "expect": "ask"}
+{"heard": "$5 about 10k members monthly", "printed": "$5", "expect": "ask"}
+{"heard": "€3", "printed": "€3 around 5k members / user", "expect": "ask"}
+{"heard": "€3 around 5k members / user", "printed": "€3", "expect": "ask"}
+{"heard": "€3", "printed": "€3 around 5k members per user", "expect": "ask"}
+{"heard": "€3 around 5k members per user", "printed": "€3", "expect": "ask"}
+{"heard": "₽300", "printed": "₽300 примерно 5 тыс людей на человека", "expect": "ask"}
+{"heard": "₽300 примерно 5 тыс людей на человека", "printed": "₽300", "expect": "ask"}
+{"heard": "₽300", "printed": "₽300 примерно 5 тыс зрителей и выручка", "expect": "ask"}
+{"heard": "₽300 примерно 5 тыс зрителей и выручка", "printed": "₽300", "expect": "ask"}
+{"heard": "₽300", "printed": "₽300 примерно 5 тыс участников плюс сбор", "expect": "ask"}
+{"heard": "₽300 примерно 5 тыс участников плюс сбор", "printed": "₽300", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets in sales", "expect": "ask"}
+{"heard": "$5 about 10k tickets in sales", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets or more revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets or more revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets ≈ revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets ≈ revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets → budget", "expect": "ask"}
+{"heard": "$5 about 10k tickets → budget", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k ticket-holders", "expect": "ask"}
+{"heard": "$5 about 10k ticket-holders", "printed": "$5", "expect": "ask"}
+{"heard": "$12", "printed": "$12 about 1k students·user", "expect": "ask"}
+{"heard": "$12 about 1k students·user", "printed": "$12", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей 💰", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей 💰", "printed": "₽500", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets 🎟️", "expect": "confirm"}
+{"heard": "$5 about 10k tickets 🎟️", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k fans 🎉🎉", "expect": "confirm"}
+{"heard": "$5 about 10k fans 🎉🎉", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k people 👍🏽", "expect": "confirm"}
+{"heard": "$5 about 10k people 👍🏽", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets and more!", "expect": "confirm"}
+{"heard": "$5 about 10k tickets and more!", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets in total", "expect": "confirm"}
+{"heard": "$5 about 10k tickets in total", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets total", "expect": "confirm"}
+{"heard": "$5 about 10k tickets total", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k people and fans", "expect": "confirm"}
+{"heard": "$5 about 10k people and fans", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k people or more.", "expect": "confirm"}
+{"heard": "$5 about 10k people or more.", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets", "expect": "confirm"}
+{"heard": "$5 about 10k tickets", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets !", "expect": "confirm"}
+{"heard": "$5 about 10k tickets !", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k fans 🎉", "expect": "confirm"}
+{"heard": "$5 about 10k fans 🎉", "printed": "$5", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей и больше", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс гостей и больше", "printed": "₽500", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей всего", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс гостей всего", "printed": "₽500", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс зрителей или больше", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс зрителей или больше", "printed": "₽500", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс человек 🔥", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс человек 🔥", "printed": "₽500", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс участников и ещё", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс участников и ещё", "printed": "₽500", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets.\nRevenue soon", "expect": "confirm"}
+{"heard": "$5 about 10k tickets.\nRevenue soon", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets; more soon", "expect": "confirm"}
+{"heard": "$5 about 10k tickets; more soon", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets (and more)", "expect": "confirm"}
+{"heard": "$5 about 10k tickets (and more)", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k guests: all welcome", "expect": "confirm"}
+{"heard": "$5 about 10k guests: all welcome", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k fans 🙌 and more", "expect": "confirm"}
+{"heard": "$5 about 10k fans 🙌 and more", "printed": "$5", "expect": "confirm"}
+{"heard": "€3", "printed": "€3 around 5k members plus guests", "expect": "confirm"}
+{"heard": "€3 around 5k members plus guests", "printed": "€3", "expect": "confirm"}
+{"heard": "$12", "printed": "$12 about 1k students in all", "expect": "confirm"}
+{"heard": "$12 about 1k students in all", "printed": "$12", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 roughly 10k viewers, thanks", "expect": "confirm"}
+{"heard": "$5 roughly 10k viewers, thanks", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k subscribers and counting", "expect": "confirm"}
+{"heard": "$5 about 10k subscribers and counting", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k tickets sold", "expect": "confirm"}
+{"heard": "$5 about 10k tickets sold", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k people expected", "expect": "confirm"}
+{"heard": "$5 about 10k people expected", "printed": "$5", "expect": "confirm"}
+{"heard": "£4", "printed": "£4 roughly 8k attendees in total.", "expect": "confirm"}
+{"heard": "£4 roughly 8k attendees in total.", "printed": "£4", "expect": "confirm"}
+{"heard": "$7", "printed": "$7 approximately 20k subscribers 🚀", "expect": "confirm"}
+{"heard": "$7 approximately 20k subscribers 🚀", "printed": "$7", "expect": "confirm"}
+{"heard": "₽300", "printed": "₽300 около 5 тыс людей всего!", "expect": "confirm"}
+{"heard": "₽300 около 5 тыс людей всего!", "printed": "₽300", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей с человека", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей с человека", "printed": "₽500", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets (revenue)", "expect": "ask"}
+{"heard": "$5 about 10k tickets (revenue)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets(revenue)", "expect": "ask"}
+{"heard": "$5 about 10k tickets(revenue)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets (2026)", "expect": "ask"}
+{"heard": "$5 about 10k tickets (2026)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets (10k)", "expect": "ask"}
+{"heard": "$5 about 10k tickets (10k)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets ( / user)", "expect": "ask"}
+{"heard": "$5 about 10k tickets ( / user)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets [each]", "expect": "ask"}
+{"heard": "$5 about 10k tickets [each]", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets (and merch)", "expect": "ask"}
+{"heard": "$5 about 10k tickets (and merch)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets sold per show", "expect": "ask"}
+{"heard": "$5 about 10k tickets sold per show", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets expected revenue", "expect": "ask"}
+{"heard": "$5 about 10k tickets expected revenue", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets sold ($)", "expect": "ask"}
+{"heard": "$5 about 10k tickets sold ($)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets ️ per head", "expect": "ask"}
+{"heard": "$5 about 10k tickets ️ per head", "printed": "$5", "expect": "ask"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей (выручка)", "expect": "ask"}
+{"heard": "₽500 примерно 2 тыс гостей (выручка)", "printed": "₽500", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets 🤑", "expect": "ask"}
+{"heard": "$5 about 10k tickets 🤑", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets 🏦", "expect": "ask"}
+{"heard": "$5 about 10k tickets 🏦", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k fans (x2)", "expect": "ask"}
+{"heard": "$5 about 10k fans (x2)", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k fans) per head", "expect": "ask"}
+{"heard": "$5 about 10k fans) per head", "printed": "$5", "expect": "ask"}
+{"heard": "$5", "printed": "$5 about 10k tickets (sold)", "expect": "confirm"}
+{"heard": "$5 about 10k tickets (sold)", "printed": "$5", "expect": "confirm"}
+{"heard": "$5", "printed": "$5 about 10k fans [and more]", "expect": "confirm"}
+{"heard": "$5 about 10k fans [and more]", "printed": "$5", "expect": "confirm"}
+{"heard": "₽500", "printed": "₽500 примерно 2 тыс гостей (и больше)", "expect": "confirm"}
+{"heard": "₽500 примерно 2 тыс гостей (и больше)", "printed": "₽500", "expect": "confirm"}
+{"heard": "$8", "printed": "$8 about 3k seats / seat", "expect": "ask"}
+{"heard": "$8 about 3k seats / seat", "printed": "$8", "expect": "ask"}
+{"heard": "$8", "printed": "$8 about 3k seats(each)", "expect": "ask"}
+{"heard": "$8 about 3k seats(each)", "printed": "$8", "expect": "ask"}
+{"heard": "$8", "printed": "$8 about 3k seats 💸", "expect": "ask"}
+{"heard": "$8 about 3k seats 💸", "printed": "$8", "expect": "ask"}
+{"heard": "$9", "printed": "$9 around 4k readers & revenue", "expect": "ask"}
+{"heard": "$9 around 4k readers & revenue", "printed": "$9", "expect": "ask"}
+{"heard": "$9", "printed": "$9 around 4k readers and income", "expect": "ask"}
+{"heard": "$9 around 4k readers and income", "printed": "$9", "expect": "ask"}
+{"heard": "$9", "printed": "$9 around 4k readers in fees", "expect": "ask"}
+{"heard": "$9 around 4k readers in fees", "printed": "$9", "expect": "ask"}
+{"heard": "$9", "printed": "$9 around 4k readers plus tips", "expect": "ask"}
+{"heard": "$9 around 4k readers plus tips", "printed": "$9", "expect": "ask"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс подписчиков (за каждого)", "expect": "ask"}
+{"heard": "₽700 около 3 тыс подписчиков (за каждого)", "printed": "₽700", "expect": "ask"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс подписчиков / подписчик", "expect": "ask"}
+{"heard": "₽700 около 3 тыс подписчиков / подписчик", "printed": "₽700", "expect": "ask"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс подписчиков всего доход", "expect": "ask"}
+{"heard": "₽700 около 3 тыс подписчиков всего доход", "printed": "₽700", "expect": "ask"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс клиентов × клиент", "expect": "ask"}
+{"heard": "₽700 около 3 тыс клиентов × клиент", "printed": "₽700", "expect": "ask"}
+{"heard": "€6", "printed": "€6 approx 2k players @player", "expect": "ask"}
+{"heard": "€6 approx 2k players @player", "printed": "€6", "expect": "ask"}
+{"heard": "€6", "printed": "€6 approx 2k players – per player", "expect": "ask"}
+{"heard": "€6 approx 2k players – per player", "printed": "€6", "expect": "ask"}
+{"heard": "€6", "printed": "€6 approx 2k players each", "expect": "ask"}
+{"heard": "€6 approx 2k players each", "printed": "€6", "expect": "ask"}
+{"heard": "€6", "printed": "€6 approx 2k players 🪙", "expect": "ask"}
+{"heard": "€6 approx 2k players 🪙", "printed": "€6", "expect": "ask"}
+{"heard": "£2", "printed": "£2 circa 9k listeners per stream", "expect": "ask"}
+{"heard": "£2 circa 9k listeners per stream", "printed": "£2", "expect": "ask"}
+{"heard": "£2", "printed": "£2 circa 9k listeners = total", "expect": "ask"}
+{"heard": "£2 circa 9k listeners = total", "printed": "£2", "expect": "ask"}
+{"heard": "£2", "printed": "£2 circa 9k listeners total budget", "expect": "ask"}
+{"heard": "£2 circa 9k listeners total budget", "printed": "£2", "expect": "ask"}
+{"heard": "$3", "printed": "$3 about 7k downloads/day", "expect": "ask"}
+{"heard": "$3 about 7k downloads/day", "printed": "$3", "expect": "ask"}
+{"heard": "$3", "printed": "$3 about 7k downloads a day", "expect": "ask"}
+{"heard": "$3 about 7k downloads a day", "printed": "$3", "expect": "ask"}
+{"heard": "$3", "printed": "$3 about 7k downloads #revenue", "expect": "ask"}
+{"heard": "$3 about 7k downloads #revenue", "printed": "$3", "expect": "ask"}
+{"heard": "$8", "printed": "$8 about 3k seats 💺", "expect": "confirm"}
+{"heard": "$8 about 3k seats 💺", "printed": "$8", "expect": "confirm"}
+{"heard": "$8", "printed": "$8 about 3k seats and more", "expect": "confirm"}
+{"heard": "$8 about 3k seats and more", "printed": "$8", "expect": "confirm"}
+{"heard": "$9", "printed": "$9 around 4k readers in total!", "expect": "confirm"}
+{"heard": "$9 around 4k readers in total!", "printed": "$9", "expect": "confirm"}
+{"heard": "$9", "printed": "$9 around 4k readers or listeners", "expect": "confirm"}
+{"heard": "$9 around 4k readers or listeners", "printed": "$9", "expect": "confirm"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс подписчиков 🙏", "expect": "confirm"}
+{"heard": "₽700 около 3 тыс подписчиков 🙏", "printed": "₽700", "expect": "confirm"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс клиентов и больше.", "expect": "confirm"}
+{"heard": "₽700 около 3 тыс клиентов и больше.", "printed": "₽700", "expect": "confirm"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс подписчиков всего", "expect": "confirm"}
+{"heard": "₽700 около 3 тыс подписчиков всего", "printed": "₽700", "expect": "confirm"}
+{"heard": "€6", "printed": "€6 approx 2k players 🎮", "expect": "confirm"}
+{"heard": "€6 approx 2k players 🎮", "printed": "€6", "expect": "confirm"}
+{"heard": "€6", "printed": "€6 approx 2k players.", "expect": "confirm"}
+{"heard": "€6 approx 2k players.", "printed": "€6", "expect": "confirm"}
+{"heard": "£2", "printed": "£2 circa 9k listeners, more soon", "expect": "confirm"}
+{"heard": "£2 circa 9k listeners, more soon", "printed": "£2", "expect": "confirm"}
+{"heard": "£2", "printed": "£2 circa 9k listeners plus readers", "expect": "confirm"}
+{"heard": "£2 circa 9k listeners plus readers", "printed": "£2", "expect": "confirm"}
+{"heard": "$3", "printed": "$3 about 7k downloads 📈", "expect": "confirm"}
+{"heard": "$3 about 7k downloads 📈", "printed": "$3", "expect": "confirm"}
+{"heard": "$3", "printed": "$3 about 7k downloads so far", "expect": "confirm"}
+{"heard": "$3 about 7k downloads so far", "printed": "$3", "expect": "confirm"}
+{"heard": "$3", "printed": "$3 about 7k downloads!!", "expect": "confirm"}
+{"heard": "$3 about 7k downloads!!", "printed": "$3", "expect": "confirm"}
+{"heard": "$3", "printed": "$3 about 7k downloads\n\nThanks", "expect": "confirm"}
+{"heard": "$3 about 7k downloads\n\nThanks", "printed": "$3", "expect": "confirm"}
+{"heard": "₽700", "printed": "₽700 около 3 тыс клиентов / клиент", "expect": "ask"}
+{"heard": "₽700 около 3 тыс клиентов / клиент", "printed": "₽700", "expect": "ask"}
