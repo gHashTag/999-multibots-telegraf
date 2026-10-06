@@ -2158,7 +2158,8 @@ describe('only a counted noun leaves the bare price after a loose chain (#3758 r
       expect(asks(e, e), e).toBe(0)
     // #3758 round 9: a hedge as the price's own run keeps no exact echo,
     // as on main (until #3780).
-    for (const e of ['$5 about 10k quid', '$5 about 10k', '₽500 около 2 тыс']) // cyrillic-ok: poster text
+    // cyrillic-ok: poster text
+    for (const e of ['$5 about 10k quid', '$5 about 10k', '₽500 около 2 тыс'])
       expect(asks(e, e), e).toBe(1)
     // Inside a longer message, and with other whitespace.
     expect(asks('$5, 10k budget', 'Poster: $5, 10k budget, Friday')).toBe(0)

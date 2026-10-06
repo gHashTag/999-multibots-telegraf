@@ -203,7 +203,8 @@ describe('a claimed picture or video needs the call that makes it', () => {
   })
 
   // A line break inside a sentence does not end it.
-  for (const text of ['Я сделал\nафишу для тебя.', 'Вот твоя\nафиша.']) // cyrillic-ok: test input
+  // cyrillic-ok: test input
+  for (const text of ['Я сделал\nафишу для тебя.', 'Вот твоя\nафиша.'])
     it(`a wrapped claim is still a claim: ${JSON.stringify(text)}`, () => {
       expect(unbackedKinds(text, [])).toEqual(['media'])
     })

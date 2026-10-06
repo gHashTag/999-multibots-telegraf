@@ -49,7 +49,9 @@ describe('writeDraft', () => {
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       const model = JSON.parse(String(init.body)).model
       asked.push(model)
-      return model === 'paid/model' ? ok('paid draft') : new Response('', { status: 429 })
+      return model === 'paid/model'
+        ? ok('paid draft')
+        : new Response('', { status: 429 })
     })
     expect(await writeDraft('p')).toBe('paid draft')
     expect(asked).toEqual([
@@ -85,7 +87,9 @@ describe('writeDraft', () => {
     const asked: string[] = []
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
       asked.push(JSON.parse(String(init.body)).model)
-      return asked.length === 1 ? new Response('', { status: 429 }) : ok('second try')
+      return asked.length === 1
+        ? new Response('', { status: 429 })
+        : ok('second try')
     })
     expect(await writeDraft('p')).toBe('second try')
     expect(asked).toEqual(['glm-4.5-flash', 'glm-4.5-flash'])

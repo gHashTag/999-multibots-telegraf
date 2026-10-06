@@ -1708,7 +1708,8 @@ describe("the spec's tests hold against the host", () => {
     ).toBe(true)
     // The host: any line, the first as much as the last, by any of the marks.
     const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
-    for (const mark of ['Trinity', 'Тринити', 't27ai_bot', '@t27ai_bot', 'T27']) // cyrillic-ok: a house mark
+    // cyrillic-ok: a house mark
+    for (const mark of ['Trinity', 'Тринити', 't27ai_bot', '@t27ai_bot', 'T27'])
       for (const at of t.lines.keys()) {
         const lines = [...t.client]
         lines[at] = `Say hi to ${mark} today.`

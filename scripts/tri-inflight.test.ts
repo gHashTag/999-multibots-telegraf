@@ -37,7 +37,7 @@ function stubs(
 function inflight(PATH: string) {
   return spawnSync('bash', [INFLIGHT, ROOT], {
     encoding: 'utf8',
-    timeout: 20000,
+    timeout: 60000,
     env: { ...process.env, PATH },
   })
 }
@@ -46,7 +46,9 @@ afterAll(() =>
   dirs.forEach(d => fs.rmSync(d, { recursive: true, force: true }))
 )
 
-describe('tri inflight', () => {
+// Each case spawns inflight, which now also runs jam.py: a loaded Mac needs
+// more than the 30 s default.
+describe('tri inflight', { timeout: 120_000 }, () => {
   it('a failed railway call says unknown, not a blank', () => {
     const r = inflight(stubs({ out: '', code: 0 }, { out: 'boom', code: 1 }))
     const lines = r.stdout
@@ -80,5 +82,17 @@ describe('tri inflight', () => {
     expect(failed.stdout).not.toMatch(/HTTP 401/)
     const empty = inflight(stubs({ out: '', code: 0 }, { out: '', code: 0 }))
     expect(empty.stdout).toMatch(/\(none open\)/)
+  })
+  it('ends with the tri jam summary, and a gh that cannot answer is UNMEASURED', () => {
+    for (const gh of [
+      { out: 'HTTP 401', code: 1 },
+      { out: '', code: 0 },
+    ]) {
+      const r = inflight(stubs(gh, { out: '', code: 0 }))
+      const tail = r.stdout.trimEnd().split('\n').slice(-2)
+      expect(tail[0]).toBe('── review jam ──')
+      expect(tail[1]).toMatch(/^ {2}jam: UNMEASURED -- /)
+      expect(r.stdout).not.toMatch(/jam: none/)
+    }
   })
 })

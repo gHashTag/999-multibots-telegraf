@@ -209,7 +209,12 @@ tri card-drift --dry          # nightly drift verb, writes nothing with --dry
 tri card 5382                 # live: 0 task thread, 2 render still answers self
 tri shot card-chat 390 ru     # phone: the real sheet, doors answered by routes
 tri shot card-chat-empty 320 ru
+tri inflight                  # what is moving; last line = the jam summary
+tri jam                       # each open PR: jam case + action; rc 1 = dispatch, 2 = unread
 ```
+
+What the Queen does with each `tri jam` line has one home: skill
+`continuous-improvement-loop`, "The Queen's round".
 
 `tri shot all` walks every harness, so the card sheet is on it without a
 list to keep. What the phone found on 2026-10-01 and the jsdom guard that
