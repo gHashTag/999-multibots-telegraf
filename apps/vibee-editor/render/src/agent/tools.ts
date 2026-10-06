@@ -1301,6 +1301,7 @@ import {
 import {
   backgroundFor,
   keepBackground,
+  sizeKey,
   type Background,
 } from './poster-backgrounds'
 
@@ -2199,8 +2200,10 @@ export const TOOLS: AgentTool[] = [
       // A title for a background paid for a moment ago only redraws the
       // overlay: no new generation, no charge (#3733).
       const who = backgroundOwner(ctx)
+      // Another size is another picture, never the old one returned (#3736).
+      const size = sizeKey(args.width, args.height)
       const keptBg = title
-        ? backgroundFor(who, String(args.prompt ?? ''))
+        ? backgroundFor(who, String(args.prompt ?? ''), size)
         : null
       if (keptBg) return redrawOnKeptBackground(args, ctx, keptBg, title)
       if ((await generationsLeftToday(ctx)) <= 0) {
@@ -2346,7 +2349,7 @@ export const TOOLS: AgentTool[] = [
       )
       // A textless background is kept, so a title added next costs nothing.
       if (printed.length)
-        keepBackground(who, String(args.prompt ?? ''), {
+        keepBackground(who, String(args.prompt ?? ''), size, {
           bytes: background,
           contentType: backgroundType,
           provider: servedBy,
