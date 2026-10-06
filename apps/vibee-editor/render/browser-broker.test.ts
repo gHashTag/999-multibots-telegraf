@@ -1194,4 +1194,33 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
     const { d } = deps({ stripIo: io })
     expect((await get(d)).status).toBe(409)
   })
+
+  it("never reaches somebody else's browser: the pod is the caller's own", async () => {
+    const { io, calls } = pod()
+    const owner = deps({ stripIo: io })
+    const pool = await live(owner.d)
+    /* Person B, signed in, on the same render, while A's pod is live. */
+    const other = deps({
+      pool,
+      stripIo: io,
+      identity: () => 'tg-900000002',
+    }).d
+    expect((await get(other)).status).toBe(409)
+    expect((await post(other, { action: 'close', id: 'A' })).status).toBe(409)
+    expect((await post(other, { action: 'activate', id: 'B' })).status).toBe(
+      409
+    )
+    expect(calls).toEqual([])
+  })
+
+  it('a read is not use: the poll writes nothing, not even last_seen_at', async () => {
+    const { io } = pod()
+    const { d, pool } = deps({ stripIo: io })
+    await live(d)
+    pool.statements.length = 0
+    expect((await get(d)).status).toBe(200)
+    expect(
+      pool.statements.filter(s => /^\s*(update|insert|delete)/i.test(s))
+    ).toEqual([])
+  })
 })
