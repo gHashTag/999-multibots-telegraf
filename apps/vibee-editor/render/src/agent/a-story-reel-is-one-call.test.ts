@@ -76,6 +76,14 @@ function fakeTools(
   return { lookup: (n: string) => tools[n], calls }
 }
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const ctx = {
   telegramId: '900000001',
   pool: { query: async () => ({ rows: [] }) },
@@ -458,15 +466,19 @@ describe('story_reel, what it refuses and where it lives', () => {
     expect(KEEP_THE_PERSON).toMatch(/never keep the plain background/)
   })
 
-  it('is in the registry, and out of the small-model kit', async () => {
-    const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
-    expect(TOOLS_BY_NAME.get('story_reel')).toBeTruthy()
-    expect(
-      toolsForProvider({ compact: true }, TOOLS).some(
-        t => t.name === 'story_reel'
-      )
-    ).toBe(false)
-  })
+  it(
+    'is in the registry, and out of the small-model kit',
+    async () => {
+      const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
+      expect(TOOLS_BY_NAME.get('story_reel')).toBeTruthy()
+      expect(
+        toolsForProvider({ compact: true }, TOOLS).some(
+          t => t.name === 'story_reel'
+        )
+      ).toBe(false)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 /*
