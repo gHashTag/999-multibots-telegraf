@@ -207,6 +207,14 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     reusedTree('reused-old', 'fix/reused-old', 48, 0)
     // reused-stale: a branch two days old in a tree two days old
     reusedTree('reused-stale', 'fix/reused-stale', 48, 48)
+    // reused-merged: a fresh tree on a branch NAME whose PR already merged,
+    // tip at that PR's head (#3756) -- a bee about to start, not a leftover
+    reusedTree('reused-merged', 'fix/reused-merged', 48, 0)
+    // reused-merged-other: same, but the merged PR's head is another commit
+    reusedTree('reused-merged-other', 'fix/reused-merged-other', 48, 0)
+    // reused-merged-stale: a merged name in a tree two days old
+    reusedTree('reused-merged-stale', 'fix/reused-merged-stale', 48, 48)
+    const mainOid = git(repo, 'rev-parse', 'origin/main')
     // locked: already in main, but locked by its owner
     tree('locked', '-q', '--detach', '@', 'origin/main')
     git(repo, 'worktree', 'lock', path.join(tmp, 'locked'))
@@ -215,6 +223,17 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
       { number: 1, headRefName: 'feat/merged', headRefOid: mergedOid },
       { number: 2, headRefName: 'feat/dirty', headRefOid: dirtyOid },
       { number: 3, headRefName: 'feat/reused', headRefOid: 'f'.repeat(40) },
+      { number: 4, headRefName: 'fix/reused-merged', headRefOid: mainOid },
+      {
+        number: 5,
+        headRefName: 'fix/reused-merged-other',
+        headRefOid: 'e'.repeat(40),
+      },
+      {
+        number: 6,
+        headRefName: 'fix/reused-merged-stale',
+        headRefOid: mainOid,
+      },
     ]
     const gh = path.join(tmp, 'gh')
     fs.writeFileSync(path.join(tmp, 'prs.json'), JSON.stringify(prs))
@@ -346,6 +365,22 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
   it('removes an old branch in an old tree with no commits', () => {
     expect(exists('reused-stale'), out).toBe(false)
     expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/reused-stale/) // cyrillic-ok
+  })
+
+  it('keeps a fresh tree on a merged PR name and head: new, not finished', () => {
+    expect(exists('reused-merged'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-merged\s/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/reused-merged\s/) // cyrillic-ok
+  })
+
+  it('keeps a fresh tree on a merged PR name with another tip: new', () => {
+    expect(exists('reused-merged-other'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-merged-other/) // cyrillic-ok
+  })
+
+  it('removes an old tree on a merged PR name with no commits', () => {
+    expect(exists('reused-merged-stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/reused-merged-stale/) // cyrillic-ok
   })
 
   it('keeps a detached tree at a main commit finished', () => {
