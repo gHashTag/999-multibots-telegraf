@@ -130,6 +130,10 @@ const CURRENCY_RUN = new RegExp(
   '^(?:руб\\p{L}*|р|rub\\p{L}*|roubl\\p{L}*|dollars?|доллар\\p{L}*|бакс\\p{L}*|usd|евро|euros?|eur|gbp|бат\\p{L}*|baht|thb)\\.?$', // cyrillic-ok: currency words
   'iu'
 )
+/* Hedge words (#3746): "about", "or so", "-ish", a Russian "about". */
+const HEDGE_WORDS =
+  'so|thereabouts|ish|about|around|roughly|approx|approximately|circa|около|примерно|приблизительно|порядка' // cyrillic-ok: hedge words
+const HEDGE_RUN = new RegExp(`^(?:${HEDGE_WORDS})$`, 'iu')
 /*
  * Words that are never a multiplier: "$5 per person", "$5 и $5000",
  * "$5 за вход". A CLOSED list on the safe side -- a word missing here is read
@@ -139,7 +143,8 @@ const FILLER_RUN = new RegExp(
   '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|всего|только|плюс|per|for|each|a|an|and|or|to|from|at|on|in|the|with|all|only|just|until|till|off|plus|total|' + // cyrillic-ok: filler words
     // Hedges (#3746): "$5 or so k", "$5-ish k", a Russian "about". A hedge
     // is never a multiplier, and it does not break the chain to a later one.
-    'so|thereabouts|ish|about|around|roughly|approx|approximately|circa|около|примерно|приблизительно|порядка)$', // cyrillic-ok: hedge words
+    HEDGE_WORDS +
+    ')$',
   'iu'
 )
 /*
@@ -157,6 +162,14 @@ const FILLER_RUN = new RegExp(
  * range with no multiplier ("$10-15", "$3 until 8") stays the bare amount.
  * A comma is a connector only right after an amount (#3746): "$5, 10k" is a
  * list or a range a reader may take as "$5k".
+ * A LOOSE chain -- one that passed a comma or a hedge (#3758) -- spreads its
+ * multiplier back only when the multiplier ENDS the price phrase: end of
+ * text, punctuation, a line break, a currency. A word after it means the
+ * multiplier counts that noun: "$20, 2k seats", "$5 - about 10k people",
+ * "₽500, 2 тыс гостей" stay the bare amount, while "$5, 10k" and
+ * "$5 to 6, 10k." still ask. The tight chain of round 7 ("$5-10k tickets",
+ * "$5 to 10k fans") keeps spreading: there the dash or "to" binds the two
+ * numbers into one range, and the noun is what the whole range prices.
  * A fraction right after the connectors ("$1 and a half million",
  * "₽5 с половиной тысяч", "$1 1/2 million", "$1½ million") adds that
  * fraction of the multiplier to the first amount.
@@ -203,6 +216,12 @@ function laterMultiplier(
   let second = false
   let fractionOnFirst = 0
   let afterNumber = false
+  let loose = false
+  // A loose chain ends at a multiplier that a word follows (see above).
+  const countsNoun = () => {
+    const w = rest.match(/^[ \t\u00a0]*(\p{L}+\.?)/u)
+    return loose && !!w && !CURRENCY_RUN.test(w[1])
+  }
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined
@@ -211,6 +230,7 @@ function laterMultiplier(
     if (t[2] && !afterNumber && !(atAmount && !used.trim())) return undefined
     used += t[0]
     rest = rest.slice(t[0].length)
+    if (t[2]) loose = true
     if (t[1] || t[2]) {
       joined = true
       afterNumber = false
@@ -234,6 +254,7 @@ function laterMultiplier(
     const s = suffixReading(word)
     if (s !== 'unknown' && s.zeros) {
       if (!joined && !second) return undefined
+      if (countsNoun()) return undefined
       return {
         zeros: s.zeros,
         alsoBare: s.alsoBare,
@@ -243,6 +264,7 @@ function laterMultiplier(
     }
     if (afterNumber && TIME_RUN.test(word)) return undefined
     if (FILLER_RUN.test(word)) {
+      if (HEDGE_RUN.test(word)) loose = true
       joined = true
       afterNumber = false
       continue
@@ -253,7 +275,8 @@ function laterMultiplier(
     }
     if (
       afterNumber &&
-      (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS)
+      (!spaced || [...normalWord(word)].length < ECHO_MIN_LETTERS) &&
+      !countsNoun()
     )
       return {
         zeros: 'unknown',

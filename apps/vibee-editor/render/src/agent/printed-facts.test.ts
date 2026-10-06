@@ -1089,6 +1089,15 @@ describe('shape plus echo (#3730 round 6)', () => {
     { printed: '$5, $10 and $15 tickets', heard: 'tickets $5, $10 and $15' },
     { printed: '$2.50 coffee, $3 cake', heard: 'coffee $2.50, cake $3' },
     { printed: '$20 entry, 2k seats', heard: '$20 entry' },
+    // #3758 round 2: a later multiplier that counts a noun, not the price.
+    { printed: 'Ticket $20', heard: 'Ticket $20, 2k seats' },
+    { printed: 'Entry $10', heard: 'Entry $10, 5k followers on insta' },
+    { printed: 'вход ₽500', heard: 'вход ₽500, 2 тыс гостей' }, // cyrillic-ok: poster text
+    { printed: 'ticket $15', heard: 'ticket $15, 1k free drinks' },
+    { printed: 'ticket $5', heard: 'ticket $5, 10k followers' },
+    { printed: 'ticket $5', heard: 'ticket $5, and 10k followers' },
+    { printed: 'ticket $5', heard: 'ticket $5, about 10k people came' },
+    { printed: 'ticket $5', heard: 'ticket $5 - about 10k people' },
   ]
   const needless = corpus.filter(r => !r.legit && asks(r.printed, r.heard))
   const counted = corpus.filter(r => !r.legit).length
@@ -1608,5 +1617,95 @@ describe('four price shapes that read as another amount (#3746)', () => {
       { role: 'user', content: 'да' },
     ]
     expect(asks('€1.500', heardFrom(history))).toBe(0)
+  })
+  /*
+   * A LOOSE CHAIN AND A COUNTED NOUN (#3758 round 2). After a comma, or a
+   * hedge, a later multiplier spreads back only when it ends the price
+   * phrase. A word after it counts that noun: "$20, 2k seats" is $20.
+   */
+  it('the round-1 regression rows confirm the bare price', () => {
+    const rows: ReadonlyArray<[string, string]> = [
+      ['Ticket $20, 2k seats', 'Ticket $20'],
+      ['Entry $10, 5k followers on insta', 'Entry $10'],
+      ['вход ₽500, 2 тыс гостей', 'вход ₽500'], // cyrillic-ok: poster text
+      ['ticket $15, 1k free drinks', 'ticket $15'],
+      ['ticket $5, 10k followers', 'ticket $5'],
+      ['ticket $5, and 10k followers', 'ticket $5'],
+      ['ticket $5, about 10k people came', 'ticket $5'],
+      ['ticket $5 - about 10k people', 'ticket $5'],
+    ]
+    for (const [heard, printed] of rows)
+      expect(asks(printed, heard), `${printed} / ${heard}`).toBe(0)
+    // The trailing-currency form agrees with the leading one.
+    expect(asks('вход 500 ₽', 'вход 500 ₽, 2 тыс гостей')).toBe(0) // cyrillic-ok: poster text
+    expect(asks('вход ₽500', 'вход ₽500, 2 тыс гостей')).toBe(0) // cyrillic-ok: poster text
+  })
+
+  describe('grid: price x loose connector x multiplier x what follows', () => {
+    // [sign, amount, connectors, multipliers [text, zeros], currency word]
+    const signs: ReadonlyArray<
+      [string, number, string[], ReadonlyArray<[string, number]>, string]
+    > = [
+      [
+        '$',
+        5,
+        [', ', ', and ', ', about ', ' - about ', ', or so '],
+        [
+          ['10k', 3],
+          ['10 thousand', 3],
+          ['2 million', 6],
+          ['3m', 6],
+        ],
+        ' usd',
+      ],
+      [
+        '₽',
+        500,
+        [', ', ', и ', ', около ', ' - примерно '], // cyrillic-ok: connector words
+        [
+          ['2 тыс', 3], // cyrillic-ok: multiplier word
+          ['10к', 3], // cyrillic-ok: multiplier word
+          ['3 млн', 6], // cyrillic-ok: multiplier word
+        ],
+        ' рублей', // cyrillic-ok: currency word
+      ],
+    ]
+    const ends = ['', '.', '!', ';', '\n', ', doors at 8']
+    const nouns = [
+      ' seats',
+      ' followers on insta',
+      ' people came',
+      ' free drinks',
+      ' гостей', // cyrillic-ok: noun
+      ' человек', // cyrillic-ok: noun
+    ]
+    it('end, punctuation or a currency asks; a noun confirms', () => {
+      let cells = 0
+      for (const [sign, a, connectors, mults, currency] of signs)
+        for (const c of connectors)
+          for (const [m, zeros] of mults) {
+            const bare = `ticket ${sign}${a}`
+            for (const tail of [...ends, currency]) {
+              const full = `${bare}${c}${m}${tail}`
+              // The bare price never confirms a multiplier ending the phrase.
+              // (A currency word makes "10k usd" a price of its own, too.)
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(1)
+              expect(asks(full, bare), `${full} / ${bare}`).toBeGreaterThan(0)
+              // The scaled reading alone does not confirm it either.
+              expect(
+                asks(full, `${sign}${a * 10 ** zeros}`),
+                `${full} / scaled`
+              ).toBeGreaterThan(0)
+              cells += 3
+            }
+            for (const noun of nouns) {
+              const full = `${bare}${c}${m}${noun}`
+              expect(asks(bare, full), `${bare} / ${full}`).toBe(0)
+              expect(asks(full, bare), `${full} / ${bare}`).toBe(0)
+              cells += 2
+            }
+          }
+      expect(cells).toBe(5 * 4 * (7 * 3 + 6 * 2) + 4 * 3 * (7 * 3 + 6 * 2))
+    })
   })
 })
