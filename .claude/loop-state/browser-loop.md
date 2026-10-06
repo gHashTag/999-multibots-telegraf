@@ -21,7 +21,6 @@ frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
 is yours too"); it is not repeated here.
 
 - A -> `fix/userbot-plain-errors`
-- D -> `fix/crm-duet-dry-run-by-default`
 - N1 -> `fix/zai-relay-yields-to-agent`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
@@ -42,7 +41,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
       floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary".
 - [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
-- [ ] D. crm_duet sends for real by default (U1): dry_run defaults to true.
+- [x] D. crm_duet sends for real by default (U1): dry_run defaults to true. (#3794)
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
 - [ ] E. closePage throws on !ok, browser_close_tab refuses the last tab, focus_tab is an acting tool (B7,B8).
 - [ ] F. A late answer wakes the agent (B1) + ask_permission returns id and reuses an open same question (B4).
@@ -80,6 +79,11 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
   "ask" sites now need a yes per exact site; accounts.google.com and mail.google.com each need
   their own yes (exact host, not registrable domain).
+- 2026-10-06. D (#3794): crm_duet runs for real only on an explicit `dry_run:false`; missing,
+  null or any other value is a dry run that sends nothing, and its answer says how to go real
+  (only after the owner's yes for this run). Callers all pass dry_run explicitly. Tests 95/95 +
+  121/121 with provider.test, run locally (runner gave no result 3x); mutant `=== true` killed
+  (1/95). Schema prose trimmed to keep the compact kit under 7300 tokens.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
