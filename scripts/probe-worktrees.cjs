@@ -52,11 +52,14 @@
  * origin/main" used to mean. On 06.10 two live bees' trees were listed as
  * finished minutes after they were created. A NAMED branch with 0 commits
  * ahead and no merged PR of that name is now `new`, and stays until it is
- * older than NEW_BRANCH_MAX_H. Age is the first line of the branch reflog
- * (the moment `-b` created it): one small file read, and unlike the
- * directory's mtime it does not move when a file is added at the top level.
- * No reflog -> the worktree admin dir's `commondir` file, written once at
- * creation. Unknown age keeps the tree. Detached HEAD at a main commit has no
+ * older than NEW_BRANCH_MAX_H. Age is the YOUNGER of the branch and the
+ * worktree (#3751): the first line of the branch reflog (the moment `-b`
+ * created it) and the first line of the tree's own HEAD reflog in
+ * `.git/worktrees/<name>/logs/HEAD` (the moment `worktree add` checked it
+ * out), so an old branch checked out into a fresh tree is new too. Small file
+ * reads, and unlike the directory's mtime they do not move when a file is
+ * added at the top level. No tree reflog -> the admin dir's `commondir` file,
+ * written once at creation. Unknown age keeps the tree. Detached HEAD at a main commit has no
  * name to be new under, and stays finished.
  */
 
@@ -324,10 +327,23 @@ function minutesSinceTouched(dir) {
   }
 }
 
+/** Hours since the first line of a reflog file; null when unreadable. */
+function reflogFirstHours(file) {
+  try {
+    const first = fs.readFileSync(file, 'utf8').split('\n')[0]
+    // `git worktree add` writes its first HEAD line with no message, so the
+    // timezone may end the line instead of a tab
+    const m = first.match(/> (\d+) [+-]\d{4}(?:\t|$)/)
+    if (m) return (Date.now() / 1000 - Number(m[1])) / 3600
+  } catch {
+    /* no reflog (core.logAllRefUpdates off) */
+  }
+  return null
+}
+
 /**
- * Hours since a named branch was created: the first reflog line's timestamp,
- * else the mtime of the worktree admin dir's `commondir` (written once by
- * `git worktree add`). Unknown is null, and null keeps a tree.
+ * Hours since a named branch was created: the first line of its reflog.
+ * Unknown is null.
  */
 function branchAgeHours(dir, branch) {
   if (!branch) return null
@@ -336,21 +352,41 @@ function branchAgeHours(dir, branch) {
       dir,
       git(['rev-parse', '--git-common-dir'], dir).trim()
     )
-    const log = path.join(common, 'logs', 'refs', 'heads', ...branch.split('/'))
-    const first = fs.readFileSync(log, 'utf8').split('\n')[0]
-    const m = first.match(/> (\d+) [+-]\d{4}\t/)
-    if (m) return (Date.now() / 1000 - Number(m[1])) / 3600
+    return reflogFirstHours(
+      path.join(common, 'logs', 'refs', 'heads', ...branch.split('/'))
+    )
   } catch {
-    /* no reflog (core.logAllRefUpdates off): fall through */
+    return null
   }
+}
+
+/**
+ * Hours since this worktree was added (#3751): the first line of the tree's
+ * own HEAD reflog in its admin dir (`.git/worktrees/<name>/logs/HEAD`), else
+ * the mtime of that dir's `commondir` file (written once by `git worktree
+ * add`). An old branch checked out today is a fresh start, so the branch age
+ * alone is not enough. Unknown is null.
+ */
+function treeAgeHours(dir) {
   try {
     const gd = git(['rev-parse', '--absolute-git-dir'], dir).trim()
+    const h = reflogFirstHours(path.join(gd, 'logs', 'HEAD'))
+    if (h !== null) return h
     return (
       (Date.now() - fs.statSync(path.join(gd, 'commondir')).mtimeMs) / 3600000
     )
   } catch {
     return null
   }
+}
+
+/**
+ * The age a clean 0-ahead tree is judged by: the YOUNGER of its branch and
+ * its worktree (#3751). Null only when neither can be read, and null keeps.
+ */
+function youngestAge(w) {
+  const known = [w.branchAgeH, w.treeAgeH].filter(h => typeof h === 'number')
+  return known.length ? Math.min(...known) : null
 }
 
 /** Facts about every worktree except the main checkout (or just `only`). */
@@ -407,6 +443,7 @@ function gather(procs, only = null) {
         busy: procs ? procs.filter(p => inside(p, w.dir)).length : null,
         touchedMin: minutesSinceTouched(w.dir),
         branchAgeH: branchAgeHours(w.dir, w.branch),
+        treeAgeH: treeAgeHours(w.dir),
         containedIn: oid => ok(['merge-base', '--is-ancestor', w.head, oid]),
         // every commit beyond main already landed as the same patch (a
         // rebased copy: the PR head moved on, this tree kept the old SHA)
@@ -429,7 +466,8 @@ function gather(procs, only = null) {
  *           or every commit beyond main is already there as the same patch
  *           -- and nothing uncommitted
  * new       a NAMED branch, 0 commits ahead, no merged PR of that name, and
- *           younger than NEW_BRANCH_MAX_H (or of unknown age) -- a bee that
+ *           younger than NEW_BRANCH_MAX_H by the younger of branch and tree
+ *           age (or of unknown age) -- a bee that
  *           has not committed yet; never proposed for removal
  * holds     uncommitted work, or locked -- never proposed for removal
  * active    anything else: commits nobody merged yet
@@ -450,7 +488,7 @@ function classify(trees, merged, newMaxH = NEW_BRANCH_MAX_H) {
       }
     const sameName = (w.branch && merged.byName.get(w.branch)) || []
     if (w.ahead === 0 && w.branch && !sameName.length) {
-      const age = typeof w.branchAgeH === 'number' ? w.branchAgeH : null
+      const age = youngestAge(w)
       if (age === null || age < newMaxH)
         return {
           ...w,
@@ -540,6 +578,25 @@ function selfCheck() {
       t('/k', { branch: 'loop/fresh2', ahead: 0, branchAgeH: null }),
       t('/l', { head: 'mmm', ahead: 0 }),
       t('/m', { branch: 'loop/done', head: 'ddd', ahead: 0, branchAgeH: 0.1 }),
+      // an old branch checked out into a fresh tree is a fresh start (#3751)
+      t('/n', {
+        branch: 'loop/reuse',
+        ahead: 0,
+        branchAgeH: 999,
+        treeAgeH: 0.1,
+      }),
+      t('/o', {
+        branch: 'loop/reuse2',
+        ahead: 0,
+        branchAgeH: 999,
+        treeAgeH: 999,
+      }),
+      t('/p', {
+        branch: 'loop/reuse3',
+        ahead: 0,
+        branchAgeH: null,
+        treeAgeH: 999,
+      }),
       t('/e', { branch: 'loop/done', head: 'bbb' }),
       t('/f', { head: 'aaa' }),
       t('/g', {
@@ -567,6 +624,9 @@ function selfCheck() {
     '/k': 'new',
     '/l': 'finished',
     '/m': 'finished',
+    '/n': 'new',
+    '/o': 'finished',
+    '/p': 'finished',
   }
   for (const [dir, expected] of Object.entries(want))
     if (state(dir) !== expected)
