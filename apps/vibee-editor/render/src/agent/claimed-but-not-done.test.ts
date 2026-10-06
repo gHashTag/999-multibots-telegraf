@@ -2175,6 +2175,13 @@ describe('the rest of the message must not deliver the media (#3753 round 3)', (
     ['Here is the poster text. Готово, прикрепила.', 'media'], // cyrillic-ok: test input
     // a later sentence, not the next one
     ['Here is the poster idea. Thanks. Then I attached them.', 'media'],
+    // (i) alone: a later sentence names the media with no verb or pronoun
+    ['Here is the poster idea. The poster, too.', 'media'],
+    ['Here is the image prompt. Plus the image.', 'media'],
+    ['Вот твоё голосовое меню. И постер.', 'voice'], // cyrillic-ok: test input
+    // (iii) alone: a later sentence points at it with a pronoun
+    ['Here is the poster idea. Look at it.', 'media'],
+    ['Here is the image prompt. Check them out.', 'media'],
   ] as const)
     it(`flags: ${JSON.stringify(said)}`, () => {
       expect(unbackedKinds(said, [])).toEqual([kind])
