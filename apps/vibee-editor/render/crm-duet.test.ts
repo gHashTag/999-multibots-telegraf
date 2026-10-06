@@ -2,7 +2,7 @@
  * crm_duet -- the seller<->buyer duet loop with doubles for the agent, the
  * buyer model and both sessions. Spec: t27 specs/automation/crm-duet.t27.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   runDuet,
   mediaOf,
@@ -1407,6 +1407,99 @@ describe('crm_duet tools', () => {
     )
     vi.doUnmock('./src/agent/chat')
     vi.doUnmock('./src/agent/provider')
+  })
+
+  /*
+   * A REAL RUN TAKES AN EXPLICIT dry_run:false. A real duet writes from the
+   * owner's account and a buyer's account; the owner's yes for THIS run was
+   * enforced only by the model. Missing dry_run is now a dry run, so a model
+   * that forgot to ask sends nothing.
+   */
+  describe('a real run needs dry_run:false', () => {
+    const R_OWNER = '900000080'
+    const R_BUYER = '900000081'
+    let sends: string[] = []
+    let clients = 0
+
+    async function loadStart() {
+      sends = []
+      clients = 0
+      vi.resetModules()
+      vi.doMock('./src/agent/telegram-tools', () => ({
+        requireOwner: (c?: ToolContext) => {
+          if (String(c?.telegramId) !== R_OWNER)
+            throw new Error('only the owner')
+        },
+        isSeller: async (c?: ToolContext) => String(c?.telegramId) === R_BUYER,
+        withClient: async (_c: unknown, fn: (c: unknown) => unknown) => {
+          clients++
+          return fn({})
+        },
+      }))
+      vi.doMock('./src/agent/tg-proposals', () => ({
+        sendWithAddressBook: async (_c: unknown, to: string, text: string) => {
+          sends.push(`${to}: ${text}`)
+        },
+        sendFileWithAddressBook: async (_c: unknown, to: string) => {
+          sends.push(`${to}: <file>`)
+        },
+      }))
+      vi.doMock('./src/agent/assistant-opt-out', () => ({
+        assistantMayReach: async () => ({ ok: true }),
+      }))
+      vi.doMock('./src/agent/chat', () => ({
+        runAgent: async function* () {
+          yield { ['тип']: 'текст', ['текст']: 'Здравствуйте.' } // cyrillic-ok: event envelope
+        },
+      }))
+      vi.doMock('./src/agent/provider', () => ({
+        allProviders: () => [],
+        diagnose: () => 'none',
+      }))
+      const mod = await import('./src/agent/crm-duet-tool')
+      return {
+        start: mod.CRM_DUET_TOOLS.find(t => t.name === 'crm_duet')!,
+        status: mod.CRM_DUET_TOOLS.find(t => t.name === 'crm_duet_status')!,
+      }
+    }
+    const rctx = { telegramId: R_OWNER, pool: {} } as unknown as ToolContext
+
+    afterEach(() => {
+      vi.doUnmock('./src/agent/chat')
+      vi.doUnmock('./src/agent/provider')
+      vi.doUnmock('./src/agent/assistant-opt-out')
+    })
+
+    it('no dry_run argument is a dry run: nothing reaches Telegram, and the answer says how to go real', async () => {
+      const { start, status } = await loadStart()
+      const r: any = await start.handler({ buyer: R_BUYER, turns: 1 }, rctx)
+      expect(r.started).toBe(true)
+      expect(r.dry_run).toBe(true)
+      expect(r.hint).toContain('dry_run=false')
+      expect(r.hint).toContain('«да»')
+      await vi.waitFor(async () =>
+        expect(((await status.handler({}, rctx)) as any).run.state).not.toBe(
+          'running'
+        )
+      )
+      expect(sends).toEqual([])
+      expect(clients).toBe(0)
+      expect((start.parameters as any).properties.dry_run.default).toBe(true)
+    })
+
+    it('dry_run:false takes the real path: the seller line is sent from a live client', async () => {
+      const { start } = await loadStart()
+      const r: any = await start.handler(
+        { buyer: R_BUYER, turns: 1, dry_run: false },
+        rctx
+      )
+      expect(r.started).toBe(true)
+      expect(r.dry_run).toBe(false)
+      await vi.waitFor(() =>
+        expect(sends).toContain(`${R_BUYER}: Здравствуйте.`)
+      )
+      expect(clients).toBeGreaterThan(0)
+    })
   })
 
   /*

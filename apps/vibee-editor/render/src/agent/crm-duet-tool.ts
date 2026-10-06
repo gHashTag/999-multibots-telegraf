@@ -2123,8 +2123,9 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
       'Запустить РЕАЛЬНЫЙ диалог в Telegram: агент-продавец от сессии владельца продаёт функции ' +
       'бота подключённому продавцу в роли нового покупателя, контент — ' +
       'для её игры «Лила Чакра»; за покупателя отвечает модель от её сессии. Только для владельца; ' +
-      'идёт в фоне, вернёт id — статус смотри crm_duet_status. dry_run=true: агенты говорят, ' +
-      'в Telegram ничего не уходит.',
+      'идёт в фоне, вернёт id — статус смотри crm_duet_status. По умолчанию ПРОБНЫЙ прогон ' +
+      '(dry_run=true): агенты говорят, в Telegram ничего не уходит. Настоящий — только ' +
+      'dry_run=false и только после того, как владелец в чате разрешил ИМЕННО этот запуск.',
     parameters: {
       type: 'object',
       properties: {
@@ -2138,7 +2139,10 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
         },
         dry_run: {
           type: 'boolean',
-          description: 'Не отправлять в Telegram, только транскрипт',
+          default: true,
+          description:
+            'По умолчанию true: не отправлять в Telegram, только транскрипт. ' +
+            'false — настоящие сообщения с двух аккаунтов; только после «да» владельца на этот запуск',
         },
       },
       required: ['buyer'],
@@ -2146,6 +2150,13 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
+      /*
+       * A real run writes from two real accounts (up to TURNS_MAX*2 lines
+       * plus files). It takes an explicit dry_run:false; anything else --
+       * missing, null, a string -- is a dry run, so a model that forgot the
+       * owner's yes sends nothing.
+       */
+      const dryRun = args.dry_run !== false
       // No default buyer: a run sends from a real person's session, so the
       // owner names that person every time.
       const buyer = String(args.buyer ?? '').trim()
@@ -2167,7 +2178,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
        * One who switched the owner's assistant off is not written to by a
        * duet either; a dry run sends nothing and stays allowed.
        */
-      if (args.dry_run !== true) {
+      if (!dryRun) {
         const reach = await assistantMayReach(
           { ...ctx!, sellerSweep: true },
           buyer
@@ -2192,7 +2203,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
         buyer,
         owner,
         turns,
-        dry_run: args.dry_run === true,
+        dry_run: dryRun,
         state: 'running',
         started_at: new Date().toISOString(),
         transcript: [],
@@ -2224,7 +2235,11 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
         buyer,
         turns,
         dry_run: run.dry_run,
-        hint: 'статус и транскрипт — crm_duet_status; отчёт придёт в Избранное владельца',
+        hint: run.dry_run
+          ? 'пробный прогон: в Telegram ничего не уходит, транскрипт — crm_duet_status. ' +
+            'Настоящий запуск — dry_run=false, и только после того, как владелец в чате ' +
+            'сказал «да» именно на этот запуск'
+          : 'статус и транскрипт — crm_duet_status; отчёт придёт в Избранное владельца',
       }
     },
   },
