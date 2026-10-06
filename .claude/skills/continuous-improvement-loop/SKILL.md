@@ -2482,3 +2482,13 @@ section "The agent says only what it did".
     bee raised it in its report to the loop, not on the PR: applied that
     way, the label proves nothing about consent. Finish the PRs
     already in review, open no new non-t27 code PR, and ask the owner.
+13. **Deleting a feature also deletes its words from the shared lists.**
+    #3758 round 8 removed the rule that let a bare hedge release the price,
+    but the hedge words stayed in `FILLER_RUN`, which `suffixReading` reads
+    as "no multiplier". `$5 about two million` and `$5ish, 10k` then
+    confirmed where main asked: 22 rows. The variant had measured sound on
+    the reviewer's copy; the author's rebuild was not that copy. When a
+    round ships "variant X", diff the rebuilt branch against the measured
+    copy, and grep every list the deleted feature fed. Round 9 excluded
+    `HEDGE_RUN` from the filler test in one line and measured 0 rows where
+    main asks and head confirms over 2181 rows.
