@@ -2479,5 +2479,6 @@ section "The agent says only what it did".
     `owner-approved-foreign` label on this loop's TypeScript PRs was added by
     the author account a second after `gh pr create` (#3762, #3768, #3771,
     #3773), citing the owner's overnight instruction. The #3773 reviewer
-    flagged it: in this repo the label then proves nothing. Finish the PRs
+    bee raised it in its report to the loop, not on the PR: applied that
+    way, the label proves nothing about consent. Finish the PRs
     already in review, open no new non-t27 code PR, and ask the owner.
