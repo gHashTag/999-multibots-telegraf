@@ -162,14 +162,15 @@ const FILLER_RUN = new RegExp(
  * range with no multiplier ("$10-15", "$3 until 8") stays the bare amount.
  * A comma is a connector only right after an amount (#3746): "$5, 10k" is a
  * list or a range a reader may take as "$5k".
- * A LOOSE chain -- one that passed a comma or a hedge (#3758) -- spreads its
- * multiplier back only when the multiplier ENDS the price phrase: end of
- * text, punctuation, a line break, a currency. A word after it means the
- * multiplier counts that noun: "$20, 2k seats", "$5 - about 10k people",
- * "₽500, 2 тыс гостей" stay the bare amount, while "$5, 10k" and
- * "$5 to 6, 10k." still ask. A currency, a filler or a MONEY_WORDS phrase
- * after the multiplier is no counted noun (#3758 round 3, #3765):
- * "$5 about 10k total", "$5, 10k budget", "$5, 10k a month" ask.
+ * A LOOSE chain -- one that passed a comma or a hedge (#3758) -- keeps
+ * spreading its multiplier back UNLESS a COUNTED_NOUNS word follows the
+ * multiplier: "$20, 2k seats", "$5 - about 10k people", "₽500, 2 тыс
+ * гостей" stay the bare amount. Any other word, a currency, punctuation or
+ * the end keeps the multiplier on the price (#3758 round 4, #3769):
+ * "$5, 10k", "$5, 10k budget", "$5 about 10k quid", "₽5, 10 тыс сумма" ask.
+ * A bare hedge with no comma ("$5 about 10k people") loosens the chain too.
+ * A loose spread is also echoed exactly: the person's identical text
+ * confirms it (see Fact.exact).
  * The tight chain of round 7 ("$5-10k tickets", "$5 to 10k fans") keeps
  * spreading: there the dash or "to" binds the two numbers into one range,
  * and the noun is what the whole range prices.
@@ -181,53 +182,70 @@ const FILLER_RUN = new RegExp(
  * number ("$3 until 8 pm") are a clock, never a multiplier.
  */
 /*
- * MONEY WORDS (#3758 round 3, #3765): after a later multiplier, a word that
- * says the amount is money, not a count -- "$5, 10k budget", "$5 about 10k
- * a month", "$5, 10k per month". A CLOSED list on the safe side: a money word
- * missing here reads as a counted noun and confirms the bare price, so add
- * to it, never trim it. Matched as a phrase at the start of the rest.
+ * COUNTED NOUNS (#3758 round 4, #3769): after a LOOSE chain, the one kind of
+ * word that leaves the bare price standing -- "$20, 2k seats", "₽500, 2 тыс
+ * гостей", "$15, 1k free drinks". A CLOSED list on the SAFE side: money words
+ * are an open set (quid, payout, profit, a Russian "sum"...), so the list names what
+ * people COUNT instead, and any word missing here keeps the multiplier on the
+ * price, so the agent asks once more. Optionally one word from a closed set
+ * of adjectives before the noun. Strings: the Cyrillic guard reads regex
+ * literals as code.
  */
-const MONEY_WORDS = new RegExp(
-  '^[ \\t\\u00a0]*(?:' +
-    [
-      'budgets?',
-      'total',
-      'revenues?',
-      'salary',
-      'salaries',
-      'fees?',
-      'costs?',
-      'prices?',
-      'each',
-      'per',
-      'a month',
-      'monthly',
-      'a year',
-      'yearly',
-      'annually',
-      'a week',
-      'weekly',
-      'daily',
-      'an hour',
-      'hourly',
-      'rubles?',
-      'dollars?',
-      'usd',
-      'eur',
-      'бюджет\\p{L}*', // cyrillic-ok: money words
-      'итого', // cyrillic-ok: money words
-      'всего', // cyrillic-ok: money words
-      'зарплат\\p{L}*', // cyrillic-ok: money words
-      'выручк\\p{L}*', // cyrillic-ok: money words
-      'доход\\p{L}*', // cyrillic-ok: money words
-      'цена|цены|цену|цене', // cyrillic-ok: money words
-      'стоимост\\p{L}*', // cyrillic-ok: money words
-      'в месяц|в год|в неделю|в день|в час', // cyrillic-ok: money words
-      'руб\\p{L}*', // cyrillic-ok: money words
-      'рублей', // cyrillic-ok: money words
-      'долларов', // cyrillic-ok: money words
-    ].join('|') +
-    ')(?!\\p{L})',
+const COUNTED_ADJECTIVES = [
+  'free',
+  'new',
+  'real',
+  'active',
+  'live',
+  'бесплатн(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+  'нов(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+  'жив(?:ых|ые)', // cyrillic-ok: counted-noun adjectives
+].join('|')
+const COUNTED_NOUN_WORDS = [
+  'followers?',
+  'subscribers?',
+  'fans?',
+  'views?',
+  'likes?',
+  'seats?',
+  'guests?',
+  'people',
+  'persons?',
+  'attendees?',
+  'visitors?',
+  'tickets?',
+  'members?',
+  'users?',
+  'customers?',
+  'clients?',
+  'students?',
+  'participants?',
+  'drinks?',
+  'posts?',
+  'reels?',
+  'photos?',
+  'downloads?',
+  'plays?',
+  'streams?',
+  'viewers?',
+  'readers?',
+  'listeners?',
+  'players?',
+  'подписчик(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'гост(?:ь|я|ей|и)', // cyrillic-ok: counted nouns
+  'человек', // cyrillic-ok: counted nouns
+  'людей|люди', // cyrillic-ok: counted nouns
+  'мест(?:а|о)?', // cyrillic-ok: counted nouns
+  'зрител(?:ь|я|ей|и)', // cyrillic-ok: counted nouns
+  'просмотр(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+  'лайк(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'участник(?:а|ов|и)?', // cyrillic-ok: counted nouns
+  'клиент(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+  'учеников|ученика|ученики|ученик', // cyrillic-ok: counted nouns
+  'билет(?:а|ов|ы)?', // cyrillic-ok: counted nouns
+].join('|')
+const COUNTED_NOUNS = new RegExp(
+  `^[ \\t\\u00a0]*(?:(?:${COUNTED_ADJECTIVES})[ \\t\\u00a0]+)?(?:${COUNTED_NOUN_WORDS})(?![\\p{L}\\d])`,
   'iu'
 )
 const HALF_RUN = new RegExp('^(?:half|halves|половин\\p{L}*)$', 'iu') // cyrillic-ok: half words
@@ -254,6 +272,8 @@ type Spread = {
   /** The fraction of the multiplier added to the FIRST amount, 0 for none. */
   fractionOnFirst: number
   text: string
+  /** The chain passed a comma or a hedge: its exact echo confirms it. */
+  loose: boolean
 }
 function laterMultiplier(
   tail: string,
@@ -271,16 +291,10 @@ function laterMultiplier(
   let afterNumber = false
   let loose = false
   // A loose chain ends at a multiplier that a counted noun follows (see
-  // above). Closed on the safe side (#3758 round 3, #3765): a currency, a
-  // filler ("each", "per", "a", hedges too) or a MONEY_WORDS phrase is
-  // no counted noun -- the multiplier may still scale money, so it asks.
-  const countsNoun = () => {
-    if (!loose) return false
-    const w = rest.match(/^[ \t\u00a0]*(\p{L}+\.?)/u)
-    if (!w) return false
-    if (CURRENCY_RUN.test(w[1]) || FILLER_RUN.test(w[1])) return false
-    return !MONEY_WORDS.test(rest)
-  }
+  // above). Closed on the safe side (#3758 round 4, #3769): only a word in
+  // COUNTED_NOUNS leaves the bare price; any other word, a currency or a
+  // filler keeps the multiplier on the price, so it asks.
+  const countsNoun = () => loose && COUNTED_NOUNS.test(rest)
   for (let i = 0; i < 16; i++) {
     const t = rest.match(token)
     if (!t) return undefined
@@ -319,6 +333,7 @@ function laterMultiplier(
         alsoBare: s.alsoBare,
         fractionOnFirst,
         text: used,
+        loose,
       }
     }
     if (afterNumber && TIME_RUN.test(word)) return undefined
@@ -342,6 +357,7 @@ function laterMultiplier(
         alsoBare: false,
         fractionOnFirst,
         text: used,
+        loose,
       }
     return undefined
   }
@@ -552,8 +568,12 @@ export interface Fact {
    */
   word?: string
   /**
-   * A currency-first dot group with no multiplier ("€1.500"), as written:
-   * the person's identical text confirms it, ambiguity and all (#3746).
+   * A price with more than one reading, as written, whitespace dropped: a
+   * currency-first dot group with no multiplier ("€1.500", #3746) or a price
+   * a LOOSE chain scaled ("$5, 10k", "$5 about 10k budget", #3758 round 4).
+   * The person's identical text confirms it, ambiguity and all; a reordered
+   * or other form does not. Tight chains ("$5-10k") and adjacent multipliers
+   * ("€1.500k") carry no exact echo and still ask (rounds 4 and 7).
    */
   exact?: string
 }
@@ -606,14 +626,15 @@ function priceFact(
     return r
   }
   let scaled = false
-  // The price as written, for the exact echo of a dot group (see Fact.exact).
-  const exact = () =>
-    dot && !scaled
-      ? m[0]
-          .slice(0, m[0].length - (run?.length ?? 0))
-          .replace(/\s/g, '')
-          .toLowerCase()
-      : undefined
+  let looseSpread = false
+  // The price as written, for the exact echo (see Fact.exact): an unscaled
+  // dot group, or a price a loose chain scaled ("$5, 10k").
+  const exact = () => {
+    const as = (t: string) => t.replace(/\s/g, '').toLowerCase()
+    if (dot && !scaled)
+      return as(m[0].slice(0, m[0].length - (run?.length ?? 0)))
+    return looseSpread ? as(shown) : undefined
+  }
   /*
    * A later multiplier may scale this amount too (see laterMultiplier). A
    * trailing currency ("500 ₽ - 1000 ₽") closes the amount first; a run
@@ -633,6 +654,7 @@ function priceFact(
       : laterMultiplier(own + next, echoed, !echoed && !own)
     if (!spread) return
     scaled = true
+    looseSpread = spread.loose
     shown = (head + spread.text).replace(/\s+$/u, '')
     if (spread.zeros === 'unknown') {
       unknown.push(`u${raw}${run ?? ''}${spread.text}`)
@@ -859,10 +881,11 @@ function confirmedBy(f: Fact, known: Fact[], heard: string): boolean {
     return known.some(h => h.keys.some(k => f.keys.includes(k)))
   if (f.word && !wordWritten(heard, f.word)) return false
   /*
-   * EXACT ECHO (#3746): a printed "€1.500" the person wrote as "€1.500" is
-   * their own notation, not an invented fact -- and an ask could never end,
-   * since every "yes" re-reads the same two readings. Any other form of it
-   * asks; a heard "€1.500" confirms no other price.
+   * EXACT ECHO (#3746, widened in #3758 round 4): a printed "€1.500" or
+   * "$5, 10k" the person wrote in the identical form is their own notation,
+   * not an invented fact -- and an ask could never end, since every "yes"
+   * re-reads the same two readings. Any other form of it asks, a reordered
+   * one too ("$10, 5k"); a heard one confirms no other price.
    */
   if (f.exact && known.some(h => h.exact === f.exact)) return true
   const sure = known.filter(
