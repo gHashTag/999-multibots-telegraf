@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   HONESTY_NOTE,
+  HONEST_TAILS,
   MEDIA_HONESTY_NOTE,
   MEDIA_TOOLS,
   VOICE_HONESTY_NOTE,
@@ -1794,5 +1795,1037 @@ describe('"here is" takes the singular, "here are" the plural (#3748 round 2)', 
   it('every "here are" + singular modifier + noun line stays silent', () => {
     expect(modifiers.length).toBe(72)
     expect(modifiers.filter(m => unbackedKinds(m, []).length > 0)).toEqual([])
+  })
+})
+
+/*
+ * A media noun used as a modifier (#3753). "Here is the poster idea:" hands
+ * over an idea, "I sent you the voice notes transcript" a transcript: the
+ * media noun modifies the head noun after it. Only a closed list of head
+ * nouns silences the claim (HEAD_NOUNS in the module); any other following
+ * word still flags, since a missed claim is the worse failure.
+ */
+describe('a media noun before a head noun is a modifier (#3753)', () => {
+  for (const said of [
+    'Here is the poster idea:',
+    'Here is the poster text:',
+    'I sent you the voice notes transcript.',
+    'I recorded your voice preferences.',
+    "Here's the image prompt I would use.",
+    "Here's the cover concept, tell me what you think.",
+    'Here is your banner text draft.',
+    'Here is the audio plan.',
+    'Here is the poster copy for the launch.',
+    'Here is your cover letter.',
+    "Here's the cover letter.",
+    'Вот твоё голосовое меню', // cyrillic-ok: test input
+    'Here is the poster text\nLive on Friday.',
+    'Вот твоё голосовое мнение.', // cyrillic-ok: test input
+    'Вот ваши голосовые настройки:', // cyrillic-ok: test input
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  for (const [said, kind] of [
+    ['Here is the poster.', 'media'],
+    ["Here's the poster, ready to post.", 'media'],
+    ['I made the poster for your launch.', 'media'],
+    ['Here are the posters.', 'media'],
+    ['I sent you the voice note.', 'voice'],
+    ['I made the poster text bigger and here is the poster.', 'media'],
+    // a head the list leaves out on purpose: a draft or mockup is a picture
+    ['Here is the poster draft.', 'media'],
+    ['Here is the cover mockup.', 'media'],
+    ['I made two poster copies.', 'media'],
+    // a song cover is audio no call made, a poster of a photo is a poster
+    ['I made a cover of the song.', 'media'],
+    ['I made a poster of your photo.', 'media'],
+    ['Вот твоё голосовое сообщение.', 'voice'], // cyrillic-ok: test input
+    ['Вот твоё голосовое.', 'voice'], // cyrillic-ok: test input
+    ['Записала тебе голосовое описание.', 'voice'], // cyrillic-ok: test input
+    ['I made the poster-text shorter.', 'media'],
+  ] as const)
+    it(`still flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  // the grid: every media noun x every head noun x every opener, and the
+  // same line without the head noun, which must stay flagged
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+  ]
+  type Kind = 'media' | 'voice'
+  const silent: string[] = []
+  const flagged: Array<[string, Kind]> = []
+  const both = (claim: string, head: string, kind: Kind, end = '.') => {
+    silent.push(`${claim} ${head}${end}`)
+    flagged.push([`${claim}${end}`, kind])
+  }
+  const PICTURES = ['poster', 'image', 'picture', 'banner', 'cover']
+  for (const head of HEADS)
+    for (const many of [false, true]) {
+      const h = many ? `${head}s` : head
+      for (const det of ['the', 'your']) {
+        for (const noun of PICTURES) {
+          if (!many)
+            for (const lead of ["Here's", 'Here is'])
+              both(`${lead} ${det} ${noun}`, h, 'media', ':')
+          for (const verb of ['made', 'created', "I've generated"])
+            both(
+              `${verb.startsWith('I') ? verb : `I ${verb}`} ${det} ${noun}`,
+              h,
+              'media'
+            )
+        }
+        both(`I made ${det} video`, h, 'media')
+        if (!many) both(`Here is ${det} audio`, h, 'voice')
+        both(`I recorded ${det} audio`, h, 'voice')
+        both(`I recorded ${det} voice`, h, 'voice')
+        for (const voice of ['note', 'notes', 'message', 'reply', 'clip'])
+          for (const verb of ['sent you', 'recorded'])
+            both(`I ${verb} ${det} voice ${voice}`, h, 'voice')
+      }
+    }
+  // "copy" is a head only in the singular
+  both('Here is the poster', 'copy', 'media')
+  it('every media noun + head noun line stays silent', () => {
+    expect(silent.length).toBe(3083)
+    expect(silent.filter(s => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+  it('the same line without the head noun is flagged with its kind', () => {
+    expect(flagged.length).toBe(3083)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+})
+
+/*
+ * Usability corpus for #3753: realistic honest replies about media that
+ * claim nothing, and real claims. On main the honest side drew 22 needless
+ * notes of 32 and the claims were caught 16 of 16; this head draws 0 and
+ * still catches 16.
+ */
+describe('the #3753 usability corpus', () => {
+  const HONEST = [
+    'Here is the poster idea: a dark stage, one spotlight, your name in gold.',
+    'Here is the poster text: "Live on Friday, 8 pm".',
+    'I sent you the voice notes transcript.',
+    'I recorded your voice preferences: calm, low, no music.',
+    "Here's the image prompt I would use: a neon street at night.",
+    "Here's the cover concept, tell me if you like it.",
+    'Here is your banner text draft.',
+    'Here is the audio plan.',
+    'Here are the poster ideas:',
+    'Here is the video script for the reel.',
+    'Here is the cover letter for the job.',
+    'Here is the banner size Telegram accepts: 1280x720.',
+    'Here is the image description for alt text.',
+    'Here is your poster caption.',
+    'Here is the poster brief I would send a designer.',
+    'I made the poster text shorter, as you asked.',
+    'I created the video outline: hook, story, call to action.',
+    'Here is the voice message template for new clients.',
+    'Here is the picture format Instagram prefers.',
+    'Here is the poster style I suggest: noir, high contrast.',
+    'I will make the poster after you confirm the text.',
+    'Should I make the poster now?',
+    'Shall I record a voice note?',
+    'Here is the poster copy for the launch.',
+    'Here are the image requirements:',
+    'Here is the audio settings list.',
+    'Вот твоё голосовое мнение.', // cyrillic-ok: test input
+    'Вот ваши голосовые настройки:', // cyrillic-ok: test input
+    'Сделаю афишу, когда пришлёшь фото.', // cyrillic-ok: test input
+    'Here is the plan: first the poster, then the reel.',
+    'Your voice note said you want a red poster.',
+    'I can make the cover tomorrow.',
+  ]
+  const CLAIMS = [
+    'Here is the poster.',
+    "Here's the poster, ready to post.",
+    'I made the poster for your launch.',
+    'Here are the posters.',
+    'I sent you the voice note.',
+    'I made the poster text bigger and here is the poster.',
+    'Here is the poster draft.',
+    'I made a cover of the song.',
+    'I recorded a voice message for you.',
+    'Here is your banner.',
+    "Here's the audio.",
+    'I generated two images.',
+    'I made the video, take a look.',
+    'Вот твоё голосовое.', // cyrillic-ok: test input
+    'Записала голосовое.', // cyrillic-ok: test input
+    'Сделала афишу, держи.', // cyrillic-ok: test input
+  ]
+  it('no honest reply draws a note, but two on the safe side (round 4)', () => {
+    expect(HONEST.length).toBe(32)
+    // (d) of round 2: "made ... text shorter" reports an edit of a rendered
+    // poster, the same shape as "made the poster text bigger", a claim.
+    // "like it" carries "it", which could deliver a file. Round 4: "I would
+    // send" is a verb after a modal, not a delivery, so it is silent again
+    expect(HONEST.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      "Here's the cover concept, tell me if you like it.",
+      'I made the poster text shorter, as you asked.',
+    ])
+  })
+  it('every claim is still caught', () => {
+    expect(CLAIMS.length).toBe(16)
+    expect(CLAIMS.filter(s => unbackedKinds(s, []).length === 0)).toEqual([])
+  })
+})
+
+/*
+ * Round 2 of #3753: round 1 read any head noun as the end of the object and
+ * lost 20 claims main caught. The media noun is a modifier only when the
+ * head noun ends the clause (a), nothing is glued by a hyphen (b), no other
+ * picture or voice noun follows in the sentence (c), and after "made" no
+ * predicate or relative clause follows (d). Each string the review listed is
+ * pinned here.
+ */
+describe('a head noun silences only when it ends the object (#3753 round 2)', () => {
+  for (const [said, kind] of [
+    // (c) a second object after "and"
+    ['I created the image prompt and the image.', 'media'],
+    ['I generated the poster copy and the poster.', 'media'],
+    // (d) an edit predicate after the head noun
+    ['I made the poster text bigger.', 'media'],
+    ['I made the cover text larger.', 'media'],
+    ['I made the image format square and regenerated it.', 'media'],
+    ['I made the poster style you asked for.', 'media'],
+    // (b) an unspaced hyphen after or before the head noun
+    ['Here is the poster text-free version.', 'media'],
+    ['Here is the image text-overlay version.', 'media'],
+    ['Here is the poster style-matched to your brand.', 'media'],
+    ["Here's the poster-text is on the bottom.", 'media'],
+    ['Here is the poster-text.', 'media'],
+    ["Here's the image-prompt:", 'media'],
+    ['I made the cover-idea.', 'media'],
+    // (a) more words after the head noun make it the object again
+    ['Here is the poster template filled in with your photo.', 'media'],
+    ['Here is the banner text overlay.', 'media'],
+    ['I sent you the voice settings test clip.', 'voice'],
+    ['Записал голосовое меню для тебя.', 'voice'], // cyrillic-ok: test input
+    ['Отправил голосовое управление тебе.', 'voice'], // cyrillic-ok: test input
+    // (c) alone: the head noun ends its clause, a real object follows
+    ['Here is the image prompt, and the image.', 'media'],
+    ['I created the image prompt, and the image.', 'media'],
+    ['Here is the poster idea for the poster.', 'media'],
+    ['I sent you the voice notes transcript, and a voice note.', 'voice'],
+    // round 1 already flagged these; they must stay flagged
+    ['Here is the poster, text and all.', 'media'],
+    ["Here's the poster - text is on the bottom", 'media'],
+    ['Вот твоё голосовое, меню ниже.', 'voice'], // cyrillic-ok: test input
+    ['Here is the poster draft.', 'media'],
+    ['Here is the poster preview.', 'media'],
+    ['Here is the poster mockup.', 'media'],
+    // round 4: a comma tail off the HONEST_TAILS list keeps the claim;
+    // round 5 lists "shorter now", so an adverb off the list is pinned
+    ['Here is the cover text, much shorter now.', 'media'],
+  ] as const)
+    it(`flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  for (const said of [
+    'Here is the image prompt you can use.',
+    'Here is the cover text, shorter now.',
+    'Here is the poster idea for you.',
+    'Here is the banner text for the sale.',
+    'Here are the image sizes Instagram accepts.',
+    'Here is your banner text draft.',
+    'Here is the audio settings list.',
+    'I made the poster idea list.',
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  /*
+   * The grid: every head noun x every continuation x every opener. Only the
+   * end of the text and a stop let the head noun end the object; every other
+   * continuation must flag, with the opener's own kind.
+   */
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+    'copy',
+  ]
+  const ENDS = ['', '.']
+  const GOES_ON = [
+    ' and the image',
+    '-free version',
+    ' bigger',
+    ' filled in with your name',
+    ' overlay',
+  ]
+  const OPENERS: Array<[string, 'media' | 'voice']> = [
+    ['Here is the poster', 'media'],
+    ['I made the poster', 'media'],
+    ['I sent you the voice note', 'voice'],
+    ['I created the poster', 'media'],
+  ]
+  // round 3: after a make verb "copy" is a copy of the picture, a claim
+  const makes = (open: string) => /\b(?:made|created)\b/.test(open)
+  type Pick = 'heads' | 'all' | 'copy after make'
+  const keeps = (head: string, open: string, pick: Pick) =>
+    pick === 'all' ||
+    (head === 'copy' && makes(open)) === (pick === 'copy after make')
+  const lines = (tails: string[], pick: Pick = 'heads') =>
+    OPENERS.flatMap(([open, kind]) =>
+      HEADS.filter(head => keeps(head, open, pick)).flatMap(head =>
+        tails.map(tail => [`${open} ${head}${tail}`, kind] as const)
+      )
+    )
+  it('a head noun that ends the text or the sentence silences', () => {
+    const silent = lines(ENDS)
+    expect(silent.length).toBe(188)
+    expect(silent.filter(([s]) => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+  it('"copy" after a make verb still flags (round 3)', () => {
+    const flagged = lines(ENDS, 'copy after make')
+    expect(flagged.length).toBe(4)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+  it('a head noun with anything after it still flags', () => {
+    const flagged = lines(GOES_ON, 'all')
+    expect(flagged.length).toBe(480)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+})
+
+/*
+ * Round 3 of #3753: round 2 let a comma, a semicolon or a dash end the
+ * object, so the next clause or the next sentence could deliver the media
+ * through "it", a participle or a bare noun, and "copy" after a make verb
+ * read as text. The rest of the WHOLE message after the head noun must now
+ * be free of (i) a picture or voice noun, (ii) a delivery word, (iii) "it",
+ * "them" or their Russian forms. Every string the review listed is pinned.
+ */
+describe('the rest of the message must not deliver the media (#3753 round 3)', () => {
+  for (const [said, kind] of [
+    // hole 1: the next clause delivers it
+    ['Here is the poster text, and I attached it.', 'media'],
+    ['Here is the image prompt; I rendered it for you.', 'media'],
+    ['Here is the poster text, and I sent it.', 'media'],
+    ['Here is the poster text, and here it is rendered.', 'media'],
+    ['Here is the image prompt - I rendered it.', 'media'],
+    ['Here is the poster idea, attached.', 'media'],
+    ['Here is the poster text, attached below.', 'media'],
+    ['Here is the poster text, rendered and attached.', 'media'],
+    ['Here is the poster text, and the file is attached.', 'media'],
+    // hole 2: the next sentence delivers it
+    ['Here is the poster idea. The poster is attached.', 'media'],
+    ['Here is the poster text. It is attached.', 'media'],
+    ['Here is the poster text. I sent you the poster.', 'media'],
+    // hole 3: "copy" after a make verb
+    ['I made the poster copy.', 'media'],
+    ['I made the poster copy for you.', 'media'],
+    ['I made the poster copy in Russian.', 'media'],
+    ['I made a poster copy in Russian.', 'media'],
+    // the Russian delivery words and pronouns
+    ['Вот твоё голосовое меню. Файл ниже.', 'voice'], // cyrillic-ok: test input
+    ['Вот твоё голосовое меню, отправил его.', 'voice'], // cyrillic-ok: test input
+    ['Here is the poster text. Готово, прикрепила.', 'media'], // cyrillic-ok: test input
+    // a later sentence, not the next one
+    ['Here is the poster idea. Thanks. Then I attached them.', 'media'],
+    // (i) alone: a later sentence names the media with no verb or pronoun
+    ['Here is the poster idea. The poster, too.', 'media'],
+    ['Here is the image prompt. Plus the image.', 'media'],
+    ['Вот твоё голосовое меню. И постер.', 'voice'], // cyrillic-ok: test input
+    // (iii) alone: a later sentence points at it with a pronoun
+    ['Here is the poster idea. Look at it.', 'media'],
+    ['Here is the image prompt. Check them out.', 'media'],
+  ] as const)
+    it(`flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  for (const said of [
+    'Here is the poster copy.',
+    'Here is the poster idea. Tell me what you think.',
+    'Here is the image prompt you can use.',
+    'Вот твоё голосовое меню', // cyrillic-ok: test input
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+    'copy',
+  ]
+  const DELIVERS = [
+    ', and I attached it',
+    '; I rendered it',
+    ', attached',
+    ' - I rendered it',
+    '. The poster is attached.',
+    '. It is attached.',
+    '. I sent you the poster.',
+  ]
+  const OPENERS: Array<[string, 'media' | 'voice']> = [
+    ['Here is the poster', 'media'],
+    ['I made the poster', 'media'],
+    ['I sent you the voice note', 'voice'],
+    ['I created the poster', 'media'],
+  ]
+  it('a head noun followed by a delivery anywhere later still flags', () => {
+    const flagged = OPENERS.flatMap(([open, kind]) =>
+      HEADS.flatMap(head =>
+        DELIVERS.map(tail => [`${open} ${head}${tail}`, kind] as const)
+      )
+    )
+    expect(flagged.length).toBe(672)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+})
+
+/*
+ * Round 4 of #3753: round 3 kept a closed list of DELIVERY words and lost 15
+ * claims main caught; every word the list lacked was a lost claim. The
+ * closed lists now sit on the HONEST side: after the head noun the clause
+ * ends (a'), or a comma tail is one of HONEST_TAILS (b'), or the content
+ * follows a colon (c'), and every later sentence is a question or opens
+ * with an honest opener (d'). The round-3 checks are vetoes on each honest
+ * part. Every row of all three rejections is pinned here.
+ */
+describe('only closed honest shapes silence a head noun (#3753 round 4)', () => {
+  const kindOf = (s: string) => (/voice|голосов/i.test(s) ? 'voice' : 'media') // cyrillic-ok: matched stem
+  const REJECTED = {
+    'round 1': [
+      'I created the image prompt and the image.',
+      'I generated the poster copy and the poster.',
+      'I made the poster text bigger.',
+      'I made the cover text larger.',
+      'I made the image format square and regenerated it.',
+      'I made the poster style you asked for.',
+      'Here is the poster text-free version.',
+      'Here is the image text-overlay version.',
+      'Here is the poster style-matched to your brand.',
+      "Here's the poster-text is on the bottom.",
+      'Here is the poster template filled in with your photo.',
+      'Here is the banner text overlay.',
+      'I sent you the voice settings test clip.',
+      'Записал голосовое меню для тебя.', // cyrillic-ok: test input
+      'Отправил голосовое управление тебе.', // cyrillic-ok: test input
+      'Here is the poster, text and all.',
+      "Here's the poster - text is on the bottom",
+      'Вот твоё голосовое, меню ниже.', // cyrillic-ok: test input
+    ],
+    'round 2': [
+      'Here is the poster text, and I attached it.',
+      'Here is the image prompt; I rendered it for you.',
+      'Here is the poster text, and I sent it.',
+      'Here is the poster text, and here it is rendered.',
+      'Here is the image prompt - I rendered it.',
+      'Here is the poster idea, attached.',
+      'Here is the poster text, attached below.',
+      'Here is the poster text, rendered and attached.',
+      'Here is the poster text, and the file is attached.',
+      'Here is the poster idea. The poster is attached.',
+      'Here is the poster text. It is attached.',
+      'Here is the poster text. I sent you the poster.',
+      'I made the poster copy.',
+      'I made the poster copy for you.',
+      'I made the poster copy in Russian.',
+      'I made a poster copy in Russian.',
+    ],
+    'round 3': [
+      'Here is the poster idea, and here you go:',
+      'Here is the poster text - enjoy!',
+      'Here is the poster text, delivered.',
+      'Here is the poster text, it’s in your inbox.',
+      'Here is the image prompt, finished and posted.',
+      'Here is the poster idea - shared with you just now.',
+      'Here is the banner text, and I dropped the result in the chat.',
+      'Here is the poster text, see the result.',
+      'Here is the cover concept, and voilà!',
+      'Here is the poster text, completed ✅',
+      'Here is the image prompt, output is up.',
+      'Here is the image prompt — I produced the result already.',
+      'Here is the poster text, plus the final version for you.',
+      'Here is the poster text, check the attachment.',
+      'Here is the poster text, look in the thread.',
+    ],
+  }
+  for (const [round, rows] of Object.entries(REJECTED))
+    it(`every row of the ${round} rejection flags`, () => {
+      expect(
+        rows.filter(s => !unbackedKinds(s, []).includes(kindOf(s)))
+      ).toEqual([])
+    })
+
+  it('still: the cover letter and the voice menu are silent, a draft flags', () => {
+    expect(unbackedKinds("Here's the cover letter.", [])).toEqual([])
+    expect(unbackedKinds('Вот твоё голосовое меню', [])).toEqual([]) // cyrillic-ok: test input
+    for (const head of ['draft', 'preview', 'mockup'])
+      expect(unbackedKinds(`Here is the poster ${head}.`, [])).toEqual([
+        'media',
+      ])
+  })
+
+  /*
+   * The grid: head nouns x openers x tails. Every HONEST_TAILS entry, after
+   * a comma, a semicolon or a dash, stays silent; every tail off the list
+   * flags with the opener's kind. The list is read from the module, so an
+   * entry added there is pinned here at once.
+   */
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+    'copy',
+  ]
+  const OPENERS: Array<[string, 'media' | 'voice']> = [
+    ['Here is the poster', 'media'],
+    ["Here's your banner", 'media'],
+    ['I made the poster', 'media'],
+    ['I created the image', 'media'],
+    ['I sent you the voice note', 'voice'],
+  ]
+  const SEPARATORS = [', ', '; ', ' - ', ' — ']
+  const makes = (open: string) => /\b(?:made|created)\b/.test(open)
+  const grid = (tails: readonly string[]) =>
+    OPENERS.flatMap(([open, kind]) =>
+      HEADS.filter(h => !(h === 'copy' && makes(open))).flatMap(head =>
+        SEPARATORS.flatMap(sep =>
+          tails.map(tail => [`${open} ${head}${sep}${tail}.`, kind] as const)
+        )
+      )
+    )
+  const EN_TAILS = HONEST_TAILS.filter(t => !/[а-яё]/i.test(t)) // cyrillic-ok: matched letters
+  const RU_TAILS = HONEST_TAILS.filter(t => /[а-яё]/i.test(t)) // cyrillic-ok: matched letters
+  const UNLISTED = [
+    'and here you go',
+    'enjoy',
+    'delivered',
+    'completed ✅',
+    'and voilà',
+    'check the attachment',
+    'look in the thread',
+    'see the result',
+    'output is up',
+    'finished and posted',
+    'all yours',
+    'all set',
+    'here you go',
+    'it’s in your inbox',
+    'shared with you just now',
+    'plus the final version',
+    'minimal and moody',
+    'much shorter now',
+    'ready for your review',
+    'take a look',
+    'have fun',
+    'there you are',
+    'as promised',
+    'hot off the press',
+    'live now',
+    'in the chat',
+    'let me know if you like it',
+    'tell me what you think of the poster',
+  ]
+  it('every honest tail is silent after every head and opener', () => {
+    const silent = grid(EN_TAILS)
+    expect(silent.length).toBe(118 * 4 * EN_TAILS.length)
+    expect(silent.filter(([s]) => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+  it('every tail off the list flags with its kind', () => {
+    const flagged = grid(UNLISTED)
+    expect(UNLISTED.length).toBeGreaterThanOrEqual(20)
+    expect(flagged.length).toBe(118 * 4 * UNLISTED.length)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+  const RU_HEADS = ['меню', 'мнение', 'настройки', 'управление'] // cyrillic-ok: test input
+  const RU_UNLISTED = [
+    'держи',
+    'лови',
+    'готово',
+    'вот он',
+    'отправила',
+    'наслаждайся',
+  ] // cyrillic-ok: test input
+  const ruGrid = (tails: readonly string[]) =>
+    RU_HEADS.flatMap(head =>
+      SEPARATORS.flatMap(
+        sep => tails.map(tail => `Вот твоё голосовое ${head}${sep}${tail}.`) // cyrillic-ok: test input
+      )
+    )
+  it('the Russian honest tails are silent, the others flag', () => {
+    expect(
+      ruGrid(RU_TAILS).filter(s => unbackedKinds(s, []).length > 0)
+    ).toEqual([])
+    expect(
+      ruGrid(RU_UNLISTED).filter(s => !unbackedKinds(s, []).includes('voice'))
+    ).toEqual([])
+  })
+
+  // (d'): later sentences, honest ones and the rest
+  const LATER_HONEST = [
+    'Let me know what you think.',
+    'Tell me what to change.',
+    'Should I change the colors?',
+    'Want me to try a darker one?',
+    'Shall I adjust the tone?',
+    'I can shorten the text.',
+    'If you like, I can start.',
+    'What do you think?',
+    'Should I generate it?',
+    'Want me to make it?',
+    'Shall I draw the poster?',
+    'I can render it next.',
+    'Скажи, как тебе.', // cyrillic-ok: test input
+    'Хочешь другой вариант?', // cyrillic-ok: test input
+    'Могу сделать темнее.', // cyrillic-ok: test input
+  ]
+  const LATER_CLAIMS = [
+    'Enjoy!',
+    'Here you go.',
+    'Delivered.',
+    'All yours.',
+    'Thanks.',
+    'Voilà.',
+    'Check the attachment.',
+    'Done and dusted.',
+    'Look in the thread.',
+    'Hope you like it.',
+    'Should I make it bigger?',
+    'Should I send it again?',
+    'Держи.', // cyrillic-ok: test input
+  ]
+  const after = (later: readonly string[]) =>
+    ['Here is the poster idea.', 'I made the poster text.'].flatMap(first =>
+      later.map(l => `${first} ${l}`)
+    )
+  it('an honest later sentence is silent', () => {
+    expect(
+      after(LATER_HONEST).filter(s => unbackedKinds(s, []).length > 0)
+    ).toEqual([])
+  })
+  it('any other later sentence keeps the claim', () => {
+    expect(
+      after(LATER_CLAIMS).filter(s => !unbackedKinds(s, []).includes('media'))
+    ).toEqual([])
+  })
+
+  // (c'): the content after a colon or a line break, and the list under it
+  for (const said of [
+    'Here is the poster idea: a lighthouse at dusk, warm light.',
+    'Here is the banner size Telegram accepts: 1280x720.',
+    'Here are the poster ideas:\n1. A fox in the snow\n2. A city at night',
+    'Here is the poster text\nLive on Friday.',
+    'Вот ваши голосовые настройки: тихо, без музыки.', // cyrillic-ok: test input
+  ])
+    it(`content stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+  for (const said of [
+    'Here is the poster idea: all yours.',
+    "Here is the poster idea: it's in the chat.",
+    'Here is the poster text: voilà.',
+    'Here is the poster idea: check the attachment.',
+    'Here is the poster text\nAll yours.',
+    'Here is the poster idea:\n- A fox\n- Delivered',
+    'Here is the poster idea: enjoy',
+    'Вот твоё голосовое меню: держи.', // cyrillic-ok: test input
+    'Вот твоё голосовое меню: записала.', // cyrillic-ok: test input
+  ])
+    it(`content in a report voice flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, []).length).toBe(1)
+    })
+
+  /*
+   * The round-3 checks are vetoes on every honest part: a tail, an opener
+   * or a content that is honest in shape but names a media noun, a delivery
+   * word or "it" keeps the claim. Each row is silent without the vetoes.
+   */
+  for (const said of [
+    'Here is the poster text for the poster.',
+    'Here is the poster idea for it.',
+    'Here is the poster text in the file.',
+    'Here is the poster text I sent.',
+    'Here is the poster idea. Let me know when it is attached.',
+    'Here is the poster idea. Tell me if the poster works.',
+    'Here is the poster idea. Should I resend the file?',
+    'Here is the poster idea. Want changes to it?',
+    'Here is the poster idea: the video, too',
+    'Вот твоё голосовое меню. Скажи, если файл открылся.', // cyrillic-ok: test input
+  ])
+    it(`a veto keeps the claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, []).length).toBe(1)
+    })
+
+  /*
+   * Usability, a 50-string honest set in the round-3 reviewer's style,
+   * built before this code was tuned: main draws 46 needless notes. Each
+   * note the head keeps is listed with its reason; all are on the safe side.
+   */
+  const HONEST50 = [
+    'Here is the poster idea: a lighthouse at dusk, warm light.',
+    'Here is the poster text: "Live on Friday, 8 pm".',
+    'Here is the image prompt: a neon street at night, rain, reflections.',
+    'Here is the cover concept, minimal and dark.',
+    'Here is the poster idea - a lighthouse at dusk.',
+    'Here is the poster text, as you asked.',
+    "Here's the cover concept, tell me what you think.",
+    'Here is the poster idea. Should I generate it?',
+    'Here is the image prompt. Want me to make it?',
+    'Here is the poster text. Shall I draw the poster?',
+    'Here is the image prompt. I can render it next.',
+    'Here is the poster idea 👇',
+    'Here is the poster text ✨',
+    'Here is the banner text for the sale.',
+    'Here is the image prompt you can use.',
+    'Here are the image sizes Instagram accepts.',
+    'Here are the poster ideas:\n1. A fox in the snow\n2. A city at night',
+    'Here is the video script for the reel.',
+    'Here is the cover letter for the job.',
+    'Here is your poster caption.',
+    'Here is the audio plan.',
+    'I sent you the voice notes transcript.',
+    'I recorded your voice preferences: calm, low, no music.',
+    'Here is the poster brief I would send a designer.',
+    'Here is the picture format Instagram prefers.',
+    'Here is the poster style I suggest: noir, high contrast.',
+    'I created the video outline: hook, story, call to action.',
+    'Here is the banner size Telegram accepts: 1280x720.',
+    'Here is the image description for alt text.',
+    'Here is the voice message template for new clients.',
+    'Here is the poster idea. Let me know what you think.',
+    'Here is the poster text. Tell me what to change.',
+    'Here is the cover concept. What do you think?',
+    'Here is the poster idea, let me know.',
+    'Here is the image prompt, want changes?',
+    'Here is the poster copy for the launch.',
+    'Here is the poster text for your post.',
+    'Here are the image requirements:\n- 1080x1920\n- under 5 MB',
+    'Here is the audio settings list.',
+    'I made the poster idea list.',
+    'Here is the poster idea. If you like, I can start.',
+    'Here is the banner text. Thanks for the details.',
+    'Вот твоё голосовое меню.', // cyrillic-ok: test input
+    'Вот ваши голосовые настройки: тихо, без музыки.', // cyrillic-ok: test input
+    'Вот твоё голосовое мнение, скажи, как тебе.', // cyrillic-ok: test input
+    'Вот твоё голосовое меню. Что поправить?', // cyrillic-ok: test input
+    'Here is the cover text, shorter now.',
+    'Here is the poster text, ready for your review?',
+    'Here is the image prompt; tweak it as you like.',
+    'Here is the poster idea: bold type, a red sun.',
+  ]
+  it('the honest set draws 4 needless notes of 50, each on the safe side', () => {
+    expect(HONEST50.length).toBe(50)
+    expect(HONEST50.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      // (b') a dash tail off the list (round 5 cleared "minimal and dark",
+      // "shorter now" and "Thanks for the details")
+      'Here is the poster idea - a lighthouse at dusk.',
+      // (a') a pointing emoji says the file is below
+      'Here is the poster idea 👇',
+      // "ready" delivers, so "ready for your review" is left off the list
+      'Here is the poster text, ready for your review?',
+      // (iii) "it" in a tail off the list
+      'Here is the image prompt; tweak it as you like.',
+    ])
+  })
+})
+
+describe('each round-5 honest shape is closed (#3753 round 5)', () => {
+  const kindOf = (s: string) => (/voice/i.test(s) ? 'voice' : 'media')
+  // 18 of the 26 round-4 reviewer notes, each cleared by one of fixes 1-4
+  const CLEARED = [
+    'Here is the poster idea. Do you like it?',
+    'Here is the poster idea, minimal and dark.',
+    'Here is the cover idea. Thanks for the details.',
+    'Here is the poster text, shorter now.',
+    'Here is the poster text: Open daily, 9 to 5.',
+    'Here is the image prompt. Tell me if it fits.',
+    'Here is the cover idea: an open book on a dark desk.',
+    'Here is the poster idea. Do you want it darker?',
+    'Here is the image prompt. Does it match what you had in mind?',
+    'Here is the poster text. Is it too long?',
+    'Here is the poster text, short and punchy.',
+    'Here is the poster idea, inspired by your last post.',
+    'Here is the image prompt, tuned for a square format.',
+    'Here is the cover concept, in your brand colours.',
+    'Here is the poster idea. Happy to adjust.',
+    'Here is the image prompt. Ready when you are.',
+    'Here is the poster text: Doors open at 7.',
+    'Here is the image prompt: macro shot of a dewdrop on a leaf.',
+  ]
+  it('the cleared round-4 reviewer rows are silent', () => {
+    expect(CLEARED.filter(s => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+
+  /*
+   * Attacks on each new shape, written against round 5: a pronoun frame
+   * with a redo word or a past tense, a style tail that ends on a place or
+   * names the media, a pointing verb at a clause start, a subject before
+   * "shot" / "put", a courtesy opener that closes a delivery. Every row
+   * flags on main and on round 4 too.
+   */
+  const ATTACKS = [
+    'Here is the poster text. Did you like it?',
+    'Here is the poster text. Do you like it? Enjoy!',
+    'Here is the poster idea. Do you like it again?',
+    'Here is the poster idea. Do you want them resent?',
+    "Here is the poster idea. Do you like it? It's attached.",
+    'Here is the poster idea. Should I make it bigger?',
+    'Here is the poster idea. Should I send it again?',
+    'Here is the poster idea. Want changes to it?',
+    'Here is the poster idea. Hope you like it.',
+    'Here is the poster idea. Do you like it? I rendered it.',
+    'Here is the poster idea. Did it arrive?',
+    'Here is the poster idea. Can you open it?',
+    'Here is the poster idea. Do you like it now that it is uploaded?',
+    'Here is the poster idea. Tell me if it fits the file.',
+    'Here is the poster text, in the chat.',
+    'Here is the poster text, in your inbox.',
+    'Here is the poster idea, in the brand colours, attached.',
+    'Here is the poster idea, bold and done.',
+    'Here is the poster text, shorter now. Enjoy!',
+    'Here is the poster idea, in your brand colours and voilà',
+    'Here is the poster idea, with the poster on top.',
+    'Here is the poster idea, for your feed.',
+    'Here is the poster idea, in your DMs.',
+    'Here is the poster idea, inspired by the poster.',
+    'Here is the poster idea, with it in your brand colours.',
+    'Here is the poster idea, bold and ready.',
+    'Here is the poster idea, from the file.',
+    'Here is the poster idea, in the final format.',
+    'Here is the poster idea, with your result in the post.',
+    'Here is the poster text: check the poster.png',
+    'Here is the poster idea: open it.',
+    'Here is the poster idea: I shot it at dusk.',
+    'Here is the poster idea: shot the cover at dusk.',
+    'Here is the poster idea: shot and sent.',
+    'Here is the poster idea: we put it in the chat.',
+    'Here is the poster idea: take a look.',
+    'Here is the poster idea: a fox, and check the thread.',
+    'Here is the poster idea: a fox; see the chat.',
+    'Here is the poster idea: look inside.',
+    'Here is the poster idea: now open your DMs.',
+    'Here is the poster idea:\n- a fox\n- open the chat',
+    'Here is the poster idea. Thanks for waiting, enjoy!',
+    'Here is the poster idea. Thanks for waiting, here it is.',
+    "Here is the poster idea. Thanks for waiting, it's in the chat.",
+    'Here is the poster idea. Thanks.',
+    'Here is the poster idea. Thanks!',
+    'Here is the poster idea. Happy to help, check the attachment.',
+    'Here is the poster idea. Happy to share it.',
+    'Here is the poster idea. Ready when you are!',
+    'Here is the poster idea. Ready.',
+    'Here is the poster idea. Ready when you are, the file is attached.',
+    'Here is the poster idea. Thanks for your patience, I generated the poster.',
+    'Here is the poster idea. Happy to send the poster too.',
+    'I made the poster text. Do you like it? Sent!',
+    'I sent you the voice note text. Thanks for waiting, voilà.',
+    'Here is the poster idea. Happy to, done.',
+    'Here is the poster idea. Thanks, here you go.',
+    'Here is the poster idea. Happy to help, all yours.',
+    'Here is the poster text. Is it too long? Enjoy the poster!',
+  ]
+  it('every attack on a round-5 shape still flags with its kind', () => {
+    expect(
+      ATTACKS.filter(s => !unbackedKinds(s, []).includes(kindOf(s)))
+    ).toEqual([])
+  })
+
+  /*
+   * A word missing from a closed list costs a needless note, never a silent
+   * claim: one row per list, each with a word the list lacks.
+   */
+  for (const said of [
+    // STYLE_ADJECTIVES lacks "moody"
+    'Here is the poster idea, minimal and moody.',
+    // STYLE_LEADS lacks "near"
+    'Here is the poster idea, near your brand colours.',
+    // STYLE_DETERMINERS lacks "two"
+    'Here is the poster text, in two languages.',
+    // STYLE_NOUNS lacks "chat"
+    'Here is the poster idea, in the brand chat.',
+    // PRONOUN_VERBS lacks "share"
+    'Here is the poster idea. Do you want to share it?',
+    // PRONOUN_PREDICATES lacks "arrive"
+    'Here is the poster idea. Tell me if it arrives.',
+    // the courtesy openers lack "Cheers"
+    'Here is the poster idea. Cheers for the details.',
+  ])
+    it(`a word off a closed list keeps the claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+    })
+
+  it('a pointing verb reads only at a clause start before a determiner', () => {
+    for (const said of [
+      'Here is the poster text: Doors open at 7.',
+      'Here is the poster text: Open daily, 9 to 5.',
+      'Here is the banner text: Check-in starts at 9.',
+    ])
+      expect(unbackedKinds(said, [])).toEqual([])
+    for (const said of [
+      'Here is the poster text: Open the link.',
+      'Here is the poster text: a fox, check it.',
+      'Here is the poster text: take a look.',
+    ])
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+
+  /*
+   * Held out: 40 honest strings written before round 5 was tuned, never
+   * used to tune it. Main notes 40, round 4 notes 38, round 5 notes 7.
+   */
+  const HELD_OUT = [
+    'Here is the poster idea. Would you like a warmer palette?',
+    'Here is the image prompt. Does it feel too busy?',
+    'Here is the banner text. Is it clear enough?',
+    'Here is the cover concept. What do you think of it?',
+    'Here is the poster text. Should it be in English too?',
+    'Here is the poster idea. Tell me if it works for you.',
+    'Here is the image prompt. If it fits, I can generate one.',
+    'Here is the cover idea; change it however you like.',
+    'Here is the poster idea, bold and simple.',
+    'Here is the banner text, short and clean.',
+    'Here is the image prompt, soft and warm.',
+    'Here is the poster text, in your house style.',
+    'Here is the cover concept, for a vertical format.',
+    'Here is the poster idea, with your logo on top.',
+    'Here is the banner text, from your last campaign.',
+    'Here is the image prompt, inspired by your moodboard.',
+    'Here is the poster text: Open mic every Friday.',
+    'Here is the poster text: Doors open at 8, entry free.',
+    'Here is the image prompt: a close shot of hands on a keyboard.',
+    'Here is the image prompt: wide shot of a city at night.',
+    'Here is the poster idea: the title on top, a photo below it.',
+    'Here is the cover idea: an open window at dawn.',
+    'Here is the banner text: Check-in starts at 9.',
+    'Here is the poster idea. Thanks for the brief.',
+    'Here is the poster text. Happy to tweak the wording.',
+    'Here is the image prompt. Ready when you are.',
+    'Here is the cover concept. Thanks, this was fun to think about.',
+    'Here is the banner text. Happy to try another tone.',
+    'Here is the poster idea. Want me to make a darker variant?',
+    'Here is the image prompt. Do you want it more realistic?',
+    'Here is the poster text. Is it too formal?',
+    'Here is the cover idea. Does it suit the book?',
+    'Here is the poster idea, minimal and bright.',
+    'Here is the banner text, shorter now.',
+    'Here is the image prompt, tuned for a wide format.',
+    'Here is the poster text, in two languages.',
+    'Here is the image prompt: open field, golden hour, soft light.',
+    'Here is the poster idea: a red circle, the date below it.',
+    'Here is the cover concept. Thanks for your patience.',
+    'Here is the poster idea. Happy to adjust the colours.',
+  ]
+  it('the held-out honest set draws 7 notes of 40, each on the safe side', () => {
+    expect(HELD_OUT.length).toBe(40)
+    expect(HELD_OUT.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      // a question with "it" as the subject before "be": no frame
+      'Here is the poster text. Should it be in English too?',
+      // "generate" is a delivery word (ii)
+      'Here is the image prompt. If it fits, I can generate one.',
+      // "change it" in a tail, not in a later sentence
+      'Here is the cover idea; change it however you like.',
+      // "top" is no style noun
+      'Here is the poster idea, with your logo on top.',
+      // "below" and "it" in colon content
+      'Here is the poster idea: the title on top, a photo below it.',
+      // "two" is no listed determiner
+      'Here is the poster text, in two languages.',
+      'Here is the poster idea: a red circle, the date below it.',
+    ])
   })
 })
