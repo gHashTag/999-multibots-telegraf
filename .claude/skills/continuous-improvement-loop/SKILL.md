@@ -634,6 +634,9 @@ removes trees, and only provably finished ones. Lessons it cost:
   key files) lost a `logs/.env`; the second (exact names) lacked ~20 names a
   day later. The bee found both by attacking a throwaway repo with `--apply`.
 - `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
+- **A fresh branch is `new`, not finished** (#3745, 06.10): a named branch 0
+  commits ahead with no merged PR of that name stays until its reflog says it
+  is 6 h old (`NEW_BRANCH_MAX_H`); `-b` + `origin/main` looked "already in main".
 - An empty env number with `??` becomes 0 and turns a dry run into a sweep;
   use `||`.
 - 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
