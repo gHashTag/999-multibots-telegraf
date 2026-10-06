@@ -50,6 +50,8 @@ import { columnCode, moveAllowed, moveChoice } from '../agent/card-move'
 import { liveFresh } from '../agent/thread-live'
 import { workSend, workShown } from '../agent/thread-bus'
 import { DRIFT_VERBS, driftAction } from '../hive/card-drift'
+import { beePollS, beeProseSent } from '../agent/card-work'
+import { beePollS as playerBeePollS } from '../../../player/src/lib/cardWork'
 import {
   CARD_STATUS_QUERY,
   clearCardStatusCache,
@@ -73,6 +75,7 @@ import { readFileSync } from 'node:fs'
  */
 
 vi.mock('../hive/queen-client', () => ({
+  QUEEN_BASE: 'https://queen.test',
   queenIndex: async () => ({ repo: 'gHashTag/t27', cards: new Map() }),
 }))
 
@@ -712,6 +715,43 @@ describe('kanban-card-chat.t27 against the host', () => {
     }
   })
 
+  it("the bee's log reaches the sheet through render, without the token or its secrets", () => {
+    expect(SPEC.BEE_TOKEN_TO_BROWSER).toBe(false)
+    expect(SPEC.BEE_STORED).toBe(false)
+    expect(SPEC.BEE_ONE_ATTEMPT).toBe(true)
+    expect(SPEC.BEE_DOOR).toBe('/api/card-work')
+    expect(SPEC.BEE_SOURCE).toBe('/queen/feed/data')
+    expect(SPEC.BEE_TOKEN_ENV).toBe(SPEC.MOVE_TOKEN_ENV)
+    expect(SPEC.BEE_ROWS_MAX).toBeLessThanOrEqual(SPEC.BEE_PAGE_MAX)
+    expect(SPEC.BEE_CACHE_S).toBeLessThan(SPEC.BEE_POLL_S)
+    expect(SPEC.BEE_POLL_S).toBeLessThan(SPEC.BEE_IDLE_POLL_S)
+    expect(SPEC.BEE_IDLE_POLL_S).toBeLessThan(SPEC.WORK_IDLE_S)
+    expect(beePollS(true)).toBe(SPEC.BEE_POLL_S)
+    expect(beePollS(false)).toBe(SPEC.BEE_IDLE_POLL_S)
+    // The bee's face of the sheet: strings are pinned here, not in the spec.
+    expect(SPEC.BEE_FACE_DETENT).toBe(SPEC.DETENT_FULL)
+    expect(SPEC.OPEN_DETENT).toBe(SPEC.DETENT_HALF)
+    // The sheet asks at the same pace the spec and render name.
+    for (const running of [true, false])
+      expect(playerBeePollS(running)).toBe(beePollS(running))
+    expect(beeProseSent(true)).toBe(true)
+    expect(beeProseSent(false)).toBe(false)
+    expect(SPEC.BEE_SECRET_RUN).toBeGreaterThanOrEqual(20)
+    expect(SPEC.BEE_LINE_MAX).toBeLessThan(SPEC.BEE_THOUGHT_MAX)
+    expect(SPEC.BEE_ROW_TOOL).not.toBe(SPEC.BEE_ROW_RESULT)
+    expect(SPEC.BEE_ROW_THOUGHT).toBeLessThan(SPEC.BEE_ROW_ERROR)
+    // A person only: the route resolves identity before the door.
+    const server = readFileSync(
+      new URL('../../render-server.ts', import.meta.url),
+      'utf8'
+    )
+    const route = server.slice(server.indexOf(`=== '${SPEC.BEE_DOOR}'`))
+    expect(route.indexOf('resolveIdentity')).toBeGreaterThan(-1)
+    expect(route.indexOf('resolveIdentity')).toBeLessThan(
+      route.indexOf('handleCardWork')
+    )
+  })
+
   it('drift lives in one issue, updated, and closed by agreement', () => {
     expect(SPEC.DRIFT_ONE_ISSUE).toBe(true)
     expect(driftAction(true, false)).toBe(SPEC.DRIFT_OPEN)
@@ -728,7 +768,7 @@ describe('kanban-card-chat.t27 against the host', () => {
 
   it('the card chat is designed, not yet live', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(6)
+    expect(SPEC.VERSION).toBe(7)
     expect(SPEC.CHAT_DOOR).toBe('/api/agent/chat')
     expect(SPEC.HISTORY_DOOR).toBe('/api/agent/history')
     expect(SPEC.HISTORY_LIMIT).toBe(100)
