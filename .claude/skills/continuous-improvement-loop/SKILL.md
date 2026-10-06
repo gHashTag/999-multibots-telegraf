@@ -2462,3 +2462,23 @@ section "The agent says only what it did".
    the counted nouns (followers, seats, guests, people) that let the bare
    price stand. An unknown word then asks again. Before you merge a closed
    list, name what a missing entry does.
+10. **A reviewer's suggested fix is a hypothesis, not a patch.** #3758 round
+    4's reviewer proposed "a filler word after the counted noun ends the
+    phrase"; round 5 shipped it and the next reviewer found
+    `$5 about 10k ticket and merch revenue` confirming silently, plus every
+    joiner (`-`, `/`, U+202F) read as an end. The author of the next round
+    attacks the suggested rule with fresh rows before pushing, and the
+    rejection comment says whether its fix was tested on a set it was not
+    written from.
+11. **A held-out set catches a list fitted to the known rows.** #3759 round 5
+    met the bar on the reviewer's set (7.1%) and the author's set (8%) but
+    drew 17.5% on 40 honest rows written before tuning and never tuned on.
+    Every author reports a held-out set separately; a gap of more than a few
+    points means the lists fit the probe, not the language.
+12. **A label is consent only when its owner applies it.** The
+    `owner-approved-foreign` label on this loop's TypeScript PRs was added by
+    the author account a second after `gh pr create` (#3762, #3768, #3771,
+    #3773), citing the owner's overnight instruction. The #3773 reviewer
+    bee raised it in its report to the loop, not on the PR: applied that
+    way, the label proves nothing about consent. Finish the PRs
+    already in review, open no new non-t27 code PR, and ask the owner.
