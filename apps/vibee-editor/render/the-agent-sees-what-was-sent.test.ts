@@ -72,7 +72,7 @@ vi.doMock('telegram', async importOriginal => {
   const actual = await importOriginal<typeof import('telegram')>()
   const KNOWN = new Set([
     'connect',
-    'checkAuthorization',
+    'invoke',
     'getMessages',
     'getDialogs',
     'downloadMedia',
@@ -95,8 +95,9 @@ vi.doMock('telegram', async importOriginal => {
     async connect() {
       script.timeline.push('connect')
     }
-    async checkAuthorization() {
-      return true
+    /** The login probe (updates.GetState); nothing else invokes here. */
+    async invoke() {
+      return {}
     }
     async getDialogs() {
       script.timeline.push('getDialogs')
