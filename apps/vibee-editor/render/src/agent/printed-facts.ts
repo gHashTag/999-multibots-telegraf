@@ -82,13 +82,49 @@ const HOURS = new RegExp(
   'giu'
 )
 /*
- * "$5k", "$5 thousand", "1,5 million": a multiplier after the amount. Without it "$5k"
- * read as 5, and the person's "$5" confirmed a printed "$5k" (#3686). Glued
- * ("$5k", "RUB10<k>") it is always the multiplier. A SPACED Cyrillic "k" letter
- * is also the preposition "to" ("$5 <k> 7 pm"), so it is read both ways
- * unless K_THOUSAND_NEXT follows -- see priceFact.
+ * THE MULTIPLIER TABLE, the one home of "how many zeros a word after an
+ * amount adds" (#3686, #3730 round 5). A letter run glued to or right after
+ * an amount ("$5k", "$5 thousand", "$5M", "₽10кк", "5 млрд ₽") is looked up
+ * here. The default is the SAFE side: a run this table does not know, that
+ * is no currency word and no FILLER word, makes the reading UNKNOWN (see
+ * suffixReading) -- never the bare amount. Round 4 read "$5 thousand" as 5,
+ * so a person's "$5" confirmed it; adding the next word to a list would only
+ * move that hole to the word after it ("lakh", "гиг", "zorg").
+ * Strings, not regex literals: the Cyrillic guard reads those as code.
  */
-const KILO = `(?:k|к|тыс(?:яч[аи]?|\\.)?|млн\\.?|mln|million)(?![\\p{L}])` // cyrillic-ok: multiplier words
+const MULTIPLIERS: ReadonlyArray<[string, number]> = [
+  ['k|к|тыс|тысяч[аи]?|thousands?', 3], // cyrillic-ok: multiplier words
+  ['m|mn|mln|mio|млн|millions?|миллион(?:а|ов)?|kk|кк', 6], // cyrillic-ok: multiplier words
+  ['b|bn|bln|млрд|billions?|миллиард(?:а|ов)?', 9], // cyrillic-ok: multiplier words
+]
+const MULTIPLIER_RES: ReadonlyArray<[RegExp, number]> = MULTIPLIERS.map(
+  ([words, zeros]) => [new RegExp(`^(?:${words})\\.?$`, 'iu'), zeros]
+)
+/* A currency named as a word after the amount ("$5 usd", "₽10 рублей"). */
+const CURRENCY_RUN = new RegExp(
+  '^(?:руб\\p{L}*|р|rub\\p{L}*|roubl\\p{L}*|dollars?|доллар\\p{L}*|бакс\\p{L}*|usd|евро|euros?|eur|gbp|бат\\p{L}*|baht|thb)\\.?$', // cyrillic-ok: currency words
+  'iu'
+)
+/*
+ * Words that are never a multiplier: "$5 per person", "$5 и $5000",
+ * "$5 за вход". A CLOSED list on the safe side -- a word missing here is read
+ * as an unknown multiplier, and the agent asks once more.
+ */
+const FILLER_RUN = new RegExp(
+  '^(?:и|или|а|за|в|во|на|с|со|по|до|от|для|per|for|each|a|an|and|or|to|from|at|on|in|the|with)$', // cyrillic-ok: filler words
+  'iu'
+)
+/* A letter run glued to or right after an amount, captured for the table. */
+const RUN = '(\\p{L}+\\.?)'
+
+/** How a run after an amount scales it: zeros, 0 (none), or "unknown". */
+type Suffix = number | 'unknown'
+function suffixReading(run: string | undefined): Suffix {
+  if (!run) return 0
+  for (const [re, zeros] of MULTIPLIER_RES) if (re.test(run)) return zeros
+  if (CURRENCY_RUN.test(run) || FILLER_RUN.test(run)) return 0
+  return 'unknown'
+}
 /* A spaced Cyrillic "k" letter closing a price match. */
 const SPACED_K = new RegExp('\\s[кК]$', 'u')
 /*
@@ -115,8 +151,14 @@ export const DIGIT_JOINERS = ' \\u00A0\\u202F'
 /* A number with optional thousands groups ("1 500", "1,500", "1.500") and
  * optional cents; `amount` reads it. */
 const NUM = `(\\d{1,3}(?:[${DIGIT_JOINERS},.]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)`
+/*
+ * Group 1/2: a sign or code, the amount, an optional run. Group 3/4: the
+ * amount, an optional run, then a currency ("5 млрд ₽", "10 тысяч рублей").
+ * The run in the second branch is any letters, so a multiplier the table
+ * does not know is still READ (as unknown) instead of skipping the price.
+ */
 const PRICE = new RegExp(
-  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM}(?:\\s?${KILO})?)|(?:${L}${NUM}(?:\\s?(?:[kк]|млн\\.?|mln|million))?\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро|тыс(?:яч[аи]?|\\.)?\\s?(?:руб\\S*|р\\.|р(?![\\p{L}])|[$€₽฿£]|бат\\S*|доллар\\S*|евро))${R})`,
+  `(?:(?:[$€₽฿£]|${CURRENCY_CODE}\\.?\\s)\\s?${NUM}(?:\\s?${RUN})?)|(?:${L}${NUM}(?:\\s?${RUN})?\\s?(?:[$€₽฿£]|руб\\S*|р\\.|р(?![\\p{L}])|rouble\\S*|ruble\\S*|${CURRENCY_CODE}|бат\\S*|dollar\\S*|доллар\\S*|евро)${R})`,
   'giu'
 )
 
@@ -130,7 +172,7 @@ const PRICE = new RegExp(
 const PRICE_WORD =
   '(?:цен[аыу]|стоимост[ьи]|вход|билет[ыа]?|price|cost|fee|entry|tickets?)'
 const BARE_PRICE = new RegExp(
-  `${L}${PRICE_WORD}\\s*[:—-]?\\s*${NUM}(?:\\s?${KILO})?(?!\\s*[\\p{L}\\d]|[:.,/]\\d)`,
+  `${L}${PRICE_WORD}\\s*[:—-]?\\s*${NUM}(?:\\s?${RUN})?(?!\\s*[\\p{L}\\d]|[:.,/]\\d)`,
   'giu'
 )
 
@@ -146,12 +188,8 @@ function amount(raw: string): string {
     .replace(/\D/g, '')
 }
 
-/* "2 тыс. руб", "10 тысяч рублей", "$5k" are thousands: "$2" does not confirm them. */
-const THOUSANDS = new RegExp('\\d\\s?(?:тыс|k(?![a-z])|к(?![а-яё]))', 'iu')
-const MILLIONS = new RegExp('\\d\\s?(?:млн|mln|million)', 'iu')
-
 /*
- * The readings of a price, scaled when it names thousands or millions.
+ * The readings of a price, scaled by `zeros` from the multiplier table.
  * Before a multiplier the decimal is part of the amount, not cents: "1.5k"
  * and "1,5 тыс" are 1500, so "$1k" does not confirm "$1.5k" (#3697), and
  * "1,5 млн" is 1 500 000 (#3709). One separator before exactly three digits
@@ -163,8 +201,7 @@ const MILLIONS = new RegExp('\\d\\s?(?:млн|mln|million)', 'iu')
  * Russian decimal-comma intent is then asked again, the safe failure. Without a multiplier cents
  * are dropped: "$2.50" is 2, which a person's "$2.50" or "$2" confirms.
  */
-function priceReadings(raw: string, matched: string): string[] {
-  const zeros = MILLIONS.test(matched) ? 6 : THOUSANDS.test(matched) ? 3 : 0
+function priceReadings(raw: string, zeros: number): string[] {
   if (!zeros) {
     const digits = amount(raw)
     return digits ? [digits] : []
@@ -227,26 +264,40 @@ function monthOf(word: string): number | null {
 }
 
 /*
- * A price match as a Fact. A spaced Cyrillic "k" letter that is not followed
- * by K_THOUSAND_NEXT is "to" or a thousand, so the fact carries BOTH
- * readings: "$5 <k> 7 pm" is 5 or 5000. unconfirmedFacts then needs the
- * person to have written every reading, and never lets such a form confirm
- * anything -- an ambiguous price is asked about once more (#3730 round 4).
+ * A price match as a Fact. `run` is the letter run after the amount, looked
+ * up in the multiplier table:
+ * - a known multiplier scales the amount ("$5M" is 5 000 000);
+ * - a spaced Cyrillic "k" letter not followed by K_THOUSAND_NEXT is "to" or a
+ *   thousand, so the fact carries BOTH readings ("$5 <k> 7 pm" is 5 or 5000),
+ *   and an ambiguous price is asked about once more (#3730 round 4);
+ * - an UNKNOWN run ("$5 lakh", "5 zorg RUB") gives the one reading
+ *   "u" + the normalised text (#3730 round 5). No amount the person said
+ *   confirms it -- only the same text, written by the person, does; and as
+ *   the person's words it confirms nothing else.
+ * A currency or filler word is no multiplier and is left out of the text.
  */
 function priceFact(
   text: string,
   m: RegExpMatchArray,
-  raw: string
+  raw: string,
+  run: string | undefined
 ): Fact | undefined {
-  const readings = new Set(priceReadings(raw, m[0]))
+  const suffix = suffixReading(run)
+  let shown = m[0]
+  if (suffix === 0 && run && FILLER_RUN.test(run))
+    shown = shown.slice(0, shown.length - run.length)
+  if (suffix === 'unknown') {
+    const key = `u${raw}${run}`.replace(/\s/g, '').toLowerCase()
+    return { kind: 'price', text: shown.trim(), keys: [key] }
+  }
+  const readings = new Set(priceReadings(raw, suffix))
   const next = text.slice((m.index ?? 0) + m[0].length)
   if (SPACED_K.test(m[0]) && !K_THOUSAND_NEXT.test(next))
-    for (const r of priceReadings(raw, m[0].replace(SPACED_K, '')))
-      readings.add(r)
+    for (const r of priceReadings(raw, 0)) readings.add(r)
   if (!readings.size) return undefined
   return {
     kind: 'price',
-    text: m[0].trim(),
+    text: shown.trim(),
     keys: [...readings].map(d => `p${d}`),
   }
 }
@@ -312,11 +363,12 @@ export function factsIn(text: string): Fact[] {
       add({ kind: 'date', text: m[0], keys: [`d${day}.${mon}`] })
   }
   for (const m of text.matchAll(PRICE)) {
-    const f = priceFact(text, m, m[1] ?? m[2] ?? '')
-    if (f) add({ ...f, currency: currencyOf(m[0]) })
+    const lead = m[1] !== undefined
+    const f = priceFact(text, m, (lead ? m[1] : m[3]) ?? '', lead ? m[2] : m[4])
+    if (f) add({ ...f, currency: currencyOf(f.text) })
   }
   for (const m of text.matchAll(BARE_PRICE)) {
-    const f = priceFact(text, m, m[1] ?? '')
+    const f = priceFact(text, m, m[1] ?? '', m[2])
     if (f) add(f)
   }
   return out

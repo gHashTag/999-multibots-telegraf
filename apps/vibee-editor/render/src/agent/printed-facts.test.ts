@@ -37,7 +37,10 @@ describe('factsIn: dates, times and prices a picture would print', () => {
       )
     ).toEqual([])
     // a price in dollars is not a time
-    expect(keys('$2.50 coffee')).toEqual(['p2'])
+    expect(keys('coffee $2.50')).toEqual(['p2'])
+    // A word right after the amount is a multiplier the table does not know
+    // (#3730 round 5): the reading is unknown, never the bare 2.
+    expect(keys('$2.50 coffee')).toEqual(['u2.50coffee'])
   })
 })
 
@@ -792,6 +795,164 @@ describe('Cyrillic k, millions and a three-digit decimal (#3709)', () => {
             `${line} / ${heard}`
           ).toBe(1)
       }
+    })
+  })
+
+  /*
+   * Round 5 (#3730): a multiplier the reader does not know read as the bare
+   * unit, so "$5" confirmed "$5 thousand", "$5M", "$5kk" or "$5 bn", and
+   * "5 млрд ₽" was not read at all. Now every run after an amount goes
+   * through one table; a run it does not know is an UNKNOWN reading, which
+   * only the identical text confirms.
+   */
+  describe('grid: a multiplier the reader does not know never reads as the bare amount', () => {
+    type Form = { text: string; means: Array<number | string>; cur: string }
+    // [suffix, zeros] -- null zeros = no factor the reader can know.
+    const suffixes: ReadonlyArray<[string, number | null]> = [
+      ['k', 3],
+      ['K', 3],
+      ['к', 3],
+      ['тыс', 3],
+      ['тыс.', 3],
+      ['тысяч', 3],
+      ['thousand', 3],
+      ['M', 6],
+      ['m', 6],
+      ['mn', 6],
+      ['mln', 6],
+      ['million', 6],
+      ['млн', 6],
+      ['kk', 6],
+      ['кк', 6],
+      ['КК', 6],
+      ['B', 9],
+      ['bn', 9],
+      ['billion', 9],
+      ['млрд', 9],
+      ['миллиард', 9],
+      ['zorg', null],
+      ['зорг', null],
+      ['гиг', null],
+      ['lakh', null],
+      ['crore', null],
+      ['М', null], // a Cyrillic capital: not the Latin "M"
+      ['gb', null],
+    ]
+    const layouts = (
+      a: number,
+      suf: string,
+      sign: string,
+      word: string
+    ): string[] => {
+      const out = [
+        `${sign}${a}${suf}`,
+        `${a}${suf} ${sign}`,
+        `${a} ${suf} ${sign}`,
+        `${a} ${suf} ${word}`,
+      ]
+      // A spaced Cyrillic "k" letter is also "to": its own grid above.
+      if (suf !== 'к') out.push(`${sign}${a} ${suf}`)
+      return out
+    }
+    const all: Form[] = []
+    const heardOnly: Form[] = []
+    for (const a of [5, 10])
+      for (const [sign, word, cur] of [
+        ['$', 'долларов', 'usd'],
+        ['₽', 'рублей', 'rub'],
+      ] as const) {
+        heardOnly.push({ text: `${sign}${a}`, means: [a], cur })
+        for (const z of [3, 6, 9])
+          heardOnly.push({
+            text: `${sign}${a * 10 ** z}`,
+            means: [a * 10 ** z],
+            cur,
+          })
+        for (const [suf, zeros] of suffixes)
+          for (const text of layouts(a, suf, sign, word))
+            all.push({
+              text,
+              means: [
+                zeros === null ? `?${a}${suf.toLowerCase()}` : a * 10 ** zeros,
+              ],
+              cur,
+            })
+      }
+    const priceOf = (text: string) =>
+      factsIn(text).filter(f => f.kind === 'price')
+
+    it('every form is read, as exactly one reading', () => {
+      for (const f of all) {
+        const ps = priceOf(f.text)
+        expect(ps.length, f.text).toBe(1)
+        expect(ps[0].keys.length, f.text).toBe(1)
+        const [m] = f.means
+        if (typeof m === 'number') expect(ps[0].keys[0], f.text).toBe(`p${m}`)
+        else expect(ps[0].keys[0], f.text).toMatch(/^u/)
+      }
+      expect(all.length).toBe(2 * 2 * (suffixes.length * 5 - 1))
+    })
+
+    it('confirmed <=> the same amount, or the identical unknown text, in a matching currency', () => {
+      // Crossed within each amount (both currencies): a 5 never equals a 10,
+      // and the full cross (327k pairs) is too slow for the hook.
+      let pairs = 0
+      let confirmed = 0
+      const pool = [...all, ...heardOnly]
+      const amountOf = (f: Form) => /\d+/.exec(f.text)?.[0].slice(0, 1)
+      for (const printed of pool)
+        for (const heard of pool) {
+          if (amountOf(printed) !== amountOf(heard)) continue
+          pairs++
+          const ok =
+            unconfirmedFacts(printed.text, heard.text).filter(
+              f => f.kind === 'price'
+            ).length === 0
+          const should =
+            printed.means[0] === heard.means[0] && printed.cur === heard.cur
+          expect(
+            ok,
+            `printed ${JSON.stringify(printed.text)} heard ${JSON.stringify(heard.text)}`
+          ).toBe(should)
+          if (ok) confirmed++
+        }
+      expect(pairs).toBe(2 * (pool.length / 2) ** 2)
+      expect(confirmed).toBeGreaterThan(all.length)
+    }, 60_000)
+
+    it('THE INVARIANT: an unknown or larger multiplier is never confirmed by the bare amount', () => {
+      for (const printed of all)
+        for (const bare of heardOnly.filter(
+          h => h.means[0] === 5 || h.means[0] === 10
+        ))
+          expect(
+            unconfirmedFacts(printed.text, bare.text).filter(
+              f => f.kind === 'price'
+            ).length,
+            `${printed.text} / ${bare.text}`
+          ).toBe(1)
+    })
+
+    it("the reviewer's six round-4 rows ask again", () => {
+      const ask = (printed: string, heard: string) =>
+        unconfirmedFacts(printed, heard).filter(f => f.kind === 'price').length
+      expect(ask('$5 thousand', '$5')).toBe(1)
+      expect(ask('$5M', '$5')).toBe(1)
+      expect(ask('$5kk', '$5')).toBe(1)
+      expect(ask('₽10кк', '₽10')).toBe(1)
+      expect(ask('$5 bn', '$5')).toBe(1)
+      // "5 billion RUB" is read now, so it is checked, and the bare 5 is no yes.
+      expect(keys('5 млрд ₽')).toEqual([`p${5e9}`])
+      expect(ask('5 млрд ₽', '5 ₽')).toBe(1)
+      expect(ask('5 млрд ₽', '')).toBe(1)
+      expect(ask('5 млрд ₽', `${5e9} ₽`)).toBe(0)
+      // The identical text of an unknown multiplier confirms it, nothing else does.
+      expect(ask('$5 lakh', '$5 lakh')).toBe(0)
+      expect(ask('$5 lakh', '$5')).toBe(1)
+      expect(ask('$5', '$5 lakh')).toBe(1)
+      // A filler word is no multiplier: the amount stays, the word leaves the text.
+      expect(unconfirmedFacts('$5 per person', '$5')).toEqual([])
+      expect(unconfirmedFacts('$5 за вход', 'вход $5')).toEqual([])
     })
   })
 
