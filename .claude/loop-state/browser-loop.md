@@ -22,7 +22,6 @@ is yours too"); it is not repeated here.
 
 - A -> `fix/userbot-plain-errors`
 - D -> `fix/crm-duet-dry-run-by-default`
-- N1 -> `fix/zai-relay-yields-to-agent`
 
 Every PR carries `owner-approved-foreign` with the owner's chat approval of
 2026-10-06 quoted. The coder bee removes its item's line here in its own PR,
@@ -56,7 +55,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       to the agent (in-flight cap 1, 3 s gap, own key `ZAI_RELAY_API_KEY`); N2 zai-lite on its own
       key `ZAI_LITE_API_KEY`; N3 after both deploy, set the keys (owner said yes 06.10): relay +
       Zep `ZEP_OPENAI_API_KEY` = account 3 together, lite = account 2; N4 top up `reserve` (owner).
-      N2 done in #3788 (not yet deployed); N1, N3, N4 remain.
+      N2 done in #3788 (not yet deployed); N1 done in #3791 (not yet deployed); N3, N4 remain.
 - [ ] M. Telegram start card: "take the wheel" / "pause" buttons (B14, C3/C4).
 
 ## Журнал
@@ -80,6 +79,15 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
   "ask" sites now need a yes per exact site; accounts.google.com and mail.google.com each need
   their own yes (exact host, not registrable domain).
+- 2026-10-06. N1 (#3791): the Zep relay holds at most `ZAI_RELAY_MAX_INFLIGHT` upstream calls
+  (default 1), started at least `ZAI_RELAY_MIN_GAP_MS` apart (default 3000); over either line it
+  answers 429 `relay_busy` with Retry-After and does not call Z.AI. Zep v0.27.2 retries that
+  429: retryablehttp honours Retry-After, 5 retries, then watermill retries the task 5 more
+  times, then poison_queue. The messages are kept; only that summary/intent can be lost.
+  Rollout: deploy first, then set `ZAI_RELAY_API_KEY` on vibee-render and
+  `ZEP_OPENAI_API_KEY` on zep to the SAME value TOGETHER (account 3, N3). One without the other
+  = 403 on every zep call. Tests 25/25 + 27 neighbours, run locally (runner gave no result); 2
+  mutants caught.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
