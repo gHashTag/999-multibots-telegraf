@@ -16,15 +16,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const counts = { connect: 0, disconnect: 0 }
 let telegramFails = false
 let authorized = true
+/** What the login probe (updates.GetState) throws, when it throws at all. */
+let probeFails: Error | null = null
+let clientOpts: Record<string, unknown> = {}
+
+/** Shaped like a gramjs RPCError: the bare code lives in errorMessage. */
+function rpcError(code: number, text: string): Error {
+  const e = new Error(`${code}: ${text} (caused by updates.GetState)`)
+  return Object.assign(e, { code, errorMessage: text })
+}
 
 vi.mock('telegram', () => {
+  class GetState {}
   class TelegramClient {
-    constructor(..._args: unknown[]) {}
+    constructor(...args: unknown[]) {
+      clientOpts = (args[3] as Record<string, unknown>) ?? {}
+    }
     async connect() {
       counts.connect++
-    }
-    async checkAuthorization() {
-      return authorized
     }
     async disconnect() {
       counts.disconnect++
@@ -37,7 +46,12 @@ vi.mock('telegram', () => {
       if (telegramFails) throw new Error('FLOOD_WAIT_30')
       return []
     }
-    async invoke() {
+    async invoke(req: unknown) {
+      if (req instanceof GetState) {
+        if (!authorized) throw rpcError(401, 'AUTH_KEY_UNREGISTERED')
+        if (probeFails) throw probeFails
+        return {}
+      }
       if (telegramFails) throw new Error('FLOOD_WAIT_30')
       return { users: [] }
     }
@@ -45,7 +59,10 @@ vi.mock('telegram', () => {
   class GetContacts {
     constructor(_a: unknown) {}
   }
-  return { TelegramClient, Api: { contacts: { GetContacts } } }
+  return {
+    TelegramClient,
+    Api: { contacts: { GetContacts }, updates: { GetState } },
+  }
 })
 vi.mock('telegram/sessions', () => ({
   StringSession: class {
@@ -92,6 +109,8 @@ describe('читающие инструменты закрывают соеди�
     asked.length = 0
     telegramFails = false
     authorized = true
+    probeFails = null
+    clientOpts = {}
   })
   afterEach(() => {
     process.env.TELEGRAM_SESSION_STRING = prev.s
@@ -152,6 +171,49 @@ describe('читающие инструменты закрывают соеди�
         (e: Error) => e.message
       )
     expect(msg).toContain('telegram-session-login')
+  })
+
+  it('a network blip on the login probe is not an expired session', async () => {
+    // checkAuthorization() answered false on ANY error, so a timeout sent
+    // the owner to log in again for nothing. Now only a dead-login code does.
+    probeFails = new Error('TIMEOUT')
+    const tool = TELEGRAM_TOOLS.find(t => t.name === 'tg_dialogs')!
+    const msg = await tool
+      .handler(args, { telegramId: OWNER, pool: table } as never)
+      .then(
+        () => '',
+        (e: Error) => e.message
+      )
+    expect(msg).toContain('временно')
+    expect(msg).toContain('TIMEOUT')
+    expect(msg).not.toContain('истекла')
+    expect(msg).not.toContain('telegram-session-login')
+    expect(counts.disconnect, 'the failed probe left the socket open').toBe(1)
+  })
+
+  for (const code of [
+    'SESSION_REVOKED',
+    'AUTH_KEY_DUPLICATED',
+    'USER_DEACTIVATED_BAN',
+  ]) {
+    it(`${code} on the probe keeps the expired-session answer`, async () => {
+      probeFails = rpcError(401, code)
+      const tool = TELEGRAM_TOOLS.find(t => t.name === 'tg_dialogs')!
+      const msg = await tool
+        .handler(args, { telegramId: CLIENT, pool: table } as never)
+        .then(
+          () => '',
+          (e: Error) => e.message
+        )
+      expect(msg).toContain('истекла или отозвана')
+      expect(counts.disconnect).toBe(1)
+    })
+  }
+
+  it('gramjs may not sleep through a long flood wait inside a press', async () => {
+    const tool = TELEGRAM_TOOLS.find(t => t.name === 'tg_dialogs')!
+    await tool.handler(args, { telegramId: CLIENT, pool: table } as never)
+    expect(clientOpts.floodSleepThreshold).toBe(5)
   })
 
   it('десять вызовов — десять закрытий, ни одного лишнего сокета', async () => {

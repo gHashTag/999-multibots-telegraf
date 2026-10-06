@@ -9,6 +9,7 @@ import {
   ZEP_BATCH,
   zepFlavor,
   mintZepToken,
+  alreadyThere,
 } from './src/agent/zep-memory'
 import { createHmac } from 'node:crypto'
 
@@ -100,6 +101,56 @@ describe('what is sent', () => {
       body: { message: 'user already exists' },
     }))
     expect(await zepEnsureUser(LEAD, null, said)).toBe(true)
+  })
+
+  it('a repeated create (400 "already exists") is not logged, and does not use up the line a real refusal needs', async () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      process.env.ZEP_FLAVOR = 'ce'
+      const { f: user } = fakeFetch(() => ({
+        status: 400,
+        body: { message: 'user already exists' },
+      }))
+      const { f: session } = fakeFetch(() => ({
+        status: 400,
+        body: { message: 'session already exists' },
+      }))
+      const { f: conflict } = fakeFetch(() => ({ status: 409 }))
+      expect(await zepEnsureUser(LEAD, null, user)).toBe(true)
+      expect(await zepEnsureThread(OWNER, LEAD, session)).toBe(true)
+      expect(await zepEnsureThread(OWNER, LEAD, conflict)).toBe(true)
+      expect(spy).not.toHaveBeenCalled()
+      expect(err).not.toHaveBeenCalled()
+      // The same path refusing for real afterwards is still logged.
+      const { f: denied } = fakeFetch(() => ({
+        status: 400,
+        body: { message: 'user does not exist' },
+      }))
+      expect(await zepEnsureThread(OWNER, LEAD, denied)).toBe(false)
+      const lines = spy.mock.calls.map(c => c.map(String).join(' '))
+      expect(
+        lines.some(
+          l => l.includes('POST /api/v1/sessions') && l.includes('400')
+        )
+      ).toBe(true)
+    } finally {
+      spy.mockRestore()
+      err.mockRestore()
+    }
+  })
+
+  it('"does not exist" is a failure, not "already exists"', () => {
+    expect(
+      alreadyThere({ status: 400, body: { message: 'user does not exist' } })
+    ).toBe(false)
+    expect(
+      alreadyThere({ status: 400, body: { message: 'session already exists' } })
+    ).toBe(true)
+    expect(alreadyThere({ status: 400, body: 'user already exists' })).toBe(
+      true
+    )
+    expect(alreadyThere({ status: 500, body: 'already exists' })).toBe(false)
   })
 
   it('a plain 400 is our mistake, not "exists", and a refusal is logged once', async () => {

@@ -1,0 +1,106 @@
+/* The tabs above the picture: one row, scrolled sideways, a finger per tab. */
+.tab-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tab-strip__row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-strip__row::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-strip__tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  max-width: 220px;
+  min-height: var(--touch-target, 44px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-strip__tab.is-active {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.tab-strip__pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--touch-target, 44px);
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tab-strip__title,
+.tab-strip__host {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-strip__title {
+  font-size: 13px;
+}
+
+.tab-strip__host {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tab-strip__tab.is-active .tab-strip__title {
+  color: #00ff88;
+}
+
+.tab-strip__close,
+.tab-strip__new {
+  flex: 0 0 auto;
+  min-width: var(--touch-target, 44px);
+  min-height: var(--touch-target, 44px);
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.tab-strip__new {
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+}
+
+.tab-strip__close:active,
+.tab-strip__new:active {
+  color: #00ff88;
+}
+
+.tab-strip button:disabled {
+  opacity: 0.5;
+}
+
+.tab-strip__refused {
+  margin: 0;
+  font-size: 12px;
+  color: #f5c542;
+}

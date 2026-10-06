@@ -26,6 +26,8 @@ import {
   type Queryable,
 } from './src/browser/sessions'
 import { resetBrowserProfilesCache } from './src/browser/profiles'
+import { resetStripMemory, type StripIo } from './src/browser/tab-strip'
+import type { CdpTarget } from './src/browser/cdp'
 
 /**
  * THE BROKER IS THE ONLY DOOR TO SOMEBODY'S LOGGED-IN BROWSER.
@@ -1000,5 +1002,225 @@ describe('the agent starts the browser itself (A2A test, 2026-09-22)', () => {
     )
     configureAgentStart(() => ({ ...deps().d, driver: null }))
     expect(await startBrowserAsAgent('tg-900000001')).toBe(false)
+  })
+})
+
+describe("the tab strip is the person's door (/api/browser/strip)", () => {
+  /* A pod with three real pages and the browser's own machinery beside them. */
+  const pod = (targets?: CdpTarget[]) => {
+    const calls: string[] = []
+    let list: CdpTarget[] = targets ?? [
+      {
+        id: 'A',
+        type: 'page',
+        title: 'Inbox',
+        url: 'https://mail.example.com/u/0?token=secret#inbox',
+      },
+      {
+        id: 'B',
+        type: 'page',
+        title: 'Docs',
+        url: 'https://docs.example.org/d/1',
+      },
+      {
+        id: 'X',
+        type: 'page',
+        title: 'Vault',
+        url: 'chrome-extension://abc/popup.html',
+      },
+      { id: 'S', type: 'page', title: 'Settings', url: 'chrome://settings/' },
+      {
+        id: 'D',
+        type: 'page',
+        title: 'DevTools',
+        url: 'devtools://devtools/inspector.html',
+      },
+      {
+        id: 'W',
+        type: 'service_worker',
+        title: 'sw',
+        url: 'https://mail.example.com/sw.js',
+      },
+    ]
+    const io: StripIo = {
+      list: async () => list,
+      visible: async () => new Set(['B']),
+      activate: async (_, id) => {
+        calls.push(`activate:${id}`)
+      },
+      open: async (_, url) => {
+        calls.push(`open:${url}`)
+        const made = { id: 'N', type: 'page', title: '', url }
+        list = [...list, made]
+        return made
+      },
+      close: async (_, id) => {
+        calls.push(`close:${id}`)
+        list = list.filter(t => t.id !== id)
+      },
+    }
+    return { io, calls }
+  }
+  const live = async (d: BrowserDeps) => {
+    const pool = (await d.getPool()) as unknown as ReturnType<typeof fakePool>
+    pool.rows.set('tg-900000001', {
+      telegram_id: 'tg-900000001',
+      session_id: 'tok-live',
+      pod_id: 'pod-live',
+      endpoint: '127.0.0.1:32768',
+      cdp_endpoint: '127.0.0.1:9222',
+      state: 'live',
+      view_token: 'v',
+      admin_token: 'a',
+      last_seen_at: Date.now(),
+    } as never)
+    return pool
+  }
+  const get = (d: BrowserDeps) =>
+    handleBrowser({ url: '/api/browser/strip', method: 'GET' }, d)
+  const post = (d: BrowserDeps, body: unknown) =>
+    handleBrowser(
+      { url: '/api/browser/strip', method: 'POST' },
+      { ...d, readBody: async () => JSON.stringify(body) }
+    )
+  type Tabs = {
+    tabs: Array<{ id: string; title: string; host: string; active: boolean }>
+  }
+
+  beforeEach(() => resetStripMemory())
+
+  it("lists the person's real pages: title and host, never a path or query", async () => {
+    const { io } = pod()
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    const out = await get(d)
+    expect(out.status).toBe(200)
+    const { tabs } = out.body as unknown as Tabs
+    /* chrome://, devtools://, chrome-extension:// and a worker are not tabs. */
+    expect(tabs.map(t => t.id)).toEqual(['A', 'B'])
+    expect(tabs[0]).toEqual({
+      id: 'A',
+      title: 'Inbox',
+      host: 'mail.example.com',
+      active: false,
+    })
+    /* The visible document is the one in front. */
+    expect(tabs[1].active).toBe(true)
+    const said = JSON.stringify(out.body)
+    expect(said).not.toContain('token=secret')
+    expect(said).not.toContain('/u/0')
+    expect(said).not.toContain('127.0.0.1')
+  })
+
+  it('REFUSES an agent key on reading and on acting, and does nothing', async () => {
+    const { io, calls } = pod()
+    const { d } = deps({ stripIo: io, actor: () => 'agent' })
+    await live(d)
+    expect((await get(d)).status).toBe(403)
+    expect((await post(d, { action: 'close', id: 'A' })).status).toBe(403)
+    expect((await post(d, { action: 'new' })).status).toBe(403)
+    expect(calls).toEqual([])
+  })
+
+  it("switches, and renews the person's wheel instead of refusing", async () => {
+    const { io, calls } = pod()
+    const { d, pool } = deps({ stripIo: io })
+    await live(d)
+    pool.statements.length = 0
+    const out = await post(d, { action: 'activate', id: 'A' })
+    expect(out.status).toBe(200)
+    expect(calls).toEqual(['activate:A'])
+    expect(
+      pool.statements.some(s => s.includes('PERSON_WHEEL_UNTIL = NOW()'))
+    ).toBe(true)
+    /* The person's choice is in front while the pages cannot say otherwise. */
+    const after = (out.body as unknown as Tabs).tabs
+    expect(after.find(t => t.active)?.id).toBe('B')
+  })
+
+  it('opens a new tab on a real page, and renews the wheel', async () => {
+    const { io, calls } = pod()
+    const { d, pool } = deps({ stripIo: io })
+    await live(d)
+    pool.statements.length = 0
+    const out = await post(d, { action: 'new' })
+    expect(out.status).toBe(200)
+    expect(calls[0]).toMatch(/^open:https:\/\//)
+    expect(calls).toContain('activate:N')
+    expect(
+      pool.statements.some(s => s.includes('PERSON_WHEEL_UNTIL = NOW()'))
+    ).toBe(true)
+  })
+
+  it('closes a tab, but NEVER the last page', async () => {
+    const { io, calls } = pod()
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    expect((await post(d, { action: 'close', id: 'A' })).status).toBe(200)
+    expect(calls).toEqual(['close:A'])
+    /* B is the last real page now: the browser's own pages do not count. */
+    const last = await post(d, { action: 'close', id: 'B' })
+    expect(last.status).toBe(409)
+    expect(calls).toEqual(['close:A'])
+  })
+
+  it("refuses a new tab at the pod's cap", async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `P${i}`,
+      type: 'page',
+      title: `p${i}`,
+      url: `https://site${i}.example.com/`,
+    }))
+    const { io, calls } = pod(many)
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    expect((await post(d, { action: 'new' })).status).toBe(409)
+    expect(calls).toEqual([])
+  })
+
+  it("will not act on the browser's own pages or on a tab it does not list", async () => {
+    const { io, calls } = pod()
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    expect((await post(d, { action: 'activate', id: 'X' })).status).toBe(404)
+    expect((await post(d, { action: 'close', id: 'S' })).status).toBe(404)
+    expect((await post(d, { action: 'activate', id: 'nope' })).status).toBe(404)
+    expect((await post(d, { action: 'reload', id: 'A' })).status).toBe(400)
+    expect(calls).toEqual([])
+  })
+
+  it('says to open the browser first when there is none', async () => {
+    const { io } = pod()
+    const { d } = deps({ stripIo: io })
+    expect((await get(d)).status).toBe(409)
+  })
+
+  it("never reaches somebody else's browser: the pod is the caller's own", async () => {
+    const { io, calls } = pod()
+    const owner = deps({ stripIo: io })
+    const pool = await live(owner.d)
+    /* Person B, signed in, on the same render, while A's pod is live. */
+    const other = deps({
+      pool,
+      stripIo: io,
+      identity: () => 'tg-900000002',
+    }).d
+    expect((await get(other)).status).toBe(409)
+    expect((await post(other, { action: 'close', id: 'A' })).status).toBe(409)
+    expect((await post(other, { action: 'activate', id: 'B' })).status).toBe(
+      409
+    )
+    expect(calls).toEqual([])
+  })
+
+  it('a read is not use: the poll writes nothing, not even last_seen_at', async () => {
+    const { io } = pod()
+    const { d, pool } = deps({ stripIo: io })
+    await live(d)
+    pool.statements.length = 0
+    expect((await get(d)).status).toBe(200)
+    expect(
+      pool.statements.filter(s => /^\s*(update|insert|delete)/i.test(s))
+    ).toEqual([])
   })
 })

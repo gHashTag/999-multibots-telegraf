@@ -53,8 +53,10 @@ describe('a turn in a room carries the room', () => {
       join(__dirname, '../../services/trinityAgent.ts'),
       'utf8'
     )
-    const at = agent.indexOf('opts.room')
-    expect(at).toBeGreaterThan(-1)
-    expect(agent.slice(at, at + 200)).toContain('/^-\\d{5,20}$/')
+    // The pattern lives in one constant and the room is read only through it.
+    expect(agent).toMatch(/^const ROOM_RE = \/\^-\\d\{5,20\}\$\/$/m)
+    expect(agent).toContain(
+      'opts.room && ROOM_RE.test(opts.room) ? opts.room : undefined'
+    )
   })
 })

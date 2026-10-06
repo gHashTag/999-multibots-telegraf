@@ -1,4 +1,4 @@
-import { allProviders } from './provider'
+import { providerChain } from './provider'
 import { chosenProvider } from './provider-choice'
 import { breakerSnapshot, orderByBreaker } from './provider-breaker'
 
@@ -15,9 +15,15 @@ import { breakerSnapshot, orderByBreaker } from './provider-breaker'
  * first right now, and `breakers` is every open breaker with its reason and
  * when it may be probed. The existing fields are unchanged, for callers that
  * read only them.
+ *
+ * `head_note` says what the head rule did (#3659): "demoted: no tools" when a
+ * deploy-time head that cannot call tools was moved behind one that can,
+ * "owner pick: no tools" when the bot button keeps such a head, "no provider
+ * in the chain calls tools" when nothing could be moved; null when the head
+ * calls tools.
  */
 export function providerStatus(now: number = Date.now()) {
-  const chain = allProviders()
+  const { chain, note } = providerChain()
   const first = chain[0]
   const head = orderByBreaker(chain, now).ordered[0]
   return {
@@ -38,6 +44,7 @@ export function providerStatus(now: number = Date.now()) {
     })),
     chosen: chosenProvider(),
     env: process.env.AGENT_PROVIDER || null,
+    head_note: note || null,
     chain: chain.map(p => ({
       id: p.id,
       model: p.model,

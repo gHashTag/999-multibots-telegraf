@@ -11,9 +11,12 @@
  *   3. every failure names the parts already paid for, and a second call
  *      with them makes nothing twice;
  *   4. a client's reel speaks with the client's clone (for_lead);
- *   5. no timed words means no reel, and the clip comes back.
+ *   5. no timed words means no reel, and the clip comes back;
+ *   6. only the house's own reel ends on the house bot or carries a house
+ *      name the agent put in (split-reel v7): a client's reel and an
+ *      ordinary seller's own reel end on her call, and her own words stand.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { SplitTalkingHeadSchema } from '../compositions/SplitTalkingHead'
 import * as SPEC from '../spec/split-reel.gen'
 import {
@@ -26,6 +29,19 @@ import {
   type SplitReelSenses,
 } from './split-reel-tool'
 import { readTimedWords } from './media-library'
+import { STORY_DEFAULT_CTA } from './story-template'
+
+/*
+ * Most of this suite is the owner's own reel, so its caller is a house id
+ * (HOUSE_TELEGRAM_IDS is read once at load, hence vi.hoisted). Callers who
+ * are not the house -- a seller, a client turn -- are their own cases below.
+ */
+const HOUSE_ID = vi.hoisted(() => {
+  process.env.HOUSE_TELEGRAM_IDS = '900000001'
+  return '900000001'
+})
+const SELLER_ID = '900000077'
+const CLIENT_ID = '900000005'
 
 type Call = { name: string; args: Record<string, any> }
 
@@ -72,6 +88,14 @@ function fakeTools(
   return { lookup: (n: string) => tools[n], calls }
 }
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const WORDS = [
   { word: 'Hello', start: 0.4, end: 0.8 },
   { word: 'this', start: 1.0, end: 1.2 },
@@ -101,9 +125,26 @@ function senses(
 }
 
 const ctx = {
-  telegramId: '900000001',
+  telegramId: HOUSE_ID,
   pool: { query: async () => ({ rows: [] }) },
 } as never
+
+/** A pool whose crm_client_profiles row holds the client's approved call. */
+function poolWithCall(call: string) {
+  const asked: string[] = []
+  return {
+    asked,
+    query: async (sql: string) => {
+      asked.push(sql)
+      return /crm_client_profiles/.test(sql)
+        ? { rows: [{ profile: { approved_cta: call } }] }
+        : { rows: [] }
+    },
+  }
+}
+
+/** The client's reel: the agent wrote these words, no house name in them. */
+const CLIENT_TEXT = 'Hello, this is Anna ... write now'
 
 const ARGS = {
   image_url: 'https://ours/studio.png',
@@ -264,7 +305,7 @@ describe('split_reel -- the split reel as one server call', () => {
   it("a client's reel speaks with the client's clone", async () => {
     const { lookup, calls } = fakeTools()
     const out: any = await makeSplitReelTool(lookup, senses()).handler(
-      { ...ARGS, for_lead: '123', cta: '@example_bot' },
+      { ...ARGS, text: CLIENT_TEXT, for_lead: '123', cta: '@example_bot' },
       ctx
     )
     expect(out.done).toBe(true)
@@ -272,6 +313,127 @@ describe('split_reel -- the split reel as one server call', () => {
     expect(out.voice).toBe('клон клиента') // cyrillic-ok: audio_generate's own answer
     const render = calls.find(c => c.name === 'reel_render')!
     expect(render.args.props.ctaText).toBe('@example_bot')
+  })
+
+  it("a client turn: her voice, her profile's call, never the house bot", async () => {
+    const pool = poolWithCall('Book a fitting')
+    const turn = { telegramId: HOUSE_ID, faceOf: CLIENT_ID, pool } as never
+    const { lookup, calls } = fakeTools()
+    const out: any = await makeSplitReelTool(lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT },
+      turn
+    )
+    expect(out.done).toBe(true)
+    expect(calls[0].args.for_lead).toBe(CLIENT_ID)
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.ctaText).toBe('Book a fitting')
+    expect(pool.asked.some(q => /crm_client_profiles/.test(q))).toBe(true)
+
+    // No call in her profile: the neutral call, still not the house bot --
+    // even when the agent hands the house bot in as the call.
+    const bare = fakeTools()
+    await makeSplitReelTool(bare.lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT, cta: SPEC.OWNER_CTA },
+      {
+        telegramId: HOUSE_ID,
+        faceOf: CLIENT_ID,
+        pool: poolWithCall(''),
+      } as never
+    )
+    const bareProps = bare.calls.find(c => c.name === 'reel_render')!.args.props
+    expect(bareProps.ctaText).toBe(STORY_DEFAULT_CTA)
+    expect(bareProps.ctaText).not.toBe(SPEC.OWNER_CTA)
+  })
+
+  it('a client turn refuses a house name the agent put in, before any call', async () => {
+    const turn = {
+      telegramId: HOUSE_ID,
+      faceOf: CLIENT_ID,
+      pool: poolWithCall(''),
+    } as never
+    const { lookup, calls } = fakeTools()
+    const out: any = await makeSplitReelTool(lookup, senses()).handler(
+      ARGS,
+      turn
+    )
+    expect(out.done).toBe(false)
+    expect(out.reason).toMatch(/Тринити/) // cyrillic-ok: the refusal names the brand
+    expect(calls).toEqual([])
+  })
+
+  it('a client turn makes no reel for another lead', async () => {
+    const turn = {
+      telegramId: HOUSE_ID,
+      faceOf: CLIENT_ID,
+      pool: poolWithCall(''),
+    } as never
+    const { lookup, calls } = fakeTools()
+    const out: any = await makeSplitReelTool(lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT, for_lead: '900000006' },
+      turn
+    )
+    expect(out.done).toBe(false)
+    expect(calls).toEqual([])
+  })
+
+  it("an ordinary seller's own reel works and never ends on the house bot", async () => {
+    const seller = {
+      telegramId: SELLER_ID,
+      pool: { query: async () => ({ rows: [] }) },
+    } as never
+    const { lookup, calls } = fakeTools()
+    const out: any = await makeSplitReelTool(lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT },
+      seller
+    )
+    expect(out.done).toBe(true)
+    expect(calls[0].args.for_lead).toBeUndefined()
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.ctaText).toBe(STORY_DEFAULT_CTA)
+    expect(props.ctaText).not.toBe(SPEC.OWNER_CTA)
+
+    // Her own call stands; the house bot handed in as her call does not.
+    const given = fakeTools()
+    await makeSplitReelTool(given.lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT, cta: 'Call Anna' },
+      seller
+    )
+    expect(
+      given.calls.find(c => c.name === 'reel_render')!.args.props.ctaText
+    ).toBe('Call Anna')
+    const bot = fakeTools()
+    await makeSplitReelTool(bot.lookup, senses()).handler(
+      { ...ARGS, text: CLIENT_TEXT, cta: SPEC.OWNER_CTA },
+      seller
+    )
+    expect(
+      bot.calls.find(c => c.name === 'reel_render')!.args.props.ctaText
+    ).not.toBe(SPEC.OWNER_CTA)
+  })
+
+  it('a «Тринити» she wrote herself stands; the same word from the agent does not', async () => {
+    // cyrillic-ok: the brand as she typed it
+    const pool = { query: async () => ({ rows: [] }) }
+    const theAgent = fakeTools()
+    const refused: any = await makeSplitReelTool(
+      theAgent.lookup,
+      senses()
+    ).handler(ARGS, { telegramId: SELLER_ID, pool } as never)
+    expect(refused.done).toBe(false)
+    expect(theAgent.calls).toEqual([])
+
+    const hers = fakeTools()
+    const out: any = await makeSplitReelTool(hers.lookup, senses()).handler(
+      ARGS,
+      {
+        telegramId: SELLER_ID,
+        ownerSaid: 'make my reel: Hello, this is Trinity ... write now',
+        pool,
+      } as never
+    )
+    expect(out.done).toBe(true)
+    const props = hers.calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.ctaText).not.toBe(SPEC.OWNER_CTA)
   })
 
   it('refuses for free what it can refuse for free', async () => {
@@ -320,13 +482,44 @@ describe('split_reel -- the split reel as one server call', () => {
     expect(readTimedWords('')).toEqual([])
   })
 
-  it('is in the registry, and out of the small-model kit', async () => {
-    const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
-    expect(TOOLS_BY_NAME.get('split_reel')).toBeTruthy()
-    expect(
-      toolsForProvider({ compact: true }, TOOLS).some(
-        t => t.name === 'split_reel'
+  it('audio_generate refuses the owner voice to a sweep before the charge', async () => {
+    const { TOOLS_BY_NAME } = await import('./tools')
+    const fetched = vi.spyOn(globalThis, 'fetch')
+    const said = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const out: any = await TOOLS_BY_NAME.get('audio_generate')!.handler(
+        { text: 'Hello, this is Anna' },
+        {
+          telegramId: HOUSE_ID,
+          sellerSweep: true,
+          pool: { query: async () => ({ rows: [] }) },
+        } as never
       )
-    ).toBe(false)
-  })
+      expect(out.сделано).toBe(false) // cyrillic-ok: audio_generate's own answer key
+      expect(out.причина).toMatch(/for_lead/) // cyrillic-ok: audio_generate's own answer key
+      expect(fetched).not.toHaveBeenCalled()
+      // Refused before spendTokens (split-reel v7, REFUSED_BEFORE_SPEND):
+      // for the house the charge always leaves its own line naming the tool,
+      // so no line naming it means no charge ran -- and no refund either.
+      const lines = said.mock.calls.map(c => String(c[0]))
+      expect(lines.some(l => /«audio_generate»/.test(l))).toBe(false)
+    } finally {
+      said.mockRestore()
+      fetched.mockRestore()
+    }
+  }, 60_000)
+
+  it(
+    'is in the registry, and out of the small-model kit',
+    async () => {
+      const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
+      expect(TOOLS_BY_NAME.get('split_reel')).toBeTruthy()
+      expect(
+        toolsForProvider({ compact: true }, TOOLS).some(
+          t => t.name === 'split_reel'
+        )
+      ).toBe(false)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

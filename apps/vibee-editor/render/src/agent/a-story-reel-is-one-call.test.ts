@@ -24,6 +24,7 @@ import {
   type StoryLate,
 } from './story-reel-tool'
 import type { LateOutcome } from './late-picture'
+import { STORY_DEFAULT_CTA } from './story-template'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 type Call = { name: string; args: Record<string, any> }
@@ -74,6 +75,14 @@ function fakeTools(
   }
   return { lookup: (n: string) => tools[n], calls }
 }
+
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
 
 const ctx = {
   telegramId: '900000001',
@@ -178,7 +187,264 @@ describe('story_reel', () => {
     for (const c of calls.filter(c => c.name === 'audio_generate'))
       expect(c.args.for_lead).toBe('900000077')
   })
+})
 
+/*
+ * A CLIENT'S REEL NEVER CARRIES THE HOUSE (crm-story-reel v22): in a turn
+ * for a client the reel speaks her voice without being told, ends with her
+ * call and her card; the house's call and button stay on its own reel.
+ */
+describe('story_reel for a client: her voice, her call, her card (v22)', () => {
+  const LEAD = '900000077'
+  const HER = {
+    visual: { bg: '#0b0d0f', gold_title: '#ffd700' },
+    approved_cta: {
+      text: 'Book a fitting',
+      button: 'Book',
+      bot: '@example_bot',
+    },
+  }
+  const herPool = {
+    query: async (sql: string) =>
+      /SELECT profile FROM crm_client_profiles/.test(sql)
+        ? { rows: [{ profile: HER }] }
+        : { rows: [] },
+  }
+  const forHer = {
+    telegramId: '900000001',
+    faceOf: LEAD,
+    pool: herPool,
+  } as never
+
+  it('in a turn for a client, story_reel speaks her voice without being told', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(ARGS, forHer)
+    expect(r.done).toBe(true)
+    const voices = calls.filter(c => c.name === 'audio_generate')
+    expect(voices.length).toBeGreaterThan(0)
+    for (const c of voices) expect(c.args.for_lead).toBe(LEAD)
+  })
+
+  it('in a turn for a client, a for_lead naming somebody else is refused before anything is spent', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      { ...ARGS, for_lead: '900000002' },
+      forHer
+    )
+    expect(r.done).toBe(false)
+    expect(r.reason).toMatch('for_lead')
+    expect(r.reason).toMatch(LEAD)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('a reel for her takes her call and her card, never the house call or button', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      {
+        ...ARGS,
+        for_lead: LEAD,
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+      },
+      { telegramId: '900000001', pool: herPool } as never
+    )
+    expect(r.done).toBe(true)
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.cta).toBe('Book a fitting')
+    expect(props.endCard).toMatchObject({
+      bg: '#10182a',
+      title: '#ffd700',
+      button: 'Book · @example_bot',
+    })
+    // The house words the agent wrote are named in one line (house_word_replaced).
+    expect(r.house_replaced).toContain(SPEC.TEMPLATE_CALL_EN)
+    expect(r.house_replaced).toContain(SPEC.TEMPLATE_BUTTON)
+    expect(r.house_replaced).toContain('Book a fitting')
+  })
+
+  it('a line the agent wrote naming the house on her reel is refused before anything is spent; one she typed this turn stands (v22)', async () => {
+    const house = [
+      SCENES[0],
+      SCENES[1],
+      { setting: 'a living room at dusk', line: 'Ask Trinity for one too.' },
+    ]
+    const refused = fakeTools()
+    const r: any = await makeStoryReelTool(refused.lookup).handler(
+      { ...ARGS, scenes: house, for_lead: LEAD },
+      { telegramId: '900000001', pool: herPool } as never
+    )
+    expect(r.done).toBe(false)
+    expect(r.reason).toContain('Ask Trinity for one too.')
+    expect(refused.calls).toHaveLength(0)
+    const typed = fakeTools()
+    const ok: any = await makeStoryReelTool(typed.lookup).handler(
+      { ...ARGS, scenes: house, for_lead: LEAD },
+      {
+        telegramId: '900000001',
+        pool: herPool,
+        ownerSaid: 'End it with: Ask Trinity for one too.',
+      } as never
+    )
+    expect(ok.done).toBe(true)
+  })
+
+  // Round 3 of t27#5811: sellers address the bot by name, and a reading of
+  // her whole message let every house name through once she did. Judged
+  // line by line (own_words), naming the bot lends no line the house's name.
+  for (const { language, said, lines, dictated } of [
+    {
+      language: 'ru',
+      said: 'Тринити, сделай Маше рилс по шаблону', // cyrillic-ok: the seller's own turn, the reviewer's probe
+      lines: ['Напиши Тринити', 'Это Тринити говорит за меня.'], // cyrillic-ok: lines the agent wrote
+      dictated: 'в конце пусть скажет: Напиши Тринити', // cyrillic-ok: she dictates the first line herself
+    },
+    {
+      language: 'en',
+      said: SPEC.OWN_SAID_ADDRESS_EN,
+      lines: [SPEC.OWN_LINE_QUOTE_EN, SPEC.OWN_LINE_ADDRESS_EN],
+      dictated: SPEC.OWN_SAID_QUOTE_EN,
+    },
+  ])
+    it(`naming the bot (${language}) lends no house name to a line of her reel; the line she dictated stands`, async () => {
+      for (const line of lines) {
+        const scenes = [
+          SCENES[0],
+          SCENES[1],
+          { setting: 'a living room at dusk', line },
+        ]
+        const refused = fakeTools()
+        const r: any = await makeStoryReelTool(refused.lookup).handler(
+          { ...ARGS, scenes, for_lead: LEAD },
+          { telegramId: '900000001', pool: herPool, ownerSaid: said } as never
+        )
+        expect(r.done).toBe(false)
+        expect(r.reason).toContain(line)
+        expect(refused.calls).toHaveLength(0)
+      }
+      const scenes = [
+        SCENES[0],
+        SCENES[1],
+        { setting: 'a living room at dusk', line: lines[0] },
+      ]
+      const typed = fakeTools()
+      const ok: any = await makeStoryReelTool(typed.lookup).handler(
+        { ...ARGS, scenes, for_lead: LEAD },
+        { telegramId: '900000001', pool: herPool, ownerSaid: dictated } as never
+      )
+      expect(ok.done).toBe(true)
+    })
+
+  it("the house's own reel keeps the house call, and speaks the caller", async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(lookup).handler(
+      {
+        ...ARGS,
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { button: SPEC.TEMPLATE_BUTTON },
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    expect(r).not.toHaveProperty('house_replaced')
+    const props = calls.find(c => c.name === 'reel_render')!.args.props
+    expect(props.cta).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(props.endCard.button).toBe(SPEC.TEMPLATE_BUTTON)
+    for (const c of calls.filter(c => c.name === 'audio_generate'))
+      expect(c.args.for_lead).toBeUndefined()
+  })
+
+  /*
+   * HER CALL, IN HER PROFILE'S ORDER (spec profile_call_from): story_reel.cta,
+   * then approved_cta (a {text} package or a plain string), then the default.
+   * A call in her profile that names the house is not hers and is skipped.
+   */
+  const poolWith = (profile: unknown, kept: unknown = null) => ({
+    query: async (sql: string) =>
+      /SELECT profile FROM crm_client_profiles/.test(sql)
+        ? { rows: [{ profile }] }
+        : kept && /SELECT end_card FROM story_end_cards/.test(sql)
+          ? { rows: [{ end_card: kept }] }
+          : { rows: [] },
+  })
+  const noCall = { ...ARGS, cta: '' }
+
+  it.each([
+    [
+      'her story call over her approved one',
+      {
+        story_reel: { cta: 'Write me in direct' },
+        approved_cta: { text: 'Book a fitting' },
+      },
+      'Write me in direct',
+    ],
+    [
+      'her approved package text',
+      { approved_cta: { text: 'Book a fitting' } },
+      'Book a fitting',
+    ],
+    [
+      'her approved call as a plain string',
+      { approved_cta: 'Call me today' },
+      'Call me today',
+    ],
+    [
+      'her approved call when her story call names the house',
+      {
+        story_reel: { cta: SPEC.TEMPLATE_CALL_EN },
+        approved_cta: 'Call me today',
+      },
+      'Call me today',
+    ],
+    ['the default when her profile has no call', {}, STORY_DEFAULT_CTA],
+  ])(
+    'with no call given, a reel for her ends on %s',
+    async (_, profile, want) => {
+      const { lookup, calls } = fakeTools()
+      const r: any = await makeStoryReelTool(lookup).handler(noCall, {
+        telegramId: '900000001',
+        faceOf: LEAD,
+        pool: poolWith(profile),
+      } as never)
+      expect(r.done).toBe(true)
+      expect(r).not.toHaveProperty('house_replaced')
+      const props = calls.find(c => c.name === 'reel_render')!.args.props
+      expect(props.cta).toBe(want)
+      // No palette in her profile: the render still never falls back to the
+      // house's gold call or green button (spec v25 default_ink).
+      const drawn = JSON.stringify(props.endCard ?? {}).toLowerCase()
+      expect(drawn).not.toContain(SPEC.END_CARD_DEFAULT_TITLE.toLowerCase())
+      expect(drawn).not.toContain(SPEC.END_CARD_DEFAULT_ACCENT.toLowerCase())
+      expect(props.endCard).toMatchObject({ title: SPEC.INK_WHITE_HEX })
+    }
+  )
+
+  it('her kept card is her end card; a kept house button is dropped for her profile one', async () => {
+    const kept = { bg: '#2a2b2c', button: 'Write me' }
+    const a = fakeTools()
+    await makeStoryReelTool(a.lookup).handler(noCall, {
+      telegramId: '900000001',
+      faceOf: LEAD,
+      pool: poolWith(HER, kept),
+    } as never)
+    const card = a.calls.find(c => c.name === 'reel_render')!.args.props.endCard
+    expect(card).toMatchObject({ bg: '#2a2b2c', button: 'Write me' })
+
+    const b = fakeTools()
+    await makeStoryReelTool(b.lookup).handler(noCall, {
+      telegramId: '900000001',
+      faceOf: LEAD,
+      pool: poolWith(HER, { ...kept, button: SPEC.TEMPLATE_BUTTON }),
+    } as never)
+    const house = b.calls.find(c => c.name === 'reel_render')!.args.props
+      .endCard
+    expect(house).toMatchObject({
+      bg: '#2a2b2c',
+      button: 'Book · @example_bot',
+    })
+  })
+})
+
+describe('story_reel, what it refuses and where it lives', () => {
   it('refuses bad scenes before spending anything', async () => {
     expect(scenesOf([])).toMatch(/от 1 до 6/) // cyrillic-ok: the answer under test
     expect(scenesOf([{ setting: 'x' }])).toMatch(/line/)
@@ -200,15 +466,19 @@ describe('story_reel', () => {
     expect(KEEP_THE_PERSON).toMatch(/never keep the plain background/)
   })
 
-  it('is in the registry, and out of the small-model kit', async () => {
-    const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
-    expect(TOOLS_BY_NAME.get('story_reel')).toBeTruthy()
-    expect(
-      toolsForProvider({ compact: true }, TOOLS).some(
-        t => t.name === 'story_reel'
-      )
-    ).toBe(false)
-  })
+  it(
+    'is in the registry, and out of the small-model kit',
+    async () => {
+      const { TOOLS_BY_NAME, toolsForProvider, TOOLS } = await import('./tools')
+      expect(TOOLS_BY_NAME.get('story_reel')).toBeTruthy()
+      expect(
+        toolsForProvider({ compact: true }, TOOLS).some(
+          t => t.name === 'story_reel'
+        )
+      ).toBe(false)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 /*
@@ -271,11 +541,17 @@ describe("story_reel ends on the client's own visual", () => {
     })
   })
 
-  it('without a card the render carries none', async () => {
+  it('without a card the own reel still carries the house card (spec v26)', async () => {
     const { lookup, calls } = fakeTools()
     await makeStoryReelTool(lookup).handler(ARGS, ctx)
     const render = calls.find(c => c.name === 'reel_render')!.args
-    expect(render.props.endCard).toBeUndefined()
+    // The pause shows the call, so the card is drawn whole: ground and ink.
+    expect(render.props.endCard).toMatchObject({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+    })
   })
 
   it('the StoryReel template accepts the card and fills its defaults', () => {
@@ -283,14 +559,14 @@ describe("story_reel ends on the client's own visual", () => {
       scenes: [{ video: 'https://ours/clip-0.mp4' }],
       endCard: { title: '#ffd700' },
     })
-    // Black, white and green by default; only the title was given.
+    // The spec's defaults fill whatever was not given (v26: gold accent).
     expect(parsed.endCard).toMatchObject({
       title: '#ffd700',
-      text: '#FFFFFF',
-      accent: '#00FF88',
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+      bg: SPEC.END_CARD_DEFAULT_BG,
       button: '',
     })
-    expect(parsed.endCard?.bg).toMatch(/^#0+$/)
   })
 })
 

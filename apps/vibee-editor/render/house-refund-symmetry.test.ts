@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * The house exemption has to hold on BOTH sides of the ledger.
  *
@@ -83,32 +91,47 @@ afterEach(() => {
 })
 
 describe('дом не платит себе и не возвращает себе', () => {
-  it('домашний кошелёк: провайдер упал — ни списания, ни возврата', async () => {
-    const { result, sql } = await runReelRender(HOUSE_ID, HOUSE_ID)
-    // The handler still answers rather than throwing; the SQL below is the
-    // real subject. (The result field is spelled in Russian, so it is read via
-    // an index rather than a Cyrillic identifier, which the repo's gate bans.)
-    expect(result && typeof result === 'object').toBe(true)
-    expect((result as Record<string, unknown>)['началось']).toBe(false)
-    expect(charges(sql), 'дом не должен списываться').toEqual([])
-    // The defect: a refund for a charge that never happened mints tokens.
-    expect(refunds(sql), 'дом не должен получать возврат').toEqual([])
-  })
+  it(
+    'домашний кошелёк: провайдер упал — ни списания, ни возврата',
+    async () => {
+      const { result, sql } = await runReelRender(HOUSE_ID, HOUSE_ID)
+      // The handler still answers rather than throwing; the SQL below is the
+      // real subject. (The result field is spelled in Russian, so it is read via
+      // an index rather than a Cyrillic identifier, which the repo's gate bans.)
+      expect(result && typeof result === 'object').toBe(true)
+      expect((result as Record<string, unknown>)['началось']).toBe(false)
+      expect(charges(sql), 'дом не должен списываться').toEqual([])
+      // The defect: a refund for a charge that never happened mints tokens.
+      expect(refunds(sql), 'дом не должен получать возврат').toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('обычный кошелёк: списание есть, и при отказе провайдера есть возврат', async () => {
-    // The negative control. If this went silent the first test would pass for
-    // the wrong reason -- a handler that never charges anybody.
-    const { sql } = await runReelRender(CUSTOMER_ID, HOUSE_ID)
-    expect(charges(sql).length, 'клиент обязан списываться').toBeGreaterThan(0)
-    expect(refunds(sql).length, 'клиенту обязан идти возврат').toBeGreaterThan(
-      0
-    )
-  })
+  it(
+    'обычный кошелёк: списание есть, и при отказе провайдера есть возврат',
+    async () => {
+      // The negative control. If this went silent the first test would pass for
+      // the wrong reason -- a handler that never charges anybody.
+      const { sql } = await runReelRender(CUSTOMER_ID, HOUSE_ID)
+      expect(charges(sql).length, 'клиент обязан списываться').toBeGreaterThan(
+        0
+      )
+      expect(
+        refunds(sql).length,
+        'клиенту обязан идти возврат'
+      ).toBeGreaterThan(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('пустой список дома: никто не освобождён', async () => {
-    // Default deployment: HOUSE_TELEGRAM_IDS unset means nobody is exempt.
-    const { sql } = await runReelRender(HOUSE_ID, '')
-    expect(charges(sql).length).toBeGreaterThan(0)
-    expect(refunds(sql).length).toBeGreaterThan(0)
-  })
+  it(
+    'пустой список дома: никто не освобождён',
+    async () => {
+      // Default deployment: HOUSE_TELEGRAM_IDS unset means nobody is exempt.
+      const { sql } = await runReelRender(HOUSE_ID, '')
+      expect(charges(sql).length).toBeGreaterThan(0)
+      expect(refunds(sql).length).toBeGreaterThan(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

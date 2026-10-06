@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   CONNECT_LINK,
   SOCIAL_TOOLS,
+  SOCIAL_PROMPT_LINE,
   approvalText,
+  canPostOf,
   draftOf,
+  reachOf,
   setSocialDepsForTests,
   todoOf,
   type SocialDeps,
@@ -11,6 +14,7 @@ import {
 } from './social-tools'
 import { OWNER_TELEGRAM_ID } from './telegram-tools'
 import { TOOLS } from './tools'
+import { systemPrompt } from './chat'
 
 /*
  * THE SOCIAL DESK. Nothing here reaches a network: `publish` and `status`
@@ -257,5 +261,86 @@ describe('prepare, then the tap, then exactly one post', () => {
     const r: any = await post.handler({ approval: 'card-999' }, ctx())
     expect(r.refused).toMatch(/no prepared post/)
     expect(seen.published).toHaveLength(0)
+  })
+})
+
+/*
+ * WHERE HE CAN POST IS READ, NEVER RECITED. Asked in the bot, the agent named
+ * "Threads, Facebook (incl. Instagram), LinkedIn, X" from its prompt; live:
+ * X by API, Facebook by API (no Instagram linked), LinkedIn in the browser,
+ * Reddit a desk, Threads not connected.
+ */
+describe('the networks come from live state', () => {
+  const login = (id: string, state: string) => ({ id, name: id, state }) as any
+  const LIVE: SocialStatus = {
+    apps: { threads: true, facebook: true, linkedin: true, x: true },
+    networks: [
+      { network: 'x', usable: true },
+      { network: 'facebook', usable: true, instagram: null },
+    ],
+    logins: [
+      login('x', 'signed_in'),
+      login('linkedin', 'signed_in'),
+      login('reddit', 'signed_in'),
+      login('threads', 'signed_out'),
+      login('instagram', 'signed_out'),
+    ],
+  }
+
+  it('names exactly the networks that can post, Reddit included', () => {
+    const reach = reachOf(LIVE)
+    expect(canPostOf(reach)).toEqual(['x', 'facebook', 'linkedin', 'reddit'])
+    expect(reach.x).toMatch(/^api:/)
+    expect(reach.facebook).toMatch(/^api:/)
+    expect(reach.linkedin).toMatch(/^browser:/)
+    expect(reach.reddit).toMatch(/^desk:/)
+    expect(reach.threads).toMatch(/^not connected/)
+    expect(reach.instagram).toMatch(/^not connected/)
+  })
+
+  it('Instagram only when the Facebook page carries one', () => {
+    const withIg: SocialStatus = {
+      ...LIVE,
+      networks: [{ network: 'facebook', usable: true, instagram: 'shop' }],
+    }
+    expect(reachOf(withIg).instagram).toMatch(/^api:/)
+  })
+
+  it('unreadable logins claim no browser network', () => {
+    const blind = reachOf({ ...LIVE, logins: null })
+    expect(canPostOf(blind)).toEqual(['x', 'facebook'])
+    expect(blind.linkedin).toMatch(/^unknown/)
+    expect(blind.reddit).toMatch(/^unknown/)
+  })
+
+  it('a refused login is not connected', () => {
+    const refused = reachOf({
+      ...LIVE,
+      logins: [login('linkedin', 'refused'), login('reddit', 'expired')],
+    })
+    expect(refused.linkedin).toMatch(/^not connected/)
+    expect(refused.reddit).toMatch(/^not connected/)
+  })
+
+  it('social_status returns canPost and reach, and not the raw logins', async () => {
+    fakes(['pending'], LIVE)
+    const out = (await status.handler({}, ctx() as never)) as any
+    expect(out.canPost).toEqual(['x', 'facebook', 'linkedin', 'reddit'])
+    expect(out.reach.threads).toMatch(/^not connected/)
+    expect(out).not.toHaveProperty('logins')
+  })
+
+  const NAMES = /Threads|Instagram|Facebook|LinkedIn|Reddit|\bX\b/
+  it('the prompt names no network and sends the agent to social_status', () => {
+    expect(SOCIAL_PROMPT_LINE).not.toMatch(NAMES)
+    expect(SOCIAL_PROMPT_LINE).toContain('social_status')
+    const prompt = systemPrompt()
+    expect(prompt).toContain(SOCIAL_PROMPT_LINE)
+    expect(prompt).not.toMatch(/соцсети \(Threads/) // cyrillic-ok: the old prompt copy
+  })
+
+  it("social_status's own description recites no network list", () => {
+    expect(status.description).not.toMatch(NAMES)
+    expect(status.description).toContain('canPost')
   })
 })

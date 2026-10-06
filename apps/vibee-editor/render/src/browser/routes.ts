@@ -91,7 +91,9 @@ import {
   ensureApprovals,
   pendingApprovalFor,
   decideAsPerson,
+  allowedActHost,
 } from './approvals'
+import { handleStrip, type StripIo } from './tab-strip'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -110,6 +112,7 @@ export const BROWSER_PATHS = [
   '/api/browser/scenarios',
   '/api/browser/reach',
   '/api/browser/tabs',
+  '/api/browser/strip',
   '/api/browser/watch',
   '/api/browser/heal',
   '/api/browser/logins',
@@ -171,6 +174,8 @@ export interface BrowserDeps {
   ) => Promise<NetworkLogin[] | null>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
+  /** Injected for tests; defaults to the pod over CDP (tab-strip.ts). */
+  stripIo?: StripIo
   /**
    * Is the browser still a browser (health.ts). Injected so the one route that
    * asks before restarting anything can be tested without a pod, and so "it
@@ -892,6 +897,39 @@ export async function handleBrowser(
   }
 
   /*
+   * THE TAB STRIP (tab-strip.ts, spec browser-tab-strip.t27). GET: every page
+   * in the person's browser as id, clipped title, host and active. POST
+   * {action, id?}: switch, open or close. The person's door only; the
+   * diagnostic GET /api/browser/tabs above is a different door and stays.
+   */
+  if (path === '/api/browser/strip') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'вкладками управляет только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    if (method === 'GET')
+      return await handleStrip(pool, who, null, deps.stripIo)
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'tabs are not wired' } }
+    }
+    let raw: string
+    try {
+      raw = await deps.readBody(req, 1024)
+    } catch {
+      return { status: 400, body: { ok: false, error: 'bad body' } }
+    }
+    return await handleStrip(pool, who, raw, deps.stripIo)
+  }
+
+  /*
    * THE PERSON ANSWERS THE AGENT'S QUESTION IN THE APP (approvals.ts
    * decideAsPerson). GET: their open question; POST {id, allow}: the answer.
    * The person's door only -- an agent answering its own question would be
@@ -943,9 +981,10 @@ export async function handleBrowser(
       }
     }
     /* A yes opens the guarded door for a few minutes (guard.ts), and hands
-       the agent the wheel it needs to act on it. */
+       the agent the wheel it needs to act on it. Only a question about
+       acting on a page opens it, and only for that page's host. */
     if (state === 'allowed') {
-      await markAllowed(pool, who)
+      await markAllowed(pool, who, await allowedActHost(pool, answer.id, who))
       await setWheel(pool, who, 'agent').catch(() => {})
     }
     return { status: 200, body: { ok: true, state } }
@@ -996,9 +1035,10 @@ export async function handleBrowser(
      * a guarded page; the person pressed Save. Asking a second time for
      * permission to press Save is the double question that left the agent
      * standing on the Google page (owner, 2026-09-22). A choice opens the
-     * guard's few minutes; Done / Cannot (an action) opens nothing.
+     * guard's few minutes on the host it was asked on; Done / Cannot (an
+     * action) opens nothing.
      */
-    if (asked?.kind === 'choice') await markAllowed(pool, who)
+    if (asked?.kind === 'choice') await markAllowed(pool, who, asked.host)
     /*
      * ANSWERING THE AGENT HANDS IT THE WHEEL. The person just told the agent
      * what to do; a touch near the card had taken the wheel, and the agent
