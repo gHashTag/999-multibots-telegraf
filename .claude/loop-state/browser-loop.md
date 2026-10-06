@@ -21,7 +21,6 @@ frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
 is yours too"); it is not repeated here.
 
 - A -> `fix/userbot-plain-errors`
-- B -> `fix/browser-yes-is-for-one-place`
 - D -> `fix/crm-duet-dry-run-by-default`
 - N1 -> `fix/zai-relay-yields-to-agent`
 - N2 -> `fix/zai-lite-own-key`
@@ -43,7 +42,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
 - [ ] A. Userbot errors (U3,U4): gramjs FloodWaitError text ("A wait of N seconds"), PEER_FLOOD,
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
       floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary".
-- [ ] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host.
+- [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
 - [ ] D. crm_duet sends for real by default (U1): dry_run defaults to true.
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
 - [ ] E. closePage throws on !ok, browser_close_tab refuses the last tab, focus_tab is an acting tool (B7,B8).
@@ -71,6 +70,11 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   1305 (model overloaded, any key) on 3 of 4. Lesson: when "the browser stalls", read the
   agent's provider lines first -- `[agent] provider skipped` and `"outcome":"error"` in
   `railway logs --service vibee-render --environment production --lines 5000`.
+- 2026-10-06. B (#3789): a yes now unlocks one place for one purpose -- only act-kind approvals
+  (ask_permission, choice) mark the window, bound to the exact host of the agent's page; a yes
+  with no host fails closed. Two mutants killed (8/96, 2/44). Review questions: desk rounds on
+  "ask" sites now need a yes per exact site; accounts.google.com and mail.google.com each need
+  their own yes (exact host, not registrable domain).
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
