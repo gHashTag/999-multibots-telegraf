@@ -122,7 +122,10 @@ const HEAD_NOUNS = [
   'setting',
   'letter',
 ]
-const HEAD = String.raw`(?:${HEAD_NOUNS.map(n => `${n}s?`).join('|')}|copy)`
+const HEAD_WORDS = String.raw`${HEAD_NOUNS.map(n => `${n}s?`).join('|')}`
+const HEAD = String.raw`(?:${HEAD_WORDS}|copy)`
+// after a make verb "copy" is a copy of the picture, not its text (round 3)
+const MAKE_HEAD = String.raw`(?:${HEAD_WORDS})`
 /*
  * Number agreement (#3748 round 2). After "here are" a singular noun can
  * only be a modifier -- "Here are the poster ideas:", "Here are the image
@@ -173,20 +176,31 @@ const RU_HEAD = '(?:мнени|управлени|меню|настройк|фу
  *     a relative clause with its own subject ("I would use", "Telegram
  *     accepts");
  * (b) nothing is glued by an unspaced hyphen: "poster-text", "text-free";
- * (c) no other picture or voice noun follows in the same sentence: "the
- *     image prompt, and the image" still claims the image;
+ * (c) the WHOLE REST OF THE MESSAGE after the head noun, not only its
+ *     sentence (#3753 round 3), names (i) no other picture or voice noun:
+ *     "the image prompt, and the image", "the poster idea. The poster is
+ *     attached." still claim; (ii) no delivery word from DELIVERY_WORDS:
+ *     "the poster idea, attached", "the poster text, rendered and
+ *     attached"; (iii) no "it", "them" or their Russian forms, which can
+ *     carry the media as an object: "the poster text, and I attached it",
+ *     "the poster text. It is attached." A comma, semicolon or dash ends
+ *     the clause for (a) only; (c) reads past every clause end;
  * (d) after "made/created/generated/drew" no tail but a preposition: "made
  *     the poster text bigger" and "made the poster style you asked for"
- *     report an edit of a rendered picture.
+ *     report an edit of a rendered picture; and "copy" is no head there:
+ *     "I made the poster copy" is a copy of the poster, a picture (round 3).
  * Russian takes (a) without any tail, (b) and (c): "Записал голосовое меню // cyrillic-ok: quoted input
  * для тебя" stays flagged, the arguable side being the safe one. // cyrillic-ok: quoted input
  */
 const CLAUSE_ENDS = String.raw`(?=\s*$|\s*\n|[.!?…;:)](?![\p{L}\p{N}])|,(?:\s|$)|\s[-—–]\s|\s?[—–])`
-const HEAD_RUN = String.raw`(?:\s+${HEAD}${WORD_END}(?!-))(?:\s+(?:${HEAD}|draft)${WORD_END}(?!-))*`
+const headRun = (head: string) =>
+  String.raw`(?:\s+${head}${WORD_END}(?!-))(?:\s+(?:${head}|draft)${WORD_END}(?!-))*`
+const HEAD_RUN = headRun(HEAD)
+const MAKE_HEAD_RUN = headRun(MAKE_HEAD)
 const PREP_TAIL = String.raw`\s+(?:for|in|from|on)\s`
 const SUBJECT_TAIL = String.raw`\s+(?:I|I'd|I'll|I've|you|we|they|that|which|\p{Lu}\p{Ll}+)\s`
 const EN_HEAD_MAKE = new RegExp(
-  String.raw`^${HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL}))`,
+  String.raw`^${MAKE_HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL}))`,
   'iu'
 )
 // the tail words are cased: "I" and a proper noun are capitals
@@ -213,7 +227,60 @@ const RU_MEDIA_LATER =
   /(?<![а-яё])(?:голосов|аудио|войс|афиш|картинк|изображени|постер|обложк|баннер|видео|ролик|рилс|фото)/i // cyrillic-ok: matched stems
 const MAKE_VERB = /\b(?:made|make|created|generated|drew|drawn)\b/i
 
-function modifierOnly(s: { text: string; flat: string }, m: RegExpMatchArray) {
+/*
+ * (c)(ii) of round 3: one closed list of words that deliver a file. Any of
+ * them anywhere after the head noun keeps the claim, even when it speaks of
+ * something else ("the plan is ready"): a needless note is the cheaper
+ * failure. "above" is listed although REFERS_BACK excuses its own sentence:
+ * here it is read from a later one.
+ */
+const DELIVERY_WORDS = [
+  'attached',
+  'attach',
+  'attaching',
+  'sent',
+  'send',
+  'rendered',
+  'render',
+  'generated',
+  'generate',
+  'made',
+  'created',
+  'drew',
+  'uploaded',
+  'below',
+  'above',
+  'here it is',
+  'the file',
+  'ready',
+  'done',
+]
+const RU_DELIVERY_STEMS = [
+  'прикрепил', // cyrillic-ok: matched stem
+  'отправил', // cyrillic-ok: matched stem
+  'сгенерировал', // cyrillic-ok: matched stem
+  'сделал', // cyrillic-ok: matched stem
+  'нарисовал', // cyrillic-ok: matched stem
+  'готов', // cyrillic-ok: matched stem
+  'ниже', // cyrillic-ok: matched stem
+  'файл', // cyrillic-ok: matched stem
+]
+// (c)(iii): a pronoun that can carry the media as an object
+const OBJECT_PRONOUNS = ['it', 'them', 'это', 'его', 'её', 'ее'] // cyrillic-ok: matched words
+const EN_DELIVERY_LATER = new RegExp(
+  String.raw`(?<![\p{L}'’-])(?:${DELIVERY_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})(?![\p{L}'’])`,
+  'iu'
+)
+const RU_DELIVERY_LATER = new RegExp(
+  String.raw`(?<!\p{L})(?:${RU_DELIVERY_STEMS.join('|')})`,
+  'iu'
+)
+const PRONOUN_LATER = new RegExp(
+  String.raw`(?<![\p{L}'’-])(?:${OBJECT_PRONOUNS.join('|')})(?![\p{L}'’])`,
+  'iu'
+)
+
+function modifierOnly(s: Sentence, m: RegExpMatchArray) {
   const end = (m.index ?? 0) + m[0].length
   const after = s.text.slice(end)
   let head: RegExpMatchArray | null = null
@@ -221,8 +288,15 @@ function modifierOnly(s: { text: string; flat: string }, m: RegExpMatchArray) {
   else if (EN_OBJECT_LAST.test(m[0]))
     head = after.match(MAKE_VERB.test(m[0]) ? EN_HEAD_MAKE : EN_HEAD_SHOWN)
   if (!head) return false
-  const rest = s.flat.slice(end + head[0].length)
-  return !EN_MEDIA_LATER.test(rest) && !RU_MEDIA_LATER.test(rest)
+  // the rest of the whole message, not of the sentence (round 3)
+  const rest = s.flat.slice(end + head[0].length) + ' ' + s.later
+  return ![
+    EN_MEDIA_LATER,
+    RU_MEDIA_LATER,
+    EN_DELIVERY_LATER,
+    RU_DELIVERY_LATER,
+    PRONOUN_LATER,
+  ].some(re => re.test(rest))
 }
 
 /* Claimed actions, each with the tool(s) that would have done it. */
@@ -512,7 +586,8 @@ function isHeader(line: string): boolean {
  * paragraph" rule only ever failed for that case, since a plain line after
  * a plain line joins it.
  */
-type Sentence = { text: string; flat: string; back: boolean }
+// later: the flat text of every sentence after this one, read by modifierOnly
+type Sentence = { text: string; flat: string; back: boolean; later: string }
 
 // reads normalised text only: see normalised()
 function sentencesOf(norm: string): Sentence[] {
@@ -551,9 +626,16 @@ function sentencesOf(norm: string): Sentence[] {
         text,
         flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
+        later: '',
       })
     )
     if (!item.listed && headsList(i)) header = true
+  })
+  out.forEach((o, i) => {
+    o.later = out
+      .slice(i + 1)
+      .map(x => x.flat)
+      .join(' ')
   })
   return out
 }

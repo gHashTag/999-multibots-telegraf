@@ -1811,7 +1811,7 @@ describe('a media noun before a head noun is a modifier (#3753)', () => {
     'I sent you the voice notes transcript.',
     'I recorded your voice preferences.',
     "Here's the image prompt I would use.",
-    "Here's the cover concept, tell me if you like it.",
+    "Here's the cover concept, tell me what you think.",
     'Here is your banner text draft.',
     'Here is the audio plan.',
     'Here is the poster copy for the launch.',
@@ -1981,11 +1981,15 @@ describe('the #3753 usability corpus', () => {
     'Записала голосовое.', // cyrillic-ok: test input
     'Сделала афишу, держи.', // cyrillic-ok: test input
   ]
-  it('no honest reply draws a note, but one edit report (round 2)', () => {
+  it('no honest reply draws a note, but three on the safe side (round 3)', () => {
     expect(HONEST.length).toBe(32)
     // (d) of round 2: "made ... text shorter" reports an edit of a rendered
-    // poster, the same shape as "made the poster text bigger", a claim
+    // poster, the same shape as "made the poster text bigger", a claim.
+    // Round 3: "like it" carries "it", "send a designer" a delivery word;
+    // both could deliver a file, so (c) keeps the claim
     expect(HONEST.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      "Here's the cover concept, tell me if you like it.",
+      'Here is the poster brief I would send a designer.',
       'I made the poster text shorter, as you asked.',
     ])
   })
@@ -2103,20 +2107,137 @@ describe('a head noun silences only when it ends the object (#3753 round 2)', ()
     ['I sent you the voice note', 'voice'],
     ['I created the poster', 'media'],
   ]
-  const lines = (tails: string[]) =>
+  // round 3: after a make verb "copy" is a copy of the picture, a claim
+  const makes = (open: string) => /\b(?:made|created)\b/.test(open)
+  type Pick = 'heads' | 'all' | 'copy after make'
+  const keeps = (head: string, open: string, pick: Pick) =>
+    pick === 'all' ||
+    (head === 'copy' && makes(open)) === (pick === 'copy after make')
+  const lines = (tails: string[], pick: Pick = 'heads') =>
     OPENERS.flatMap(([open, kind]) =>
-      HEADS.flatMap(head =>
+      HEADS.filter(head => keeps(head, open, pick)).flatMap(head =>
         tails.map(tail => [`${open} ${head}${tail}`, kind] as const)
       )
     )
   it('a head noun that ends the text or the sentence silences', () => {
     const silent = lines(ENDS)
-    expect(silent.length).toBe(192)
+    expect(silent.length).toBe(188)
     expect(silent.filter(([s]) => unbackedKinds(s, []).length > 0)).toEqual([])
   })
+  it('"copy" after a make verb still flags (round 3)', () => {
+    const flagged = lines(ENDS, 'copy after make')
+    expect(flagged.length).toBe(4)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
   it('a head noun with anything after it still flags', () => {
-    const flagged = lines(GOES_ON)
+    const flagged = lines(GOES_ON, 'all')
     expect(flagged.length).toBe(480)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
+  })
+})
+
+/*
+ * Round 3 of #3753: round 2 let a comma, a semicolon or a dash end the
+ * object, so the next clause or the next sentence could deliver the media
+ * through "it", a participle or a bare noun, and "copy" after a make verb
+ * read as text. The rest of the WHOLE message after the head noun must now
+ * be free of (i) a picture or voice noun, (ii) a delivery word, (iii) "it",
+ * "them" or their Russian forms. Every string the review listed is pinned.
+ */
+describe('the rest of the message must not deliver the media (#3753 round 3)', () => {
+  for (const [said, kind] of [
+    // hole 1: the next clause delivers it
+    ['Here is the poster text, and I attached it.', 'media'],
+    ['Here is the image prompt; I rendered it for you.', 'media'],
+    ['Here is the poster text, and I sent it.', 'media'],
+    ['Here is the poster text, and here it is rendered.', 'media'],
+    ['Here is the image prompt - I rendered it.', 'media'],
+    ['Here is the poster idea, attached.', 'media'],
+    ['Here is the poster text, attached below.', 'media'],
+    ['Here is the poster text, rendered and attached.', 'media'],
+    ['Here is the poster text, and the file is attached.', 'media'],
+    // hole 2: the next sentence delivers it
+    ['Here is the poster idea. The poster is attached.', 'media'],
+    ['Here is the poster text. It is attached.', 'media'],
+    ['Here is the poster text. I sent you the poster.', 'media'],
+    // hole 3: "copy" after a make verb
+    ['I made the poster copy.', 'media'],
+    ['I made the poster copy for you.', 'media'],
+    ['I made the poster copy in Russian.', 'media'],
+    ['I made a poster copy in Russian.', 'media'],
+    // the Russian delivery words and pronouns
+    ['Вот твоё голосовое меню. Файл ниже.', 'voice'], // cyrillic-ok: test input
+    ['Вот твоё голосовое меню, отправил его.', 'voice'], // cyrillic-ok: test input
+    ['Here is the poster text. Готово, прикрепила.', 'media'], // cyrillic-ok: test input
+    // a later sentence, not the next one
+    ['Here is the poster idea. Thanks. Then I attached them.', 'media'],
+  ] as const)
+    it(`flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  for (const said of [
+    'Here is the poster copy.',
+    'Here is the poster idea. Tell me what you think.',
+    'Here is the image prompt you can use.',
+    'Вот твоё голосовое меню', // cyrillic-ok: test input
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+    'copy',
+  ]
+  const DELIVERS = [
+    ', and I attached it',
+    '; I rendered it',
+    ', attached',
+    ' - I rendered it',
+    '. The poster is attached.',
+    '. It is attached.',
+    '. I sent you the poster.',
+  ]
+  const OPENERS: Array<[string, 'media' | 'voice']> = [
+    ['Here is the poster', 'media'],
+    ['I made the poster', 'media'],
+    ['I sent you the voice note', 'voice'],
+    ['I created the poster', 'media'],
+  ]
+  it('a head noun followed by a delivery anywhere later still flags', () => {
+    const flagged = OPENERS.flatMap(([open, kind]) =>
+      HEADS.flatMap(head =>
+        DELIVERS.map(tail => [`${open} ${head}${tail}`, kind] as const)
+      )
+    )
+    expect(flagged.length).toBe(672)
     expect(
       flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
     ).toEqual([])
