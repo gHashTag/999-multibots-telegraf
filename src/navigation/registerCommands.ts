@@ -1410,7 +1410,7 @@ If not, continue on your own and click the "I myself" button`
          * пока идёт работа, и гасим в finally — иначе он остался бы висеть
          * после ошибки.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
+        const { держатьПечатает, разбитьДлинное, actionForTool } = await import(
           '@/helpers/telegramLongAnswer'
         )
         const стоп = держатьПечатает(ctx as any)
@@ -1454,6 +1454,8 @@ If not, continue on your own and click the "I myself" button`
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            // "sending a photo…" while a picture tool runs (#3665)
+            onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
           })
           /*
            * The request reached the server, so the server already stored the

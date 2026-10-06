@@ -666,3 +666,33 @@
 .remote-browser__auto:empty {
   display: none;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * THE TAB STRIP OVER A FULL-SCREEN PICTURE (components/Browser/TabStrip).
+ * In the full and minimal views the picture covers the app, so the strip is
+ * laid over it at the top and the picture starts below the strip's row.
+ * ───────────────────────────────────────────────────────────────────────── */
+.remote-browser--tabs {
+  --tab-strip-h: calc(var(--touch-target, 44px) + 8px);
+}
+
+.remote-browser--full.remote-browser--tabs .tab-strip {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: calc(var(--z-tabbar, 900) + 11);
+  margin: 0;
+  padding: 4px 6px;
+  background: #000;
+}
+
+.remote-browser--full.remote-browser--tabs .tab-strip__refused {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+}
+
+.remote-browser--full.remote-browser--tabs .remote-browser__stage {
+  top: var(--tab-strip-h);
+}

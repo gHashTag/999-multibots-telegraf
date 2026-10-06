@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { findProbe, foundOf } from './find-target'
+import { STEPS } from '../agent/engage-desk-wiring'
 
 /*
  * A page small enough to write by hand: the probe only asks the document
@@ -205,5 +206,67 @@ describe('press by what it says', () => {
       },
     ])
     expect(run('post')?.y).toBe(220)
+  })
+})
+
+/*
+ * The engage desk's comment controls, as measured on the owner's pod
+ * (2026-10-05). pressOne tries the labels in order; the first one the probe
+ * finds is pressed. Four approved comments stopped at "not found" before.
+ */
+describe('the engage desk finds the comment box and its button', () => {
+  const firstFound = (labels: string[]) => {
+    for (const l of labels) {
+      const got = run(l)
+      if (got) return got
+    }
+    return null
+  }
+
+  it("X: the editor is named 'Post text'; 'Post your reply' is only a hint drawn over it", () => {
+    page([
+      // The grey hint: a plain div, neither a field nor a button.
+      { tag: 'div', text: 'Post your reply', box: [400, 260, 300, 24] },
+      {
+        tag: 'div',
+        attrs: {
+          contenteditable: 'true',
+          role: 'textbox',
+          'aria-label': 'Post text',
+        },
+        box: [400, 256, 426, 28],
+      },
+      { tag: 'button', text: 'Reply', box: [840, 300, 70, 36] },
+    ])
+    expect(firstFound(STEPS.x.box)).toMatchObject({
+      how: 'field',
+      label: 'post text',
+    })
+    expect(firstFound(STEPS.x.send)?.label).toBe('reply')
+  })
+
+  it('Reddit in Russian: the box hint and the submit button use its own words', () => {
+    page([
+      {
+        tag: 'faceplate-textarea-input',
+        attrs: { placeholder: 'Вступить в беседу' }, // cyrillic-ok: Reddit's label
+        shadow: [
+          {
+            tag: 'textarea',
+            attrs: { placeholder: 'Вступить в беседу' }, // cyrillic-ok: Reddit's label
+            box: [300, 610, 600, 42],
+          },
+        ],
+      },
+      { tag: 'button', text: 'Отменить', attrs: { type: 'reset' } }, // cyrillic-ok: Reddit's label
+      {
+        tag: 'button',
+        text: 'Комментарий',
+        attrs: { type: 'submit' },
+        box: [800, 700, 120, 36],
+      }, // cyrillic-ok: Reddit's label
+    ])
+    expect(firstFound(STEPS.reddit.box)).toMatchObject({ how: 'field', y: 631 })
+    expect(firstFound(STEPS.reddit.send)?.y).toBe(718)
   })
 })

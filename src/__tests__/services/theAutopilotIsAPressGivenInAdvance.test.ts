@@ -374,6 +374,92 @@ describe('a card that arrived while AUTO was on', () => {
   })
 })
 
+/**
+ * A SENT MESSAGE IS NEVER OFFERED AGAIN.
+ *
+ * Production, 2026-10-05 16:30 UTC: autopilot confirmed the draft, the client
+ * got it, then the receipt's tg://user button was refused (BUTTON_USER_INVALID)
+ * and the throw fell into "showing the card". The owner pressed "Отправить" on
+ * a consumed draft and read "already confirmed or expired".
+ */
+describe('a send that went, with a receipt Telegram refused', () => {
+  const draft = {
+    id: 'p10',
+    secret: 's',
+    target: '900000099',
+    display: 'Клиент', // cyrillic-ok: a fictional display name
+    what: 'вот идея', // cyrillic-ok: the draft's words
+  }
+  const refused = () =>
+    Object.assign(new Error('400: Bad Request: BUTTON_USER_INVALID'), {
+      response: {
+        error_code: 400,
+        description: 'Bad Request: BUTTON_USER_INVALID',
+      },
+    })
+  const buttons = (e: any) =>
+    (e?.reply_markup?.inline_keyboard ?? []).flat() as any[]
+
+  it('sends the receipt without the shortcut and shows no card', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const proposals = await import('@/services/telegramProposals')
+    const spy = vi
+      .spyOn(proposals, 'confirmProposal')
+      .mockResolvedValue({ ok: true } as never)
+    await turnAutopilotOn(OWNER, 8)
+    const sent: any[] = []
+    let first = true
+    const t = {
+      sendMessage: async (c: string, text: string, e?: any) => {
+        if (
+          first &&
+          buttons(e).some(b => String(b.url).startsWith('tg://user'))
+        ) {
+          first = false
+          throw refused()
+        }
+        sent.push(['message', c, text, e])
+      },
+      sendPhoto: async (c: string, ph: string, e?: unknown) => {
+        sent.push(['photo', c, ph, e])
+      },
+    }
+    await pushCard(t as never, OWNER, draft as never)
+    expect(sent, 'exactly one receipt, no card').toHaveLength(1)
+    expect(
+      buttons(sent[0][3]).some(b => String(b.url).startsWith('tg://user'))
+    ).toBe(false)
+    expect(
+      buttons(sent[0][3]).some(b =>
+        String(b.callback_data ?? '').startsWith('tgp:')
+      ),
+      'a card for a consumed draft'
+    ).toBe(false)
+    spy.mockRestore()
+  })
+
+  it('shows no card even when every receipt attempt fails', async () => {
+    const { pushCard } = await import('@/services/crmProactive')
+    const proposals = await import('@/services/telegramProposals')
+    const spy = vi
+      .spyOn(proposals, 'confirmProposal')
+      .mockResolvedValue({ ok: true } as never)
+    await turnAutopilotOn(OWNER, 8)
+    const sent: any[] = []
+    const t = {
+      sendMessage: async () => {
+        throw new Error('network down')
+      },
+      sendPhoto: async (c: string, ph: string, e?: unknown) => {
+        sent.push(['photo', c, ph, e])
+      },
+    }
+    await pushCard(t as never, OWNER, draft as never)
+    expect(sent).toEqual([])
+    spy.mockRestore()
+  })
+})
+
 describe('a window that closed', () => {
   const draft = {
     id: 'p9',

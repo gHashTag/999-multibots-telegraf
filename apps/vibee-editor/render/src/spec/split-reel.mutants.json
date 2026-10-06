@@ -1,0 +1,347 @@
+[
+  {
+    "name": "house_own always true: every reel is the house's own",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!houseCaller) return false\n  if (clientTurn) return false\n  if (forLead) return false\n  return !sellerSweep\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "the profile CTA chain skipped: her approved call is never read",
+    "file": "src/agent/story-template.ts",
+    "from": "    .then(p => profileCta(p, seller === id))\n",
+    "to": "    .then(() => '')\n",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "the profile CTA chain skipped: the tool never asks her profile",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": ": await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),",
+    "to": ": '',",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "the profile CTA chain skipped: her call is picked but not used",
+    "file": "src/split-reel-plan.ts",
+    "from": "    case SPEC.CTA_CLIENT:\n      return client\n",
+    "to": "    case SPEC.CTA_CLIENT:\n      return c.neutral\n"
+  },
+  {
+    "name": "the OWNER_CTA fallback restored for a client",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (clientHasCta) return SPEC.CTA_CLIENT\n  return SPEC.CTA_NEUTRAL\n",
+    "to": "  if (clientHasCta) return SPEC.CTA_CLIENT\n  return SPEC.CTA_OWNER\n"
+  },
+  {
+    "name": "a given call naming the house stands on a client's reel",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (given && (house || !givenNamesHouse)) return SPEC.CTA_GIVEN\n",
+    "to": "  if (given) return SPEC.CTA_GIVEN\n"
+  },
+  {
+    "file": "src/agent/tools.ts",
+    "name": "the charge moved before the refusal",
+    "from": "      const ownerVoiceMay = ownerVoiceAllowed(houseReel)\n      if (forLead) {\n        // Her own voice for her own reel; anybody else's only by its owner.\n        // split_reel resolves the same clone through the same rule (v9).\n        const theirs = await cloneFor(\n          ctx.pool,\n          String(ctx.telegramId),\n          forLead\n        ).catch(() => null)\n        if (!theirs) {\n          const why =\n            'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'\n          return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n        }\n        cloneVoice = theirs.voiceId\n        голосКлиента = true // cyrillic-ok: local flag\n        voiceId = ''\n      }\n      /*\n       * A sweep for leads that names no lead and no voice (split-reel v7):\n       * the house asks no library, so only the owner's voice could speak\n       * it, and that voice is not lent -- refused before the charge, never\n       * a stranger's voice.\n       */\n      if (\n        isHouse(ctx.telegramId) &&\n        !voiceId &&\n        !cloneVoice &&\n        !ownerVoiceMay\n      ) {\n        const why =\n          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n      /*\n       * An ordinary caller with no voice of her own (split-reel v8\n       * voice_refused): no voice_id, no clone chosen above. There is no\n       * stock voice to give her -- a voice found in some account is not\n       * hers -- so she is refused before the charge, and told how to get\n       * her own. The house keeps its own path below (crm-story-reel v19).\n       */\n      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {\n        const why =\n          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n",
+    "to": "      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n      const ownerVoiceMay = ownerVoiceAllowed(houseReel)\n      if (forLead) {\n        // Her own voice for her own reel; anybody else's only by its owner.\n        // split_reel resolves the same clone through the same rule (v9).\n        const theirs = await cloneFor(\n          ctx.pool,\n          String(ctx.telegramId),\n          forLead\n        ).catch(() => null)\n        if (!theirs) {\n          const why =\n            'клона его голоса ещё нет: сначала crm_voice_clone {chat} из его голосовых в личке'\n          return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n        }\n        cloneVoice = theirs.voiceId\n        голосКлиента = true // cyrillic-ok: local flag\n        voiceId = ''\n      }\n      /*\n       * A sweep for leads that names no lead and no voice (split-reel v7):\n       * the house asks no library, so only the owner's voice could speak\n       * it, and that voice is not lent -- refused before the charge, never\n       * a stranger's voice.\n       */\n      if (\n        isHouse(ctx.telegramId) &&\n        !voiceId &&\n        !cloneVoice &&\n        !ownerVoiceMay\n      ) {\n        const why =\n          'рилс для клиента говорит его голосом, не голосом владельца: укажи for_lead (id клиента)'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n      /*\n       * An ordinary caller with no voice of her own (split-reel v8\n       * voice_refused): no voice_id, no clone chosen above. There is no\n       * stock voice to give her -- a voice found in some account is not\n       * hers -- so she is refused before the charge, and told how to get\n       * her own. The house keeps its own path below (crm-story-reel v19).\n       */\n      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {\n        const why =\n          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n"
+  },
+  {
+    "file": "src/agent/split-reel-tool.ts",
+    "name": "split_reel pays the voice before refusing a house name",
+    "from": "      // Her own words stand; a house name the agent put in does not.\n",
+    "to": "      await lookup('audio_generate')?.handler({ text }, ctx)\n      // Her own words stand; a house name the agent put in does not.\n"
+  },
+  {
+    "name": "agent_supplied ignored: her own words are refused too",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!agentSupplied) return true\n",
+    "to": ""
+  },
+  {
+    "name": "her own words ignored: every house name counts as the agent's",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return speechLines(text).some(line => houseNameByAgent(line, personSaid))\n",
+    "to": "  return speechLines(text).some(line => namesHouse(line))\n"
+  },
+  {
+    "name": "the tool reads no client off the turn",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      const forLead = leadOfTurn(named, turn)\n",
+    "to": "      const forLead = named\n",
+    "tests": ["src/agent/a-split-reel-is-one-call.test.ts"]
+  },
+  {
+    "name": "the house name check is gone from the tool",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      if (!houseNameAllowed(house, agentSuppliedHouseName(text, ctx.ownerSaid)))\n",
+    "to": "      if (false)\n"
+  },
+  {
+    "name": "any mention of the bot lends the name",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return speechLines(text).some(line => houseNameByAgent(line, personSaid))\n",
+    "to": "  return namesHouse(text) && !namesHouse(String(personSaid ?? ''))\n"
+  },
+  {
+    "name": "the speech judged whole, not line by line",
+    "file": "src/split-reel-plan.ts",
+    "from": "    .split(/\\n+|(?<=[.!?…])\\s+/u)\n",
+    "to": "    .split(/$^/u)\n"
+  },
+  {
+    "name": "audio_generate lets the agent's house name through",
+    "file": "src/agent/tools.ts",
+    "from": "          agentSuppliedHouseName(String(args.text ?? ''), ctx.ownerSaid)\n",
+    "to": "          false\n"
+  },
+  {
+    "name": "ordinary caller still reaches ElevenLabs: no voice, no refusal, on to the charge",
+    "file": "src/agent/tools.ts",
+    "from": "if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "refusal after the charge: the caller with no voice is charged first",
+    "file": "src/agent/tools.ts",
+    "from": "      /*\n       * An ordinary caller with no voice of her own (split-reel v8\n       * voice_refused): no voice_id, no clone chosen above. There is no\n       * stock voice to give her -- a voice found in some account is not\n       * hers -- so she is refused before the charge, and told how to get\n       * her own. The house keeps its own path below (crm-story-reel v19).\n       */\n      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {\n        const why =\n          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n",
+    "to": "      const charge = await spendTokens(ctx, 'audio_generate')\n      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields\n      /*\n       * An ordinary caller with no voice of her own (split-reel v8\n       * voice_refused): no voice_id, no clone chosen above. There is no\n       * stock voice to give her -- a voice found in some account is not\n       * hers -- so she is refused before the charge, and told how to get\n       * her own. The house keeps its own path below (crm-story-reel v19).\n       */\n      if (voiceRefused(isHouse(ctx.telegramId), !!voiceId, !!cloneVoice)) {\n        const why =\n          'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'\n        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields\n      }\n"
+  },
+  {
+    "name": "length check after the charge: the estimate runs once the voice is paid",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      if (fresh && !textFits(units, kept))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(units, kept) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      // Whether THIS call paid for the voice, and what it took: the backstop\n      // gives back only a voice it paid for (v8 backstop_refund).\n      let paidHere = false\n      let chargedNow = 0\n      if (fresh) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n        paidHere = true\n        chargedNow = v.charged\n      }\n\n",
+    "to": "      // 1. The voice, unless it came back from the last call.\n      let voiceKind = ''\n      let spoken = 0\n      // Whether THIS call paid for the voice, and what it took: the backstop\n      // gives back only a voice it paid for (v8 backstop_refund).\n      let paidHere = false\n      let chargedNow = 0\n      if (fresh) {\n        const v = outcome(\n          await speak\n            .handler(\n              {\n                text,\n                ...(forLead ? { for_lead: forLead } : {}),\n              },\n              ctx\n            )\n            .catch(e => ({ done: false, reason: String(e) }))\n        )\n        if (!v.ok || !v.url)\n          return { done: false, reason: `голос: ${v.why}`, ...sofar() }\n        voiceUrl = v.url\n        voiceKind = v.voice\n        spoken = v.seconds\n        paidHere = true\n        chargedNow = v.charged\n      }\n\n      if (paidHere && !textFits(units, kept))\n        return {\n          done: false,\n          reason:\n            `text на ~${Math.ceil(speechMsEstimate(units, kept) / 1000)} с речи, а формат держит до ` +\n            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,\n          ...sofar(),\n        }\n\n"
+  },
+  {
+    "name": "estimate constant off by one at the boundary: 55 ms a character",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return units * paceFor(slowest)\n",
+    "to": "  return units * (paceFor(slowest) - 1)\n"
+  },
+  {
+    "name": "the ceiling one character wide: 215 characters fit",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return speechMsEstimate(units, slowest) <= SPEC.SPEECH_MAX_SECONDS * 1000\n",
+    "to": "  return speechMsEstimate(units, slowest) <= SPEC.SPEECH_MAX_SECONDS * 1000 + SPEC.MS_PER_CHAR\n"
+  },
+  {
+    "name": "the house refused too: its own path is lost",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (house) return false\n  return !SPEC.STOCK_VOICE_FOR_ORDINARY\n",
+    "to": "  return !SPEC.STOCK_VOICE_FOR_ORDINARY\n"
+  },
+  {
+    "name": "a stock voice for the ordinary caller: nobody is refused",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (house) return false\n  return !SPEC.STOCK_VOICE_FOR_ORDINARY\n",
+    "to": "  if (house) return false\n  return SPEC.STOCK_VOICE_FOR_ORDINARY\n"
+  },
+  {
+    "name": "the backstop keeps the money of a voice it paid for",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        if (back > 0) {\n",
+    "to": "        if (back < 0) {\n"
+  },
+  {
+    "name": "the receipt's charge is not read: nothing to give back",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        chargedNow = v.charged\n",
+    "to": "        chargedNow = 0\n"
+  },
+  {
+    "name": "the answer says given back whether or not the tokens moved",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "(returned\n              ? ",
+    "to": "(back > 0\n              ? "
+  },
+  {
+    "name": "a too-long voice is given back every time it is noticed",
+    "file": "src/agent/tools.ts",
+    "from": "    voice.charged,\n    `split-reel-too-long:${voice.url}`\n",
+    "to": "    voice.charged\n"
+  },
+  {
+    "name": "the table price goes back, not what the charge took",
+    "file": "src/agent/tools.ts",
+    "from": "    voice.charged,\n    `split-reel-too-long:",
+    "to": "    undefined,\n    `split-reel-too-long:"
+  },
+  {
+    "name": "a voice from an earlier call is given back too",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (!paidHere) return 0\n",
+    "to": ""
+  },
+  {
+    "name": "a voice exactly at the ceiling is refused and given back",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return measuredMs > SPEC.SPEECH_MAX_SECONDS * 1000\n",
+    "to": "  return measuredMs >= SPEC.SPEECH_MAX_SECONDS * 1000\n"
+  },
+  {
+    "name": "the backstop refuses and gives nothing back",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0\n",
+    "to": "  return 0\n"
+  },
+  {
+    "name": "v9: latest wins, a quicker reel later speeds the voice up",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return measured > kept ? measured : kept\n",
+    "to": "  return measured > 0 ? measured : kept\n"
+  },
+  {
+    "name": "v9: the weights dropped, a digit and a syllable character weigh one",
+    "file": "src/split-reel-plan.ts",
+    "from": "    plain * SPEC.PLAIN_CHAR_WEIGHT +\n    digits * SPEC.DIGIT_WEIGHT +\n    wide * SPEC.WIDE_CHAR_WEIGHT\n",
+    "to": "    plain + digits + wide\n"
+  },
+  {
+    "name": "v9: a digit counted as a letter",
+    "file": "src/split-reel-plan.ts",
+    "from": "    if (DIGIT.test(ch)) digits += 1\n",
+    "to": "    if (DIGIT.test(ch)) plain += 1\n"
+  },
+  {
+    "name": "v9: a syllable character counted as a letter",
+    "file": "src/split-reel-plan.ts",
+    "from": "    else if (WIDE.test(ch)) wide += 1\n",
+    "to": "    else if (WIDE.test(ch)) plain += 1\n"
+  },
+  {
+    "name": "v9: max to min, a voice is judged at the quicker of its pace and MS_PER_CHAR",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR\n",
+    "to": "  return slowest > SPEC.MS_PER_CHAR ? SPEC.MS_PER_CHAR : slowest\n"
+  },
+  {
+    "name": "v9: the voice pace ignored, every voice judged at MS_PER_CHAR",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR\n",
+    "to": "  return SPEC.MS_PER_CHAR\n"
+  },
+  {
+    "name": "v9: the measured pace rounded down, so it errs short",
+    "file": "src/split-reel-plan.ts",
+    "from": "  return Math.floor((measuredMs + units - 1) / units)\n",
+    "to": "  return Math.floor(measuredMs / units)\n"
+  },
+  {
+    "name": "v9: a text too short to measure sets the pace",
+    "file": "src/split-reel-plan.ts",
+    "from": "  if (units < SPEC.MIN_PACE_UNITS) return kept\n",
+    "to": ""
+  },
+  {
+    "name": "v9: the pace read from the caller instead of the voice",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        ? await voicePaceOf(ctx.pool, clone.voiceId).catch(() => 0)\n",
+    "to": "        ? await voicePaceOf(ctx.pool, String(ctx.telegramId)).catch(() => 0)\n"
+  },
+  {
+    "name": "v9: the measured pace is never kept",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "      if (paidHere && clone) {\n",
+    "to": "      if (paidHere && clone && false) {\n"
+  },
+  {
+    "name": "v9: the url kept in the reason after a refund",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "            `сократи text и повтори без voice_url` +\n",
+    "to": "            `сократи text и повтори без voice_url (длинный голос: ${tooLong})` +\n"
+  },
+  {
+    "name": "v9: the url kept in the answer after a refund",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "        const tooLong = voiceUrl\n        voiceUrl = ''\n",
+    "to": "        const tooLong = voiceUrl\n"
+  },
+  {
+    "name": "v9: the row keeps the latest pace, not the slowest",
+    "file": "src/agent/lead-voice.ts",
+    "from": "SET ms_per_char = GREATEST(COALESCE(ms_per_char, 0), $2)",
+    "to": "SET ms_per_char = $2"
+  },
+  {
+    "name": "v9: a new clone inherits the old voice pace",
+    "file": "src/agent/lead-voice.ts",
+    "from": "           ms_per_char = CASE WHEN lead_voices.voice_id = EXCLUDED.voice_id\n                              THEN lead_voices.ms_per_char END,\n",
+    "to": ""
+  },
+  {
+    "name": "v9: her own reel looks for a clone she made of herself, not her own voice",
+    "file": "src/agent/lead-voice.ts",
+    "from": "  return self ? ownVoiceOf(pool, asker) : leadVoiceOf(pool, asker, forLead)\n",
+    "to": "  return leadVoiceOf(pool, asker, forLead)\n"
+  },
+  {
+    "name": "v9: one voice pace written onto every never-measured clone (WHERE voice_id = $1 OR ms_per_char IS NULL)",
+    "file": "src/agent/lead-voice.ts",
+    "from": "$2)\n      WHERE voice_id = $1`",
+    "to": "$2)\n      WHERE voice_id = $1 OR ms_per_char IS NULL`"
+  },
+  {
+    "name": "v9: a voice reads the pace of any measured clone, not its own",
+    "file": "src/agent/lead-voice.ts",
+    "from": "WHERE voice_id = $1\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1",
+    "to": "WHERE voice_id = $1 OR ms_per_char IS NOT NULL\n      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1"
+  },
+  {
+    "name": "v10: a client reel with no colour given defaults to the house gold",
+    "file": "src/split-reel-plan.ts",
+    "from": "reelCallColour({ house: input.call.house }).colour",
+    "to": "SPEC.HOUSE_CALL_COLOR",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: her own call colour is replaced by the house gold",
+    "file": "src/split-reel-plan.ts",
+    "from": "case SPEC.CTA_CLIENT:\n      return { colour: hers, from }",
+    "to": "case SPEC.CTA_CLIENT:\n      return { colour: SPEC.HOUSE_CALL_COLOR, from }",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: the house gold the order gave stands on her reel",
+    "file": "src/split-reel-plan.ts",
+    "from": "return ctaFor(house, given, givenIsHouse, hers)",
+    "to": "return ctaFor(house, given, false, hers)",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: an unreadable colour the order gave is shaded instead of refused",
+    "file": "src/split-reel-plan.ts",
+    "from": "if (from === SPEC.CTA_GIVEN && SPEC.GIVEN_CALL_COLOR_UNREADABLE_REFUSED)",
+    "to": "if (false)",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: split_reel goes on past a refused call colour",
+    "file": "src/agent/split-reel-tool.ts",
+    "from": "if (callColour.refused) return { done: false, reason: callColour.refused }",
+    "to": "if (false) return { done: false, reason: callColour.refused }",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  },
+  {
+    "name": "v10: SplitTalkingHead draws a call with no colour in the house gold",
+    "file": "src/compositions/SplitTalkingHead.tsx",
+    "from": "ctaColor = SPLIT.NEUTRAL_CALL_COLOR,",
+    "to": "ctaColor = SPLIT.HOUSE_CALL_COLOR,",
+    "tests": [
+      "src/spec/split-reel.test.ts",
+      "src/compositions/the-call-is-drawn-in-its-colour.test.ts"
+    ]
+  }
+]

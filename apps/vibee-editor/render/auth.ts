@@ -312,8 +312,8 @@ const PUBLIC_EXACT = new Set([
    * relay's own check ran, so the freshly deployed route was unreachable.
    *
    * Not a relaxation: the relay (src/zai-relay.ts) refuses every caller whose
-   * bearer does not timing-safe-match GLM_API_KEY, fails closed without that
-   * key, and rebuilds the upstream Authorization from OUR env so it can never
+   * bearer does not timing-safe-match the relay key (ZAI_RELAY_API_KEY, else
+   * GLM_API_KEY), fails closed without that key, and rebuilds the upstream Authorization from OUR env so it can never
    * proxy a caller-chosen key. The guard would only add a credential the one
    * legitimate caller is technically unable to send.
    */
@@ -636,6 +636,56 @@ export function hasServerKey(req: IncomingMessage): boolean {
   const a = Buffer.from(given)
   const b = Buffer.from(expected)
   return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/**
+ * A STRANGER LOOKING FOR AN OAUTH SERVER IS NOT AN INTRUDER.
+ *
+ * MCP clients follow the MCP authorization spec on connect: GET
+ * /.well-known/oauth-protected-resource[/...], GET
+ * /.well-known/oauth-authorization-server[/...], then dynamic client
+ * registration at POST /register; crawlers fetch /robots.txt. We run no OAuth
+ * server, so the guard's 401 is the right answer and stays. What was wrong is
+ * the log: each probe printed a refusal on stderr, which Railway files as an
+ * error, and a handful per client connect buried real refusals.
+ *
+ * Exact paths and methods only -- every other refusal is still logged. Used
+ * for the LOG decision only, never for the allow decision.
+ */
+export function isDiscoveryProbe(
+  method: string | undefined,
+  url: string | undefined
+): boolean {
+  const m = (method || '').toUpperCase()
+  const p = (url || '').split('?')[0].split('#')[0]
+  if (m === 'GET' || m === 'HEAD') {
+    if (p === '/robots.txt') return true
+    for (const doc of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-authorization-server',
+    ])
+      if (p === doc || p.startsWith(`${doc}/`)) return true
+    return false
+  }
+  return m === 'POST' && p === '/register'
+}
+
+/**
+ * Whether the guard's refusal of this request is written to the log. Every
+ * refusal is, except an OAuth discovery probe that offered no credential at
+ * all (isDiscoveryProbe): a 403, or a credential that was offered and failed,
+ * is still logged on any path.
+ */
+export function logsRefusal(
+  req: { method?: string; url?: string },
+  auth: Pick<AuthResult, 'wouldReject' | 'via' | 'statusCode' | 'reason'>
+): boolean {
+  if (!auth.wouldReject) return false
+  const noCredential =
+    auth.via === 'none' &&
+    auth.statusCode !== 403 &&
+    /^no X-Api-Key and no Telegram initData$/.test(auth.reason ?? '')
+  return !(noCredential && isDiscoveryProbe(req.method, req.url))
 }
 
 export function authenticate(req: IncomingMessage): AuthResult {

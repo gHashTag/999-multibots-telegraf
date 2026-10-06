@@ -371,6 +371,65 @@ export const MARKETPLACE_AGENTS: readonly MarketplaceAgentListing[] = [
       },
     },
   },
+  {
+    /*
+     * THE t27b COMPILER ENGINEER (owner, 2026-10-04: "make a profile agent
+     * for this task"). The task is gHashTag/t27 epic #6063: t27b, the native
+     * AArch64 backend (cli/t27b, no LLVM), runs every corpus spec whose
+     * reference path (t27c gen + zig test) passes, with 0 mismatches.
+     *
+     * Its hands are reading hands. Nothing in this service can build or run
+     * t27b -- code_run is a Deno/Python box with no network and no compiler
+     * -- so the signature tool is web_read: the blocker list, the lab's run
+     * files and the epic's own table. A coverage figure is quoted only with
+     * the run that printed it; anything else is "not run". `training`, like
+     * every specialist, until the owner sees a real run.
+     */
+    id: 't27b',
+    skillPrefixes: ['t27b', 'компилятор', 'compiler'],
+    icon: '⌬',
+    name: { en: 't27b Compiler Engineer', ru: 'Инженер компилятора t27b' },
+    role: {
+      en: 'Grows the native AArch64 backend of t27 (no LLVM) toward 100% of the spec corpus',
+      ru: 'Доводит нативный AArch64-бэкенд t27 (без LLVM) до 100% корпуса спеков',
+    },
+    promise: {
+      en: 'Reads the blocker list from `t27b corpus --blockers` and the Railway lab, proposes the next construct family to lower, writes the change with a test, and reports the pass/reference numbers a run printed -- "not run" otherwise.',
+      ru: 'Читает список блокеров из `t27b corpus --blockers` и Railway-лаборатории, предлагает следующее семейство конструкций для опускания, пишет изменение вместе с тестом и сообщает числа pass/reference, которые напечатал прогон, — иначе «не запускалось».',
+    },
+    status: 'training',
+    creator: 'T27',
+    skills: [
+      { en: 'read the corpus blockers', ru: 'прочитать блокеры корпуса' },
+      {
+        en: 'lower a construct family to AArch64',
+        ru: 'опустить семейство конструкций в AArch64',
+      },
+      {
+        en: 'differential check against the reference path',
+        ru: 'дифференциальная сверка с эталонным путём',
+      },
+      { en: 'report to epic #6063', ru: 'отчёт в эпик #6063' },
+    ],
+    evidence: [
+      {
+        en: 'a coverage number is quoted only with the run that produced it (lab runs/<sha>.json or a corpus command output)',
+        ru: 'число покрытия называется только вместе с прогоном, который его дал (runs/<sha>.json лаборатории или вывод команды corpus)',
+      },
+      {
+        en: 'a mismatch is a stop, never a skip',
+        ru: 'расхождение — это остановка, а не пропуск',
+      },
+    ],
+    workbench: {
+      tool: 'web_read',
+      repo: 'github.com/gHashTag/t27',
+      metric: {
+        en: 'corpus runs quoted',
+        ru: 'прогонов корпуса процитировано',
+      },
+    },
+  },
 ] as const
 
 export const MARKETPLACE_ECONOMY = {

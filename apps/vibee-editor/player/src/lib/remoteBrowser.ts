@@ -101,8 +101,16 @@ export const asView = (a: ServerAnswer): BrowserSessionView => ({
  * A path is resolved against this app. An absolute URL, if the server ever
  * returns one, is left alone and `canEmbed` then refuses to frame it.
  */
-export function absoluteViewUrl(viewUrl: string): string {
-  return new URL(viewUrl, window.location.origin).toString()
+export function absoluteViewUrl(viewUrl: string, lang?: 'ru' | 'en'): string {
+  const url = new URL(viewUrl, window.location.origin)
+  /*
+   * The window speaks the APP's language, not the phone's (owner, 2026-10-06:
+   * Russian app, English "Starting your browser" under it). The proxy keeps
+   * `lang` through its login redirect; the window keeps it for the tab
+   * (render skin.ts LANG_SCRIPT).
+   */
+  if (lang === 'ru' || lang === 'en') url.searchParams.set('lang', lang)
+  return url.toString()
 }
 
 /**
@@ -672,4 +680,63 @@ export function siteRowsOf(raw: unknown): SiteRuleRow[] {
       },
     ]
   })
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * THE TAB STRIP (owner, 2026-10-06; spec browser-tab-strip.t27). Every page
+ * in the person's browser, as the server chose to describe it: an id, a
+ * clipped title, a host and whether it is in front. Never a path.
+ * ──────────────────────────────────────────────────────────────────────── */
+export interface BrowserTab {
+  id: string
+  title: string
+  host: string
+  active: boolean
+}
+
+export type TabAction = 'activate' | 'new' | 'close'
+
+/** Only well-formed tabs; a tab without an id cannot be pressed. Pure. */
+export function tabsOf(raw: unknown): BrowserTab[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap(r => {
+    const t = r as Partial<BrowserTab> | null
+    if (!t || typeof t.id !== 'string' || !t.id) return []
+    return [
+      {
+        id: t.id,
+        title: typeof t.title === 'string' ? t.title : '',
+        host: typeof t.host === 'string' ? t.host : '',
+        active: t.active === true,
+      },
+    ]
+  })
+}
+
+/** The tabs open now; null when they cannot be read. Never throws. */
+export async function readBrowserTabs(): Promise<BrowserTab[] | null> {
+  try {
+    const a = await apiFetch<{ tabs?: unknown }>(
+      `${API_BASE}/api/browser/strip`
+    )
+    return tabsOf(a.tabs)
+  } catch {
+    return null
+  }
+}
+
+/** Switch, open or close; the tabs after it, or null when refused. */
+export async function actOnBrowserTab(
+  action: TabAction,
+  id?: string
+): Promise<BrowserTab[] | null> {
+  try {
+    const a = await apiFetch<{ tabs?: unknown }>(
+      `${API_BASE}/api/browser/strip`,
+      { method: 'POST', body: JSON.stringify(id ? { action, id } : { action }) }
+    )
+    return tabsOf(a.tabs)
+  } catch {
+    return null
+  }
 }

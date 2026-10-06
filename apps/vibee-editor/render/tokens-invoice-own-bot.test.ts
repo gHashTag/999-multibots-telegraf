@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * tokens_invoice -- the client buying for themselves -- is minted by the
  * client's OWN bot of the farm, through the one mint the invoice route uses.
@@ -83,49 +91,61 @@ afterEach(() => {
 })
 
 describe("tokens_invoice is minted by the client's own bot", () => {
-  it('the link comes from the bot the client belongs to, payload for the client', async () => {
-    const posted = stubNet({
-      botName: 'neuro_blogger_bot',
-      bots: {
-        'farm-token-one': 'neuro_blogger_bot',
-        'bot-token-for-tests': 't27ai_bot',
-      },
-    })
-    const tool = await invoiceTool()
-    const r = await tool.handler({ tokens: 50 }, ctx())
-    const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
-    expect(mint.url).toContain('/botfarm-token-one/')
-    expect(mint.body.payload).toBe(`tokens:50:${CLIENT}`)
-    expect(mint.body.currency).toBe('XTR')
-    expect(r.ссылка).toBe('https://t.me/$inv-self') // cyrillic-ok: pre-existing result field names
-    expect(r.от_бота).toBe('@neuro_blogger_bot') // cyrillic-ok: pre-existing result field names
-    expect(r.токенов).toBe(50) // cyrillic-ok: pre-existing result field names
-    expect(r.звёзд).toBe(65) // cyrillic-ok: pre-existing result field names
-  })
+  it(
+    'the link comes from the bot the client belongs to, payload for the client',
+    async () => {
+      const posted = stubNet({
+        botName: 'neuro_blogger_bot',
+        bots: {
+          'farm-token-one': 'neuro_blogger_bot',
+          'bot-token-for-tests': 't27ai_bot',
+        },
+      })
+      const tool = await invoiceTool()
+      const r = await tool.handler({ tokens: 50 }, ctx())
+      const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
+      expect(mint.url).toContain('/botfarm-token-one/')
+      expect(mint.body.payload).toBe(`tokens:50:${CLIENT}`)
+      expect(mint.body.currency).toBe('XTR')
+      expect(r.ссылка).toBe('https://t.me/$inv-self') // cyrillic-ok: pre-existing result field names
+      expect(r.от_бота).toBe('@neuro_blogger_bot') // cyrillic-ok: pre-existing result field names
+      expect(r.токенов).toBe(50) // cyrillic-ok: pre-existing result field names
+      expect(r.звёзд).toBe(65) // cyrillic-ok: pre-existing result field names
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a client the base does not know is served by the default cashier', async () => {
-    const posted = stubNet({
-      botName: null,
-      bots: {
-        'farm-token-one': 'neuro_blogger_bot',
-        'bot-token-for-tests': 't27ai_bot',
-      },
-    })
-    const tool = await invoiceTool()
-    const r = await tool.handler({ tokens: 10 }, ctx())
-    const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
-    expect(mint.url).toContain('/botbot-token-for-tests/')
-    expect(r.от_бота).toBe('касса по умолчанию') // cyrillic-ok: pre-existing result field names
-  })
+  it(
+    'a client the base does not know is served by the default cashier',
+    async () => {
+      const posted = stubNet({
+        botName: null,
+        bots: {
+          'farm-token-one': 'neuro_blogger_bot',
+          'bot-token-for-tests': 't27ai_bot',
+        },
+      })
+      const tool = await invoiceTool()
+      const r = await tool.handler({ tokens: 10 }, ctx())
+      const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
+      expect(mint.url).toContain('/botbot-token-for-tests/')
+      expect(r.от_бота).toBe('касса по умолчанию') // cyrillic-ok: pre-existing result field names
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('the price is the scale, not a number the model could pass', async () => {
-    stubNet({
-      botName: 'neuro_blogger_bot',
-      bots: { 'farm-token-one': 'neuro_blogger_bot' },
-    })
-    const tool = await invoiceTool()
-    const r = await tool.handler({ tokens: 150 }, ctx())
-    expect(r.звёзд).toBe(175) // cyrillic-ok: pre-existing result field names
-    expect(r.звёзд_за_токен).toBeCloseTo(175 / 150, 3) // cyrillic-ok: pre-existing result field names
-  })
+  it(
+    'the price is the scale, not a number the model could pass',
+    async () => {
+      stubNet({
+        botName: 'neuro_blogger_bot',
+        bots: { 'farm-token-one': 'neuro_blogger_bot' },
+      })
+      const tool = await invoiceTool()
+      const r = await tool.handler({ tokens: 150 }, ctx())
+      expect(r.звёзд).toBe(175) // cyrillic-ok: pre-existing result field names
+      expect(r.звёзд_за_токен).toBeCloseTo(175 / 150, 3) // cyrillic-ok: pre-existing result field names
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

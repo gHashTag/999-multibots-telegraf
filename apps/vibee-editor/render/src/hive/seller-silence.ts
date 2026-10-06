@@ -27,7 +27,13 @@ import { record, type JournalPool } from './journal'
  */
 export const SELLER_SILENCE_MS = 12 * 60 * 60_000
 
-const SWEEP_KINDS = ['sweep-idle', 'sweep-card', 'sweep-failed', 'sweep-held']
+const SWEEP_KINDS = [
+  'sweep-idle',
+  'sweep-card',
+  'sweep-failed',
+  'sweep-deferred',
+  'sweep-held',
+]
 
 async function newestAt(
   pool: JournalPool,

@@ -276,7 +276,7 @@ describe('picking an option is consent to it (owner: the agent stood on "Save")'
       id: 'g1',
       kind: 'choice',
       why: 'Skip or Save?',
-      host: '',
+      host: 'accounts.google.com',
       label: '',
       options: ['Skip', 'Save'],
     })
@@ -286,6 +286,24 @@ describe('picking an option is consent to it (owner: the agent stood on "Save")'
     )
     expect(out.status).toBe(200)
     expect(opens()).toBe(true)
+  })
+
+  it('a choice asked where the place could not be read opens nothing (a yes is for one place)', async () => {
+    said.length = 0
+    const r = askForInput(WHO, {
+      id: 'g3',
+      kind: 'choice',
+      why: 'Skip or Save?',
+      host: '',
+      label: '',
+      options: ['Skip', 'Save'],
+    })
+    const out = await handleBrowser(
+      { url: '/api/browser/choose', method: 'POST' },
+      d({ id: r.id, option: 'Save' })
+    )
+    expect(out.status).toBe(200)
+    expect(opens()).toBe(false)
   })
 
   it('Done / Cannot on an action opens nothing', async () => {

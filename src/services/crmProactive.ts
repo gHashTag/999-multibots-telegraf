@@ -52,6 +52,7 @@ import { fetchLeadRows, callTool } from './modelSwitch'
 import { noteSweepToHive } from './hiveNote'
 import { assistantAllowed } from './assistantOptOut'
 import { Markup } from 'telegraf'
+import { keepingTheMessage } from '@/helpers/telegramUserLink'
 
 /**
  * THE SELLER THAT WORKS WITHOUT BEING ASKED.
@@ -148,6 +149,15 @@ export type SweepOutcome = (
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
   /**
+   * THE PROVIDER WAS BUSY, SO THE CLIENT WAITS FOR THE NEXT TICK.
+   *
+   * A rate limit, a quota, a provider that never spoke, or a chain of flash
+   * models that only talked (see `deferralOf`). Nothing reached anybody and
+   * the next tick asks again, so this is not the seller being broken -- but it
+   * is not silent either: it has its own journal kind and its own streak.
+   */
+  | { did: 'deferred'; why: string }
+  /**
    * THE OWNER ENDED IT HIMSELF, and that is not a failure.
    *
    * Without its own state a stop arrives as `failed`, which pages him about
@@ -155,7 +165,20 @@ export type SweepOutcome = (
    * which exists to show when the seller is broken.
    */
   | { did: 'stopped'; why: string }
-) & { ms?: number }
+) & {
+  ms?: number
+  /**
+   * Which model wrote the turn, as `provider/model` from the render's event
+   * stream (the last provider event wins). Absent when no model turn ran --
+   * a crm_leads idle, a hold -- or the render did not say.
+   */
+  model?: string
+}
+
+/** The answering model as an outcome field, or nothing when the render did not name one. */
+function modelOf(answer: { provider?: string }): { model?: string } {
+  return answer.provider ? { model: answer.provider } : {}
+}
 
 /** The brief. One proposal at most, nothing sent, memory first. */
 export const SWEEP_PROMPT =
@@ -567,6 +590,12 @@ function toolsOf(answer: ОтветАгента): string[] {
  *     does not have.
  */
 const failStreaks = new Map<string, number>()
+/**
+ * Deferrals in a row, per seller. Kept apart from failures: a busy provider
+ * is warn, and only every sixth in a row (three hours of half-hour ticks) is
+ * an error -- the point where "busy" has become "down".
+ */
+const deferStreaks = new Map<string, number>()
 /** The key used when a caller does not name the seller. */
 const NO_OWNER = '-'
 export function reportSweepOutcome(
@@ -574,6 +603,20 @@ export function reportSweepOutcome(
   owner?: string
 ): 'error' | 'warn' | 'info' {
   const key = owner ? String(owner) : NO_OWNER
+  if (r.did === 'deferred') {
+    const streak = (deferStreaks.get(key) ?? 0) + 1
+    deferStreaks.set(key, streak)
+    const level = streak % 6 === 0 ? 'error' : 'warn'
+    logger[level]('[crm-proactive] sweep deferred: provider busy', {
+      did: r.did,
+      why: r.why,
+      owner: key,
+      ...(r.ms === undefined ? {} : { ms: r.ms }),
+      consecutive: streak,
+      sinceProcessStart: true,
+    })
+    return level
+  }
   if (r.did === 'failed') {
     const streak = (failStreaks.get(key) ?? 0) + 1
     failStreaks.set(key, streak)
@@ -583,6 +626,7 @@ export function reportSweepOutcome(
       why: r.why,
       owner: key,
       ...(r.ms === undefined ? {} : { ms: r.ms }),
+      ...(r.model ? { model: r.model } : {}),
       consecutive: streak,
       sinceProcessStart: true,
     })
@@ -606,7 +650,14 @@ export function reportSweepOutcome(
     })
     failStreaks.delete(key)
   }
-  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
+  deferStreaks.delete(key)
+  logger.info('[crm-proactive] sweep', {
+    did: r.did,
+    why: r.why,
+    owner: key,
+    ...(r.model ? { model: r.model } : {}),
+    ...(r.ms === undefined ? {} : { ms: r.ms }),
+  })
   return 'info'
 }
 
@@ -663,6 +714,7 @@ export function noteResolved(owner?: string, cardId?: string): void {
 export function resetProactiveForTests(): void {
   sweepState.clear()
   failStreaks.clear()
+  deferStreaks.clear()
 }
 
 /** For tests: pretend THIS owner's sweep has been running since `since`. */
@@ -733,6 +785,35 @@ export function isTransportDeath(e: unknown): boolean {
     message === 'fetch failed' ||
     message === 'socket hang up'
   )
+}
+
+/**
+ * A PROVIDER THAT WAS BUSY, TOLD APART FROM ONE THAT IS BROKEN
+ * (production 2026-10-05, fifteen sweeps filed `failed` in one day).
+ *
+ * The render names every provider it tried, in its own words (provider.ts
+ * `diagnose`, chat.ts `streamModel`): a rate limit, a quota, a timeout, or a
+ * flash model that answered in words without calling a tool. Each of those
+ * is gone by the next tick, and nothing reached anybody, so the client is
+ * deferred to it rather than reported as an outage.
+ *
+ * Not here, on purpose: an empty key and a refused key. Only the owner can
+ * fix those, so they stay `failed` and keep paging him. A chain where a busy
+ * provider sat beside an empty key is deferred -- the busy one is the one
+ * that answers next time -- and the empty key still shows in the reason.
+ *
+ * Deferring to the next tick instead of backing off inside the sweep is
+ * deliberate: STUCK_SWEEP_MS is the sum of the sweep's own waits.
+ */
+const BUSY_MARKERS =
+  /превышен лимит запросов|\b429\b|ResourceExhausted|rate.?limit|too many requests|\(таймаут\)/i // cyrillic-ok: the render's own reason text
+const TALKED_MARKER = 'ответил словами, не вызвав ни одного инструмента' // cyrillic-ok: chat.ts reason text
+export function deferralOf(message: string): string | null {
+  if (!message) return null
+  if (BUSY_MARKERS.test(message)) return 'провайдер занят' // cyrillic-ok: user-facing
+  if (message.includes(TALKED_MARKER))
+    return 'модель ответила словами, не вызвав инструментов' // cyrillic-ok: user-facing
+  return null
 }
 
 /**
@@ -1121,6 +1202,7 @@ export async function sweepOnce(
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
         id: String(answer.proposal.id),
+        ...modelOf(answer),
       }
     }
     /*
@@ -1164,10 +1246,15 @@ export async function sweepOnce(
               ? `модель ничего не подготовила и не вызвала инструментов${who}: `
               : `модель ответила, не вызвав ни одного инструмента — она не смотрела${who}: `) +
           text.slice(0, 160),
+        ...modelOf(answer),
       }
     }
 
-    return { did: 'idle', why: (answer.текст ?? 'тихо').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
+    return {
+      did: 'idle',
+      why: (answer.текст ?? 'тихо').slice(0, 200), // cyrillic-ok: pre-existing identifiers
+      ...modelOf(answer),
+    }
   } catch (e) {
     /*
      * THE ALERT MUST NAME SOMETHING (production 2026-09-16).
@@ -1189,6 +1276,15 @@ export async function sweepOnce(
     if (wasStoppedByOwner(raw))
       return { did: 'stopped', why: 'остановлено владельцем' } // cyrillic-ok: user-facing
     const dead = isTransportDeath(e)
+    // A busy provider defers the client to the next tick (see deferralOf).
+    const busy = dead ? null : deferralOf(raw)
+    if (busy)
+      return {
+        did: 'deferred',
+        why:
+          waitingClause(looked) +
+          `отложено до следующего обхода: ${busy} — ${raw}`.slice(0, 600), // cyrillic-ok: user-facing
+      }
     return {
       did: 'failed',
       why:
@@ -1326,11 +1422,33 @@ export async function pushCard(
         void import('./hiveNote').then(m =>
           m.noteAutoSendToHive(ownerId, { lead: cardLeadOf(draft as never) })
         )
-        await telegram.sendMessage(
-          ownerId,
-          autopilotSentLine(draft, opts),
-          autopilotSentMarkup(cardLeadOf(draft as never))
-        )
+        /*
+         * THE MESSAGE IS ALREADY IN THE CLIENT'S CHAT. Nothing below may turn
+         * that into a card. Production, 2026-10-05 16:30 UTC: the receipt's
+         * tg://user button was refused (BUTTON_USER_INVALID, a lead the bot
+         * has never met), the throw reached the catch below, and the owner got
+         * "Отправить?" for a draft already consumed -- pressing it answered
+         * "already confirmed or expired" about a message that HAD gone.
+         * So the receipt drops the shortcut when Telegram refuses it, and a
+         * receipt that still fails is logged, never escalated into a card.
+         */
+        try {
+          await keepingTheMessage(
+            extra =>
+              telegram.sendMessage(
+                ownerId,
+                autopilotSentLine(draft, opts),
+                extra as never
+              ),
+            autopilotSentMarkup(cardLeadOf(draft as never)),
+            { lead: cardLeadOf(draft as never) }
+          )
+        } catch (e) {
+          logger.warn('[autopilot] sent, but the receipt did not arrive', {
+            owner: ownerId,
+            error: e instanceof Error ? e.message : String(e),
+          })
+        }
         return
       }
       logger.warn(
@@ -1347,11 +1465,25 @@ export async function pushCard(
          * came back, so the message may already be in the client's chat. A
          * card here invites a second, duplicate send.
          */
-        await telegram.sendMessage(
-          ownerId,
-          autopilotUnknownLine(draft),
-          autopilotSentMarkup(cardLeadOf(draft as never))
-        )
+        // Same rule as the receipt above: a refused shortcut must not fall
+        // through to a card that invites the duplicate this branch prevents.
+        try {
+          await keepingTheMessage(
+            extra =>
+              telegram.sendMessage(
+                ownerId,
+                autopilotUnknownLine(draft),
+                extra as never
+              ),
+            autopilotSentMarkup(cardLeadOf(draft as never)),
+            { lead: cardLeadOf(draft as never) }
+          )
+        } catch (e) {
+          logger.warn('[autopilot] outcome unknown, and the notice failed', {
+            owner: ownerId,
+            error: e instanceof Error ? e.message : String(e),
+          })
+        }
         return
       }
     } catch (e) {
@@ -2171,11 +2303,17 @@ async function advanceScope(owner: string): Promise<void> {
         await s.say(`тихо: ${r.why}`).catch(() => undefined)
         s.cursor += 1
         return advanceScope(owner)
+      // A deferral inside a scoped run counts like a failure for stopping the
+      // run (three busy answers in a row will not clear by themselves within
+      // it), but says what it was.
+      case 'deferred':
       case 'failed':
         s.tally.failed += 1
         s.failedInARow += 1
         s.busyAttempts = 0
-        await s.say(`не вышло: ${r.why}`).catch(() => undefined)
+        await s
+          .say(r.did === 'deferred' ? r.why : `не вышло: ${r.why}`)
+          .catch(() => undefined)
         if (s.failedInARow >= FAILED_IN_A_ROW_MAX) {
           dropScope(
             owner,

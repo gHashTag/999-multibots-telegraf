@@ -1063,6 +1063,42 @@ export const FIT_SCRIPT = `
 })();
 `.replace('__FIT__', FIT_PATH)
 
+/**
+ * ONE LANGUAGE ON ONE SCREEN (owner, 2026-10-06, iPhone in Telegram: the app
+ * spoke Russian and the window under it said "Starting your browser").
+ *
+ * The app has its own language setting; the phone's navigator.language is a
+ * different answer. So the app puts its language on the window's address
+ * (`lang=ru|en`), the proxy keeps it through the login redirect
+ * (live-proxy.ts loginUrlFor), and this script, first in the head, reads it
+ * once and keeps it for the tab: neko strips its own parameters and every
+ * reconnect lands on the bare login address, so the address is only the
+ * first answer. Without either, the phone's language decides, as before.
+ */
+export const VIEWER_LANG_KEY = 't27-lang'
+
+export const LANG_SCRIPT = `(function () {
+  try {
+    var asked = ((location.search || '').match(/[?&]lang=(ru|en)(&|$)/) || [])[1] || null;
+    var lang = asked;
+    try {
+      if (asked) sessionStorage.setItem(__KEY__, asked);
+      else lang = sessionStorage.getItem(__KEY__);
+    } catch (e) {}
+    if (lang === 'ru' || lang === 'en')
+      document.documentElement.setAttribute('data-t27-lang', lang);
+  } catch (e) {}
+})();`.replace(/__KEY__/g, () => JSON.stringify(VIEWER_LANG_KEY))
+
+/**
+ * The question every script of the window asks before it says anything: the
+ * app's language when LANG_SCRIPT found one, the phone's otherwise.
+ */
+export const RU_EXPR =
+  "(function () { try { var l = document.documentElement.getAttribute('data-t27-lang');" +
+  " if (l === 'ru' || l === 'en') return l === 'ru'; } catch (e) {}" +
+  " return /^ru\\b/i.test((typeof navigator !== 'undefined' && navigator.language) || ''); })()"
+
 /** What it says while the browser is coming up. */
 export const BOOT_SAID = 'Поднимаю браузер…' // cyrillic-ok: read by a person
 export const BOOT_HINT =
@@ -1080,6 +1116,27 @@ export const BOOT_HINT_EN =
 
 /** Longer than a cold pod takes, shorter than anyone will stare at a ring. */
 export const BOOT_GIVE_UP_MS = 45_000
+
+/**
+ * PICTURES SOONER WHEN THE VIDEO IS LATE (owner, 2026-10-06, iPhone in
+ * Telegram: minutes of "Starting your browser" over a dimmed picture).
+ *
+ * Forty-five seconds is the wait for a pod that may never come up. When the
+ * frames already arrive, the pod is up and only the video is missing, and a
+ * ring over a dimmed picture for 45 s -- restarted by each of the reconnect
+ * script's reloads -- is minutes of a loader in front of a working picture.
+ * So after this long with frames and no playing video, the window goes
+ * straight to watch mode; the 45 s give-up stays for the no-frames case.
+ * A video that plays later still takes over, as before.
+ */
+export const BOOT_FAST_WATCH_MS = 8_000
+
+/**
+ * Watch mode, once reached, is remembered for the tab (per session), so a
+ * reload by the reconnect script shows the pictures on the first frame
+ * instead of a fresh loader. A video that plays clears it.
+ */
+export const WATCH_KEY_PREFIX = 't27-watch-'
 
 /**
  * WHEN THE VIDEO NEVER COMES AND THE PICTURES DO.
@@ -1144,13 +1201,14 @@ export const BOOT_SCRIPT = `
 (function () {
   var el = document.getElementById('t27-boot');
   if (!el) return;
-  if (!/^ru\\b/i.test(navigator.language || '')) {
+  if (!__RU__) {
     el.querySelector('.said').textContent = __SAID_EN__;
     el.querySelector('.hint').textContent = __HINT_EN__;
   }
   var gone = false;
   var watching = false;
   var frameSeen = 0;
+  var late = false;
   /*
    * LIVE FRAMES UNDER THE LOADER until the video plays (frames.ts): the
    * page as it changes, one JPEG at a time, over a socket that is up in one
@@ -1173,6 +1231,20 @@ export const BOOT_SCRIPT = `
     here = location.pathname.match(/^\\/live\\/([^/]+)/);
     canFrame = !!(here && poster && window.WebSocket && window.URL && URL.createObjectURL);
   } catch (e) { canFrame = false; }
+  var watchKey = here ? __WATCH_KEY__ + here[1] : null;
+  function remembered() {
+    try { return !!watchKey && sessionStorage.getItem(watchKey) === '1'; }
+    catch (e) { return false; }
+  }
+  function remember(on) {
+    if (!watchKey) return;
+    try {
+      if (on) sessionStorage.setItem(watchKey, '1');
+      else sessionStorage.removeItem(watchKey);
+    } catch (e) {}
+  }
+  /* Watch mode was already reached in this visit: no second long loader. */
+  if (remembered()) late = true;
   function open() {
     if (gone || !canFrame) return;
     try {
@@ -1193,6 +1265,7 @@ export const BOOT_SCRIPT = `
         };
         poster.style.visibility = 'visible';
         poster.src = url;
+        if (late && !watching) watchMode();
       };
       /*
        * The server caps one screencast (FRAMES_MAX_MS) because a bridge is
@@ -1212,6 +1285,7 @@ export const BOOT_SCRIPT = `
     if (gone) return;
     gone = true;
     watching = false;
+    remember(false);
     if (frames) { try { frames.close(); } catch (e) {} }
     el.setAttribute('data-done', '1');
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
@@ -1224,10 +1298,11 @@ export const BOOT_SCRIPT = `
   function watchMode() {
     if (gone || watching) return;
     watching = true;
+    remember(true);
     el.setAttribute('data-watch', '1');
     var said = el.querySelector('.said');
     var hint = el.querySelector('.hint');
-    var ru = /^ru\\b/i.test(navigator.language || '');
+    var ru = __RU__;
     if (said) said.textContent = ru ? __WATCH_SAID__ : __WATCH_SAID_EN__;
     if (hint) hint.textContent = ru ? __WATCH_HINT__ : __WATCH_HINT_EN__;
     if (!frames) open();
@@ -1241,16 +1316,75 @@ export const BOOT_SCRIPT = `
   function giveUp() { if (frameSeen > 0) watchMode(); else done(); }
   setTimeout(giveUp, __GIVEUP__);
   /*
+   * The fast half (BOOT_FAST_WATCH_MS): frames and no video by now means the
+   * pod is up and only the video is late -- show the pictures. Registered
+   * after the give-up on purpose; the give-up is the first timer.
+   */
+  setTimeout(function () {
+    late = true;
+    if (frameSeen > 0) watchMode();
+  }, __FAST__);
+  /*
    * The reconnect script (CONNECT_SCRIPT) reaches the same conclusion sooner:
    * it has counted its retries and knows the video is not coming. It asks
    * here rather than deciding for itself -- the choice between "leave, you are
    * hiding an error" and "stay, you are the only picture" lives in one place.
    */
   try { window.__t27GiveUp = giveUp; } catch (e) {}
+  /*
+   * INLINE, MUTED, AND STARTED BY A TOUCH (owner, 2026-10-06). Telegram on iOS
+   * is WKWebView: a video without playsinline is not played in the page, and
+   * one with sound is not played without a gesture. neko sets neither, so
+   * they are set here the moment the element exists, and the first touch or
+   * click plays a video that is still paused. Sound stays only for
+   * sound=1 on the address, as in MUTE_SCRIPT.
+   */
+  var sound = false;
+  try { sound = /[?&]sound=1(&|$)/.test(location.search || ''); } catch (e) {}
+  function inline(v) {
+    if (v.__t27Inline) return;
+    v.__t27Inline = true;
+    try {
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.playsInline = true;
+      if (!sound) {
+        v.setAttribute('muted', '');
+        v.defaultMuted = true;
+        v.muted = true;
+      }
+    } catch (e) {}
+  }
+  var nudging = false;
+  function nudge() {
+    var v = document.querySelector('video');
+    if (!v || !v.paused || typeof v.play !== 'function') return;
+    try {
+      var p = v.play();
+      if (p && typeof p.catch === 'function') p.catch(function () {});
+    } catch (e) {}
+  }
+  function stopNudging() {
+    if (!nudging) return;
+    nudging = false;
+    try {
+      document.removeEventListener('touchend', nudge, true);
+      document.removeEventListener('click', nudge, true);
+    } catch (e) {}
+  }
+  try {
+    document.addEventListener('touchend', nudge, true);
+    document.addEventListener('click', nudge, true);
+    nudging = true;
+  } catch (e) {}
+  function playing() { stopNudging(); done(); }
   function watch(v) {
-    if (v.readyState >= 2 && !v.paused) return done();
-    v.addEventListener('playing', done, { once: true });
-    v.addEventListener('loadeddata', function () { if (!v.paused) done(); });
+    inline(v);
+    if (v.readyState >= 2 && !v.paused) return playing();
+    if (v.__t27Watched) return;
+    v.__t27Watched = true;
+    v.addEventListener('playing', playing, { once: true });
+    v.addEventListener('loadeddata', function () { if (!v.paused) playing(); });
   }
   var seen = document.querySelector('video');
   if (seen) watch(seen);
@@ -1261,6 +1395,9 @@ export const BOOT_SCRIPT = `
 })();
 `
   .replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
+  .replace('__FAST__', String(BOOT_FAST_WATCH_MS))
+  .replace('__WATCH_KEY__', () => JSON.stringify(WATCH_KEY_PREFIX))
+  .replace(/__RU__/g, () => RU_EXPR)
   .replace('__RETRY__', String(WATCH_RETRY_MS))
   .replace('__FRAMES__', FRAMES_PATH)
   .replace('__SAID_EN__', () => JSON.stringify(BOOT_SAID_EN))
@@ -1308,9 +1445,9 @@ export const FACE_SCRIPT = `
 `.replace('__AVATAR__', AVATAR_PATH)
 
 /**
- * What the card says once the connect script has it. Russian when the
- * browser asks for Russian -- the same test neko uses for its own words, so
- * the card never speaks two languages at once -- and English otherwise.
+ * What the card says once the connect script has it. Russian when the app
+ * asked for Russian (LANG_SCRIPT), or failing that when the browser does,
+ * and English otherwise -- the same answer as the loader on the same screen.
  */
 export const LOST_WORDS = {
   ru: {
@@ -1372,7 +1509,7 @@ export const CONNECT_SCRIPT = `
   var home = '/live/' + m[1] + '/' + __QUERY__;
   var key = 't27-reconnect-' + m[1];
   var all = __WORDS__;
-  var words = /^ru\\b/i.test(navigator.language || '') ? all.ru : all.en;
+  var words = __RU__ ? all.ru : all.en;
   var MAX = __TRIES__;
   function tries() {
     try { return parseInt(sessionStorage.getItem(key) || '0', 10) || 0; }
@@ -1461,6 +1598,7 @@ export const CONNECT_SCRIPT = `
   .replace('__TRIES__', String(RECONNECT_TRIES))
   .replace('__PAUSE__', String(RECONNECT_PAUSE_MS))
   .replace('__SETTLE__', String(RECONNECT_SETTLE_MS))
+  .replace(/__RU__/g, () => RU_EXPR)
 
 /**
  * How long a connected video may go without a new frame before the window
@@ -1499,7 +1637,7 @@ export const FREEZE_SCRIPT = `
   if (!m) return;
   var home = '/live/' + m[1] + '/' + __QUERY__;
   var all = __WORDS__;
-  var words = /^ru\\b/i.test(navigator.language || '') ? all.ru : all.en;
+  var words = __RU__ ? all.ru : all.en;
   var video = null;
   var painted = 0;
   var last = -1;
@@ -1593,6 +1731,7 @@ export const FREEZE_SCRIPT = `
   .replace('__WORDS__', () => JSON.stringify(LOST_WORDS))
   .replace('__AFTER__', String(FROZEN_AFTER_MS))
   .replace('__EVERY__', String(FROZEN_CHECK_MS))
+  .replace(/__RU__/g, () => RU_EXPR)
 
 /** What the tab says it is, in the person's own app rather than a stranger's. */
 export const PAGE_TITLE = `Браузер · ${BRAND_NAME}` // cyrillic-ok: read by a person
@@ -1766,6 +1905,7 @@ export function injectSkin(html: string): string {
    * and `display=swap` means a slow font never delays the window.
    */
   const head =
+    `<script data-t27-lang>${LANG_SCRIPT}</script>` +
     `<script data-t27-framed>${FRAMED_SCRIPT}</script>` +
     `<script data-t27-mute>${MUTE_SCRIPT}</script>` +
     `<script data-t27-touch>${TOUCH_REPORT_SCRIPT}</script>` +

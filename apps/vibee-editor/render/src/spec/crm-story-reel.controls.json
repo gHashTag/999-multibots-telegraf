@@ -196,8 +196,8 @@
   },
   {
     "name": "VERSION lags the header again",
-    "from": "pub const VERSION : u8 = 16;",
-    "to": "pub const VERSION : u8 = 15;"
+    "from": "pub const VERSION : u8 = 26;",
+    "to": "pub const VERSION : u8 = 25;"
   },
   {
     "name": "two reasons on the card allowed",
@@ -213,5 +213,270 @@
     "name": "the seller presses a paid button blind",
     "from": "pub const SELLER_SEES_PRICE : bool = true;",
     "to": "pub const SELLER_SEES_PRICE : bool = false;"
+  },
+  {
+    "name": "the writer's place is drawn again (v21)",
+    "from": "return has_setting && (!from_writer || WRITER_WRITES_SETTINGS);",
+    "to": "return has_setting;"
+  },
+  {
+    "name": "a caller's place is dropped with the writer's",
+    "from": "return has_setting && (!from_writer || WRITER_WRITES_SETTINGS);",
+    "to": "return has_setting && WRITER_WRITES_SETTINGS;"
+  },
+  {
+    "name": "the writer writes places again",
+    "from": "pub const WRITER_WRITES_SETTINGS : bool = false;",
+    "to": "pub const WRITER_WRITES_SETTINGS : bool = true;"
+  },
+  {
+    "name": "a new place every scene again",
+    "from": "pub const NEW_SETTING_EACH_SCENE : bool = false;",
+    "to": "pub const NEW_SETTING_EACH_SCENE : bool = true;"
+  },
+  {
+    "name": "the writer's place is trusted to the prompt",
+    "from": "pub const WRITER_SETTING_DROPPED : bool = true;",
+    "to": "pub const WRITER_SETTING_DROPPED : bool = false;"
+  },
+  {
+    "name": "the template's call reaches a client's reel",
+    "from": "pub const HOUSE_CALL_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_CALL_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "the template's button reaches a client's reel",
+    "from": "pub const HOUSE_BUTTON_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_BUTTON_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "a replaced house call goes unsaid",
+    "from": "pub const HOUSE_WORD_REPLACED_SAID : bool = true;",
+    "to": "pub const HOUSE_WORD_REPLACED_SAID : bool = false;"
+  },
+  {
+    "name": "a house mark is taken on a client's reel",
+    "from": "return chars > 0 && (own_reel || !names_house);",
+    "to": "return chars > 0;"
+  },
+  {
+    "name": "an empty call is taken",
+    "from": "return chars > 0 && (own_reel || !names_house);",
+    "to": "return own_reel || !names_house;"
+  },
+  {
+    "name": "a house word on the house's own reel is said replaced",
+    "from": "return HOUSE_WORD_REPLACED_SAID && chars > 0 && names_house && !own_reel;",
+    "to": "return HOUSE_WORD_REPLACED_SAID && chars > 0 && names_house;"
+  },
+  {
+    "name": "the seller's call loses to the template",
+    "from": "if seller_ok {\n            return CALL_FROM_SELLER;",
+    "to": "if seller_ok && !template_given {\n            return CALL_FROM_SELLER;"
+  },
+  {
+    "name": "the template's call ignores whose reel it is",
+    "from": "(own_reel || HOUSE_CALL_ON_CLIENT_REEL)",
+    "to": "(true)"
+  },
+  {
+    "name": "the template's button ignores whose reel it is",
+    "from": "(own_reel || HOUSE_BUTTON_ON_CLIENT_REEL)",
+    "to": "(true)"
+  },
+  {
+    "name": "her approved call goes before her story call",
+    "from": "if story_ok {",
+    "to": "if story_ok && !approved_ok {"
+  },
+  {
+    "name": "her approved call is skipped for the default",
+    "from": "if approved_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "her kept button is skipped",
+    "from": "if kept_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "her profile button is skipped",
+    "from": "if profile_ok {",
+    "to": "if false {"
+  },
+  {
+    "name": "the last line runs past the editor",
+    "from": "if lead_chars + 1 + call_chars <= LINE_MAX_CHARS {",
+    "to": "if lead_chars + 1 + call_chars <= LINE_MAX_CHARS + 1 {"
+  },
+  {
+    "name": "her call alone runs past the editor",
+    "from": "if call_chars <= LINE_MAX_CHARS {",
+    "to": "if call_chars <= LINE_MAX_CHARS + 1 {"
+  },
+  {
+    "name": "a call in another language joins the last line",
+    "from": "if call_chars == 0 || !same_language {",
+    "to": "if call_chars == 0 {"
+  },
+  {
+    "name": "a client turn speaks another client",
+    "from": "if client_turn && lead_named && !names_this_client {",
+    "to": "if false {"
+  },
+  {
+    "name": "a client turn with no lead speaks the caller",
+    "from": "pub const CLIENT_TURN_SPEAKS_CLIENT : bool = true;",
+    "to": "pub const CLIENT_TURN_SPEAKS_CLIENT : bool = false;"
+  },
+  {
+    "name": "the house marks forget one",
+    "from": "pub const HOUSE_MARKS : u8 = 5;",
+    "to": "pub const HOUSE_MARKS : u8 = 4;"
+  },
+  {
+    "name": "the template's button counts as the seller's",
+    "from": "pub const FIELD_FROM_TEMPLATE : u8 = 4;",
+    "to": "pub const FIELD_FROM_TEMPLATE : u8 = 2;"
+  },
+  {
+    "name": "the last line's lead-in drifts",
+    "from": "pub const TEMPLATE_LEAD_EN_4 : str = \"Want the same?\";",
+    "to": "pub const TEMPLATE_LEAD_EN_4 : str = \"Want it?\";"
+  },
+  {
+    "name": "template line naming the house kept on a client reel",
+    "from": "            return LINE_CLIENT_VERSION;",
+    "to": "            return LINE_KEPT;"
+  },
+  {
+    "name": "an edited line naming the house allowed on a client reel",
+    "from": "pub const HOUSE_LINE_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const HOUSE_LINE_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "the person's own typed words refused like an edit",
+    "from": "        if !names_house || from == LINE_FROM_PERSON {",
+    "to": "        if !names_house {"
+  },
+  {
+    "name": "a template's client version names the house",
+    "from": "pub const CLIENT_VERSION_NAMES_HOUSE : bool = false;",
+    "to": "pub const CLIENT_VERSION_NAMES_HOUSE : bool = true;"
+  },
+  {
+    "name": "the client's list shows the house version",
+    "from": "pub const CLIENT_LIST_HOUSE_FREE : bool = true;",
+    "to": "pub const CLIENT_LIST_HOUSE_FREE : bool = false;"
+  },
+  {
+    "name": "a refused press is charged",
+    "from": "pub const REFUSED_BEFORE_SPEND : bool = true;",
+    "to": "pub const REFUSED_BEFORE_SPEND : bool = false;"
+  },
+  {
+    "name": "charged ignores the refusal",
+    "from": "        return !REFUSED_BEFORE_SPEND;",
+    "to": "        return REFUSED_BEFORE_SPEND;"
+  },
+  {
+    "name": "the own reel's lines are checked like a client's",
+    "from": "        if own_reel {",
+    "to": "        if false {"
+  },
+  {
+    "name": "a kept house line is not counted as said",
+    "from": "        return way == LINE_KEPT && names_house;",
+    "to": "        return false;"
+  },
+  {
+    "name": "the brand is not a house mark",
+    "from": "pub const HOUSE_BRAND : str = \"T27\";",
+    "to": "pub const HOUSE_BRAND : str = \"\";"
+  },
+  {
+    "name": "message-level own-words",
+    "from": "        return said_names_house && NAMING_THE_BOT_LENDS;",
+    "to": "        return said_names_house;"
+  },
+  {
+    "name": "any mention of the bot lends the name",
+    "from": "pub const NAMING_THE_BOT_LENDS : bool = false;",
+    "to": "pub const NAMING_THE_BOT_LENDS : bool = true;"
+  },
+  {
+    "name": "her words reach no further than the house name",
+    "from": "pub const OWN_WORDS_REACH : u8 = 2;",
+    "to": "pub const OWN_WORDS_REACH : u8 = 0;"
+  },
+  {
+    "name": "her own line is read as an edit",
+    "from": "            return LINE_FROM_PERSON;",
+    "to": "            return LINE_FROM_EDIT;"
+  },
+  {
+    "name": "only the whole line counts as hers",
+    "from": "        if line_in_said || phrase_in_said {",
+    "to": "        if line_in_said {"
+  },
+  {
+    "name": "v23: no look-alike folding",
+    "from": "pub const FOLD_LOOKALIKES : bool = true;",
+    "to": "pub const FOLD_LOOKALIKES : bool = false;"
+  },
+  {
+    "name": "v23: an invisible character splits a name",
+    "from": "pub const INVISIBLES_DROPPED : bool = true;",
+    "to": "pub const INVISIBLES_DROPPED : bool = false;"
+  },
+  {
+    "name": "v23: t27 needs a word boundary again",
+    "from": "        if letter_after {\n            return CODE_MARK_PREFIX;\n        }",
+    "to": "        if letter_after {\n            return false;\n        }"
+  },
+  {
+    "name": "v23: a letter before T27 is still the brand",
+    "from": "        if word_before || digit_after {",
+    "to": "        if digit_after {"
+  },
+  {
+    "name": "v23: T270 is the brand",
+    "from": "        if word_before || digit_after {",
+    "to": "        if word_before {"
+  },
+  {
+    "name": "v23: S3 AI with a space is the product",
+    "from": "            return !PRODUCT_ONE_TOKEN;",
+    "to": "            return true;"
+  },
+  {
+    "name": "v23: the product glued to a word is still the product",
+    "from": "        if !code_ok {\n            return false;\n        }\n",
+    "to": ""
+  },
+  {
+    "name": "v23: Trinity before another word is not the house (Trinity College cleared)",
+    "from": "            return NAME_IN_ANY_CONTEXT;",
+    "to": "            return false;"
+  },
+  {
+    "name": "v23: the name inside a longer word is not the house",
+    "from": "            return NAME_INSIDE_WORD;",
+    "to": "            return false;"
+  },
+  {
+    "name": "v26: a caller who is the lead is not his own reel",
+    "from": "    return lead_is_caller && CALLER_OWN_LEAD_IS_OWN_REEL;",
+    "to": "    return false;"
+  },
+  {
+    "name": "v26: the own card is filled even when the pause shows no call",
+    "from": "    return own_reel && OWN_CARD_FILLED && cta_card_shown(call_chars, has_end_card);",
+    "to": "    return own_reel && OWN_CARD_FILLED;"
+  },
+  {
+    "name": "v26: the default ground goes back to pure black",
+    "from": "pub const END_CARD_DEFAULT_BG : str = \"#0B0B0B\";",
+    "to": "pub const END_CARD_DEFAULT_BG : str = \"#000000\";"
   }
 ]
