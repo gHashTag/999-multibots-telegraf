@@ -54,7 +54,12 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       to the agent (in-flight cap 1, 3 s gap, own key `ZAI_RELAY_API_KEY`); N2 zai-lite on its own
       key `ZAI_LITE_API_KEY`; N3 after both deploy, set the keys (owner said yes 06.10): relay +
       Zep `ZEP_OPENAI_API_KEY` = account 3 together, lite = account 2; N4 top up `reserve` (owner).
-      N2 done in #3788 (not yet deployed); N1 done in #3791 (not yet deployed); N3, N4 remain.
+      N2 done in #3788 and N1 in #3791, both deployed; N3 done 2026-10-06 (see Журнал); N4 remains
+      (owner). N5 MEASURE before any code: after 24 h on split keys, count skips and outcomes
+      (command in Журнал). Only if turns still end `outcome:error` because zai answers 1305 and
+      zai-lite then "talked instead of calling" outside a toolsOnly turn, dispatch a bee: one
+      short-backoff retry of zai on 1305 before zai-lite, or lite out of tool-needing turns.
+      Measure first: a fix for a cause nobody counted is a guess.
 - [ ] M. Telegram start card: "take the wheel" / "pause" buttons (B14, C3/C4).
 
 ## Журнал
@@ -93,6 +98,16 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   "session expired" -- a timeout is "temporary" with its code. 179/179 locally (runner gave
   no result 3 times); 2 mutants killed (5 tests). Push gate caught `@SpamBot` in no-dossier
   (allow-listed) and a shared render node_modules (`tri wt-deps`).
+- 2026-10-06. N3: keys set blind (hash check only). vibee-render `GLM_API_KEY` = account 1,
+  `ZAI_LITE_API_KEY` = account 2, `ZAI_RELAY_API_KEY` and zep `ZEP_OPENAI_API_KEY` = account 3,
+  set together. Render log of the next deploy (259 lines): zero 1302; left were zai 1305 x2,
+  one zai 60 s timeout (breaker opened 120 s), zai-lite "talked instead of calling", nemotron
+  16/16, reserve no funds, one `outcome:error`. 1305 is glm-4.7-flash overloaded for every
+  key, so it goes to zai-lite by design (provider.ts KEY_WIDE_LIMIT_CODES). Re-measure (N5):
+  `railway logs --project 999 --environment production --service vibee-render --lines 5000 | grep -oE 'provider skipped: [a-z-]+: [^:{]{0,40}|"outcome":"[a-z]+"' | sort | uniq -c`.
+  The check runner was stuck all day (#3792, deployed 13:54Z): an orphan vitest held the
+  queue. "the runner gave no result" with an empty `GET /status` queue is a busy or cut
+  request, not the old stall -- re-run once before running locally.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
