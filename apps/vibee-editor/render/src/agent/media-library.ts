@@ -1389,7 +1389,13 @@ export async function describeMedia(
     if (!p) return null
     return await askProvider(p, kind, safe)
   } catch (e) {
-    console.warn(
+    // A background ask that gave way to a live one is the vision lane doing
+    // its job (media-vision.ts, VisionPreempted), not a failure: it goes to
+    // stdout, which Railway files as info. stderr is filed as error, and this
+    // line there was noise burying real failures. The row stays pending
+    // either way -- DescribeFailed below.
+    const say = e instanceof VisionPreempted ? console.log : console.warn
+    say(
       `[media-library] could not describe ${kind} ${name ?? ''}: ${String(
         e instanceof Error ? e.message : e
       ).slice(0, 160)}`

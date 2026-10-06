@@ -337,7 +337,7 @@ export async function podsToSweep(
       WHERE state = 'live' AND cdp_endpoint IS NOT NULL`,
     []
   )
-  const { chosenFront } = await import('./front-page')
+  const { chosenFrontsOf } = await import('./front-page')
   /*
    * A tab a desk is working in is not a duplicate yet: the composer on
    * x.com/compose/post beside x.com/home was closed mid-thread by this clock
@@ -347,11 +347,11 @@ export async function podsToSweep(
   const desks = deskTabsHeld()
   const jobs: PodJob[] = rows.map(row => {
     const telegramId = String(row.telegram_id)
-    const chosen = chosenFront(telegramId)
+    /* Every lane's chosen tab (lanes.ts): a lane's window is working too. */
     return {
       who: telegramId,
       cdp: String(row.cdp_endpoint),
-      keep: [...(chosen ? [chosen] : []), ...desks],
+      keep: [...chosenFrontsOf(telegramId), ...desks],
     }
   })
   /*

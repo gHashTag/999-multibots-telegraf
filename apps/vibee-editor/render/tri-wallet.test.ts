@@ -15,6 +15,14 @@ import {
   type TriWalletDeps,
 } from './src/tri-wallet'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * Every proof here is a real one: an ed25519 key made in the test, a wallet
  * state init carrying that key where a v4 wallet keeps it, the address that
@@ -483,28 +491,38 @@ describe('personIdentity -- who may bind a payout address', () => {
   const req = (url: string, headers: Record<string, string>) =>
     ({ url, method: 'POST', headers }) as any
 
-  it('refuses an agent key that chatIdentity would accept', async () => {
-    const { chatIdentity, personIdentity } = await import('./src/agent/routes')
-    process.env.AGENT_KEYS = 'tri_walletprobe:144022504'
-    const r = req(TRI_WALLET_PATH, { 'x-agent-key': 'tri_walletprobe' })
-    // The control: the same request IS somebody for the chat routes.
-    expect(chatIdentity(r, null)).toBe('144022504')
-    expect(personIdentity(r)).toBeNull()
-  })
+  it(
+    'refuses an agent key that chatIdentity would accept',
+    async () => {
+      const { chatIdentity, personIdentity } = await import(
+        './src/agent/routes'
+      )
+      process.env.AGENT_KEYS = 'tri_walletprobe:144022504'
+      const r = req(TRI_WALLET_PATH, { 'x-agent-key': 'tri_walletprobe' })
+      // The control: the same request IS somebody for the chat routes.
+      expect(chatIdentity(r, null)).toBe('144022504')
+      expect(personIdentity(r)).toBeNull()
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('refuses the server key naming a telegram_id', async () => {
-    const { resolveIdentity, personIdentity } = await import(
-      './src/agent/routes'
-    )
-    process.env.RENDER_API_KEY = 'server-key-for-this-test' // secret-guard-ok: test fixture, not a credential
-    const r = req(`${TRI_WALLET_PATH}?telegram_id=144022504`, {
-      'x-api-key': 'server-key-for-this-test',
-    })
-    expect(
-      await resolveIdentity(r, async () => {
-        throw new Error('no db')
+  it(
+    'refuses the server key naming a telegram_id',
+    async () => {
+      const { resolveIdentity, personIdentity } = await import(
+        './src/agent/routes'
+      )
+      process.env.RENDER_API_KEY = 'server-key-for-this-test' // secret-guard-ok: test fixture, not a credential
+      const r = req(`${TRI_WALLET_PATH}?telegram_id=144022504`, {
+        'x-api-key': 'server-key-for-this-test',
       })
-    ).toBe('144022504')
-    expect(personIdentity(r)).toBeNull()
-  })
+      expect(
+        await resolveIdentity(r, async () => {
+          throw new Error('no db')
+        })
+      ).toBe('144022504')
+      expect(personIdentity(r)).toBeNull()
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

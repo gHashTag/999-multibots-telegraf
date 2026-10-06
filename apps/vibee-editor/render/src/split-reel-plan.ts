@@ -10,6 +10,7 @@
  * spec/split-reel.test.ts.
  */
 import * as SPEC from './spec/split-reel.gen'
+import { houseNameByAgent, namesHouse } from './house-names'
 
 export interface SplitSegment {
   type: 'split' | 'fullscreen'
@@ -220,13 +221,368 @@ export function captionStartMs(
   return firstSpeech
 }
 
+/** Mirror of the spec's house_own (v7): the house orders it, nobody else is named. */
+export function houseOwn(
+  houseCaller: boolean,
+  clientTurn: boolean,
+  forLead: boolean,
+  sellerSweep: boolean
+): boolean {
+  if (!houseCaller) return false
+  if (clientTurn) return false
+  if (forLead) return false
+  return !sellerSweep
+}
+
+/** Mirror of the spec's cta_for (v7): which call the reel ends on. */
+export function ctaFor(
+  house: boolean,
+  given: boolean,
+  givenNamesHouse: boolean,
+  clientHasCta: boolean
+): number {
+  if (given && (house || !givenNamesHouse)) return SPEC.CTA_GIVEN
+  if (house) return SPEC.CTA_OWNER
+  if (clientHasCta) return SPEC.CTA_CLIENT
+  return SPEC.CTA_NEUTRAL
+}
+
+/** Mirror of the spec's owner_voice_allowed (v7). */
+export function ownerVoiceAllowed(house: boolean): boolean {
+  return house || SPEC.OWNER_VOICE_ON_CLIENT_REEL
+}
+
+/**
+ * Mirror of the spec's house_name_allowed (v7): a house name stands on the
+ * house's own reel, and elsewhere only in words the person put there herself.
+ */
+export function houseNameAllowed(
+  house: boolean,
+  agentSupplied: boolean
+): boolean {
+  if (house) return true
+  if (!agentSupplied) return true
+  return SPEC.AGENT_HOUSE_NAME_ON_CLIENT_REEL
+}
+
+/**
+ * Mirror of the spec's voice_refused (v8): an ordinary caller who names no
+ * voice and has no clone of her own is refused before the charge. There is
+ * no stock voice to give her (STOCK_VOICE_FOR_ORDINARY); the house keeps its
+ * own path.
+ */
+export function voiceRefused(
+  house: boolean,
+  hasVoiceId: boolean,
+  hasClone: boolean
+): boolean {
+  if (hasVoiceId) return false
+  if (hasClone) return false
+  if (house) return false
+  return !SPEC.STOCK_VOICE_FOR_ORDINARY
+}
+
+/**
+ * Mirror of the spec's speech_units (v9): a text's length in speech units,
+ * each kind of character at its own weight.
+ */
+export function speechUnitsOf(
+  plain: number,
+  digits: number,
+  wide: number
+): number {
+  return (
+    plain * SPEC.PLAIN_CHAR_WEIGHT +
+    digits * SPEC.DIGIT_WEIGHT +
+    wide * SPEC.WIDE_CHAR_WEIGHT
+  )
+}
+
+/**
+ * Mirror of the spec's pace_for (v9): the pace a voice is judged at -- the
+ * slower of MS_PER_CHAR and the slowest pace that voice was ever measured at
+ * (0: never measured). A quick voice never stretches the ceiling.
+ */
+export function paceFor(slowest: number): number {
+  if (!SPEC.PACE_PER_VOICE) return SPEC.MS_PER_CHAR
+  return slowest > SPEC.MS_PER_CHAR ? slowest : SPEC.MS_PER_CHAR
+}
+
+/**
+ * Mirror of the spec's speech_ms_estimate (v8, per voice since v9): ms of
+ * speech from a text's units, at that voice's own pace.
+ */
+export function speechMsEstimate(units: number, slowest: number): number {
+  return units * paceFor(slowest)
+}
+
+/**
+ * Mirror of the spec's text_fits (v8, per voice since v9): the estimate is
+ * within the format, judged before the voice is paid for.
+ */
+export function textFits(units: number, slowest: number): boolean {
+  return speechMsEstimate(units, slowest) <= SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * Mirror of the spec's measured_pace (v9): ms a unit one measured voice
+ * spoke at, rounded UP so it errs long; 0 with no units to divide by.
+ */
+export function measuredPace(measuredMs: number, units: number): number {
+  if (units === 0) return 0
+  return Math.floor((measuredMs + units - 1) / units)
+}
+
+/**
+ * Mirror of the spec's slowest_pace (v9): a voice is only ever slowed down,
+ * never sped up, by what it is measured at.
+ */
+export function slowestPace(kept: number, measured: number): number {
+  return measured > kept ? measured : kept
+}
+
+/**
+ * Mirror of the spec's pace_to_keep (v9): what the voice's row keeps after a
+ * voice of this many units ran this long. A text too short to measure (its
+ * fixed silence reads as a slow voice) leaves the kept pace as it was.
+ */
+export function paceToKeep(
+  kept: number,
+  measuredMs: number,
+  units: number
+): number {
+  if (units < SPEC.MIN_PACE_UNITS) return kept
+  return slowestPace(kept, measuredPace(measuredMs, units))
+}
+
+/**
+ * Mirror of the spec's voice_too_long (v8): the backstop, on a voice measured
+ * once it exists.
+ */
+export function voiceTooLong(measuredMs: number): boolean {
+  return measuredMs > SPEC.SPEECH_MAX_SECONDS * 1000
+}
+
+/**
+ * A measured length in seconds as the spec's milliseconds, rounded UP: a
+ * voice a hair past the ceiling stays past it.
+ */
+export function msOfSeconds(seconds: number): number {
+  return Math.ceil(seconds * 1000)
+}
+
+/**
+ * Mirror of the spec's backstop_refund (v8): what the backstop gives back
+ * when it refuses a voice -- the exact sum THIS call was charged for it, and
+ * nothing for a voice from an earlier call, a voice that fits, or a charge of
+ * nothing (the house, a caller somebody else pays for).
+ */
+export function backstopRefund(
+  paidHere: boolean,
+  measuredMs: number,
+  chargedNow: number
+): number {
+  if (!paidHere) return 0
+  if (!voiceTooLong(measuredMs)) return 0
+  if (!SPEC.REFUND_TOO_LONG_VOICE) return 0
+  return Number.isInteger(chargedNow) && chargedNow > 0 ? chargedNow : 0
+}
+
+/**
+ * Characters as the spec's pace was measured (MEASURED_CHARS): the words
+ * joined by single spaces, nothing around them.
+ */
+export function speechChars(text: string): number {
+  return Array.from(spokenText(text)).length
+}
+
+/** A text as the pace was measured: words joined by single spaces. */
+function spokenText(text: string): string {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** A digit: read out as a word, so it weighs DIGIT_WEIGHT. */
+const DIGIT = /^\p{Nd}$/u
+/**
+ * A letter of a script that writes a syllable or a word per character (Han,
+ * Hiragana, Katakana, Hangul): WIDE_CHAR_WEIGHT. Any other alphabet's letter
+ * is a sound like a Latin one and weighs one, as the spec says.
+ */
+const WIDE =
+  /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]$/u
+
+/**
+ * A text's length in the spec's speech units (v9): its characters counted as
+ * speechChars counts them, a digit or a syllable character at its weight.
+ * A text of Latin or Cyrillic letters weighs exactly its speechChars.
+ */
+export function speechUnits(text: string): number {
+  let plain = 0
+  let digits = 0
+  let wide = 0
+  for (const ch of spokenText(text)) {
+    if (DIGIT.test(ch)) digits += 1
+    else if (WIDE.test(ch)) wide += 1
+    else plain += 1
+  }
+  return speechUnitsOf(plain, digits, wide)
+}
+
+/**
+ * A reel's speech as the lines own_words judges: one per line break or
+ * sentence end, so a house name is weighed with the words of its own
+ * sentence and never with the sentence before it.
+ */
+export function speechLines(text: string): string[] {
+  return String(text ?? '')
+    .split(/\n+|(?<=[.!?…])\s+/u)
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The spec's agent_supplied for a reel's speech: some line names the house
+ * and is not the person's own words this turn (ToolContext.ownerSaid, set
+ * only by code). Judged line by line by the one detector, house-names.ts
+ * (crm-story-reel v22 own_words): sellers address the bot by name, so her
+ * message naming it lends no line anything.
+ */
+export function agentSuppliedHouseName(
+  text: string,
+  personSaid?: string
+): boolean {
+  return speechLines(text).some(line => houseNameByAgent(line, personSaid))
+}
+
+/**
+ * The turn as the v7 rule reads it. Every field is set only by code (the
+ * wallet's id, chat.ts clientTurnContext), never by the model's words.
+ */
+export interface ReelTurn {
+  /** Whether the wallet ordering the reel is the house's (isHouse). */
+  house: boolean
+  /** The client the turn works for. */
+  faceOf?: string
+  /** An unattended sweep: every reel in it is for a lead. */
+  sellerSweep?: boolean
+}
+
+/** Whose voice and call a reel carries: the lead the order names, else the turn's client. */
+export function leadOfTurn(
+  forLead: unknown,
+  turn: Pick<ReelTurn, 'faceOf'>
+): string {
+  return String(forLead ?? '').trim() || String(turn?.faceOf ?? '').trim()
+}
+
+/** The spec's house_own, read off a turn and the lead resolved by leadOfTurn. */
+export function houseOwnTurn(turn: ReelTurn, lead: string): boolean {
+  return houseOwn(
+    turn?.house === true,
+    Boolean(turn?.faceOf),
+    Boolean(lead),
+    Boolean(turn?.sellerSweep)
+  )
+}
+
+/** What the reel's call is chosen from (spec v7). */
+export interface ReelCall {
+  /** The house's own reel (houseOwnTurn). */
+  house: boolean
+  /** The call the order wrote; '' when none. */
+  given?: string
+  /** The call in the client's own profile; '' when none. */
+  client?: string
+  /** A call with no name in it: the host's copy. */
+  neutral: string
+}
+
+/** The call the reel ends on: the spec's cta_for, in words. */
+export function reelCta(c: ReelCall): string {
+  const given = String(c.given ?? '').trim()
+  const client = String(c.client ?? '').trim()
+  switch (ctaFor(c.house, Boolean(given), namesHouse(given), Boolean(client))) {
+    case SPEC.CTA_GIVEN:
+      return given
+    case SPEC.CTA_OWNER:
+      return SPEC.OWNER_CTA
+    case SPEC.CTA_CLIENT:
+      return client
+    default:
+      return c.neutral
+  }
+}
+
+/** Mirror of the spec's call_colour_from (v10): the colour comes from where the words do. */
+export function callColourFrom(
+  house: boolean,
+  given: boolean,
+  givenIsHouse: boolean,
+  hers: boolean
+): number {
+  return ctaFor(house, given, givenIsHouse, hers)
+}
+
+/** Mirror of the spec's call_drawn (v10): as it is, refused, or its shade that reads. */
+export function callDrawn(from: number, readable: boolean): number {
+  if (readable) return SPEC.CALL_AS_IS
+  if (from === SPEC.CTA_GIVEN && SPEC.GIVEN_CALL_COLOR_UNREADABLE_REFUSED)
+    return SPEC.CALL_REFUSED
+  return SPEC.CALL_SHADE
+}
+
+/** What the call's colour is chosen from (spec v10); colours are checked #hex. */
+export interface ReelCallColour {
+  /** The house's own reel (houseOwnTurn). */
+  house: boolean
+  /** The colour the order gave; '' when none. */
+  given?: string
+  /** Whether the order's colour is the house's gold. */
+  givenIsHouse?: boolean
+  /** Her own: the call colour of her kept palette, else her profile's; '' when none. */
+  hers?: string
+}
+
+/** The call's colour and where it came from: the spec's call_colour_from, in colours. */
+export function reelCallColour(c: ReelCallColour): {
+  colour: string
+  from: number
+} {
+  const given = String(c.given ?? '').trim()
+  const hers = String(c.hers ?? '').trim()
+  const from = callColourFrom(
+    c.house,
+    Boolean(given),
+    Boolean(given && c.givenIsHouse),
+    Boolean(hers)
+  )
+  switch (from) {
+    case SPEC.CTA_GIVEN:
+      return { colour: given, from }
+    case SPEC.CTA_OWNER:
+      return { colour: SPEC.HOUSE_CALL_COLOR, from }
+    case SPEC.CTA_CLIENT:
+      return { colour: hers, from }
+    default:
+      return { colour: SPEC.NEUTRAL_CALL_COLOR, from }
+  }
+}
+
 export interface SplitReelInput {
   lipSyncVideo: string
   /** Where the last word ends; the call starts there (spec v5). */
   seconds: number
   bRolls?: readonly string[]
   captions?: unknown[]
-  ctaText?: string
+  /** Whose reel it is and what its call is chosen from (spec v7). */
+  call: ReelCall
+  /**
+   * The colour the call is drawn in, as split_reel decided it (spec v10).
+   * Absent: the house's gold on the house's own reel, else the neutral one.
+   */
+  callColour?: string
   /** Measured face; the studio's place when absent. */
   face?: FaceInSource
   /** The reel's frame; 1080x1920 when absent. */
@@ -252,8 +608,14 @@ export function splitReelProps(input: SplitReelInput) {
     // The face is centred in the window it is shown in (spec v3).
     splitFacePosition: faceObjectPosition(face, width, splitH),
     fullscreenFacePosition: faceObjectPosition(face, width, height),
-    // The call at the end, on the held last frame (spec v5): always.
-    ctaText: input.ctaText || SPEC.OWNER_CTA,
+    // The call at the end, on the held last frame (spec v5): always, and
+    // the client's on a client's reel (spec v7).
+    ctaText: reelCta(input.call),
+    // ...in the colour from the same place (spec v10): never the house's
+    // gold on a reel that is not the house's own.
+    ctaColor:
+      String(input.callColour ?? '').trim() ||
+      reelCallColour({ house: input.call.house }).colour,
     pauseSec: SPEC.CTA_PAUSE_SEC,
     speechSec: input.seconds,
   }

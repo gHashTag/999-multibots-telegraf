@@ -40,7 +40,9 @@ import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { honestyLogFields, honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
+import { widgetsOfTurn } from './client-widgets'
 import { ownerWordsOf } from './assistant-opt-out'
+import { heardFrom } from './printed-facts'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
@@ -195,6 +197,30 @@ export async function threadFor(
         code: 'agent_unavailable',
         error: 'agent is not available',
       }
+    /*
+     * AN AGENT'S OWN BOT IN THE HIVE GROUP (spec agent-hive-group.t27). The
+     * memory is the room's, as for any group turn -- every agent of the hive
+     * reads what the others said there -- and the agent brings its persona.
+     * Before this branch the room was dropped and a group turn went into the
+     * agent's private thread with the asker, in front of the whole group.
+     */
+    if (rawRoom != null && rawRoom !== '') {
+      const room = String(rawRoom).trim()
+      if (!ROOM_ID_RE.test(room))
+        return {
+          ok: false,
+          status: 400,
+          code: 'bad_request',
+          error: 'bad room',
+        }
+      return {
+        ok: true,
+        thread: roomThread(room),
+        client: null,
+        agent: agent.id,
+        room,
+      }
+    }
     return {
       ok: true,
       thread: marketplaceAgentThread(agent.id),
@@ -344,6 +370,16 @@ function clientParam(req: IncomingMessage): string | null {
 
 function agentParam(req: IncomingMessage): string | null {
   return new URL(req.url || '', 'http://x').searchParams.get('agent')
+}
+
+/*
+ * The room a group turn was written into: the bot reads the history of the
+ * same thread it posts to. Without it a group turn was sent with the asker's
+ * PRIVATE history as context. Rows stay keyed by the asker (conversation.ts),
+ * so a room read shows only their own turns there.
+ */
+function roomParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('room')
 }
 
 function roleParam(req: IncomingMessage): string | null {
@@ -1006,6 +1042,16 @@ export async function handleAgentChat(
       error: 'нужен непустой массив messages вида [{role:"user",content:"…"}]',
     })
   }
+  /*
+   * THE LANE THIS CHAT RUNS IN (browser/lanes.ts). Left out, it is main and
+   * nothing below changes; any other shape is refused here, before a lane is
+   * taken or a stream opened, rather than guessed at.
+   */
+  const lanes = await import('../browser/lanes')
+  const laneRead = lanes.readLane(body.lane)
+  if (!laneRead.ok)
+    return json(res, 400, { code: 'bad_request', error: laneRead.error })
+  const lane = laneRead.lane
 
   /*
    * The client thread gate answers before the stream opens: a 4xx must be a
@@ -1046,6 +1092,15 @@ export async function handleAgentChat(
       )
     })().catch(() => undefined)
 
+  /*
+   * One window per lane in the person's one browser, and only so many: a lane
+   * past the cap is a real 409 before the stream opens, naming the lanes that
+   * hold the windows -- not an error event inside a 200.
+   */
+  const laneClaim = lanes.claimLane(telegramId, lane)
+  if (!laneClaim.ok)
+    return json(res, 409, { code: 'lane_limit', error: laneClaim.error })
+
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',
     'Cache-Control': 'no-cache, no-store',
@@ -1053,6 +1108,16 @@ export async function handleAgentChat(
     // превращается в один пакет в конце — то есть в отсутствие потока.
     'X-Accel-Buffering': 'no',
   })
+
+  /*
+   * A LANE IS CONFIRMED FIRST. A render from before lanes reads no `lane` and
+   * runs the chat in main -- answering 200 all the same -- so a client that
+   * asked for a lane cannot tell, from the status, that it got one. The first
+   * line names the lane that was taken; its absence is the old render. Main
+   * sends nothing, so every existing client reads exactly what it read before.
+   */
+  if (lane !== lanes.MAIN_LANE)
+    res.write(JSON.stringify({ тип: 'lane', lane }) + '\n') // cyrillic-ok: event envelope
 
   /*
    * ГДЕ ЧЕЛОВЕК ПИШЕТ. Бот и мини-апп — один разговор, но видеть, с какой
@@ -1180,6 +1245,10 @@ export async function handleAgentChat(
           initDataBot: initDataBotOf(req, telegramId) ?? undefined,
           // The caller's own words: the one draft a stopped client may still get.
           ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
+          // What a picture may print without asking first (#3661).
+          heard: heardFrom(history),
+          // A lane other than main works in its own browser window (lanes.ts).
+          ...(lane !== lanes.MAIN_LANE ? { lane } : {}),
         },
         // The surface was already parsed and allow-listed above; the agent needs
         // it so that button markers are proposed in the bot and nowhere else.
@@ -1218,6 +1287,15 @@ export async function handleAgentChat(
               ? body.seller_id
               : undefined,
           client: gate.client ?? undefined,
+          /*
+           * The widgets beside the client's chat (client-widgets.ts): what
+           * the owner is looking at when he writes. Only in a client's
+           * thread and not in the Queen's; checked there, never trusted.
+           */
+          widgets: widgetsOfTurn(
+            body.widgets,
+            Boolean(gate.client) && gate.supervisor !== true
+          ),
           marketplaceAgent: gate.agent,
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.
@@ -1257,7 +1335,7 @@ export async function handleAgentChat(
 
     /*
      * DESCRIBED BUT NOT DONE (claimed-but-not-done.ts): an answer that
-     * claims browser actions no tool performed ends with a plain note, sent
+     * claims browser actions or a made/sent picture no tool performed ends with a plain note, sent
      * and stored, so nobody is misled and the model sees it next turn.
      */
     const said = собратьОтвет(события) // cyrillic-ok: pre-existing helper
@@ -1274,7 +1352,6 @@ export async function handleAgentChat(
           JSON.stringify({
             turn,
             telegram_id: telegramId,
-            claim: 'browser',
             ...fields,
           })
       )
@@ -1404,7 +1481,7 @@ export async function handleAgentHistoryDelete(
         telegramId,
         getPool,
         agentParam(req),
-        undefined,
+        roomParam(req),
         roleParam(req)
       ),
       conversationParam(req)
@@ -1460,7 +1537,7 @@ export async function historyGate(
         telegramId,
         getPool,
         agentParam(req),
-        undefined,
+        roomParam(req),
         roleParam(req)
       ),
       conversationParam(req)

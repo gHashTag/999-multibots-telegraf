@@ -23,6 +23,8 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   'sweep-idle',
   'sweep-card',
   'sweep-failed',
+  // A busy provider: the client was deferred to the next tick (2026-10-05).
+  'sweep-deferred',
   // Alive while deliberately idle: the heartbeat that turns silence from an
   // ambiguity into evidence. Rate-limited by the bot, not here.
   'sweep-held',

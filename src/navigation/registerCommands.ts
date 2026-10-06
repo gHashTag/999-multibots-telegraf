@@ -106,6 +106,7 @@ import { SUPPORT_HANDLE } from '@/config/support'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { showStartGreeting } from '@/navigation/helpers/startGreeting'
 import { isAddressedToUs } from '@/navigation/helpers/groupAddressing'
+import { tellOwnersTheRoomIsSilent } from '@/navigation/helpers/silentRoomNotice'
 
 // Импорт всех сцен
 import {
@@ -1219,7 +1220,10 @@ If not, continue on your own and click the "I myself" button`
        * A caption naming the bot, or a photo sent as a reply to its message,
        * still works -- that is somebody asking for something.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
@@ -1406,7 +1410,7 @@ If not, continue on your own and click the "I myself" button`
          * пока идёт работа, и гасим в finally — иначе он остался бы висеть
          * после ошибки.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
+        const { держатьПечатает, разбитьДлинное, actionForTool } = await import(
           '@/helpers/telegramLongAnswer'
         )
         const стоп = держатьПечатает(ctx as any)
@@ -1450,6 +1454,8 @@ If not, continue on your own and click the "I myself" button`
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            // "sending a photo…" while a picture tool runs (#3665)
+            onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
           })
           /*
            * The request reached the server, so the server already stored the
@@ -1901,7 +1907,10 @@ If not, continue on your own and click the "I myself" button`
        * A private chat is unaffected: one person writing to the bot alone is
        * addressing it by definition. See groupAddressing.ts for what counts.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       /*
        * The file reaches the shelf BEFORE the agent is asked, and a refusal is
@@ -4417,7 +4426,9 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * people press twice.
        */
       const { stopOwnerRun } = await import('@/services/ownerRuns')
-      const { requestRemoteStop } = await import('@/services/agentStopRemote')
+      const { requestRemoteStopWhy, stopReply } = await import(
+        '@/services/agentStopRemote'
+      )
       const had = stopOwnerRun(ownerId(ctx))
       /*
        * And the same press, written down on the render.
@@ -4427,19 +4438,16 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * call leaves its run behind it, so neither has a socket to close. The
        * render records the press and those runs read it between steps.
        *
-       * Not awaited for the answer's sake -- it is awaited so the record is
-       * in before the person is told anything -- and it never throws.
+       * With a local run the person is already being answered by the turn
+       * itself, so the reply goes out at once and the record lands behind
+       * it. Without one, the render's answer IS the answer: "nothing to
+       * stop" only when it is known, and a render that never heard the press
+       * is named, so the person presses again instead of trusting a silence.
+       * Bounded (10 s, one retry) and never throws.
        */
-      const wrote = await requestRemoteStop(ownerId(ctx))
-      await sendLong(
-        ctx,
-        had
-          ? '⏹ Останавливаю — ничего не отправлю.' // cyrillic-ok: user-facing
-          : wrote === 'written'
-            ? '⏹ Принял. Если ход идёт на сервере — он прервётся.' // cyrillic-ok: user-facing
-            : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
-        hub()
-      )
+      const remote = requestRemoteStopWhy(ownerId(ctx))
+      await sendLong(ctx, stopReply(had, had ? 'written' : await remote), hub())
+      if (had) await remote
     } else if (verb === 'auto') await switchAutopilot(ctx, true)
     else if (verb === 'autooff') await switchAutopilot(ctx, false)
     else if (verb === 'leads') await showLeads(ctx)

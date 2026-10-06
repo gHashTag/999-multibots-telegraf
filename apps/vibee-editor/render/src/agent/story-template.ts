@@ -44,6 +44,7 @@ import type { ToolContext } from './tools'
 import { voiceMode } from './story-voice-notes'
 import { looksLikeProviderOutage } from './image-health'
 import {
+  endCardForReel,
   endCardFromProfile,
   endCardOf,
   endCardProblem,
@@ -59,6 +60,12 @@ import {
   type StoryScene,
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
+import {
+  cardForReel,
+  houseLineRefused,
+  ownCallOf,
+  reelCall,
+} from './story-reel-templates'
 import { TOKEN_PRICES } from './billing-shared'
 import {
   defaultGroupCaption,
@@ -171,6 +178,83 @@ async function sellerOf(pool: Pool, lead: string): Promise<string> {
 }
 
 /**
+ * The client's own call in her profile: the template's cta, then her approved
+ * call. '' when none. One reader for every reel that ends on her call
+ * (story_reel, split_reel).
+ */
+export function profileCta(profile: any, ownReel = false): string {
+  // approved_cta is {text, button} in a client package, a string by hand.
+  // Her own call (spec v22, profile_call_from): one that names the house
+  // is not hers on a client's reel.
+  return ownCallOf(
+    profile?.story_reel?.cta,
+    typeof profile?.approved_cta === 'string'
+      ? profile.approved_cta
+      : profile?.approved_cta?.text,
+    ownReel,
+    ''
+  )
+}
+
+/** Her profile in one seller's CRM (that seller's row over the shared one). */
+export async function clientProfileOf(
+  pool: Pool,
+  lead: string,
+  owner: string
+): Promise<any> {
+  const row = await first(
+    pool,
+    `SELECT profile FROM crm_client_profiles
+      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
+      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
+    [lead, owner]
+  )
+  return parse(row?.profile) ?? {}
+}
+
+/**
+ * The call a reel for this client ends on, from her profile: '' when she has
+ * none (the reel then ends on a call with no name in it, split-reel v7).
+ * Never throws -- a profile that cannot be read is a profile with no call.
+ */
+export async function clientCtaOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  const seller = String(owner ?? '').trim()
+  return clientProfileOf(pool, id, seller)
+    .then(p => profileCta(p, seller === id))
+    .catch(() => '')
+}
+
+/**
+ * The colour a reel's call for this client is drawn in, from her own palette
+ * (split-reel v10): the call colour of the end card the seller keeps for her
+ * over her profile's -- the story reel's own order (mergeEndCard). '' when
+ * she has none: the call is then drawn in a colour that is nobody's, never
+ * the house's. Never throws, as clientCtaOf.
+ */
+export async function clientCallColourOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  const seller = String(owner ?? '').trim()
+  try {
+    const kept = await keptEndCardOf(pool, seller, id)
+    const profile = endCardFromProfile(await clientProfileOf(pool, id, seller))
+    return mergeEndCard(null, kept, profile)?.title ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * The template's settings for one client. `seller` scopes it to one seller's
  * CRM (their card, their tool); without it she is asking herself.
  */
@@ -184,14 +268,7 @@ export async function storySettingsOf(
   const owner = String(seller ?? '').trim() || (await sellerOf(pool, id))
   if (!owner) return null
 
-  const row = await first(
-    pool,
-    `SELECT profile FROM crm_client_profiles
-      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
-      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
-    [id, owner]
-  )
-  const profile = parse(row?.profile) ?? {}
+  const profile = await clientProfileOf(pool, id, owner)
   const s = profile?.story_reel ?? {}
   const person = await first(
     pool,
@@ -223,11 +300,7 @@ export async function storySettingsOf(
     avatarUrl: isUrl(avatar) ? avatar : '',
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
-    // approved_cta is {text, button} in a client package, a string by hand.
-    cta:
-      [s.cta, profile?.approved_cta?.text, profile?.approved_cta]
-        .find(v => typeof v === 'string' && v.trim())
-        ?.trim() || STORY_DEFAULT_CTA,
+    cta: profileCta(profile, owner === id) || STORY_DEFAULT_CTA,
     // The spec's pause_of: the same clamp the template renders with.
     pauseSec: pauseOf(s.pause_sec),
     payer: s.payer === 'owner' ? 'owner' : 'client',
@@ -381,8 +454,22 @@ export function sceneCountOf(asked: unknown): number {
 }
 
 /**
- * What the model is asked for: a title and `count` scenes, as JSON. An empty
- * topic means "pick one": the writer is told which ones she already has.
+ * Whether a scene's place is drawn (spec v21, setting_drawn): only one a
+ * caller named in a script of their own. The writer of a topic reel writes
+ * lines, and a place it returns anyway is dropped.
+ */
+export function settingDrawn(
+  fromWriter: boolean,
+  hasSetting: boolean
+): boolean {
+  return hasSetting && (!fromWriter || SPEC.WRITER_WRITES_SETTINGS)
+}
+
+/**
+ * What the model is asked for: a title and `count` lines, as JSON. An empty
+ * topic means "pick one": the writer is told which ones she already has. The
+ * person speaks in her studio (spec v21, WRITER_WRITES_SETTINGS): the writer
+ * is asked for words, never for a place.
  */
 export function writerMessages(
   topic: { title: string; note: string },
@@ -397,13 +484,12 @@ export function writerMessages(
       role: 'system',
       content:
         `Ты пишешь короткий рилс-историю из ${n} ${n === 1 ? 'сцены' : 'сцен'} для Instagram от первого лица героини (героя). ` +
-        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"setting": "...", "line": "..."}, ×${n}]}. ` +
+        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"line": "..."}, ×${n}]}. ` +
         'title — тема по-русски, до 60 знаков. ' +
-        'setting — по-английски, одна НОВАЯ обстановка на сцену (фон не повторять), человек в кадре. ' +
+        'Героиня (герой) говорит в кадре в своей студии: пиши только слова, обстановку и картинку не придумывай. ' +
         'line — по-русски, 2–4 секунды речи, от первого лица, простыми словами; названия и цифры словами. ' +
         'Первая реплика — крючок за 1–2 секунды: вопрос, смелое обещание или неожиданный факт; без приветствий и «привет, меня зовут». ' +
         'Одна мысль на весь рилс: проблема → поворот → результат, конкретные детали, а не общие слова. ' +
-        'В первой сцене лицо крупным планом. Надписей в кадре нет. ' +
         'Последняя реплика — мягкий мостик к одному призыву к действию и перекликается с первой, чтобы рилс хотелось пересмотреть.',
     },
     {
@@ -443,7 +529,15 @@ export function parseStory(
   // One scene is a story only when one was asked for.
   if (typeof scenes === 'string' || scenes.length < Math.min(2, want))
     return null
-  return { title: String(raw?.title ?? '').trim(), scenes }
+  // A place the writer returns anyway is dropped here, not left to the prompt
+  // (spec v21, WRITER_SETTING_DROPPED): a topic reel stays in the studio.
+  return {
+    title: String(raw?.title ?? '').trim(),
+    scenes: scenes.map(s => ({
+      ...s,
+      setting: settingDrawn(true, !!s.setting) ? s.setting : '',
+    })),
+  }
 }
 
 const TABLE = `CREATE TABLE IF NOT EXISTS story_jobs (
@@ -629,6 +723,11 @@ export async function startStory(
     /** Where the finished reel is offered with one press (a group chat id). */
     deliverTo?: string | null
     caption?: string
+    /**
+     * What the person typed THIS turn (ToolContext.ownerSaid, set only by
+     * code): on a client's reel the one way a line may name the house.
+     */
+    personSaid?: string
   }
 ): Promise<{
   started: boolean
@@ -670,6 +769,10 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
+  // No line of a client's reel names the house unless the person typed it
+  // this turn (spec v22, line_way) -- refused here, before any spend.
+  const houseLine = houseLineRefused(given, lead === s.owner, who.personSaid)
+  if (houseLine) return { started: false, why: houseLine }
   const count = given ? given.length : sceneCountOf(who.sceneCount)
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
@@ -677,11 +780,22 @@ export async function startStory(
    * on its background is refused -- both before anything is spent. Her
    * profile's own palette is never refused here: she keeps the reel she had.
    */
-  const badColour = byClient ? '' : endCardProblem(who.endCard)
+  // The seller pressing his OWN reel in his CRM is still the seller, though
+  // he is its lead too (spec v22): his card -- the template's house button
+  // included -- is kept, as on any reel he presses.
+  const sellerPress = !byClient || String(who.seller ?? '').trim() === lead
+  const badColour = sellerPress ? endCardProblem(who.endCard) : ''
   if (badColour) return { started: false, why: badColour }
-  const sellerCard = byClient ? null : endCardOf(who.endCard)
+  const sellerCard = sellerPress ? endCardOf(who.endCard) : null
+  // Checked as it will be drawn (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN): a
+  // client's card is filled with ink first, so a gold she will never see
+  // cannot refuse her reel.
   const unreadable = endCardUnreadable(
-    mergeEndCard(sellerCard, s.keptCard, s.endCard)
+    endCardForReel(
+      mergeEndCard(sellerCard, s.keptCard, s.endCard),
+      lead === s.owner,
+      ''
+    )
   )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
@@ -863,6 +977,11 @@ async function runHeld(
       .catch(() => '')
     const story = parseStory(text, sceneCountOf(job.scene_count))
     if (!story) return fail('не вышло написать сцены')
+    // The writer's lines are written, never the person's (spec v22,
+    // line_way): one naming the house on a client's reel fails the job here,
+    // before the payer is named and before any still is drawn.
+    const houseLine = houseLineRefused(story.scenes, lead === seller)
+    if (houseLine) return fail(houseLine)
     scenes = story.scenes
     topic ||= story.title || 'история про моё дело'
     await pool.query(
@@ -964,11 +1083,20 @@ async function runHeld(
     if (why) return fail(why)
   }
   // The seller's palette kept in the job, over the one kept for her, over
-  // her profile's (spec v7, v10).
-  const endCard = mergeEndCard(
-    endCardOf(parse(job.end_card)),
-    s.keptCard,
-    s.endCard
+  // her profile's (spec v7, v10). On a client's reel no button names the
+  // house, and the call is the seller's word for her or her own (spec v22).
+  const ownReel = lead === seller
+  const cta = reelCall({ given: job.cta, ownReel, ownCall: s.cta }).call
+  // A client's card is drawn in her colours or ink, never in the house's
+  // defaults (spec v25, card_filled): every colour is set before the render.
+  const endCard = endCardForReel(
+    mergeEndCard(
+      cardForReel(endCardOf(parse(job.end_card)), ownReel),
+      cardForReel(s.keptCard, ownReel),
+      cardForReel(s.endCard, ownReel)
+    ),
+    ownReel,
+    cta
   )
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
@@ -979,7 +1107,7 @@ async function runHeld(
           // The seller's own look and call, when the job carries them.
           style: String(job.style ?? '').trim() || s.style,
           ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
-          cta: String(job.cta ?? '').trim() || s.cta,
+          cta,
           pause_sec: s.pauseSec,
           ...(endCard ? { end_card: endCard } : {}),
           stills,

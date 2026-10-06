@@ -99,6 +99,34 @@ export function cardFromHref(href: unknown): OpenCard | null {
 }
 
 /**
+ * A tapped card anchor as a card WITH its title and column, read from the
+ * board's own drawing (owner, 2026-10-03: "why is the task's name not
+ * visible?"). The board as shipped posts no `open-card`, so the anchor is the
+ * only way a card opens -- and an href carries a number, not a name. The
+ * anchor's `title` attribute holds the whole title (the drawn `<strong>` is
+ * clamped by CSS); the column is the `is-<name>` class of the card's column.
+ */
+export function cardFromAnchor(a: Element | null | undefined): OpenCard | null {
+  if (!a) return null
+  const found = cardFromHref(a.getAttribute('href'))
+  if (!found) return null
+  const raw =
+    a.getAttribute('title') || a.querySelector('strong')?.textContent || ''
+  const title = raw.replace(/\s+/g, ' ').trim().slice(0, SPEC.TITLE_MAX)
+  const col = a.closest('[class*="-column"]')
+  const named = col
+    ? Array.from(col.classList)
+        .map(c => /^is-([a-z]{1,24})$/.exec(c)?.[1])
+        .find(Boolean)
+    : undefined
+  return {
+    ...found,
+    ...(title ? { title } : {}),
+    ...(named ? { column: named } : {}),
+  }
+}
+
+/**
  * The card the address names: ?card=5382, with ?repo= only when it is not
  * the board's own repository (`boardRepo`, REPO_FROM_BOARD). A number with
  * no repository anywhere still opens -- as `#5382`, which the server

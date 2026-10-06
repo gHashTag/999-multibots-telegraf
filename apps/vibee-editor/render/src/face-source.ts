@@ -40,9 +40,10 @@
  * Logic put beside the autopilot script is invisible to `npm run typecheck` --
  * which is how the top-level-await breakage shipped green.
  */
+import { FPS as SPEC_FPS, HOUSE_CALL_COLOR } from './spec/split-reel.gen'
 
 /** The composition renders at 30 fps; Root.tsx fixes this for every template. */
-export const FPS = 30
+export const FPS = SPEC_FPS
 
 /**
  * How the b-roll rhythm is laid out when the caller does not pass segments.
@@ -74,9 +75,8 @@ export interface FaceSource {
   durationSeconds?: unknown
   /** Pre-built segments. Validated against SegmentSchema's shape, not guessed. */
   segments?: unknown
-  /** Passed through to the composition; both optional. */
+  /** Passed through to the composition; optional. */
   ctaText?: unknown
-  ctaHighlight?: unknown
   musicVolume?: unknown
   /**
    * The publication name, and the ONLY thing that stops the same clip going
@@ -464,9 +464,10 @@ export function buildFaceReelProps(source: FaceSource): FaceSourceResult {
   }
   if (typeof source.ctaText === 'string' && source.ctaText.length) {
     props.ctaText = source.ctaText
-  }
-  if (typeof source.ctaHighlight === 'string' && source.ctaHighlight.length) {
-    props.ctaHighlight = source.ctaHighlight
+    // The face source feeds the house's own autopilot, so its call is the
+    // house's own reel's: the house's gold (split-reel.t27 v10). The
+    // composition draws an uncoloured call neutral, never gold.
+    props.ctaColor = HOUSE_CALL_COLOR
   }
 
   return {
