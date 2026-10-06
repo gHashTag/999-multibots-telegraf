@@ -93,6 +93,14 @@ import {
   reviewedKieModel,
 } from './src/agent/kie-web-provider'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000047'
 const BUCKET = 'https://bucket.test/vibee-assets'
@@ -381,58 +389,70 @@ describe('the real handler', () => {
     return { r, pool }
   }
 
-  it('a file that is not on our shelf: nothing charged, nothing asked', async () => {
-    const { r, pool } = await ask({
-      image_url: 'https://evil.test/face.png',
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-    })
-    expect(r.done).toBe(false)
-    expect(debits(pool.sqls)).toEqual([])
-    expect(calls).toEqual([])
-    expect(ff.voice).toEqual([])
-  })
+  it(
+    'a file that is not on our shelf: nothing charged, nothing asked',
+    async () => {
+      const { r, pool } = await ask({
+        image_url: 'https://evil.test/face.png',
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+      })
+      expect(r.done).toBe(false)
+      expect(debits(pool.sqls)).toEqual([])
+      expect(calls).toEqual([])
+      expect(ff.voice).toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a 20-second voice on a 10-second model: one charge for every second, three parts, one reel', async () => {
-    const model = 'kie/omnihuman-1-5'
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${RENDER}/s3/assets/IMG_3522.mp4`,
-      lead_silence_s: 1.5,
-      model,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    // One deduction, for 3 parts x 8 billed seconds at the per-second price.
-    const price = priceForModel('lipsync_generate', model) as number
-    expect(price).toBeGreaterThan(0)
-    expect(debits(pool.sqls)).toEqual([24 * price])
-    expect(credits(pool.sqls)).toEqual([])
-    // The voice was prepared with the silence the owner asked for.
-    expect(ff.voice).toEqual([
-      { leadSilence: 1.5, maxSeconds: LIPSYNC_TOOL_MAX_SECONDS },
-    ])
-    // Three calls of the route, each with the face as a PUBLIC bucket URL.
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes).toHaveLength(3)
-    for (const c of routes)
-      expect((c.body as { image_url: string }).image_url).toBe(
-        `${BUCKET}/assets/glam.png`
-      )
-    expect(ff.cuts).toHaveLength(3)
-    expect(ff.joined).toBe(1)
-    expect(r.parts).toBe(3)
-    expect(String(r.url)).toContain(BUCKET)
-  })
+  it(
+    'a 20-second voice on a 10-second model: one charge for every second, three parts, one reel',
+    async () => {
+      const model = 'kie/omnihuman-1-5'
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${RENDER}/s3/assets/IMG_3522.mp4`,
+        lead_silence_s: 1.5,
+        model,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      // One deduction, for 3 parts x 8 billed seconds at the per-second price.
+      const price = priceForModel('lipsync_generate', model) as number
+      expect(price).toBeGreaterThan(0)
+      expect(debits(pool.sqls)).toEqual([24 * price])
+      expect(credits(pool.sqls)).toEqual([])
+      // The voice was prepared with the silence the owner asked for.
+      expect(ff.voice).toEqual([
+        { leadSilence: 1.5, maxSeconds: LIPSYNC_TOOL_MAX_SECONDS },
+      ])
+      // Three calls of the route, each with the face as a PUBLIC bucket URL.
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes).toHaveLength(3)
+      for (const c of routes)
+        expect((c.body as { image_url: string }).image_url).toBe(
+          `${BUCKET}/assets/glam.png`
+        )
+      expect(ff.cuts).toHaveLength(3)
+      expect(ff.joined).toBe(1)
+      expect(r.parts).toBe(3)
+      expect(String(r.url)).toContain(BUCKET)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a short voice is one part and is not joined', async () => {
-    ff.seconds = 6.2
-    const { r, pool } = await ask({
-      image_url: `${RENDER}/s3/assets/face.jpg`,
-      voice_url: `${RENDER}/s3/assets/voice.ogg`,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(debits(pool.sqls)).toEqual([7 * TOKEN_PRICES.lipsync_generate])
-    expect(ff.joined).toBe(0)
-  })
+  it(
+    'a short voice is one part and is not joined',
+    async () => {
+      ff.seconds = 6.2
+      const { r, pool } = await ask({
+        image_url: `${RENDER}/s3/assets/face.jpg`,
+        voice_url: `${RENDER}/s3/assets/voice.ogg`,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(debits(pool.sqls)).toEqual([7 * TOKEN_PRICES.lipsync_generate])
+      expect(ff.joined).toBe(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
   /*
    * THE FIRST LIVE RUN, 2026-09-24: three voice parts uploaded side by side,
@@ -440,171 +460,216 @@ describe('the real handler', () => {
    * reel was refunded. Uploads now go one at a time, and a busy answer is
    * tried again.
    */
-  it('the voice parts go on the shelf one at a time', async () => {
-    // A 10-second model, so there ARE several parts to upload.
-    const { r } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      lead_silence_s: 1.5,
-      model: 'kie/omnihuman-1-5',
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(ff.cuts.length).toBeGreaterThan(1)
-    expect(maxUploadsInFlight).toBe(1)
-  })
+  it(
+    'the voice parts go on the shelf one at a time',
+    async () => {
+      // A 10-second model, so there ARE several parts to upload.
+      const { r } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        lead_silence_s: 1.5,
+        model: 'kie/omnihuman-1-5',
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(ff.cuts.length).toBeGreaterThan(1)
+      expect(maxUploadsInFlight).toBe(1)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a busy shelf is tried again, not taken for a failure', async () => {
-    busyUploads = 2
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(credits(pool.sqls)).toEqual([])
-  })
+  it(
+    'a busy shelf is tried again, not taken for a failure',
+    async () => {
+      busyUploads = 2
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(credits(pool.sqls)).toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a 3-second probe cuts the voice at 3 s and is billed for 3', async () => {
-    ff.seconds = 3
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      max_seconds: 3,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(ff.voice[0].maxSeconds).toBe(3)
-    expect(debits(pool.sqls)).toEqual([3 * TOKEN_PRICES.lipsync_generate])
-  })
+  it(
+    'a 3-second probe cuts the voice at 3 s and is billed for 3',
+    async () => {
+      ff.seconds = 3
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        max_seconds: 3,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(ff.voice[0].maxSeconds).toBe(3)
+      expect(debits(pool.sqls)).toEqual([3 * TOKEN_PRICES.lipsync_generate])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a model outside the list is refused before anything is charged', async () => {
-    // A model WITH a price of its own, so the refusal below is the list's
-    // and not merely the charge finding no price.
-    const outsider = 'kie/google/nano-banana'
-    expect(priceForModel('lipsync_generate', outsider)).toBeGreaterThan(0)
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      model: outsider,
-    })
-    expect(r.done).toBe(false)
-    expect(debits(pool.sqls)).toEqual([])
-    expect(calls).toEqual([])
-  })
+  it(
+    'a model outside the list is refused before anything is charged',
+    async () => {
+      // A model WITH a price of its own, so the refusal below is the list's
+      // and not merely the charge finding no price.
+      const outsider = 'kie/google/nano-banana'
+      expect(priceForModel('lipsync_generate', outsider)).toBeGreaterThan(0)
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        model: outsider,
+      })
+      expect(r.done).toBe(false)
+      expect(debits(pool.sqls)).toEqual([])
+      expect(calls).toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a named model is charged at its own price per second and asked by name', async () => {
-    const model = 'kie/omnihuman-1-5'
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      model,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    const unit = priceForModel('lipsync_generate', model) as number
-    expect(debits(pool.sqls)).toEqual([24 * unit])
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes).toHaveLength(3)
-    for (const c of routes)
-      expect((c.body as { model?: string }).model).toBe(model)
-  })
+  it(
+    'a named model is charged at its own price per second and asked by name',
+    async () => {
+      const model = 'kie/omnihuman-1-5'
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        model,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      const unit = priceForModel('lipsync_generate', model) as number
+      expect(debits(pool.sqls)).toEqual([24 * unit])
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes).toHaveLength(3)
+      for (const c of routes)
+        expect((c.body as { model?: string }).model).toBe(model)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('Kling makes the 21.4-second reel in ONE call: no seams, billed once for 22 s', async () => {
-    const model = 'kie/kling/ai-avatar-standard'
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      model,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(r.parts).toBe(1)
-    const unit = priceForModel('lipsync_generate', model) as number
-    expect(debits(pool.sqls)).toEqual([22 * unit])
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes).toHaveLength(1)
-    expect((routes[0].body as { model?: string }).model).toBe(model)
-    expect(ff.cuts).toEqual([{ start: 0, duration: 21.4 }])
-    expect(ff.joined).toBe(0)
-  })
+  it(
+    'Kling makes the 21.4-second reel in ONE call: no seams, billed once for 22 s',
+    async () => {
+      const model = 'kie/kling/ai-avatar-standard'
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        model,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(r.parts).toBe(1)
+      const unit = priceForModel('lipsync_generate', model) as number
+      expect(debits(pool.sqls)).toEqual([22 * unit])
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes).toHaveLength(1)
+      expect((routes[0].body as { model?: string }).model).toBe(model)
+      expect(ff.cuts).toEqual([{ start: 0, duration: 21.4 }])
+      expect(ff.joined).toBe(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('every route call is waited for past the five minutes fetch allows by default', async () => {
-    await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      model: 'kie/kling/ai-avatar-standard',
-    })
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes.length).toBeGreaterThan(0)
-    for (const c of routes) expect(c.waits).toBe(true)
-  })
+  it(
+    'every route call is waited for past the five minutes fetch allows by default',
+    async () => {
+      await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        model: 'kie/kling/ai-avatar-standard',
+      })
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes.length).toBeGreaterThan(0)
+      for (const c of routes) expect(c.waits).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('the route is called in this process, never through the public edge that cuts at five minutes', async () => {
-    // 2026-09-26: through SELF_URL (the public host) Railway's edge closed the
-    // owner's Kling reel at 300 013 ms. SELF_URL is set here to that kind of
-    // address; the call must not use it.
-    vi.stubEnv('PORT', '8080')
-    await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      model: 'kie/kling/ai-avatar-standard',
-    })
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes.length).toBeGreaterThan(0)
-    for (const c of routes) {
-      expect(c.url).toBe('http://127.0.0.1:8080/api/generate/lipsync')
-      expect(c.url.startsWith(RENDER)).toBe(false)
-    }
-  })
+  it(
+    'the route is called in this process, never through the public edge that cuts at five minutes',
+    async () => {
+      // 2026-09-26: through SELF_URL (the public host) Railway's edge closed the
+      // owner's Kling reel at 300 013 ms. SELF_URL is set here to that kind of
+      // address; the call must not use it.
+      vi.stubEnv('PORT', '8080')
+      await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        model: 'kie/kling/ai-avatar-standard',
+      })
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes.length).toBeGreaterThan(0)
+      for (const c of routes) {
+        expect(c.url).toBe('http://127.0.0.1:8080/api/generate/lipsync')
+        expect(c.url.startsWith(RENDER)).toBe(false)
+      }
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it("an unnamed call is Kling, the owner's default: asked by name, one pass, priced as Kling", async () => {
-    // Owner, 2026-09-26: "the best in quality and price -- make it the default".
-    const kling = 'kie/kling/ai-avatar-standard'
-    expect(LIPSYNC_DEFAULT_MODEL).toBe(kling)
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
-    expect(routes).toHaveLength(1)
-    expect((routes[0].body as { model?: string }).model).toBe(kling)
-    const unit = priceForModel('lipsync_generate', kling) as number
-    expect(debits(pool.sqls)).toEqual([22 * unit])
-    // The operation's own price follows the default, so the Mini App's
-    // unnamed press costs what Kling costs, not InfiniteTalk's old 6.
-    expect(TOKEN_PRICES.lipsync_generate).toBe(unit)
-  })
+  it(
+    "an unnamed call is Kling, the owner's default: asked by name, one pass, priced as Kling",
+    async () => {
+      // Owner, 2026-09-26: "the best in quality and price -- make it the default".
+      const kling = 'kie/kling/ai-avatar-standard'
+      expect(LIPSYNC_DEFAULT_MODEL).toBe(kling)
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      const routes = calls.filter(c => c.url.endsWith('/api/generate/lipsync'))
+      expect(routes).toHaveLength(1)
+      expect((routes[0].body as { model?: string }).model).toBe(kling)
+      const unit = priceForModel('lipsync_generate', kling) as number
+      expect(debits(pool.sqls)).toEqual([22 * unit])
+      // The operation's own price follows the default, so the Mini App's
+      // unnamed press costs what Kling costs, not InfiniteTalk's old 6.
+      expect(TOKEN_PRICES.lipsync_generate).toBe(unit)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a part the provider refuses: everything taken is given back, once', async () => {
-    failPart = 2
-    const model = 'kie/omnihuman-1-5'
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/voice.mp4`,
-      lead_silence_s: 1.5,
-      model,
-    })
-    expect(r.done).toBe(false)
-    expect(String(r.reason)).toMatch(/возвращены/) // cyrillic-ok: the refusal copy
-    const taken = debits(pool.sqls)
-    expect(taken).toEqual([
-      24 * (priceForModel('lipsync_generate', model) as number),
-    ])
-    expect(credits(pool.sqls)).toEqual(taken)
-  })
+  it(
+    'a part the provider refuses: everything taken is given back, once',
+    async () => {
+      failPart = 2
+      const model = 'kie/omnihuman-1-5'
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/voice.mp4`,
+        lead_silence_s: 1.5,
+        model,
+      })
+      expect(r.done).toBe(false)
+      expect(String(r.reason)).toMatch(/возвращены/) // cyrillic-ok: the refusal copy
+      const taken = debits(pool.sqls)
+      expect(taken).toEqual([
+        24 * (priceForModel('lipsync_generate', model) as number),
+      ])
+      expect(credits(pool.sqls)).toEqual(taken)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('a voice longer than the tool takes is cut at its ceiling, not refused after paying', async () => {
-    ff.seconds = LIPSYNC_TOOL_MAX_SECONDS
-    const { r, pool } = await ask({
-      image_url: `${BUCKET}/assets/glam.png`,
-      voice_url: `${BUCKET}/assets/long.mp4`,
-    })
-    expect(r.done, JSON.stringify(r)).toBe(true)
-    expect(ff.voice[0].maxSeconds).toBe(LIPSYNC_TOOL_MAX_SECONDS)
-    expect(debits(pool.sqls)).toEqual([
-      billedSecondsOf(
-        splitPlan(
-          LIPSYNC_TOOL_MAX_SECONDS,
-          partTargetSecondsFor(LIPSYNC_DEFAULT_MODEL)
-        )
-      ) * (priceForModel('lipsync_generate', LIPSYNC_DEFAULT_MODEL) as number),
-    ])
-  })
+  it(
+    'a voice longer than the tool takes is cut at its ceiling, not refused after paying',
+    async () => {
+      ff.seconds = LIPSYNC_TOOL_MAX_SECONDS
+      const { r, pool } = await ask({
+        image_url: `${BUCKET}/assets/glam.png`,
+        voice_url: `${BUCKET}/assets/long.mp4`,
+      })
+      expect(r.done, JSON.stringify(r)).toBe(true)
+      expect(ff.voice[0].maxSeconds).toBe(LIPSYNC_TOOL_MAX_SECONDS)
+      expect(debits(pool.sqls)).toEqual([
+        billedSecondsOf(
+          splitPlan(
+            LIPSYNC_TOOL_MAX_SECONDS,
+            partTargetSecondsFor(LIPSYNC_DEFAULT_MODEL)
+          )
+        ) *
+          (priceForModel('lipsync_generate', LIPSYNC_DEFAULT_MODEL) as number),
+      ])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

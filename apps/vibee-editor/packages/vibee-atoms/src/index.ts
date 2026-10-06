@@ -640,3 +640,15 @@ export {
   // Defaults
   defaultSnapSettings,
 } from './atoms/snap'
+
+// ===============================
+// Kie TTS voices (one list: the server's /api/voices and the player's fallback)
+// ===============================
+export {
+  KIE_TTS_VOICES,
+  KIE_TTS_DEFAULT_VOICE,
+  KIE_TTS_MODEL,
+  KIE_TTS_PROVIDER,
+  kieVoiceFor,
+  type KieVoice,
+} from './kie-voices'

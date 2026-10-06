@@ -58,7 +58,7 @@ const ADMIN_DIRECT_CHAT_ID = GROUP_CHAT_ID
  *
  * Z.AI can, and it is already deployed. Measured against the live service:
  *   GLM_API_KEY + ZAI_BASE_URL (= https://api.z.ai/api/coding/paas/v4)
- *     + GLM_MODEL (= glm-5.3)                          -> HTTP 200
+ *     + GLM_MODEL (= glm-4.7-flash)                          -> HTTP 200
  *   the same key against https://api.z.ai/api/paas/v4  -> HTTP 429, code 1113,
  *     "Insufficient balance or no resource package"
  * So the Coding-Plan path is the only one this key may use, and ZAI_BASE_URL
@@ -90,7 +90,7 @@ export function resolveMonitorProvider(
     return {
       apiKey: glmKey,
       baseURL: (env.ZAI_BASE_URL || '').trim() || ZAI_CODING_BASE_URL,
-      model: env.LOG_MONITOR_MODEL || env.GLM_MODEL || 'glm-5.3',
+      model: env.LOG_MONITOR_MODEL || env.GLM_MODEL || 'glm-4.7-flash',
       name: 'zai',
       extraBody: { thinking: { type: 'disabled' } },
     }

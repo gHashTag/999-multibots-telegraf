@@ -158,6 +158,8 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /** A busy provider: the seller deferred the client to the next tick. */
+  | 'sweep-deferred'
   /**
    * THE SELLER SAYING IT IS ALIVE WHILE IT DELIBERATELY DOES NOTHING.
    *

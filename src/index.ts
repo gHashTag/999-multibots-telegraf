@@ -94,6 +94,11 @@ import {
 import { stopManagedBots, type RunnerDeps } from '@/core/bot/managedBots/runner'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import { managedBotAccess } from '@/core/bot/managedBots/store'
+import {
+  agentHiveDeps,
+  installAgentHive,
+  noteManager,
+} from '@/core/bot/agentHive'
 
 /*
  * What a managed bot needs from the rest of the bot. businessBotService is
@@ -101,18 +106,23 @@ import { managedBotAccess } from '@/core/bot/managedBots/store'
  * file: the static import once closed an init-order cycle that crashed every
  * start (see the shutdown notices below for the whole story).
  */
-const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => ({
-  answer: async (clientId, text, fallback, seller, textOnly) => {
-    const { answerClient } = await import('@/services/businessBotService')
-    return answerClient(clientId, text, fallback, seller, undefined, {
-      textOnly,
-    })
-  },
-  tellOwner: async (ownerId, text) => {
-    await manager.telegram.sendMessage(ownerId, text)
-  },
-  access: managedBotAccess,
-})
+const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => {
+  const base: RunnerDeps = {
+    answer: async (clientId, text, fallback, seller, textOnly, onTool) => {
+      const { answerClient } = await import('@/services/businessBotService')
+      return answerClient(clientId, text, fallback, seller, undefined, {
+        textOnly,
+        ...(onTool ? { onTool } : {}),
+      })
+    },
+    tellOwner: async (ownerId, text) => {
+      await manager.telegram.sendMessage(ownerId, text)
+    },
+    access: managedBotAccess,
+  }
+  // A bot bound to a catalogue agent answers as that agent (the hive).
+  return { ...base, ...agentHiveDeps(base) }
+}
 import { startBotApiServerMonitor } from '@/services/botApiServerMonitor'
 
 // Инициализация ботов
@@ -527,6 +537,8 @@ async function initializeBots() {
      * bot without Bot Management Mode -- see core/bot/managedBots/install.ts.
      */
     installManagedBots(bot, managedBotDeps(bot))
+    // The hive: /agents and /hive, an agent's bot per catalogue agent.
+    installAgentHive(bot, managedBotDeps(bot))
 
     registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
     // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
@@ -648,6 +660,8 @@ async function initializeBots() {
       'managed_bot',
     ])
 
+    if ((botInfo as { can_manage_bots?: boolean }).can_manage_bots)
+      noteManager(botInfo)
     // Every agent bot this one created is brought back after the restart.
     void relaunchManagedBots(bot, botInfo, managedBotDeps(bot)).then(up => {
       if (up)

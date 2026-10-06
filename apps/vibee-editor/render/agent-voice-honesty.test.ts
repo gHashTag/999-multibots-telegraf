@@ -3,6 +3,14 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * THE PROMPT MUST NOT SEND THE MODEL TO A SECTION THAT IS NOT THERE.
  *
@@ -56,21 +64,29 @@ describe('the agent is never told about a voice it does not have', () => {
     return mod
   }
 
-  it('does not point at a content plan that is not in the prompt', async () => {
-    const { systemPrompt } = await loadWithNoReadableFiles()
-    const prompt = systemPrompt()
-    expect(prompt).not.toContain('в SOUL.md ниже')
-    expect(prompt).not.toContain('ГОЛОС ВЛАДЕЛЬЦА')
-    expect(prompt).not.toContain('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')
-  })
+  it(
+    'does not point at a content plan that is not in the prompt',
+    async () => {
+      const { systemPrompt } = await loadWithNoReadableFiles()
+      const prompt = systemPrompt()
+      expect(prompt).not.toContain('в SOUL.md ниже')
+      expect(prompt).not.toContain('ГОЛОС ВЛАДЕЛЬЦА')
+      expect(prompt).not.toContain('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('tells the agent to produce the plan itself instead of asking', async () => {
-    const { systemPrompt } = await loadWithNoReadableFiles()
-    const prompt = systemPrompt()
-    expect(prompt).toContain('Контент-план на 30 дней')
-    expect(prompt).toContain('составь САМ')
-    expect(prompt).toContain('не спрашивай разрешения')
-  })
+  it(
+    'tells the agent to produce the plan itself instead of asking',
+    async () => {
+      const { systemPrompt } = await loadWithNoReadableFiles()
+      const prompt = systemPrompt()
+      expect(prompt).toContain('Контент-план на 30 дней')
+      expect(prompt).toContain('составь САМ')
+      expect(prompt).toContain('не спрашивай разрешения')
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('when the voice is there, the prompt says where it is', () => {
@@ -88,20 +104,24 @@ describe('when the voice is there, the prompt says where it is', () => {
     else process.env.SOUL_MD_PATH = kept
   })
 
-  it('carries the voice and the pointer together, never one without the other', async () => {
-    const { systemPrompt } = await load()
-    // The owner's own turn: since 2026-09-23 his voice is added only there
-    // (the-owner-voice-is-the-owners-only.test.ts). The property below is
-    // unchanged -- the pointer never appears without what it points at.
-    const prompt = systemPrompt(undefined, false, undefined, true)
-    expect(prompt).toContain('МЕРА ВМЕСТО ПРИЛАГАТЕЛЬНОГО')
-    expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
-    expect(prompt).toContain('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')
-    // The pointer is worthless above the voice it points at.
-    expect(prompt.indexOf('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')).toBeLessThan(
-      prompt.indexOf('МЕРА ВМЕСТО ПРИЛАГАТЕЛЬНОГО')
-    )
-  })
+  it(
+    'carries the voice and the pointer together, never one without the other',
+    async () => {
+      const { systemPrompt } = await load()
+      // The owner's own turn: since 2026-09-23 his voice is added only there
+      // (the-owner-voice-is-the-owners-only.test.ts). The property below is
+      // unchanged -- the pointer never appears without what it points at.
+      const prompt = systemPrompt(undefined, false, undefined, true)
+      expect(prompt).toContain('МЕРА ВМЕСТО ПРИЛАГАТЕЛЬНОГО')
+      expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
+      expect(prompt).toContain('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')
+      // The pointer is worthless above the voice it points at.
+      expect(prompt.indexOf('КОНТЕНТ-ПЛАН НА 30 ДНЕЙ')).toBeLessThan(
+        prompt.indexOf('МЕРА ВМЕСТО ПРИЛАГАТЕЛЬНОГО')
+      )
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('the file is found by walking up, not by counting', () => {
@@ -126,15 +146,19 @@ describe('the file is found by walking up, not by counting', () => {
    * production was written without the owner's voice. It now lives beside the
    * code that reads it, where `COPY render/ ./` carries it in.
    */
-  it("finds the service's own SOUL.md with no environment variable set", async () => {
-    const soul = path.join(__dirname, 'SOUL.md')
-    expect(fs.existsSync(soul)).toBe(true)
+  it(
+    "finds the service's own SOUL.md with no environment variable set",
+    async () => {
+      const soul = path.join(__dirname, 'SOUL.md')
+      expect(fs.existsSync(soul)).toBe(true)
 
-    const { systemPrompt } = await load()
-    const prompt = systemPrompt(undefined, false, undefined, true)
-    expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
+      const { systemPrompt } = await load()
+      const prompt = systemPrompt(undefined, false, undefined, true)
+      expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
 
-    const head = fs.readFileSync(soul, 'utf8').trim().slice(0, 40)
-    expect(prompt).toContain(head)
-  })
+      const head = fs.readFileSync(soul, 'utf8').trim().slice(0, 40)
+      expect(prompt).toContain(head)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import { performance } from 'perf_hooks'
 import { randomUUID } from 'crypto'
+import { logLevelFrom } from './logger'
 
 // Создаем директорию для логов
 const logDir = path.join(process.cwd(), 'logs')
@@ -98,7 +99,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Создание основного логгера
 const baseLogger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: logLevelFrom(process.env.LOG_LEVEL),
   transports: logTransports,
   // Не падать при ошибках логирования
   exitOnError: false,

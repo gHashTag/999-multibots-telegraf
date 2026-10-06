@@ -132,6 +132,8 @@ own folder, then confirm the element exists in the live DOM.
   захардкоженном несуществующем хосте в `render-server-client.ts`. Это было
   неверно: функция, которая туда ходит (`sendDirectToRenderServer`), **нигде не
   вызывается**. Мёртвый код.
+  Removed 2026-10-03: it POSTed to the render's `/api/inngest` with no
+  `X-Api-Key` (the render guard answers 401) and the render has no such route.
 
   Настоящая цепочка: визард → `sendRenderAvatarVideoEvent` → Inngest
   (инстанс RENDER, ключи заданы) → `renderRiddleFunction` внутри самого бота.

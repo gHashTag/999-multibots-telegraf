@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { SAID } from '@/services/browserApproval'
+import { renderRefusedTheKey } from '@/services/renderTimeout'
 
 /**
  * A TAP ON A MEETING CARD, RELAYED AS THE PERSON WHO PRESSED IT.
@@ -43,16 +44,24 @@ export interface MeetingAnswer {
 }
 
 /*
- * NO QUIET RETRY HERE, UNLIKE THE PERMISSION TAP.
+ * ONE QUIET RETRY, ONLY FOR A FAST FAILURE.
  *
- * "later" INSERTs a reminder row on every press (render meetings.ts), so a
- * press whose reply was lost and then repeated by us would snooze twice.
- * The person decides whether to press again; we only say why it failed.
+ * Every card action is idempotent on the render: ok / cancel / done / missed
+ * set a status, and since spec v2 a second "later" adds nothing while a
+ * snooze still waits (meetings.ts answerTap). So a press may be repeated.
+ *
+ * Repeated only when the failure was quick -- no connection, or the empty
+ * body of a deploy swap -- after RETRY_AFTER_MS. A timeout already cost the
+ * person ten seconds of a stripped card and is not doubled; a refused key
+ * gets the identical refusal a second time.
  */
+export const RETRY_AFTER_MS = 3_000
+
 function whyNot(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e)
   if ((e as { timedOut?: boolean })?.timedOut) return SAID.timeout
-  if (/RENDER_API_KEY/.test(msg)) return SAID.noKey
+  // Both "the bot holds no key" and "the render refused the key it holds".
+  if (renderRefusedTheKey(e) || /RENDER_API_KEY/.test(msg)) return SAID.noKey
   if (e instanceof TypeError) return SAID.offline
   return NOT_REACHED
 }
@@ -61,16 +70,30 @@ export async function answerMeeting(
   telegramId: string,
   action: string,
   token: string,
-  opts: { callToolImpl?: CallTool } = {}
+  opts: { callToolImpl?: CallTool; sleep?: (ms: number) => Promise<void> } = {}
 ): Promise<MeetingAnswer> {
   const who = String(telegramId ?? '').trim()
   const t = String(token ?? '').trim()
   if (!who || !t || !(ACTIONS as readonly string[]).includes(action)) {
     return { said: NOT_REACHED, reached: false }
   }
+  const sleep =
+    opts.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
+  const first = await once(who, action, t, opts.callToolImpl)
+  if (!first.retry) return first.answer
+  await sleep(RETRY_AFTER_MS)
+  return (await once(who, action, t, opts.callToolImpl)).answer
+}
+
+async function once(
+  who: string,
+  action: string,
+  t: string,
+  callToolImpl?: CallTool
+): Promise<{ answer: MeetingAnswer; retry: boolean }> {
   try {
     const call =
-      opts.callToolImpl ?? (await import('@/services/modelSwitch')).callTool
+      callToolImpl ?? (await import('@/services/modelSwitch')).callTool
     const r = await call(
       who,
       'meeting_answer',
@@ -84,12 +107,20 @@ export async function answerMeeting(
         ? (r.markup as MeetingAnswer['markup'])
         : undefined
     // No words back = a 502 page or an empty body: the render is restarting.
-    if (!said) return { said: SAID.restarting, reached: false }
-    return { said, reached: true, ...(markup ? { markup } : {}) }
+    if (!said)
+      return { answer: { said: SAID.restarting, reached: false }, retry: true }
+    return {
+      answer: { said, reached: true, ...(markup ? { markup } : {}) },
+      retry: false,
+    }
   } catch (e) {
     logger.warn('[meeting-answer] the tap did not reach the render', {
       error: e instanceof Error ? e.message : String(e),
     })
-    return { said: whyNot(e), reached: false }
+    const said = whyNot(e)
+    return {
+      answer: { said, reached: false },
+      retry: said === SAID.offline || said === NOT_REACHED,
+    }
   }
 }
