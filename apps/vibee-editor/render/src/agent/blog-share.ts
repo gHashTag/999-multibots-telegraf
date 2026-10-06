@@ -341,10 +341,14 @@ export function queueOrder(text: string, slugs: readonly string[]): string[] {
  * three August articles to X on three days while the articles of 10-04 waited
  * behind seven more old ones: the owner asked why the agent posts OLD
  * releases. A fresh article now goes first; the queue orders the rest.
- * Spec debt: specs/automation/blog-share.t27 v3 still says the queue comes
- * first unconditionally (newest_goes_next) -- v4 must carry this window.
+ * The window is the spec's (specs/automation/blog-share.t27 v4 FRESH_MS).
  */
-export const FRESH_MS = 7 * 24 * 60 * 60 * 1000
+export const FRESH_MS = SPEC.FRESH_MS
+
+/** The spec's is_fresh: the edge (exactly FRESH_MS old) is still fresh. Pure. */
+export function isFresh(ageMs: number): boolean {
+  return ageMs <= FRESH_MS
+}
 
 /**
  * The next article to offer: the newest offerable one published within
@@ -361,7 +365,7 @@ export function nextArticle(
   const offerable = articles.filter(a => !known.has(a.slug))
   if (nowMs !== undefined) {
     const fresh = offerable.find(
-      a => a.published !== undefined && nowMs - a.published <= FRESH_MS
+      a => a.published !== undefined && isFresh(nowMs - a.published)
     )
     if (fresh) return { article: fresh, queued: false }
   }
