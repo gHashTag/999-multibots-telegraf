@@ -212,7 +212,7 @@ import {
   isContributorKeyPath,
   handleContributorKeys,
 } from './src/hive/contributor-keys-route'
-import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
+import { isZaiRelayPath, handleZaiRelay, zaiRelayKey } from './src/zai-relay'
 import {
   isPayOutcomePath,
   handlePayOutcome,
@@ -8926,10 +8926,13 @@ const server = createServer(async (req, res) => {
     const out = await handleZaiRelay(req, {
       readBody: r => readBody(r as any),
       bearerOf: r => (r as any).headers?.authorization,
-      apiKey: () => process.env.GLM_API_KEY,
+      apiKey: () => zaiRelayKey(),
       fetchImpl: fetch,
     })
-    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      ...out.headers,
+    })
     res.end(out.body)
     return
   }
