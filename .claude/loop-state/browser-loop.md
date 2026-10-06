@@ -38,7 +38,7 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
       AUTH_KEY_UNREGISTERED/SESSION_REVOKED/AUTH_KEY_DUPLICATED/USER_DEACTIVATED in plain words;
       floodSleepThreshold 5; client() tells "session dead" only on auth codes, a network error is "temporary". (#3795)
 - [x] B. One yes unlocks every guarded site (B3,U6): markAllowed only for act-kind approvals, bound to the host. (#3789)
-- [x] D. crm_duet sends for real by default (U1): dry_run defaults to true. (#3794)
+- [x] D. crm_duet sends for real by default (U1): dry_run defaults to true, and a dry run is free (crm-duet.t27 v4). (#3794)
 - [ ] C. Wheel after the person types (B2) + Telegram Allow hands the wheel back like the app (B5) + browser_status shows wheel / waitingOn (B6).
 - [ ] E. closePage throws on !ok, browser_close_tab refuses the last tab, focus_tab is an acting tool (B7,B8).
 - [ ] F. A late answer wakes the agent (B1) + ask_permission returns id and reuses an open same question (B4).
@@ -110,7 +110,12 @@ Each item = one coder bee (worktree) -> one PR -> a DIFFERENT reviewer bee merge
   null or any other value is a dry run that sends nothing, and its answer says how to go real
   (only after the owner's yes for this run). Callers all pass dry_run explicitly. Tests 95/95 +
   121/121 with provider.test, run locally (runner gave no result 3x); mutant `=== true` killed
-  (1/95). Schema prose trimmed to keep the compact kit under 7300 tokens.
+  (1/95). Schema prose trimmed to keep the compact kit under 7300 tokens. Review round: null,
+  "false", 0 and "no" each pinned as a dry run; the reviewer's mutant killed on Railway (2/99).
+  Then the owner: a dry run is FREE. Spec first, crm-duet.t27 v4 (t27#6897): no paid tool on
+  any seller turn of a dry run, a paid call refused before its handler, nothing charged; the
+  brief says so. Railway: 129/129 (crm-duet, provider, spec test); mutant "dry run offers paid
+  tools again" red 3/103; spec mutants 22/22 killed.
 
 ## Competitors (tick 1, 03.10 research; sources in the tick-1 report)
 
