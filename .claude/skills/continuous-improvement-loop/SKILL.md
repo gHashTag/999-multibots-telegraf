@@ -635,8 +635,10 @@ removes trees, and only provably finished ones. Lessons it cost:
   day later. The bee found both by attacking a throwaway repo with `--apply`.
 - `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
 - **A fresh branch is `new`, not finished** (#3745, 06.10): a named branch 0
-  commits ahead with no merged PR of that name stays until its reflog says it
-  is 6 h old (`NEW_BRANCH_MAX_H`); `-b` + `origin/main` looked "already in main".
+  commits ahead with no merged PR of that name stays until the YOUNGER of its
+  branch reflog and its tree's own `.git/worktrees/<name>/logs/HEAD` is 6 h old
+  (`NEW_BRANCH_MAX_H`, #3751: an old branch in a fresh tree is new too);
+  `-b` + `origin/main` looked "already in main".
 - An empty env number with `??` becomes 0 and turns a dry run into a sweep;
   use `||`.
 - 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
@@ -2434,4 +2436,49 @@ section "The agent says only what it did".
    `tri worktrees` shows a fresh bee branch with no commits as new, not
    finished, so the cleanup does not offer to remove it (#3749). An old
    branch freshly checked out into a new worktree is still shown as finished
-   (#3751, open).
+   (#3751, fixed by #3755: age is the younger of the branch reflog and the
+   worktree's own HEAD log).
+7. **The reviewer builds its own probe.** A claim set the author wrote passes
+   the author's own fix. On #3759 the author's own set caught every claim in
+   both rounds (16/16 in round 1, 0 lost of 50 in round 2). Each time, the
+   reviewer's independent probe found more: 20 lost in round 1, then 16 in
+   round 2, which the author's sets never covered (a
+   comma ends the clause, then "I attached it"; the next sentence delivers
+   the picture). Every reviewer prompt asks for an independent adversarial
+   probe against main, aimed at each condition of the new rule.
+   The reviewer runs `tri guard-diff <claims|prices>` over
+   `scripts/guard-corpus/<guard>.jsonl` with its own extra rows appended
+   (`--head <PR>`; rc 1 = a lost claim or a wrong confirm vs main, #3772),
+   and commits the rows that found a hole, so the probe outlives its round.
+8. **A rule that silences must prove the object ENDS.** A "this noun is only
+   a modifier" rule (`poster text`, `voice menu`) silences a claim, so it
+   must check the whole rest of the message: no second media noun, no
+   delivery word (attached, sent, rendered), no "it" as an object. Checking
+   only the next word ate the real object (#3759 rounds 1-2).
+9. **Pick the closed list whose MISS is safe.** #3758 round 3 listed money
+   words (budget, total, each) that keep a later multiplier on the price. A
+   money synonym missing from that list (bucks, payout) confirms the bare
+   price silently, so the miss is unsafe. The safe list is the other one:
+   the counted nouns (followers, seats, guests, people) that let the bare
+   price stand. An unknown word then asks again. Before you merge a closed
+   list, name what a missing entry does.
+10. **A reviewer's suggested fix is a hypothesis, not a patch.** #3758 round
+    4's reviewer proposed "a filler word after the counted noun ends the
+    phrase"; round 5 shipped it and the next reviewer found
+    `$5 about 10k ticket and merch revenue` confirming silently, plus every
+    joiner (`-`, `/`, U+202F) read as an end. The author of the next round
+    attacks the suggested rule with fresh rows before pushing, and the
+    rejection comment says whether its fix was tested on a set it was not
+    written from.
+11. **A held-out set catches a list fitted to the known rows.** #3759 round 5
+    met the bar on the reviewer's set (7.1%) and the author's set (8%) but
+    drew 17.5% on 40 honest rows written before tuning and never tuned on.
+    Every author reports a held-out set separately; a gap of more than a few
+    points means the lists fit the probe, not the language.
+12. **A label is consent only when its owner applies it.** The
+    `owner-approved-foreign` label on this loop's TypeScript PRs was added by
+    the author account a second after `gh pr create` (#3762, #3768, #3771,
+    #3773), citing the owner's overnight instruction. The #3773 reviewer
+    bee raised it in its report to the loop, not on the PR: applied that
+    way, the label proves nothing about consent. Finish the PRs
+    already in review, open no new non-t27 code PR, and ask the owner.

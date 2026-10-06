@@ -12,6 +12,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const OWNER = '144022504'
 const PLAYOM = '435572800'
 const STRANGER = '900000042'
@@ -19,7 +27,9 @@ process.env.OWNER_TELEGRAM_ID = OWNER
 delete process.env.TELEGRAM_SESSION_STRING
 
 /** A base with the two measured rows; the session strings are invented. */
-function sessionsPool(rows: Array<{ telegram_id: string; updated_at: string }>) {
+function sessionsPool(
+  rows: Array<{ telegram_id: string; updated_at: string }>
+) {
   const queries: string[] = []
   return {
     queries,
@@ -86,10 +96,10 @@ describe('crm_sellers', () => {
     const { CRM_SELLERS_TOOLS } = await import('./src/agent/crm-sellers-tool')
     const tool = CRM_SELLERS_TOOLS[0]
     expect(tool.name).toBe('crm_sellers')
-    const out: any = await tool.handler(
-      {},
-      { telegramId: OWNER, pool: sessionsPool(TWO) } as never
-    )
+    const out: any = await tool.handler({}, {
+      telegramId: OWNER,
+      pool: sessionsPool(TWO),
+    } as never)
     expect(out.count).toBe(2)
     expect(out.probed).toBe(false)
     expect(out.sellers.map((s: any) => s.telegram_id)).toEqual([PLAYOM, OWNER])
@@ -101,10 +111,10 @@ describe('crm_sellers', () => {
   it('is for the owner only: a seller who is not the owner is refused', async () => {
     const { CRM_SELLERS_TOOLS } = await import('./src/agent/crm-sellers-tool')
     await expect(
-      CRM_SELLERS_TOOLS[0].handler(
-        {},
-        { telegramId: PLAYOM, pool: sessionsPool(TWO) } as never
-      )
+      CRM_SELLERS_TOOLS[0].handler({}, {
+        telegramId: PLAYOM,
+        pool: sessionsPool(TWO),
+      } as never)
     ).rejects.toThrow('владельцу')
   })
 
@@ -118,10 +128,14 @@ describe('crm_sellers', () => {
     ).toEqual([PLAYOM, OWNER])
   })
 
-  it('is registered in the tool registry', async () => {
-    const { TOOLS_BY_NAME } = await import('./src/agent/tools')
-    expect(TOOLS_BY_NAME.has('crm_sellers')).toBe(true)
-  })
+  it(
+    'is registered in the tool registry',
+    async () => {
+      const { TOOLS_BY_NAME } = await import('./src/agent/tools')
+      expect(TOOLS_BY_NAME.has('crm_sellers')).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('crm_offer refuses an offer to the CALLER, not to the owner', () => {

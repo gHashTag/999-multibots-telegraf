@@ -55,6 +55,14 @@ function poolWith(saved: Row[] = []) {
   }
 }
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const voiceNote = (id: number, out: boolean, seconds: number) => ({
   id,
   out,
@@ -353,8 +361,12 @@ describe('the clone reaches the provider only by the service’s choice', () => 
     )
   })
 
-  it('the tool is in the registry', async () => {
-    const { TOOLS_BY_NAME } = await import('./tools')
-    expect(TOOLS_BY_NAME.get('crm_voice_clone')).toBeTruthy()
-  })
+  it(
+    'the tool is in the registry',
+    async () => {
+      const { TOOLS_BY_NAME } = await import('./tools')
+      expect(TOOLS_BY_NAME.get('crm_voice_clone')).toBeTruthy()
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

@@ -6,6 +6,14 @@ import {
   unconfirmedFacts,
 } from './printed-facts'
 
+/*
+ * Budget for a test that imports ./tools (or ./routes) itself (#3750). That
+ * import is CPU-bound -- ~1.5 s cold on an idle machine, 4.4-5.0 s at load
+ * ~25 -- and is free only when an earlier test in the file already paid it.
+ * Run alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 const keys = (text: string) => factsIn(text).map(f => f.keys.join('|'))
 const prices = (text: string) => keys(text).filter(k => k.startsWith('p'))
 
@@ -181,28 +189,36 @@ describe('the image tools refuse unconfirmed facts BEFORE any charge', () => {
     ({ telegramId: '1', pool: untouchable, heard }) as never
 
   for (const name of ['image_generate', 'image_edit']) {
-    it(`${name}: an invented date and time are asked about, not drawn`, async () => {
-      const { TOOLS_BY_NAME } = await import('./tools')
-      const out: any = await TOOLS_BY_NAME.get(name)!.handler(
-        { prompt: 'noir poster "8 October 11:30, Ko Phangan"' },
-        ctx('сделай афишу с моим фото')
-      )
-      const why = String(out['причина'] ?? out.reason)
-      expect(out['сделано'] ?? out.done).toBe(false)
-      expect(why).toContain('«11:30»')
-      expect(why).toContain('«8 October»')
-    })
+    it(
+      `${name}: an invented date and time are asked about, not drawn`,
+      async () => {
+        const { TOOLS_BY_NAME } = await import('./tools')
+        const out: any = await TOOLS_BY_NAME.get(name)!.handler(
+          { prompt: 'noir poster "8 October 11:30, Ko Phangan"' },
+          ctx('сделай афишу с моим фото')
+        )
+        const why = String(out['причина'] ?? out.reason)
+        expect(out['сделано'] ?? out.done).toBe(false)
+        expect(why).toContain('«11:30»')
+        expect(why).toContain('«8 October»')
+      },
+      SLOW_IMPORT_TIMEOUT_MS
+    )
   }
 
-  it('the same prompt goes on to the charge once the person wrote the facts', async () => {
-    const { TOOLS_BY_NAME } = await import('./tools')
-    await expect(
-      TOOLS_BY_NAME.get('image_generate')!.handler(
-        { prompt: 'noir poster "8 October 11:30"' },
-        ctx('афиша на 8 октября, начало в 11:30')
-      )
-    ).rejects.toThrow(/database was reached/)
-  })
+  it(
+    'the same prompt goes on to the charge once the person wrote the facts',
+    async () => {
+      const { TOOLS_BY_NAME } = await import('./tools')
+      await expect(
+        TOOLS_BY_NAME.get('image_generate')!.handler(
+          { prompt: 'noir poster "8 October 11:30"' },
+          ctx('афиша на 8 октября, начало в 11:30')
+        )
+      ).rejects.toThrow(/database was reached/)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('the chat route hands the conversation to the tools', () => {
