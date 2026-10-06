@@ -91,6 +91,7 @@ import {
   ensureApprovals,
   pendingApprovalFor,
   decideAsPerson,
+  allowedActHost,
 } from './approvals'
 
 export const BROWSER_PATHS = [
@@ -943,9 +944,10 @@ export async function handleBrowser(
       }
     }
     /* A yes opens the guarded door for a few minutes (guard.ts), and hands
-       the agent the wheel it needs to act on it. */
+       the agent the wheel it needs to act on it. Only a question about
+       acting on a page opens it, and only for that page's host. */
     if (state === 'allowed') {
-      await markAllowed(pool, who)
+      await markAllowed(pool, who, await allowedActHost(pool, answer.id, who))
       await setWheel(pool, who, 'agent').catch(() => {})
     }
     return { status: 200, body: { ok: true, state } }
@@ -996,9 +998,10 @@ export async function handleBrowser(
      * a guarded page; the person pressed Save. Asking a second time for
      * permission to press Save is the double question that left the agent
      * standing on the Google page (owner, 2026-09-22). A choice opens the
-     * guard's few minutes; Done / Cannot (an action) opens nothing.
+     * guard's few minutes on the host it was asked on; Done / Cannot (an
+     * action) opens nothing.
      */
-    if (asked?.kind === 'choice') await markAllowed(pool, who)
+    if (asked?.kind === 'choice') await markAllowed(pool, who, asked.host)
     /*
      * ANSWERING THE AGENT HANDS IT THE WHEEL. The person just told the agent
      * what to do; a touch near the card had taken the wheel, and the agent

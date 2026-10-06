@@ -18,6 +18,7 @@
  * the client is given `view_token` instead, and the difference is why a
  * client cannot reconfigure a browser we are answerable for.
  */
+import { placeOf } from './guard'
 
 export interface Queryable {
   query: (
@@ -47,6 +48,11 @@ export interface BrowserSession {
    * one permission never opens the door for a whole session.
    */
   allowedAtMs: number | null
+  /**
+   * The host that yes was given for (guard.ts placeOf). A yes is for one
+   * place: null, or a different host, opens nothing.
+   */
+  allowedHost?: string | null
   /**
    * Until when the PERSON holds the wheel (ms), or null for the agent. Set
    * when they touch the picture, cleared when they hand it back; a lease, so
@@ -106,6 +112,11 @@ export async function ensureBrowserSessions(q: Queryable): Promise<void> {
     `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS person_wheel_until timestamptz`,
     []
   )
+  /* A yes is for one place (guard.ts placeOf); rows from before carry null. */
+  await q.query(
+    `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS allowed_host text`,
+    []
+  )
   tableReady = true
 }
 
@@ -120,7 +131,7 @@ export async function readSession(
 ): Promise<BrowserSession | null> {
   const { rows } = await q.query(
     `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
-            extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            extract(epoch from allowed_at) * 1000 AS allowed_ms, allowed_host,
             extract(epoch from person_wheel_until) * 1000 AS wheel_ms,
             state, view_token, admin_token
        FROM browser_sessions WHERE telegram_id = $1`,
@@ -142,6 +153,7 @@ function rowToSession(row: Record<string, unknown>): BrowserSession {
     endpoint: nullable(row.endpoint),
     cdpEndpoint: nullable(row.cdp_endpoint),
     allowedAtMs: row.allowed_ms ? Number(row.allowed_ms) : null,
+    allowedHost: nullable(row.allowed_host),
     personWheelUntilMs: row.wheel_ms ? Number(row.wheel_ms) : null,
     state: String(row.state) as SessionState,
     viewToken: String(row.view_token),
@@ -160,7 +172,7 @@ export async function readSessionById(
 ): Promise<BrowserSession | null> {
   const { rows } = await q.query(
     `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
-            extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            extract(epoch from allowed_at) * 1000 AS allowed_ms, allowed_host,
             extract(epoch from person_wheel_until) * 1000 AS wheel_ms,
             state, view_token, admin_token
        FROM browser_sessions WHERE session_id = $1`,
@@ -259,13 +271,22 @@ export async function setWheel(
   )
 }
 
+/**
+ * Open the guard's window for ONE place (guard.ts yesCovers). No host, no
+ * window: a yes that was not about acting on a page -- closing tabs, a blog
+ * post, a letter -- or one asked where the address could not be read opens
+ * nothing, and an older window for another host is left as it was.
+ */
 export async function markAllowed(
   q: Queryable,
-  telegramId: string
+  telegramId: string,
+  host: string | null | undefined
 ): Promise<void> {
+  const place = placeOf(host)
+  if (!place) return
   await q.query(
-    `UPDATE browser_sessions SET allowed_at = now() WHERE telegram_id = $1`,
-    [telegramId]
+    `UPDATE browser_sessions SET allowed_at = now(), allowed_host = $2 WHERE telegram_id = $1`,
+    [telegramId, place]
   )
 }
 

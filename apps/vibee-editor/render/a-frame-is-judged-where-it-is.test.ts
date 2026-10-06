@@ -394,6 +394,7 @@ const SESSION = {
   endpoint: '127.0.0.1:1',
   cdp_endpoint: '127.0.0.1:2',
   allowed_ms: null as number | null,
+  allowed_host: null as string | null,
   wheel_ms: null,
   state: 'live',
   view_token: 'v',
@@ -552,6 +553,7 @@ describe('the tools judge the frame, not only the tab', () => {
     table = []
     resetSiteRulesCache()
     SESSION.allowed_ms = null
+    SESSION.allowed_host = null
     PAGE.url = 'https://blog.example/post'
     WORLD.frames = []
     WORLD.iframes = []
@@ -581,11 +583,22 @@ describe('the tools judge the frame, not only the tab', () => {
     expect(cdpCalls).not.toContain('clickAt')
   })
 
-  it('with a fresh yes the same click goes through', async () => {
+  it('with a fresh yes given on this page the same click goes through', async () => {
     WORLD.frames = [STRIPE]
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
     await (await tool('browser_click')).handler({ x: 250, y: 320 }, ctx)
     expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('a fresh yes given on ANOTHER host does not reach the Stripe frame here', async () => {
+    WORLD.frames = [STRIPE]
+    SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'mail.google.com'
+    await expect(
+      (await tool('browser_click')).handler({ x: 250, y: 320 }, ctx)
+    ).rejects.toThrow(/stripe\.com.*frame embedded/s)
+    expect(cdpCalls).not.toContain('clickAt')
   })
 
   it('a click BY ITS LABEL that lands in the Stripe frame needs a yes too', async () => {
@@ -630,6 +643,7 @@ describe('the tools judge the frame, not only the tab', () => {
     table = [{ site: 'x.com', rule: 'block' }]
     WORLD.frames = [frame({ url: 'https://platform.x.com/embed/Tweet.html' })]
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
     await expect(
       (await tool('browser_screenshot')).handler({}, ctx)
     ).rejects.toThrow(/blocked list.*frame/s)
@@ -913,6 +927,7 @@ describe('the tools judge the frame, not only the tab', () => {
   it('with a fresh yes ask_input puts the cursor there', async () => {
     WORLD.frames = [STRIPE]
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
     const r = (await (
       await tool('browser_ask_input')
     ).handler(
@@ -926,9 +941,14 @@ describe('the tools judge the frame, not only the tab', () => {
   it('AN UNREADABLE FRAME LIST IS NOT "NO FRAMES": the press is refused, even after a yes', async () => {
     WORLD.listDiesAfter = 0
     SESSION.allowed_ms = Date.now()
+    SESSION.allowed_host = 'blog.example'
+    /* Since a yes is bound to a host (2026-10-03), the tab's own address,
+     * unreadable here, is refused first: no yes opens an unknown place. */
     await expect(
       (await tool('browser_click')).handler({ x: 5, y: 5 }, ctx)
-    ).rejects.toThrow(/frames could not be listed/)
+    ).rejects.toThrow(
+      /frames could not be listed|needs the person's permission/
+    )
     expect(cdpCalls).not.toContain('clickAt')
   })
 
