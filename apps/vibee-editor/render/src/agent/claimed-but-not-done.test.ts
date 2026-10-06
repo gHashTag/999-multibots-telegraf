@@ -1816,7 +1816,9 @@ describe('a media noun before a head noun is a modifier (#3753)', () => {
     'Here is the audio plan.',
     'Here is the poster copy for the launch.',
     'Here is your cover letter.',
-    'I made the poster-text shorter.',
+    "Here's the cover letter.",
+    'Вот твоё голосовое меню', // cyrillic-ok: test input
+    'Here is the poster text\nLive on Friday.',
     'Вот твоё голосовое мнение.', // cyrillic-ok: test input
     'Вот ваши голосовые настройки:', // cyrillic-ok: test input
   ])
@@ -1841,6 +1843,7 @@ describe('a media noun before a head noun is a modifier (#3753)', () => {
     ['Вот твоё голосовое сообщение.', 'voice'], // cyrillic-ok: test input
     ['Вот твоё голосовое.', 'voice'], // cyrillic-ok: test input
     ['Записала тебе голосовое описание.', 'voice'], // cyrillic-ok: test input
+    ['I made the poster-text shorter.', 'media'],
   ] as const)
     it(`still flags: ${JSON.stringify(said)}`, () => {
       expect(unbackedKinds(said, [])).toEqual([kind])
@@ -1978,12 +1981,144 @@ describe('the #3753 usability corpus', () => {
     'Записала голосовое.', // cyrillic-ok: test input
     'Сделала афишу, держи.', // cyrillic-ok: test input
   ]
-  it('no honest reply draws a note', () => {
+  it('no honest reply draws a note, but one edit report (round 2)', () => {
     expect(HONEST.length).toBe(32)
-    expect(HONEST.filter(s => unbackedKinds(s, []).length > 0)).toEqual([])
+    // (d) of round 2: "made ... text shorter" reports an edit of a rendered
+    // poster, the same shape as "made the poster text bigger", a claim
+    expect(HONEST.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      'I made the poster text shorter, as you asked.',
+    ])
   })
   it('every claim is still caught', () => {
     expect(CLAIMS.length).toBe(16)
     expect(CLAIMS.filter(s => unbackedKinds(s, []).length === 0)).toEqual([])
+  })
+})
+
+/*
+ * Round 2 of #3753: round 1 read any head noun as the end of the object and
+ * lost 20 claims main caught. The media noun is a modifier only when the
+ * head noun ends the clause (a), nothing is glued by a hyphen (b), no other
+ * picture or voice noun follows in the sentence (c), and after "made" no
+ * predicate or relative clause follows (d). Each string the review listed is
+ * pinned here.
+ */
+describe('a head noun silences only when it ends the object (#3753 round 2)', () => {
+  for (const [said, kind] of [
+    // (c) a second object after "and"
+    ['I created the image prompt and the image.', 'media'],
+    ['I generated the poster copy and the poster.', 'media'],
+    // (d) an edit predicate after the head noun
+    ['I made the poster text bigger.', 'media'],
+    ['I made the cover text larger.', 'media'],
+    ['I made the image format square and regenerated it.', 'media'],
+    ['I made the poster style you asked for.', 'media'],
+    // (b) an unspaced hyphen after or before the head noun
+    ['Here is the poster text-free version.', 'media'],
+    ['Here is the image text-overlay version.', 'media'],
+    ['Here is the poster style-matched to your brand.', 'media'],
+    ["Here's the poster-text is on the bottom.", 'media'],
+    ['Here is the poster-text.', 'media'],
+    ["Here's the image-prompt:", 'media'],
+    ['I made the cover-idea.', 'media'],
+    // (a) more words after the head noun make it the object again
+    ['Here is the poster template filled in with your photo.', 'media'],
+    ['Here is the banner text overlay.', 'media'],
+    ['I sent you the voice settings test clip.', 'voice'],
+    ['Записал голосовое меню для тебя.', 'voice'], // cyrillic-ok: test input
+    ['Отправил голосовое управление тебе.', 'voice'], // cyrillic-ok: test input
+    // (c) alone: the head noun ends its clause, a real object follows
+    ['Here is the image prompt, and the image.', 'media'],
+    ['I created the image prompt, and the image.', 'media'],
+    ['Here is the poster idea for the poster.', 'media'],
+    ['I sent you the voice notes transcript, and a voice note.', 'voice'],
+    // round 1 already flagged these; they must stay flagged
+    ['Here is the poster, text and all.', 'media'],
+    ["Here's the poster - text is on the bottom", 'media'],
+    ['Вот твоё голосовое, меню ниже.', 'voice'], // cyrillic-ok: test input
+    ['Here is the poster draft.', 'media'],
+    ['Here is the poster preview.', 'media'],
+    ['Here is the poster mockup.', 'media'],
+  ] as const)
+    it(`flags: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([kind])
+    })
+
+  for (const said of [
+    'Here is the image prompt you can use.',
+    'Here is the poster idea for you.',
+    'Here is the banner text for the sale.',
+    'Here are the image sizes Instagram accepts.',
+    'Here is the cover text, shorter now.',
+    'Here is your banner text draft.',
+    'Here is the audio settings list.',
+    'I made the poster idea list.',
+  ])
+    it(`stays silent: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  /*
+   * The grid: every head noun x every continuation x every opener. Only the
+   * end of the text and a stop let the head noun end the object; every other
+   * continuation must flag, with the opener's own kind.
+   */
+  const HEADS = [
+    'idea',
+    'text',
+    'prompt',
+    'concept',
+    'plan',
+    'option',
+    'size',
+    'transcript',
+    'preference',
+    'template',
+    'description',
+    'caption',
+    'brief',
+    'script',
+    'requirement',
+    'tip',
+    'format',
+    'style',
+    'list',
+    'outline',
+    'spec',
+    'setting',
+    'letter',
+    'copy',
+  ]
+  const ENDS = ['', '.']
+  const GOES_ON = [
+    ' and the image',
+    '-free version',
+    ' bigger',
+    ' filled in with your name',
+    ' overlay',
+  ]
+  const OPENERS: Array<[string, 'media' | 'voice']> = [
+    ['Here is the poster', 'media'],
+    ['I made the poster', 'media'],
+    ['I sent you the voice note', 'voice'],
+    ['I created the poster', 'media'],
+  ]
+  const lines = (tails: string[]) =>
+    OPENERS.flatMap(([open, kind]) =>
+      HEADS.flatMap(head =>
+        tails.map(tail => [`${open} ${head}${tail}`, kind] as const)
+      )
+    )
+  it('a head noun that ends the text or the sentence silences', () => {
+    const silent = lines(ENDS)
+    expect(silent.length).toBe(192)
+    expect(silent.filter(([s]) => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+  it('a head noun with anything after it still flags', () => {
+    const flagged = lines(GOES_ON)
+    expect(flagged.length).toBe(480)
+    expect(
+      flagged.filter(([s, kind]) => !unbackedKinds(s, []).includes(kind))
+    ).toEqual([])
   })
 })

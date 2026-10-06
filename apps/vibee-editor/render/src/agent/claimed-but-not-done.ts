@@ -78,13 +78,15 @@ const claim = (source: string) => new RegExp(source, 'diu')
  * held; only the "вот ..." openers listed singular forms. // cyrillic-ok: quoted input
  */
 const WORD_END = String.raw`(?![\p{L}'’])`
+const EN_END = WORD_END
 /*
  * A modifier, not the object (#3753). "Here is the poster idea:", "I sent
  * you the voice notes transcript", "Here is the audio plan" name an idea, a
  * transcript, a plan: the media noun modifies the head noun after it, and no
- * file is claimed. Which words may follow is closed on the SAFE side, and
- * here that is "still flag", since a missed claim is the worse failure: only
- * a word below silences the claim, any other following word keeps it.
+ * file is claimed. The regex still matches the media noun; modifierOnly()
+ * below reads what follows it and silences the claim only when the head
+ * noun plainly ends the object. Every rule is closed on the SAFE side, since
+ * a missed claim is the worse failure (round 1 lost 20 claims main caught).
  *
  * The list holds only heads that name words or an abstract property, never
  * a rendered file: an idea, a text, a prompt, a plan, a size, a style, a
@@ -121,8 +123,6 @@ const HEAD_NOUNS = [
   'letter',
 ]
 const HEAD = String.raw`(?:${HEAD_NOUNS.map(n => `${n}s?`).join('|')}|copy)`
-const NOT_MODIFIER = String.raw`(?!(?:\s+|-)${HEAD}${WORD_END})`
-const EN_END = WORD_END + NOT_MODIFIER
 /*
  * Number agreement (#3748 round 2). After "here are" a singular noun can
  * only be a modifier -- "Here are the poster ideas:", "Here are the image
@@ -157,7 +157,73 @@ const NOT_VOICE_NOUN = String.raw`(?!\s+(?:${VOICE_NOUNS.map(n => enForm(n, 'any
  * Left out on purpose: "описание", "задание", "пожелания", "команды" -- a // cyrillic-ok: quoted input
  * recorded voice description or wish IS audio. // cyrillic-ok: quoted input
  */
-const RU_VOICE_HEAD = String.raw`(?![а-яё]*\s+(?:мнени|управлени|меню|настройк|функци|предпочтени|режим))` // cyrillic-ok: matched stems
+const RU_HEAD = '(?:мнени|управлени|меню|настройк|функци|предпочтени|режим)' // cyrillic-ok: matched stems
+
+/*
+ * When the head noun really ends the object (#3753 round 2). Round 1 read
+ * any head noun as the end, and lost 20 claims main caught: "I created the
+ * image prompt and the image", "I made the poster text bigger", "Here is
+ * the poster text-free version", "Here is the banner text overlay". The
+ * media noun is a modifier only when ALL of these hold:
+ * (a) a head noun (or a run of them: "the audio settings list") follows it
+ *     after a space, and the clause ends right there -- the end of the
+ *     sentence, a stop, a colon, a semicolon, a line break, a comma or a
+ *     dash with a space -- or, after a presentational opener ("here is",
+ *     "sent you"), a closed tail starts: a preposition ("for the launch") or
+ *     a relative clause with its own subject ("I would use", "Telegram
+ *     accepts");
+ * (b) nothing is glued by an unspaced hyphen: "poster-text", "text-free";
+ * (c) no other picture or voice noun follows in the same sentence: "the
+ *     image prompt, and the image" still claims the image;
+ * (d) after "made/created/generated/drew" no tail but a preposition: "made
+ *     the poster text bigger" and "made the poster style you asked for"
+ *     report an edit of a rendered picture.
+ * Russian takes (a) without any tail, (b) and (c): "Записал голосовое меню // cyrillic-ok: quoted input
+ * для тебя" stays flagged, the arguable side being the safe one. // cyrillic-ok: quoted input
+ */
+const CLAUSE_ENDS = String.raw`(?=\s*$|\s*\n|[.!?…;:)](?![\p{L}\p{N}])|,(?:\s|$)|\s[-—–]\s|\s?[—–])`
+const HEAD_RUN = String.raw`(?:\s+${HEAD}${WORD_END}(?!-))(?:\s+(?:${HEAD}|draft)${WORD_END}(?!-))*`
+const PREP_TAIL = String.raw`\s+(?:for|in|from|on)\s`
+const SUBJECT_TAIL = String.raw`\s+(?:I|I'd|I'll|I've|you|we|they|that|which|\p{Lu}\p{Ll}+)\s`
+const EN_HEAD_MAKE = new RegExp(
+  String.raw`^${HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL}))`,
+  'iu'
+)
+// the tail words are cased: "I" and a proper noun are capitals
+const EN_HEAD_SHOWN = new RegExp(
+  String.raw`^${HEAD_RUN}(?:${CLAUSE_ENDS}|(?=${PREP_TAIL})|(?=${SUBJECT_TAIL}))`,
+  'u'
+)
+const RU_HEAD_AFTER = new RegExp(
+  String.raw`^[а-яё]*\s+${RU_HEAD}[а-яё]*(?![\p{L}-])${CLAUSE_ENDS}`, // cyrillic-ok: matched letters
+  'iu'
+)
+const MEDIA_WORDS = [...PICTURE_NOUNS, 'video', ...VOICE_NOUNS]
+  .map(n => enForm(n, 'any'))
+  .concat(['voice', 'audio'])
+  .join('|')
+// the match ends on its object noun: only then can a head noun follow it
+const EN_OBJECT_LAST = new RegExp(String.raw`(?:${MEDIA_WORDS})$`, 'iu')
+const RU_OBJECT_LAST = /(?:голосов|голосовое|голосовые|аудио|войс)$/i // cyrillic-ok: matched stems
+const EN_MEDIA_LATER = new RegExp(
+  String.raw`(?<![\p{L}'’-])(?:${MEDIA_WORDS})(?![\p{L}'’])`,
+  'iu'
+)
+const RU_MEDIA_LATER =
+  /(?<![а-яё])(?:голосов|аудио|войс|афиш|картинк|изображени|постер|обложк|баннер|видео|ролик|рилс|фото)/i // cyrillic-ok: matched stems
+const MAKE_VERB = /\b(?:made|make|created|generated|drew|drawn)\b/i
+
+function modifierOnly(s: { text: string; flat: string }, m: RegExpMatchArray) {
+  const end = (m.index ?? 0) + m[0].length
+  const after = s.text.slice(end)
+  let head: RegExpMatchArray | null = null
+  if (RU_OBJECT_LAST.test(m[0])) head = after.match(RU_HEAD_AFTER)
+  else if (EN_OBJECT_LAST.test(m[0]))
+    head = after.match(MAKE_VERB.test(m[0]) ? EN_HEAD_MAKE : EN_HEAD_SHOWN)
+  if (!head) return false
+  const rest = s.flat.slice(end + head[0].length)
+  return !EN_MEDIA_LATER.test(rest) && !RU_MEDIA_LATER.test(rest)
+}
 
 /* Claimed actions, each with the tool(s) that would have done it. */
 const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
@@ -247,7 +313,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   },
   {
     re: claim(
-      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)${RU_VOICE_HEAD}`
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(записал|записала|отправил|отправила|прислал|прислала|скинул|скинула|озвучил|озвучила)\s+((для )?(тебя|вас|тебе|вам)\s+)?${GAP}(голосов|аудио|войс)`
     ), // cyrillic-ok: matched text
     tools: AUDIO_TOOLS,
     kind: 'voice',
@@ -261,7 +327,7 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
   },
   {
     re: new RegExp(
-      String.raw`(^|[\s.,:;—-])(вот\s+(тво[её]|ваше|твои|ваши)\s+голосов(?:ое|ые)${RU_VOICE_HEAD}|голосовое\s+(сообщение\s+)?готово|голосовые\s+(сообщения\s+)?готовы)`, // cyrillic-ok: matched text
+      String.raw`(^|[\s.,:;—-])(вот\s+(тво[её]|ваше|твои|ваши)\s+голосов(?:ое|ые)|голосовое\s+(сообщение\s+)?готово|голосовые\s+(сообщения\s+)?готовы)`, // cyrillic-ok: matched text
       'i'
     ),
     tools: AUDIO_TOOLS,
@@ -962,6 +1028,7 @@ function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   if (kindOf(c) === 'browser') return matches.length > 0
   if (s.back) return false
   for (const m of matches) {
+    if (modifierOnly(s, m)) continue
     if (asked(s.text, m, verbLed)) continue
     if (!verbLed || ownVerb(s.text, m)) return true
   }
