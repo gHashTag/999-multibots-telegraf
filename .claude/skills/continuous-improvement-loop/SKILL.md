@@ -2493,3 +2493,12 @@ section "The agent says only what it did".
     `HEDGE_RUN` from the filler test in one line. Its author measured 0 rows
     where main asks and head confirms over 2181 rows; the independent
     reviewer's own 270-row probe plus the 525-row corpus also found 0.
+14. **Seal the held-out set before the code round, and publish only its
+    hash.** For #3779 a bee that never saw the baseline rows wrote 344 rows
+    (244 claims, 100 honest replies) outside the repo and posted only their
+    SHA-256 on the issue. Main's guard caught 1 of 244 on it, against 38 of
+    300 on the baseline set and 59 of 69 on the corpus it was tuned on: the
+    further a set is from the tuning rows, the lower the score, which is
+    what lesson 11 predicts. The author never gets the path; the reviewer
+    checks the hash, runs the set once at the end, and a mismatch voids the
+    run.
