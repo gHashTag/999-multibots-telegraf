@@ -2043,8 +2043,9 @@ describe('a head noun silences only when it ends the object (#3753 round 2)', ()
     ['Here is the poster draft.', 'media'],
     ['Here is the poster preview.', 'media'],
     ['Here is the poster mockup.', 'media'],
-    // round 4: a comma tail off the HONEST_TAILS list keeps the claim
-    ['Here is the cover text, shorter now.', 'media'],
+    // round 4: a comma tail off the HONEST_TAILS list keeps the claim;
+    // round 5 lists "shorter now", so an adverb off the list is pinned
+    ['Here is the cover text, much shorter now.', 'media'],
   ] as const)
     it(`flags: ${JSON.stringify(said)}`, () => {
       expect(unbackedKinds(said, [])).toEqual([kind])
@@ -2052,6 +2053,7 @@ describe('a head noun silences only when it ends the object (#3753 round 2)', ()
 
   for (const said of [
     'Here is the image prompt you can use.',
+    'Here is the cover text, shorter now.',
     'Here is the poster idea for you.',
     'Here is the banner text for the sale.',
     'Here are the image sizes Instagram accepts.',
@@ -2404,8 +2406,8 @@ describe('only closed honest shapes silence a head noun (#3753 round 4)', () => 
     'it’s in your inbox',
     'shared with you just now',
     'plus the final version',
-    'minimal and dark',
-    'shorter now',
+    'minimal and moody',
+    'much shorter now',
     'ready for your review',
     'take a look',
     'have fun',
@@ -2606,21 +2608,224 @@ describe('only closed honest shapes silence a head noun (#3753 round 4)', () => 
     'Here is the image prompt; tweak it as you like.',
     'Here is the poster idea: bold type, a red sun.',
   ]
-  it('the honest set draws 7 needless notes of 50, each on the safe side', () => {
+  it('the honest set draws 4 needless notes of 50, each on the safe side', () => {
     expect(HONEST50.length).toBe(50)
     expect(HONEST50.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
-      // (b') comma and dash tails off the list
-      'Here is the cover concept, minimal and dark.',
+      // (b') a dash tail off the list (round 5 cleared "minimal and dark",
+      // "shorter now" and "Thanks for the details")
       'Here is the poster idea - a lighthouse at dusk.',
       // (a') a pointing emoji says the file is below
       'Here is the poster idea 👇',
-      // (d') "Thanks" is no honest opener
-      'Here is the banner text. Thanks for the details.',
-      'Here is the cover text, shorter now.',
       // "ready" delivers, so "ready for your review" is left off the list
       'Here is the poster text, ready for your review?',
       // (iii) "it" in a tail off the list
       'Here is the image prompt; tweak it as you like.',
+    ])
+  })
+})
+
+describe('each round-5 honest shape is closed (#3753 round 5)', () => {
+  const kindOf = (s: string) => (/voice/i.test(s) ? 'voice' : 'media')
+  // 18 of the 26 round-4 reviewer notes, each cleared by one of fixes 1-4
+  const CLEARED = [
+    'Here is the poster idea. Do you like it?',
+    'Here is the poster idea, minimal and dark.',
+    'Here is the cover idea. Thanks for the details.',
+    'Here is the poster text, shorter now.',
+    'Here is the poster text: Open daily, 9 to 5.',
+    'Here is the image prompt. Tell me if it fits.',
+    'Here is the cover idea: an open book on a dark desk.',
+    'Here is the poster idea. Do you want it darker?',
+    'Here is the image prompt. Does it match what you had in mind?',
+    'Here is the poster text. Is it too long?',
+    'Here is the poster text, short and punchy.',
+    'Here is the poster idea, inspired by your last post.',
+    'Here is the image prompt, tuned for a square format.',
+    'Here is the cover concept, in your brand colours.',
+    'Here is the poster idea. Happy to adjust.',
+    'Here is the image prompt. Ready when you are.',
+    'Here is the poster text: Doors open at 7.',
+    'Here is the image prompt: macro shot of a dewdrop on a leaf.',
+  ]
+  it('the cleared round-4 reviewer rows are silent', () => {
+    expect(CLEARED.filter(s => unbackedKinds(s, []).length > 0)).toEqual([])
+  })
+
+  /*
+   * Attacks on each new shape, written against round 5: a pronoun frame
+   * with a redo word or a past tense, a style tail that ends on a place or
+   * names the media, a pointing verb at a clause start, a subject before
+   * "shot" / "put", a courtesy opener that closes a delivery. Every row
+   * flags on main and on round 4 too.
+   */
+  const ATTACKS = [
+    'Here is the poster text. Did you like it?',
+    'Here is the poster text. Do you like it? Enjoy!',
+    'Here is the poster idea. Do you like it again?',
+    'Here is the poster idea. Do you want them resent?',
+    "Here is the poster idea. Do you like it? It's attached.",
+    'Here is the poster idea. Should I make it bigger?',
+    'Here is the poster idea. Should I send it again?',
+    'Here is the poster idea. Want changes to it?',
+    'Here is the poster idea. Hope you like it.',
+    'Here is the poster idea. Do you like it? I rendered it.',
+    'Here is the poster idea. Did it arrive?',
+    'Here is the poster idea. Can you open it?',
+    'Here is the poster idea. Do you like it now that it is uploaded?',
+    'Here is the poster idea. Tell me if it fits the file.',
+    'Here is the poster text, in the chat.',
+    'Here is the poster text, in your inbox.',
+    'Here is the poster idea, in the brand colours, attached.',
+    'Here is the poster idea, bold and done.',
+    'Here is the poster text, shorter now. Enjoy!',
+    'Here is the poster idea, in your brand colours and voilà',
+    'Here is the poster idea, with the poster on top.',
+    'Here is the poster idea, for your feed.',
+    'Here is the poster idea, in your DMs.',
+    'Here is the poster idea, inspired by the poster.',
+    'Here is the poster idea, with it in your brand colours.',
+    'Here is the poster idea, bold and ready.',
+    'Here is the poster idea, from the file.',
+    'Here is the poster idea, in the final format.',
+    'Here is the poster idea, with your result in the post.',
+    'Here is the poster text: check the poster.png',
+    'Here is the poster idea: open it.',
+    'Here is the poster idea: I shot it at dusk.',
+    'Here is the poster idea: shot the cover at dusk.',
+    'Here is the poster idea: shot and sent.',
+    'Here is the poster idea: we put it in the chat.',
+    'Here is the poster idea: take a look.',
+    'Here is the poster idea: a fox, and check the thread.',
+    'Here is the poster idea: a fox; see the chat.',
+    'Here is the poster idea: look inside.',
+    'Here is the poster idea: now open your DMs.',
+    'Here is the poster idea:\n- a fox\n- open the chat',
+    'Here is the poster idea. Thanks for waiting, enjoy!',
+    'Here is the poster idea. Thanks for waiting, here it is.',
+    "Here is the poster idea. Thanks for waiting, it's in the chat.",
+    'Here is the poster idea. Thanks.',
+    'Here is the poster idea. Thanks!',
+    'Here is the poster idea. Happy to help, check the attachment.',
+    'Here is the poster idea. Happy to share it.',
+    'Here is the poster idea. Ready when you are!',
+    'Here is the poster idea. Ready.',
+    'Here is the poster idea. Ready when you are, the file is attached.',
+    'Here is the poster idea. Thanks for your patience, I generated the poster.',
+    'Here is the poster idea. Happy to send the poster too.',
+    'I made the poster text. Do you like it? Sent!',
+    'I sent you the voice note text. Thanks for waiting, voilà.',
+    'Here is the poster idea. Happy to, done.',
+    'Here is the poster idea. Thanks, here you go.',
+    'Here is the poster idea. Happy to help, all yours.',
+    'Here is the poster text. Is it too long? Enjoy the poster!',
+  ]
+  it('every attack on a round-5 shape still flags with its kind', () => {
+    expect(
+      ATTACKS.filter(s => !unbackedKinds(s, []).includes(kindOf(s)))
+    ).toEqual([])
+  })
+
+  /*
+   * A word missing from a closed list costs a needless note, never a silent
+   * claim: one row per list, each with a word the list lacks.
+   */
+  for (const said of [
+    // STYLE_ADJECTIVES lacks "moody"
+    'Here is the poster idea, minimal and moody.',
+    // STYLE_LEADS lacks "near"
+    'Here is the poster idea, near your brand colours.',
+    // STYLE_DETERMINERS lacks "two"
+    'Here is the poster text, in two languages.',
+    // STYLE_NOUNS lacks "chat"
+    'Here is the poster idea, in the brand chat.',
+    // PRONOUN_VERBS lacks "share"
+    'Here is the poster idea. Do you want to share it?',
+    // PRONOUN_PREDICATES lacks "arrive"
+    'Here is the poster idea. Tell me if it arrives.',
+    // the courtesy openers lack "Cheers"
+    'Here is the poster idea. Cheers for the details.',
+  ])
+    it(`a word off a closed list keeps the claim: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+    })
+
+  it('a pointing verb reads only at a clause start before a determiner', () => {
+    for (const said of [
+      'Here is the poster text: Doors open at 7.',
+      'Here is the poster text: Open daily, 9 to 5.',
+      'Here is the banner text: Check-in starts at 9.',
+    ])
+      expect(unbackedKinds(said, [])).toEqual([])
+    for (const said of [
+      'Here is the poster text: Open the link.',
+      'Here is the poster text: a fox, check it.',
+      'Here is the poster text: take a look.',
+    ])
+      expect(unbackedKinds(said, [])).toEqual(['media'])
+  })
+
+  /*
+   * Held out: 40 honest strings written before round 5 was tuned, never
+   * used to tune it. Main notes 40, round 4 notes 38, round 5 notes 7.
+   */
+  const HELD_OUT = [
+    'Here is the poster idea. Would you like a warmer palette?',
+    'Here is the image prompt. Does it feel too busy?',
+    'Here is the banner text. Is it clear enough?',
+    'Here is the cover concept. What do you think of it?',
+    'Here is the poster text. Should it be in English too?',
+    'Here is the poster idea. Tell me if it works for you.',
+    'Here is the image prompt. If it fits, I can generate one.',
+    'Here is the cover idea; change it however you like.',
+    'Here is the poster idea, bold and simple.',
+    'Here is the banner text, short and clean.',
+    'Here is the image prompt, soft and warm.',
+    'Here is the poster text, in your house style.',
+    'Here is the cover concept, for a vertical format.',
+    'Here is the poster idea, with your logo on top.',
+    'Here is the banner text, from your last campaign.',
+    'Here is the image prompt, inspired by your moodboard.',
+    'Here is the poster text: Open mic every Friday.',
+    'Here is the poster text: Doors open at 8, entry free.',
+    'Here is the image prompt: a close shot of hands on a keyboard.',
+    'Here is the image prompt: wide shot of a city at night.',
+    'Here is the poster idea: the title on top, a photo below it.',
+    'Here is the cover idea: an open window at dawn.',
+    'Here is the banner text: Check-in starts at 9.',
+    'Here is the poster idea. Thanks for the brief.',
+    'Here is the poster text. Happy to tweak the wording.',
+    'Here is the image prompt. Ready when you are.',
+    'Here is the cover concept. Thanks, this was fun to think about.',
+    'Here is the banner text. Happy to try another tone.',
+    'Here is the poster idea. Want me to make a darker variant?',
+    'Here is the image prompt. Do you want it more realistic?',
+    'Here is the poster text. Is it too formal?',
+    'Here is the cover idea. Does it suit the book?',
+    'Here is the poster idea, minimal and bright.',
+    'Here is the banner text, shorter now.',
+    'Here is the image prompt, tuned for a wide format.',
+    'Here is the poster text, in two languages.',
+    'Here is the image prompt: open field, golden hour, soft light.',
+    'Here is the poster idea: a red circle, the date below it.',
+    'Here is the cover concept. Thanks for your patience.',
+    'Here is the poster idea. Happy to adjust the colours.',
+  ]
+  it('the held-out honest set draws 7 notes of 40, each on the safe side', () => {
+    expect(HELD_OUT.length).toBe(40)
+    expect(HELD_OUT.filter(s => unbackedKinds(s, []).length > 0)).toEqual([
+      // a question with "it" as the subject before "be": no frame
+      'Here is the poster text. Should it be in English too?',
+      // "generate" is a delivery word (ii)
+      'Here is the image prompt. If it fits, I can generate one.',
+      // "change it" in a tail, not in a later sentence
+      'Here is the cover idea; change it however you like.',
+      // "top" is no style noun
+      'Here is the poster idea, with your logo on top.',
+      // "below" and "it" in colon content
+      'Here is the poster idea: the title on top, a photo below it.',
+      // "two" is no listed determiner
+      'Here is the poster text, in two languages.',
+      'Here is the poster idea: a red circle, the date below it.',
     ])
   })
 })

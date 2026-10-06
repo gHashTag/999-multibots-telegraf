@@ -183,7 +183,9 @@ const RU_HEAD = '(?:мнени|управлени|меню|настройк|фу
  *     "for the launch and voila" starts a second clause;
  * (b') a comma, a semicolon or a dash followed by words keeps the claim,
  *     unless the words, to the clause end, are one entry of HONEST_TAILS:
- *     ", tell me what you think", ", as you asked", ", что поправить?"; // cyrillic-ok: quoted input
+ *     ", tell me what you think", ", as you asked", ", что поправить?", // cyrillic-ok: quoted input
+ *     or one closed style tail (round 5): ", short and punchy",
+ *     ", in your brand colours";
  * (c') after ":" or a line break the content itself may follow ("Here is
  *     the poster idea: a dark stage, one spotlight"), and so may the list
  *     items right under it. Content must be clean and hold no "!", no
@@ -192,6 +194,7 @@ const RU_HEAD = '(?:мнени|управлени|меню|настройк|фу
  * (d') every later sentence is a question or opens with HONEST_OPENER
  *     ("Let me know", "Should I", "Скажи" ...), and is clean. Any other // cyrillic-ok: quoted input
  *     later sentence ("Enjoy!", "Delivered.", "Thanks.") keeps the claim.
+ *     Round 5: "it" passes there only inside a closed PRONOUN_FRAME.
  * Clean, the round-3 checks kept as vetoes on every honest part: (i) no
  * other picture or voice noun ("Should I draw the poster?"), (ii) no word of
  * DELIVERY_WORDS ("Let me know when it is attached"), (iii) no "it", "them"
@@ -331,9 +334,160 @@ const tailKey = (text: string) =>
     .replace(/,/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-// (d'): how a later sentence may open, or it is a question
+
+/*
+ * (b''), round 5: two more closed shapes of a comma tail, both on the
+ * honest side. (1) one or two style adjectives of STYLE_ADJECTIVES, maybe
+ * joined by "and", maybe with "now" ("short and punchy", "shorter now");
+ * (2) a short phrase: a lead of STYLE_LEADS, a determiner of
+ * STYLE_DETERMINERS, at most two free words and a last noun of STYLE_NOUNS
+ * ("in your brand colours", "inspired by your last post"). The phrase must
+ * still pass vetoes (i)-(iii), hold no coordinator and no report voice:
+ * "in the chat" ends on no listed noun, "with the poster on top" names a
+ * media noun. A word missing from any of these four lists only keeps the
+ * claim: the tail is then off every honest shape, so the message draws a
+ * needless note. It can never silence a claim.
+ */
+const STYLE_ADJECTIVES = [
+  'short',
+  'shorter',
+  'longer',
+  'punchy',
+  'minimal',
+  'dark',
+  'darker',
+  'bright',
+  'brighter',
+  'bold',
+  'clean',
+  'simple',
+  'soft',
+  'warm',
+  'warmer',
+  'calm',
+  'formal',
+  'playful',
+]
+const STYLE_LEADS = [
+  'in',
+  'for',
+  'with',
+  'from',
+  'inspired by',
+  'based on',
+  'tuned for',
+]
+const STYLE_DETERMINERS = ['the', 'your', 'a', 'an', 'our', 'my', 'this']
+const STYLE_NOUNS = [
+  'colours',
+  'colors',
+  'palette',
+  'style',
+  'tone',
+  'format',
+  'layout',
+  'ratio',
+  'font',
+  'fonts',
+  'brand',
+  'post',
+  'campaign',
+  'moodboard',
+  'theme',
+]
+const STYLE_ADJECTIVE = `(?:${STYLE_ADJECTIVES.join('|')})`
+const STYLE_ADJECTIVE_TAIL = new RegExp(
+  String.raw`^${STYLE_ADJECTIVE}(?: (?:and )?${STYLE_ADJECTIVE})?(?: now)?$`
+)
+const STYLE_PHRASE_TAIL = new RegExp(
+  String.raw`^(?:${STYLE_LEADS.join('|')}) (?<phrase>(?:${STYLE_DETERMINERS.join('|')}) (?:[a-z]+ ){0,2}(?:${STYLE_NOUNS.join('|')}))$`
+)
+// the report voice is read on the phrase after the lead: the lead's own
+// participle ("inspired", "tuned") is the shape, not a past tense
+const styleTail = (key: string) => {
+  if (STYLE_ADJECTIVE_TAIL.test(key)) return true
+  const phrase = key.match(STYLE_PHRASE_TAIL)?.groups?.phrase
+  return (
+    phrase !== undefined &&
+    !COORDINATOR.test(phrase) &&
+    !REPORT_VOICE.test(phrase)
+  )
+}
+
+/*
+ * (d'): how a later sentence may open, or it is a question. Round 5 adds
+ * "Thanks for ..." / "Thanks, ...", "Happy to" and the exact sentence
+ * "Ready when you are" (exact, since "ready" alone delivers). A bare
+ * "Thanks." is no opener: it closes a delivery. The three new openers are
+ * a closing courtesy as often as an honest one, so their sentence must
+ * also be free of the report voice ("Thanks for waiting, enjoy!"). An
+ * opener missing from this list only keeps the claim: the later sentence
+ * is then off the honest shapes, a needless note, never a silent claim.
+ */
 const HONEST_OPENER =
   /^(?:let me know|tell me|should i|want me to|shall i|i can|if you like|скажи|напиши|хочешь|могу|если)(?![\p{L}'’])/iu // cyrillic-ok: matched words
+const COURTESY_OPENER =
+  /^(?:thanks(?:\s+(?:so\s+much|a\s+lot))?(?:\s+for\s|,\s)|happy\s+to\s)/iu
+const READY_WHEN_YOU_ARE = /^ready\s+when\s+you\s+are\s*\.?$/iu
+
+/*
+ * (iii) relaxed, round 5: inside a question or an honest-opener sentence,
+ * "it" / "them" may stand in one closed frame of opinion about the idea:
+ * the object of a verb of PRONOUN_VERBS ("Do you like it?", "Do you want
+ * it darker?", "tweak it") or the subject after "is/does/if/whether" with a
+ * predicate of PRONOUN_PREDICATES ("Is it too long?", "Tell me if it
+ * fits"). "Should I make it bigger?" and "Should I send it again?" have no
+ * frame and keep the claim. A framed sentence must still pass (i)-(ii),
+ * and must hold no redo word and no past tense ("Did you get it?",
+ * "Do you like it? I resent it"). A verb or predicate missing from these
+ * lists only keeps the claim: the pronoun then stays a veto, so the
+ * message draws a needless note, never a silent claim.
+ */
+const PRONOUN_VERBS = [
+  'like',
+  'love',
+  'want',
+  'prefer',
+  'change',
+  'tweak',
+  'adjust',
+  'shorten',
+  'think of',
+]
+const PRONOUN_PREDICATES = [
+  'fit',
+  'fits',
+  'match',
+  'matches',
+  'suit',
+  'suits',
+  'work',
+  'works',
+  'feel',
+  'feels',
+  'sound',
+  'sounds',
+  'read',
+  'reads',
+  'seem',
+  'seems',
+  'too',
+  'clear',
+  'ok',
+  'okay',
+  'good',
+  'right',
+  'enough',
+]
+const sp = (w: string) => w.replace(/ /g, '\\s+')
+const PRONOUN_FRAME = new RegExp(
+  String.raw`(?<![\p{L}'’])(?:(?:${PRONOUN_VERBS.map(sp).join('|')})\s+(?:it|them)|(?:is|does|if|whether)\s+it\s+(?:${PRONOUN_PREDICATES.join('|')}))(?![\p{L}'’])`,
+  'giu'
+)
+const REDO_OR_PAST = new RegExp(
+  String.raw`(?<![\p{L}'’])(?:again|resend|resent|re-send|re-sent|redo|redid|back|did|got|saw|came|sent|made|drew|gave|took|\p{L}{2,}(?<!e)ed)(?![\p{L}'’])`,
+  'iu'
+)
 const QUESTION = /\?[\s"'»”’)]*$/u
 // (a'): a decorative emoji after the head noun; a pointing or a check mark
 // ("👇", "✅") says the file is there, so it is not listed
@@ -366,14 +520,6 @@ const REPORT_WORDS = [
   'voil[àa]',
   'ta-?da',
   'enjoy',
-  'check',
-  'see',
-  'look',
-  'find',
-  'open',
-  'download',
-  'grab',
-  'take',
   'attachment',
   'result',
   'output',
@@ -394,8 +540,6 @@ const REPORT_WORDS = [
   'written',
   'built',
   'took',
-  'shot',
-  'put',
   'держи', // cyrillic-ok: matched word
   'лови', // cyrillic-ok: matched word
   'смотри', // cyrillic-ok: matched word
@@ -405,8 +549,56 @@ const REPORT_WORDS = [
   'забирай', // cyrillic-ok: matched word
   'наслаждайся', // cyrillic-ok: matched word
 ]
+/*
+ * Round 5: the imperatives that send the reader to a file ("check", "see",
+ * "open" ...) read only at the start of the content or of a clause in it,
+ * and only before a determiner or a pronoun ("Open the file", "check it",
+ * "take a look"): "Doors open at 7", "Open daily", "an open book" are
+ * content. The noun-like irregular pasts ("shot", "put") read only right
+ * after a subject ("I shot it") or at the content start before a
+ * determiner: "macro shot of a dewdrop" is content. Every other report
+ * word above still reads anywhere.
+ */
+const POINTING_VERBS = [
+  'check',
+  'see',
+  'look',
+  'find',
+  'open',
+  'view',
+  'download',
+  'grab',
+  'take',
+]
+const POINTED_AT = [
+  'the',
+  'your',
+  'a',
+  'an',
+  'this',
+  'that',
+  'these',
+  'those',
+  'my',
+  'our',
+  'it',
+  'them',
+  'at',
+  'in',
+  'inside',
+  'out',
+  'below',
+  'above',
+  'here',
+  'there',
+]
+const CLAUSE_START = String.raw`(?:^|[,;:—–(\n]|\s[-–—]\s|(?<![\p{L}'’])(?:and|then|so|now|just|please)(?![\p{L}'’]))\s*`
+const NOUN_LIKE_PAST = ['shot', 'put']
 const REPORT_VOICE = new RegExp(
   [
+    String.raw`${CLAUSE_START}(?:${POINTING_VERBS.join('|')})\s+(?:${POINTED_AT.join('|')})(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])(?:I|we|you|they|he|she)\s+(?:(?:just|already|also)\s+)?(?:${NOUN_LIKE_PAST.join('|')})(?![\p{L}'’])`,
+    String.raw`^\s*(?:${NOUN_LIKE_PAST.join('|')})\s+(?:the|your|a|an|this|it|them)(?![\p{L}'’])`,
     '!',
     String.raw`\p{Extended_Pictographic}`,
     String.raw`(?<![\p{L}'’])(?:${REPORT_WORDS.map(w => w.replace(/ /g, '\\s+')).join('|')})(?![\p{L}'’])`,
@@ -440,7 +632,8 @@ function honestClause(clause: string, mode: TailMode) {
   }
   if (at < 0) return true
   const words = clause.slice(at).replace(SEPARATOR, '')
-  return HONEST_TAIL_SET.has(tailKey(words)) && clean(words)
+  const key = tailKey(words)
+  return (HONEST_TAIL_SET.has(key) || styleTail(key)) && clean(words)
 }
 
 const honestContent = (text: string) => clean(text) && !REPORT_VOICE.test(text)
@@ -451,8 +644,13 @@ const honestContent = (text: string) => clean(text) && !REPORT_VOICE.test(text)
 // "Should I make it bigger?" or "Should I send it again?" are not offers
 const honestLater = (text: string) => {
   const t = text.trim()
-  if (OFFER.test(t)) return true
-  return (QUESTION.test(t) || HONEST_OPENER.test(t)) && clean(t)
+  if (OFFER.test(t) || READY_WHEN_YOU_ARE.test(t)) return true
+  const courtesy = COURTESY_OPENER.test(t)
+  if (!QUESTION.test(t) && !HONEST_OPENER.test(t) && !courtesy) return false
+  if (courtesy && REPORT_VOICE.test(t)) return false
+  const unframed = t.replace(PRONOUN_FRAME, ' ')
+  if (unframed !== t && REDO_OR_PAST.test(t)) return false
+  return clean(unframed)
 }
 
 function modifierOnly(s: Sentence, m: RegExpMatchArray) {
