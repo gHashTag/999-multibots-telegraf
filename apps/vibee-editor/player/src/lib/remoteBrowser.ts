@@ -101,8 +101,16 @@ export const asView = (a: ServerAnswer): BrowserSessionView => ({
  * A path is resolved against this app. An absolute URL, if the server ever
  * returns one, is left alone and `canEmbed` then refuses to frame it.
  */
-export function absoluteViewUrl(viewUrl: string): string {
-  return new URL(viewUrl, window.location.origin).toString()
+export function absoluteViewUrl(viewUrl: string, lang?: 'ru' | 'en'): string {
+  const url = new URL(viewUrl, window.location.origin)
+  /*
+   * The window speaks the APP's language, not the phone's (owner, 2026-10-06:
+   * Russian app, English "Starting your browser" under it). The proxy keeps
+   * `lang` through its login redirect; the window keeps it for the tab
+   * (render skin.ts LANG_SCRIPT).
+   */
+  if (lang === 'ru' || lang === 'en') url.searchParams.set('lang', lang)
+  return url.toString()
 }
 
 /**
