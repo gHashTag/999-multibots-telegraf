@@ -541,11 +541,17 @@ describe("story_reel ends on the client's own visual", () => {
     })
   })
 
-  it('without a card the render carries none', async () => {
+  it('without a card the own reel still carries the house card (spec v26)', async () => {
     const { lookup, calls } = fakeTools()
     await makeStoryReelTool(lookup).handler(ARGS, ctx)
     const render = calls.find(c => c.name === 'reel_render')!.args
-    expect(render.props.endCard).toBeUndefined()
+    // The pause shows the call, so the card is drawn whole: ground and ink.
+    expect(render.props.endCard).toMatchObject({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+    })
   })
 
   it('the StoryReel template accepts the card and fills its defaults', () => {
@@ -553,14 +559,14 @@ describe("story_reel ends on the client's own visual", () => {
       scenes: [{ video: 'https://ours/clip-0.mp4' }],
       endCard: { title: '#ffd700' },
     })
-    // Black, white and green by default; only the title was given.
+    // The spec's defaults fill whatever was not given (v26: gold accent).
     expect(parsed.endCard).toMatchObject({
       title: '#ffd700',
-      text: '#FFFFFF',
-      accent: '#00FF88',
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+      bg: SPEC.END_CARD_DEFAULT_BG,
       button: '',
     })
-    expect(parsed.endCard?.bg).toMatch(/^#0+$/)
   })
 })
 
