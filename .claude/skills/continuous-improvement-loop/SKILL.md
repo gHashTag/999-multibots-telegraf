@@ -2439,9 +2439,10 @@ section "The agent says only what it did".
    (#3751, fixed by #3755: age is the younger of the branch reflog and the
    worktree's own HEAD log).
 7. **The reviewer builds its own probe.** A claim set the author wrote passes
-   the author's own fix. On #3759 the author reported 0 lost claims of 50
-   twice. Each time, the reviewer's independent probe found more: 20 lost in
-   round 1, then 16 in round 2, which the author's set never covered (a
+   the author's own fix. On #3759 the author's own set caught every claim in
+   both rounds (16/16 in round 1, 0 lost of 50 in round 2). Each time, the
+   reviewer's independent probe found more: 20 lost in round 1, then 16 in
+   round 2, which the author's sets never covered (a
    comma ends the clause, then "I attached it"; the next sentence delivers
    the picture). Every reviewer prompt asks for an independent adversarial
    probe against main, aimed at each condition of the new rule.
