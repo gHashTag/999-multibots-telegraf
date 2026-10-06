@@ -177,41 +177,36 @@ const kindOf = (c: { kind?: ClaimKind }): ClaimKind => c.kind ?? 'browser'
 const QUOTED = /«[^»\n]*»|(?<=^|[\s(\[:—-])"[^"\n]*"(?![\p{L}\d])|„[^“\n]*“/gmu
 
 /*
- * Whitespace has ONE definition here (#3728 round 5): "\s", split into line
- * breaks and everything else. A line break ends a clause; every other
- * whitespace character -- a tab, the U+00A0 Russian typography puts after
- * a short pronoun, a thin or an ideographic space -- is a plain space. Round 4 listed
- * " " and "\t" by hand in CLAUSE_BREAK, so a no-break space between a name
- * and its verb ended the clause, cut the subject off and read someone else's
- * verb as the agent's. Both folds keep the length, so a match index in one
- * form is the same index in the other.
+ * Whitespace has ONE definition, applied ONCE at the entry (#3728 round 6).
+ * Rounds 3-5 folded exotic whitespace site by site, and each round found a
+ * site still reading the raw text: REFERS_BACK and the plan headers spell a
+ * plain space, so "в\u00a0прошлом сообщении" gained a needless note. Now
+ * every exported function that takes answer text normalises it first, and
+ * nothing inside this module ever sees anything but "\n" and " ":
+ * - every line break -- "\r\n", "\r", "\n", "\v", "\f", U+0085 (NEL, which
+ *   "\s" does not cover), U+2028, U+2029 -- becomes "\n";
+ * - every other whitespace character ("\s" minus the breaks: a tab, the
+ *   U+00A0 Russian typography puts after a short word, a thin or an
+ *   ideographic space) becomes " ".
+ * A line break still ends a clause (round 3); an inline space never does.
  */
-const LINE_BREAKS = '\\n\\r\\u2028\\u2029'
-const LINE_BREAK = new RegExp(`[${LINE_BREAKS}]`, 'g')
+const LINE_BREAKS = '\\n\\r\\v\\f\\u0085\\u2028\\u2029'
+const LINE_BREAK = new RegExp(`\\r\\n|[${LINE_BREAKS}]`, 'g')
 const INLINE_SPACE = new RegExp(`[^\\S${LINE_BREAKS}]`, 'g')
 
-/*
- * The structural form the clause and person rules read: only line breaks
- * stay, every other whitespace character is " ".
- */
-const structuralOf = (text: string): string => text.replace(INLINE_SPACE, ' ')
+/** The one form this module reads; every exported text entry calls it. */
+function normalised(text: string): string {
+  return text.replace(LINE_BREAK, '\n').replace(INLINE_SPACE, ' ')
+}
 
 /*
- * The ONE form every claim pattern reads (#3728 round 4). Patterns spell a
- * space literally ("на экране вижу", "I clicked"), and a model wraps lines
- * anywhere, so each whitespace character becomes one space: round 3 folded
- * line breaks for media and voice only, and a wrapped browser claim went
- * quiet. It is the structural form with its line breaks folded too.
+ * The form every claim pattern reads (#3728 round 4). Patterns spell a space
+ * literally ("на экране вижу", "I clicked"), and a model wraps lines
+ * anywhere, so the line breaks of the normalised text become spaces too. It
+ * keeps the length, so a match index in it is the same index in the
+ * normalised text, where the clause rules read the breaks.
  */
-const flatOf = (text: string): string =>
-  structuralOf(text).replace(LINE_BREAK, ' ')
-
-/*
- * "\r\n" and a lone "\r" are one line break (#3728 round 5): unfolded, a
- * wrapped "I took a\r\nscreenshot" flattens to two spaces, and the English
- * patterns spell one. Every entry point folds them first.
- */
-const oneLineBreak = (text: string): string => text.replace(/\r\n?/g, '\n')
+const flatOf = (text: string): string => text.replace(/\n/g, ' ')
 
 /*
  * "I sent you the poster above" points at an earlier turn, whose call is
@@ -231,7 +226,7 @@ function calledTools(events: Array<Record<string, unknown>>): string[] {
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  const flat = flatOf(oneLineBreak(text))
+  const flat = flatOf(normalised(text))
   return CLAIMS.some(c => kindOf(c) === 'browser' && c.re.test(flat))
 }
 
@@ -245,8 +240,10 @@ export function unbackedClaims(
   text: string,
   events: Array<Record<string, unknown>>
 ): string[] {
-  return unbacked(text, events).map(c => c.tools[0])
+  return toolsOf(unbacked(normalised(text), events))
 }
+
+const toolsOf = (claims: typeof CLAIMS) => claims.map(c => c.tools[0])
 
 /*
  * Where a sentence ends (#3677 review). A dot before a space is not enough:
@@ -309,8 +306,9 @@ function isHeader(line: string): boolean {
  */
 type Sentence = { text: string; flat: string; back: boolean }
 
-function sentencesOf(raw: string): Sentence[] {
-  const clean = oneLineBreak(raw)
+// reads normalised text only: see normalised()
+function sentencesOf(norm: string): Sentence[] {
+  const clean = norm
     .replace(QUOTED, ' ')
     .replace(ABBREV, m => m.replace(/\./g, ''))
   const out: Sentence[] = []
@@ -342,7 +340,7 @@ function sentencesOf(raw: string): Sentence[] {
     const body = item.listed ? item.text.replace(LIST_ITEM, '') : item.text
     body.split(SENTENCE_END).forEach((text, k) =>
       out.push({
-        text: structuralOf(text),
+        text,
         flat: flatOf(text),
         back: (item.listed && header && k === 0) || REFERS_BACK.test(text),
       })
@@ -609,8 +607,8 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
 const VERB_LED = (c: { re: RegExp }) => c.re.source.includes('(?<!')
 
 // every match counts: "Anna sent a photo, and I sent the poster" claims (round 2)
-// every family matches s.flat; the breaks are read from s.text, where only
-// a line break is not a plain space (#3728 rounds 4-5)
+// every family matches s.flat; the breaks are read from s.text, where "\n"
+// is the only character that is not a plain space (#3728 rounds 4-6)
 function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   if (kindOf(c) === 'browser') return c.re.test(s.flat)
   if (s.back) return false
@@ -623,8 +621,9 @@ function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   return false
 }
 
-function unbacked(raw: string, events: Array<Record<string, unknown>>) {
-  const sentences = sentencesOf(raw)
+// reads normalised text only: see normalised()
+function unbacked(norm: string, events: Array<Record<string, unknown>>) {
+  const sentences = sentencesOf(norm)
   const called = new Set(calledTools(events))
   return CLAIMS.filter(c => sentences.some(s => claimedIn(c, s))).filter(
     c => !c.tools.some(t => called.has(t))
@@ -636,7 +635,11 @@ export function unbackedKinds(
   text: string,
   events: Array<Record<string, unknown>>
 ): ClaimKind[] {
-  const kinds = new Set(unbacked(text, events).map(kindOf))
+  return kindsOf(unbacked(normalised(text), events))
+}
+
+function kindsOf(claims: typeof CLAIMS): ClaimKind[] {
+  const kinds = new Set(claims.map(kindOf))
   return (['browser', 'media', 'voice'] as ClaimKind[]).filter(k =>
     kinds.has(k)
   )
@@ -659,9 +662,10 @@ export function honestyLogFields(
   browserCalls: number
   toolCalls: number
 } {
+  const claims = unbacked(normalised(text), events)
   return {
-    claim: unbackedKinds(text, events).join('+'),
-    unbacked: unbackedClaims(text, events),
+    claim: kindsOf(claims).join('+'),
+    unbacked: toolsOf(claims),
     browserCalls: browserCalls(events),
     toolCalls: calledTools(events).length,
   }
@@ -693,7 +697,7 @@ export function honestyNote(
   text: string,
   events: Array<Record<string, unknown>>
 ): string {
-  return unbackedKinds(text, events)
+  return kindsOf(unbacked(normalised(text), events))
     .map(k => NOTES[k])
     .join('')
 }

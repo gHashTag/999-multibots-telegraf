@@ -971,3 +971,104 @@ describe('the media backing list covers the tool registry', () => {
     expect(loose).toEqual([])
   })
 })
+
+/*
+ * The class, not the sites (#3728 round 6). Rounds 3-5 fixed exotic
+ * whitespace one reader at a time, and each review found one more reader
+ * (REFERS_BACK, the plan headers) still matching a plain space only. The
+ * module now normalises once at every exported entry, and this enforces it:
+ * EVERY string literal of this file that reads as an answer -- honest or a
+ * claim -- must get the same verdict from every exported function when each
+ * plain space becomes each inline whitespace, and each "\n" each line break.
+ */
+describe('whitespace is normalised once, at every entry (#3728 round 6)', () => {
+  const INLINE = [
+    '\t',
+    '\u00a0',
+    '\u2009',
+    '\u202f',
+    '\u3000',
+    '\u2000',
+    '\u1680',
+    '\ufeff',
+  ]
+  const BREAKS = ['\r\n', '\r', '\u2028', '\u2029', '\u0085', '\v', '\f']
+  const src = readFileSync(__filename, 'utf8')
+  const literal = /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g
+  const corpus = [
+    ...new Set(
+      [...src.matchAll(literal)]
+        .map(m => {
+          try {
+            return new Function(`return ${m[0]}`)() as string
+          } catch {
+            return ''
+          }
+        })
+        .filter(s => /[ \n]/.test(s) && /\p{L}{2}/u.test(s))
+    ),
+  ]
+  const events = [text('x'), call('crm_find')]
+  const verdict = (said: string) =>
+    JSON.stringify([
+      claimsBrowserWork(said),
+      unbackedClaims(said, events),
+      unbackedKinds(said, events),
+      honestyNote(said, events),
+      honestyLogFields(said, events),
+    ])
+  const variants = (said: string) => [
+    ...INLINE.map(ws => said.replaceAll(' ', ws)),
+    // a "\n" that is half of a CRLF already is not a break of its own
+    ...BREAKS.map(br => said.replace(/(?<!\r)\n/g, br)),
+  ]
+  it('reaches every answer of this file', () => {
+    expect(corpus.length).toBeGreaterThan(380)
+    expect(corpus.filter(s => s.includes('\n')).length).toBeGreaterThan(40)
+    expect(
+      corpus.filter(s => verdict(s) !== verdict('')).length
+    ).toBeGreaterThan(100)
+  })
+  it('every exported function gives every variant the plain verdict', () => {
+    const wrong: string[] = []
+    for (const said of corpus) {
+      const plain = verdict(said)
+      for (const other of variants(said))
+        if (verdict(other) !== plain) wrong.push(JSON.stringify(other))
+    }
+    expect(wrong).toEqual([])
+  })
+
+  // the round-5 review: a no-break space inside the "previous message" and the
+  // plan headers gained a needless note
+  for (const said of [
+    'Отправила афишу в прошлом сообщении.', // cyrillic-ok: test input
+    'По шагам:\n1. Сделала афишу для тебя', // cyrillic-ok: test input
+    'Что я сделаю:\n- Записала голосовое для вас', // cyrillic-ok: test input
+  ])
+    it(`a no-break space inside a back-reference or a plan: ${JSON.stringify(said)}`, () => {
+      const nbsp = said.replace(/ /g, '\u00a0')
+      expect(nbsp).not.toBe(said)
+      expect(unbackedKinds(nbsp, [])).toEqual([])
+      expect(unbackedKinds(said, [])).toEqual([])
+      expect(honestyNote(said, [])).toBe('')
+      expect(honestyNote(nbsp, [])).toBe('')
+    })
+
+  // U+2028, U+2029 and U+0085 are line breaks: a plan header heads the list
+  // under it (on one line it heads nothing), and a wrapped claim still claims
+  for (const br of ['\u2028', '\u2029', '\u0085'])
+    it(`U+${br.codePointAt(0)!.toString(16).padStart(4, '0')} is a line break`, () => {
+      expect(unbackedKinds(`Шаги:${br}- сделала афишу`, [])).toEqual([]) // cyrillic-ok: test input
+      expect(unbackedKinds('Шаги: - сделала афишу', [])).toEqual(['media']) // cyrillic-ok: test input
+      expect(unbackedKinds(`I took a${br}screenshot of it.`, [])).toEqual([
+        'browser',
+      ])
+      expect(
+        claimsBrowserWork(`I made the${br}poster. I took a${br}screenshot.`)
+      ).toBe(true)
+      expect(unbackedKinds(`I recorded you a${br}voice note.`, [])).toEqual([
+        'voice',
+      ])
+    })
+})
