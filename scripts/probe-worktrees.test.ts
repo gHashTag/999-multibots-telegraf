@@ -43,6 +43,23 @@ function tree(name: string, ...addArgs: string[]) {
   return dir
 }
 
+// a branch created `hours` ago: the reflog line `-b` writes carries the
+// committer date, which is what the probe reads as the branch's age
+function oldTree(name: string, branch: string, hours: number) {
+  const dir = path.join(tmp, name)
+  const when = `${Math.floor(Date.now() / 1000 - hours * 3600)} +0000`
+  execFileSync(
+    'git',
+    ['worktree', 'add', '-q', '-b', branch, dir, 'origin/main'],
+    {
+      cwd: repo,
+      stdio: 'pipe',
+      env: { ...process.env, GIT_COMMITTER_DATE: when },
+    }
+  )
+  return dir
+}
+
 function commit(dir: string, file: string) {
   fs.writeFileSync(path.join(dir, file), file + '\n')
   git(dir, 'add', file)
@@ -156,6 +173,10 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
       path.join(parent, '.claude', 'worktrees', 'child'),
       'origin/main'
     )
+    // fresh: a bee's tree a minute old -- named, clean, 0 commits ahead (#3745)
+    tree('fresh', '-q', '-b', 'fix/fresh', '@', 'origin/main')
+    // stale: the same shape, but its branch was created two days ago
+    oldTree('stale', 'fix/stale', 48)
     // locked: already in main, but locked by its owner
     tree('locked', '-q', '--detach', '@', 'origin/main')
     git(repo, 'worktree', 'lock', path.join(tmp, 'locked'))
@@ -273,6 +294,21 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
 
   it('keeps a detached tree with a commit not in main', () => {
     expect(exists('unmerged/u.txt'), out).toBe(true)
+  })
+
+  it('keeps a fresh named branch with no commits yet: new, not finished', () => {
+    expect(exists('fresh'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/fresh/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/fresh/) // cyrillic-ok
+  })
+
+  it('removes a clean named branch with no commits past the age threshold', () => {
+    expect(exists('stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/stale/) // cyrillic-ok
+  })
+
+  it('keeps a detached tree at a main commit finished', () => {
+    expect(dry).toMatch(/ЗАВЕРШЕНО\s+\(detached/) // cyrillic-ok
   })
 
   it('keeps a tree with a live process inside', () => {

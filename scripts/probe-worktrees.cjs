@@ -46,6 +46,18 @@
  * silently. Removal runs WITHOUT --force, so git's own clean check covers the
  * gap after our re-check. Branches stay. A finished detached tree's commits
  * are already upstream (as the same commit or the same patch).
+ *
+ * A NEW BRANCH IS NOT A FINISHED ONE (#3745). `git worktree add -b fix/x dir
+ * origin/main` makes a clean tree 0 commits ahead -- exactly what "already in
+ * origin/main" used to mean. On 06.10 two live bees' trees were listed as
+ * finished minutes after they were created. A NAMED branch with 0 commits
+ * ahead and no merged PR of that name is now `new`, and stays until it is
+ * older than NEW_BRANCH_MAX_H. Age is the first line of the branch reflog
+ * (the moment `-b` created it): one small file read, and unlike the
+ * directory's mtime it does not move when a file is added at the top level.
+ * No reflog -> the worktree admin dir's `commondir` file, written once at
+ * creation. Unknown age keeps the tree. Detached HEAD at a main commit has no
+ * name to be new under, and stays finished.
  */
 
 const fs = require('fs')
@@ -55,6 +67,8 @@ const { execFileSync } = require('child_process')
 const ROOT = path.resolve(__dirname, '..')
 const GH = process.env.TRI_GH || 'gh'
 const RECENT_MIN = Number(process.env.TRI_WT_RECENT_MIN || 60)
+/** A clean named branch with no commits yet is a bee's fresh start until this old. */
+const NEW_BRANCH_MAX_H = 6
 
 const git = (args, cwd = ROOT) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' })
@@ -310,6 +324,35 @@ function minutesSinceTouched(dir) {
   }
 }
 
+/**
+ * Hours since a named branch was created: the first reflog line's timestamp,
+ * else the mtime of the worktree admin dir's `commondir` (written once by
+ * `git worktree add`). Unknown is null, and null keeps a tree.
+ */
+function branchAgeHours(dir, branch) {
+  if (!branch) return null
+  try {
+    const common = path.resolve(
+      dir,
+      git(['rev-parse', '--git-common-dir'], dir).trim()
+    )
+    const log = path.join(common, 'logs', 'refs', 'heads', ...branch.split('/'))
+    const first = fs.readFileSync(log, 'utf8').split('\n')[0]
+    const m = first.match(/> (\d+) [+-]\d{4}\t/)
+    if (m) return (Date.now() / 1000 - Number(m[1])) / 3600
+  } catch {
+    /* no reflog (core.logAllRefUpdates off): fall through */
+  }
+  try {
+    const gd = git(['rev-parse', '--absolute-git-dir'], dir).trim()
+    return (
+      (Date.now() - fs.statSync(path.join(gd, 'commondir')).mtimeMs) / 3600000
+    )
+  } catch {
+    return null
+  }
+}
+
 /** Facts about every worktree except the main checkout (or just `only`). */
 function gather(procs, only = null) {
   const all = listTrees()
@@ -363,6 +406,7 @@ function gather(procs, only = null) {
         unsafeIgnored: ignoredRisks(w.dir, ignored),
         busy: procs ? procs.filter(p => inside(p, w.dir)).length : null,
         touchedMin: minutesSinceTouched(w.dir),
+        branchAgeH: branchAgeHours(w.dir, w.branch),
         containedIn: oid => ok(['merge-base', '--is-ancestor', w.head, oid]),
         // every commit beyond main already landed as the same patch (a
         // rebased copy: the PR head moved on, this tree kept the old SHA)
@@ -384,10 +428,13 @@ function gather(procs, only = null) {
  * finished  HEAD is a merged PR's head, inside one, already in origin/main,
  *           or every commit beyond main is already there as the same patch
  *           -- and nothing uncommitted
+ * new       a NAMED branch, 0 commits ahead, no merged PR of that name, and
+ *           younger than NEW_BRANCH_MAX_H (or of unknown age) -- a bee that
+ *           has not committed yet; never proposed for removal
  * holds     uncommitted work, or locked -- never proposed for removal
  * active    anything else: commits nobody merged yet
  */
-function classify(trees, merged) {
+function classify(trees, merged, newMaxH = NEW_BRANCH_MAX_H) {
   return trees.map(w => {
     if (w.dirty > 0)
       return { ...w, state: 'holds', why: `несохранённых файлов: ${w.dirty}` }
@@ -401,9 +448,27 @@ function classify(trees, merged) {
         state: 'finished',
         why: `= голова влитого PR #${merged.byOid.get(w.head)}`,
       }
+    const sameName = (w.branch && merged.byName.get(w.branch)) || []
+    if (w.ahead === 0 && w.branch && !sameName.length) {
+      const age = typeof w.branchAgeH === 'number' ? w.branchAgeH : null
+      if (age === null || age < newMaxH)
+        return {
+          ...w,
+          state: 'new',
+          why:
+            'новая ветка, коммитов ещё нет' +
+            (age === null
+              ? ' (возраст не прочитать)'
+              : `, ${age.toFixed(1)} ч`),
+        }
+      return {
+        ...w,
+        state: 'finished',
+        why: `уже в origin/main; ветка без коммитов ${Math.round(age)} ч`,
+      }
+    }
     if (w.ahead === 0)
       return { ...w, state: 'finished', why: 'уже в origin/main' }
-    const sameName = (w.branch && merged.byName.get(w.branch)) || []
     for (const pr of sameName)
       if (w.containedIn && w.containedIn(pr.oid))
         return { ...w, state: 'finished', why: `внутри влитого PR #${pr.n}` }
@@ -470,7 +535,11 @@ function selfCheck() {
       t('/a', { branch: 'loop/done', head: 'aaa' }),
       t('/b', { branch: 'loop/wip' }),
       t('/c', { branch: 'loop/done', head: 'aaa', dirty: 2 }),
-      t('/d', { branch: 'loop/empty', ahead: 0 }),
+      t('/d', { branch: 'loop/empty', ahead: 0, branchAgeH: 999 }),
+      t('/j', { branch: 'loop/fresh', ahead: 0, branchAgeH: 0.1 }),
+      t('/k', { branch: 'loop/fresh2', ahead: 0, branchAgeH: null }),
+      t('/l', { head: 'mmm', ahead: 0 }),
+      t('/m', { branch: 'loop/done', head: 'ddd', ahead: 0, branchAgeH: 0.1 }),
       t('/e', { branch: 'loop/done', head: 'bbb' }),
       t('/f', { head: 'aaa' }),
       t('/g', {
@@ -494,6 +563,10 @@ function selfCheck() {
     '/g': 'finished',
     '/h': 'holds',
     '/i': 'finished',
+    '/j': 'new',
+    '/k': 'new',
+    '/l': 'finished',
+    '/m': 'finished',
   }
   for (const [dir, expected] of Object.entries(want))
     if (state(dir) !== expected)
@@ -551,7 +624,8 @@ function main() {
   const apply = process.argv.includes('--apply')
   selfCheck()
   console.log(
-    'самопроверка: несохранённое перевешивает влитый PR; имя -- не коммит'
+    'самопроверка: несохранённое перевешивает влитый PR; имя -- не коммит;' +
+      ` новая ветка без коммитов -- не завершена (до ${NEW_BRANCH_MAX_H} ч)`
   )
 
   const merged = mergedPrs()
@@ -570,11 +644,13 @@ function main() {
     `\nдеревьев (кроме главного): ${rows.length}` +
       `  завершено ${by('finished').length}` +
       `, держит работу ${by('holds').length}` +
+      `, новых ${by('new').length}` +
       `, в работе ${by('active').length}\n`
   )
   const LABEL = {
     finished: 'ЗАВЕРШЕНО ',
     holds: 'ДЕРЖИТ    ',
+    new: 'НОВАЯ     ',
     active: 'в работе  ',
   }
   for (const r of rows)
@@ -631,4 +707,10 @@ function main() {
 }
 
 if (require.main === module) main()
-module.exports = { classify, blockers, regenerable, selfCheck }
+module.exports = {
+  classify,
+  blockers,
+  regenerable,
+  selfCheck,
+  NEW_BRANCH_MAX_H,
+}
