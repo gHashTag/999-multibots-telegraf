@@ -16,9 +16,19 @@ send real cards (`ask`, `tidy ask`) without a reason written here first.
 
 ## СЕЙЧАС В РАБОТЕ
 
-2026-10-06: coder bees on A, B, D resumed (their worktrees held uncommitted
-work after a session restart); N1 and N2 dispatched. Every PR carries
-`owner-approved-foreign` with the owner's chat approval of 2026-10-06 quoted.
+Taken items: item -> branch, dispatched 2026-10-06 12:00 UTC. When an item
+frees is a rule of the round (`.claude/agents/browser-desk-keeper.md`, "The plan
+is yours too"); it is not repeated here.
+
+- A -> `fix/userbot-plain-errors`
+- B -> `fix/browser-yes-is-for-one-place`
+- D -> `fix/crm-duet-dry-run-by-default`
+- N1 -> `fix/zai-relay-yields-to-agent`
+- N2 -> `fix/zai-lite-own-key`
+
+Every PR carries `owner-approved-foreign` with the owner's chat approval of
+2026-10-06 quoted. The coder bee removes its item's line here in its own PR,
+next to the tick.
 
 ## Что уже есть
 
