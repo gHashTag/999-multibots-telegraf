@@ -312,8 +312,8 @@ const PUBLIC_EXACT = new Set([
    * relay's own check ran, so the freshly deployed route was unreachable.
    *
    * Not a relaxation: the relay (src/zai-relay.ts) refuses every caller whose
-   * bearer does not timing-safe-match GLM_API_KEY, fails closed without that
-   * key, and rebuilds the upstream Authorization from OUR env so it can never
+   * bearer does not timing-safe-match the relay key (ZAI_RELAY_API_KEY, else
+   * GLM_API_KEY), fails closed without that key, and rebuilds the upstream Authorization from OUR env so it can never
    * proxy a caller-chosen key. The guard would only add a credential the one
    * legitimate caller is technically unable to send.
    */
