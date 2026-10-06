@@ -20,8 +20,8 @@
   {
     "name": "discovery one turn longer",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "if (sellerTurn < DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED",
-    "to": "if (sellerTurn <= DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED"
+    "from": "if (sellerTurn < DISCOVERY_SELLER_TURNS) return duetGates().denied",
+    "to": "if (sellerTurn <= DISCOVERY_SELLER_TURNS) return duetGates().denied"
   },
   {
     "name": "brief loses the per-reply cap",
@@ -50,13 +50,13 @@
   {
     "name": "a dry run offers paid tools again",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "  if (dryRun) return DRY_RUN_DENIED\n",
+    "from": "  if (dryRun) return duetGates().denied\n",
     "to": ""
   },
   {
     "name": "a dry run refuses without saying why",
     "file": "src/agent/crm-duet-tool.ts",
-    "from": "  ...[...PAID_TOOLS].map(t => [t, DRY_RUN_PAID_REASON] as const),\n",
+    "from": "      ...[...paid].map(t => [t, DRY_RUN_PAID_REASON] as const),\n",
     "to": ""
   },
   {
@@ -130,5 +130,23 @@
     "file": "src/agent/crm-duet-tool.ts",
     "from": "Беззвучный ролик с субтитрами, TrinityBlogReel",
     "to": "Только LeelaPlanReel, не TrinityBlogReel"
+  },
+  {
+    "name": "crm_voice_clone looks free (one of the four through a dry run)",
+    "file": "src/agent/crm-voice-clone-tool.ts",
+    "from": "    charges: ['voice_clone'],\n",
+    "to": ""
+  },
+  {
+    "name": "a dry run lets lipsync_generate through",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  const denied: ReadonlySet<string> = new Set([...paid, ...DUET_NEVER])",
+    "to": "  const denied: ReadonlySet<string> = new Set(\n    [...paid, ...DUET_NEVER].filter(t => t !== 'lipsync_generate')\n  )"
+  },
+  {
+    "name": "the paid set is a hand list again",
+    "file": "src/agent/crm-duet-tool.ts",
+    "from": "  return chargingTools()\n",
+    "to": "  return new Set(['image_generate', 'image_edit', 'audio_generate', 'video_generate', 'reel_render', REEL_TOOL])\n"
   }
 ]

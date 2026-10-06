@@ -20,8 +20,8 @@
 // owner-only, both accounts are connected sellers (the row in tg_sessions is the consent), and
 // the transcript is returned; session strings never are.
 // Coverage: every tool the seller agent calls is recorded name -> ok/fail; paid generations
-// (image_generate, image_edit, audio_generate, video_generate, reel_render, and since v3 a
-// crm_story_reel call that starts a reel) are counted; the
+// (since v5: every call of a tool with a price > 0, and of crm_story_reel only a call that
+// starts a reel) are counted; the
 // brief asks for at most one per reply and two per run (one portrait from her face, one reel
 // -- the brief since 2026-09-21; v1 said three) -- a SOFT cap enforced by the prompt and
 // measured in the report, not a hard limit in code.
@@ -63,6 +63,16 @@
 // charged. A real run is unchanged: discovery first, paid tools from seller turn 2. The host
 // reads dry_run as true unless the caller passed the boolean false (999#3794), so the free
 // path is also the default one.
+// v5 (2026-10-06): A PAID TOOL IS ONE WITH A PRICE, NOT ONE ON A LIST. v4 hid the six tools
+// v1 named and stopped there; the seller is offered the whole registry, and four tools that
+// charge were on no list: lipsync_generate (charges by the second), story_reel and split_reel
+// (they borrow tools that charge), crm_voice_clone (the one-time clone price). A dry run still
+// offered them on every turn (reviewer, t27#6897). The rule is now stated on the price, so it
+// cannot drift as tools are added: any tool whose price is > 0 -- its own entry in the
+// render's price table, or the highest price of a tool it borrows -- is a paid tool, hidden and
+// refused on every turn of a dry run and on discovery turns. The host derives the set from
+// its price table and registry; this file no longer counts them (PAID_TOOLS = 6 is gone).
+// story_offered is paid_tool_offered by definition: the story reel follows the paid gate.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_duet {
@@ -70,7 +80,7 @@ module automation::crm_duet {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-duet";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- Who ----------------------------------------------------------------------------
     pub const SELLER : str = "platform-owner";  // the owner's account: sells
@@ -101,7 +111,10 @@ module automation::crm_duet {
     pub const BUSINESS_BOT_TAKEOVER_MIN : u8 = 30;  // OWNER_TAKEOVER_MS in businessBotService.ts
 
     // ---- Coverage -----------------------------------------------------------------------
-    pub const PAID_TOOLS : u8 = 6;  // image_generate image_edit audio_generate video_generate reel_render crm_story_reel
+    // v5: a tool is paid when its price is > 0 (the render's price table, directly or through a
+    // tool it borrows). There is no hand list and no count here: a count is what drifted.
+    pub const PAID_TOOL_IS_PRICED : bool = true;
+    pub const PAID_TOOLS_HAND_LIST : bool = false;
     pub const PAID_PER_REPLY_SOFT : u8 = 1;
     pub const PAID_PER_RUN_SOFT : u8 = 2;  // one portrait, one reel
     pub const PAID_CAP_IS_HARD : bool = false;
@@ -249,6 +262,26 @@ module automation::crm_duet {
         return rewrite || !paid_tool_offered(seller_turn, dry_run);
     }
 
+    // Whether a tool is a paid tool: its price is > 0. The price is the host's, never a list.
+    fn tool_is_paid(price: u32) -> bool {
+        return price > 0;
+    }
+
+    // The price of a tool that borrows another: the higher of its own and the borrowed one's.
+    // A tool that charges nothing itself but runs one that charges is a paid tool.
+    fn borrowed_price(own: u32, borrowed: u32) -> u32 {
+        if own >= borrowed {
+            return own;
+        }
+        return borrowed;
+    }
+
+    // Whether a tool with this price is offered on seller turn `seller_turn`: a free tool
+    // always, a priced one only where paid tools are offered (never in a dry run).
+    fn priced_tool_offered(price: u32, seller_turn: u8, dry_run: bool) -> bool {
+        return !tool_is_paid(price) || paid_tool_offered(seller_turn, dry_run);
+    }
+
     // Whether a call is a paid generation: the story reel only when it starts one.
     fn call_is_paid(paid_tool: bool, story_reel: bool, start: bool) -> bool {
         if story_reel {
@@ -258,8 +291,9 @@ module automation::crm_duet {
     }
 
     // Whether the story reel is offered to the seller on seller turn `seller_turn`.
+    // It follows the paid gate (v5): one rule, not a second copy of it.
     fn story_offered(seller_turn: u8, dry_run: bool) -> bool {
-        return !dry_run && seller_turn >= DISCOVERY_SELLER_TURNS;
+        return paid_tool_offered(seller_turn, dry_run);
     }
 
     // Whether the duet keeps a promise to send a file by resending the last one it has.
@@ -337,7 +371,8 @@ module automation::crm_duet {
         assert(!PAID_CAP_IS_HARD);
         assert(PAID_PER_REPLY_SOFT == 1);
         assert(PAID_PER_RUN_SOFT == 2);
-        assert(PAID_TOOLS == 6);
+        assert(PAID_TOOL_IS_PRICED);
+        assert(!PAID_TOOLS_HAND_LIST);
     }
 
     test "the duet's reel is the story reel, paid only when it starts" {
@@ -475,8 +510,25 @@ module automation::crm_duet {
         assert(paid_call_refused(2, false, true));
     }
 
+    test "any tool with a price > 0 is refused in a dry run" {
+        assert(PAID_TOOL_IS_PRICED);
+        assert(tool_is_paid(1));
+        assert(tool_is_paid(1200));  // crm_voice_clone: the one-time clone price
+        assert(!tool_is_paid(0));
+        assert(tool_is_paid(borrowed_price(0, 16)));  // story_reel, split_reel: borrow lipsync_generate
+        assert(!tool_is_paid(borrowed_price(0, 0)));
+        assert(borrowed_price(12, 8) == 12);
+        assert(!priced_tool_offered(1, 0, true));
+        assert(!priced_tool_offered(16, 2, true));
+        assert(!priced_tool_offered(1200, 7, true));
+        assert(priced_tool_offered(0, 0, true));  // a free tool stays offered in a dry run
+        assert(priced_tool_offered(0, 7, true));
+        assert(!priced_tool_offered(16, 1, false));  // discovery hides it in a real run too
+        assert(priced_tool_offered(16, 2, false));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 
     test "a negated claim word is not a claim; pressure is never exempt" {

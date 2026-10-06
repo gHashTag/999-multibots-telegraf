@@ -45,6 +45,7 @@ import { clientProfileFor } from './crm-client-setup-tool'
 import { assistantMayReach } from './assistant-opt-out'
 import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
 import * as SPEC from '../spec/crm-duet.gen'
+import { chargingTools } from './tool-charges'
 
 /**
  * The refusal when no buyer is named. The tool used to fall back to one real
@@ -64,19 +65,25 @@ export const TURNS_MAX = SPEC.TURNS_MAX
  * only a call that STARTS a reel is a paid call (callIsPaid).
  */
 export const REEL_TOOL = SPEC.REEL_TOOL
-export const PAID_TOOLS = new Set([
-  'image_generate',
-  'image_edit',
-  'audio_generate',
-  'video_generate',
-  'reel_render',
-  REEL_TOOL,
-])
+
+/**
+ * A PAID TOOL IS ONE WITH A PRICE, NOT ONE ON A LIST (crm-duet.t27 v5:
+ * PAID_TOOL_IS_PRICED, tool_is_paid). The paid set used to be six names
+ * written out here; lipsync_generate, story_reel, split_reel and
+ * crm_voice_clone charge and were on no list, so a dry run meant to be free
+ * still offered them. The set is now every registered tool whose price in
+ * TOKEN_PRICES -- its own, or that of what it `charges` -- is > 0
+ * (tool-charges.ts). Read on call, not at load: tools.ts imports this module,
+ * so the registry is built after it; a read before that throws (fail closed).
+ */
+export function paidTools(): ReadonlySet<string> {
+  return chargingTools()
+}
 
 /** A call spends: the story reel's readiness read does not, its start does. */
 export function callIsPaid(r: ToolResultEvent): boolean {
   if (r.name === REEL_TOOL) return r.args?.start === true
-  return PAID_TOOLS.has(r.name)
+  return paidTools().has(r.name)
 }
 
 /** The story job a call started, or null (a read, a refusal, a failure). */
@@ -649,7 +656,7 @@ export interface ToolResultEvent {
   ms: number
   /** The call's own arguments, when the agent announced them before the result. */
   args?: Record<string, unknown>
-  /** The call came from a rewrite round (REWRITE_GATE), not the turn itself. */
+  /** The call came from a rewrite round (rewriteGate), not the turn itself. */
   rewrite?: boolean
 }
 
@@ -754,7 +761,7 @@ export function producedWork(results: ToolResultEvent[]): boolean {
   return results.some(r =>
     r.name === REEL_TOOL
       ? storyJobOf(r) !== null
-      : PAID_TOOLS.has(r.name) && okOf(r.value)
+      : paidTools().has(r.name) && okOf(r.value)
   )
 }
 
@@ -806,57 +813,34 @@ export const DUET_DENY_REASONS: ReadonlyMap<string, string> = new Map([
   ],
 ])
 
-const DISCOVERY_DENIED: ReadonlySet<string> = new Set([
-  ...PAID_TOOLS,
-  ...DUET_NEVER,
-])
+/**
+ * The derived gates, built once from the registry's paid set (paidTools) on
+ * first use and rebuilt only if that set is replaced. Paid tools and the
+ * duet-never tools are denied together on discovery turns, on every turn of a
+ * dry run, and on every rewrite round.
+ */
+interface DuetGates {
+  paid: ReadonlySet<string>
+  denied: ReadonlySet<string>
+  dryRunReasons: ReadonlyMap<string, string>
+  rewriteReasons: ReadonlyMap<string, string>
+  rewrite: ToolDenial
+}
+let gatesMemo: DuetGates | null = null
 
 /**
  * A DRY RUN IS FREE (crm-duet.t27 v4: DRY_RUN_SPENDS, DRY_RUN_HIDES_PAID_TOOLS,
- * DRY_RUN_REFUSES_PAID_CALL). Owner, 2026-10-06 (translated): "a dry run must
- * be free". v3 kept only the story reel out of a dry run (its card would reach
- * the owner's Telegram, STORY_IN_DRY_RUN); every other paid tool ran from
- * seller turn 2, so a run that sends nothing still paid for generations. Now
- * a dry run denies every paid tool on every turn, as discovery does: not
- * listed, and a call that arrives anyway is refused before its handler runs,
- * in words the model can act on.
+ * DRY_RUN_REFUSES_PAID_CALL; v5: any tool with a price > 0 is refused in a dry
+ * run). Owner, 2026-10-06 (translated): "a dry run must be free". v3 kept only
+ * the story reel out of a dry run (its card would reach the owner's Telegram,
+ * STORY_IN_DRY_RUN); every other paid tool ran from seller turn 2, so a run
+ * that sends nothing still paid for generations. Now a dry run denies every
+ * paid tool on every turn, as discovery does: not listed, and a call that
+ * arrives anyway is refused before its handler runs, in words the model can
+ * act on.
  */
-const DRY_RUN_DENIED: ReadonlySet<string> = DISCOVERY_DENIED
 export const DRY_RUN_PAID_REASON =
   'это пробный прогон, он бесплатный: генерации не вызывай. Скажи словами, что сделал бы для неё.'
-export const DRY_RUN_DENY_REASONS: ReadonlyMap<string, string> = new Map([
-  ...DUET_DENY_REASONS,
-  ...[...PAID_TOOLS].map(t => [t, DRY_RUN_PAID_REASON] as const),
-  [
-    REEL_TOOL,
-    'это пробный прогон: рилс-историю не запускай — её карточка пришла бы владельцу в Telegram, а пробный прогон ничего не отправляет. Скажи, какой план взял бы темой.',
-  ],
-])
-
-/**
- * Paid tools wait for discovery and never run dry (spec: paid_tool_offered);
- * the duet-never tools wait for ever.
- */
-export function deniedToolsFor(
-  sellerTurn: number,
-  dryRun = false
-): ReadonlySet<string> {
-  if (dryRun) return DRY_RUN_DENIED
-  if (sellerTurn < DISCOVERY_SELLER_TURNS) return DISCOVERY_DENIED
-  return DUET_NEVER
-}
-
-/** A dry run's brief says up front that nothing paid will run (v4). */
-export const DRY_RUN_BRIEF_NOTE =
-  'Это пробный прогон, он бесплатный: портрет, рилс и любые генерации в нём не запускаются. Продавай словами и говори, что сделал бы.'
-
-/** The gate of one seller turn: what is refused, and in which words. */
-export function gateFor(sellerTurn: number, dryRun = false): ToolDenial {
-  return {
-    denyTools: deniedToolsFor(sellerTurn, dryRun),
-    denyReasons: dryRun ? DRY_RUN_DENY_REASONS : DUET_DENY_REASONS,
-  }
-}
 
 /**
  * A REWRITE ROUND CHANGES WORDS, NOT WORK.
@@ -868,20 +852,72 @@ export function gateFor(sellerTurn: number, dryRun = false): ToolDenial {
  * twice -- reached the client. A rewrite round denies every paid tool and
  * every duet-never tool, and says why in words the model can act on.
  */
-export const REWRITE_DENY_REASONS: ReadonlyMap<string, string> = new Map([
-  ...[...PAID_TOOLS].map(
-    t =>
-      [
-        t,
-        'это правка реплики: меняются только слова, генерацию на правке не вызывай — сделанное в этом ходу уже учтено.',
-      ] as const
-  ),
-  ...DUET_DENY_REASONS,
-])
+export const REWRITE_PAID_REASON =
+  'это правка реплики: меняются только слова, генерацию на правке не вызывай — сделанное в этом ходу уже учтено.'
 
-export const REWRITE_GATE: ToolDenial = {
-  denyTools: DISCOVERY_DENIED,
-  denyReasons: REWRITE_DENY_REASONS,
+function duetGates(): DuetGates {
+  const paid = paidTools()
+  if (gatesMemo && gatesMemo.paid === paid) return gatesMemo
+  const denied: ReadonlySet<string> = new Set([...paid, ...DUET_NEVER])
+  const rewriteReasons: ReadonlyMap<string, string> = new Map([
+    ...[...paid].map(t => [t, REWRITE_PAID_REASON] as const),
+    ...DUET_DENY_REASONS,
+  ])
+  gatesMemo = {
+    paid,
+    denied,
+    dryRunReasons: new Map([
+      ...DUET_DENY_REASONS,
+      ...[...paid].map(t => [t, DRY_RUN_PAID_REASON] as const),
+      [
+        REEL_TOOL,
+        'это пробный прогон: рилс-историю не запускай — её карточка пришла бы владельцу в Telegram, а пробный прогон ничего не отправляет. Скажи, какой план взял бы темой.',
+      ],
+    ]),
+    rewriteReasons,
+    rewrite: { denyTools: denied, denyReasons: rewriteReasons },
+  }
+  return gatesMemo
+}
+
+/** What the model reads when a tool is refused in a dry run. */
+export function dryRunDenyReasons(): ReadonlyMap<string, string> {
+  return duetGates().dryRunReasons
+}
+
+/** What the model reads when a tool is refused on a rewrite round. */
+export function rewriteDenyReasons(): ReadonlyMap<string, string> {
+  return duetGates().rewriteReasons
+}
+
+/** The gate of a rewrite round: nothing paid, nothing published. */
+export function rewriteGate(): ToolDenial {
+  return duetGates().rewrite
+}
+
+/**
+ * Paid tools wait for discovery and never run dry (spec: paid_tool_offered,
+ * priced_tool_offered); the duet-never tools wait for ever.
+ */
+export function deniedToolsFor(
+  sellerTurn: number,
+  dryRun = false
+): ReadonlySet<string> {
+  if (dryRun) return duetGates().denied
+  if (sellerTurn < DISCOVERY_SELLER_TURNS) return duetGates().denied
+  return DUET_NEVER
+}
+
+/** A dry run's brief says up front that nothing paid will run (v4). */
+export const DRY_RUN_BRIEF_NOTE =
+  'Это пробный прогон, он бесплатный: портрет, рилс и любые генерации в нём не запускаются. Продавай словами и говори, что сделал бы.'
+
+/** The gate of one seller turn: what is refused, and in which words. */
+export function gateFor(sellerTurn: number, dryRun = false): ToolDenial {
+  return {
+    denyTools: deniedToolsFor(sellerTurn, dryRun),
+    denyReasons: dryRun ? dryRunDenyReasons() : DUET_DENY_REASONS,
+  }
 }
 
 /**
@@ -1694,7 +1730,7 @@ export async function runDuet(
           error = again.error
         }
         // A rewrite round: the same line in other words. It runs under
-        // REWRITE_GATE (nothing paid, nothing published) and is told what the
+        // rewriteGate() (nothing paid, nothing published) and is told what the
         // first attempt already made, so "the same meaning" of a line about a
         // reel does not become a second reel.
         const rewrite = async (instruction: string) => {
@@ -1703,7 +1739,7 @@ export async function runDuet(
             role: 'user',
             content: `${instruction}\n${madeThisTurnNote(results)}`,
           })
-          const again = await sellerTurn(deps, seller, sellerCtx, REWRITE_GATE)
+          const again = await sellerTurn(deps, seller, sellerCtx, rewriteGate())
           if (again.text) {
             text = again.text
             results = [

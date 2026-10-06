@@ -23,7 +23,7 @@ import {
   claimsFamiliarity,
   claimsLivedExperience,
   LIVED_EXPERIENCE_REWRITE,
-  REWRITE_DENY_REASONS,
+  rewriteDenyReasons,
   DUET_DENY_REASONS,
   planNoteForSeller,
   PLAN_MEANING_RULE,
@@ -38,7 +38,7 @@ import {
   summaryOf,
   askBuyerModel,
   buyerRequestBody,
-  PAID_TOOLS,
+  paidTools,
   TURNS_MAX,
   type DuetRun,
   type DuetDeps,
@@ -296,7 +296,9 @@ describe('crm_duet helpers', () => {
       'Ты — @example_buyer, хранительница игры'
     )
     expect(buyerPersona('Я хозяйка стола.')).toContain('Я хозяйка стола.')
-    expect(PAID_TOOLS.size).toBe(6)
+    // crm-duet.t27 v5: priced, not listed -- at least the six of v4 and the
+    // four that charge and were on no list.
+    expect(paidTools().size).toBeGreaterThanOrEqual(10)
     expect(TURNS_MAX).toBe(8)
   })
 
@@ -646,9 +648,10 @@ describe('crm_duet: a rewrite round changes words, not work (review of #2709)', 
     for (const o of seen) expect(o?.denyTools?.has('feed_publish')).toBe(true)
     // The turn itself may render (discovery is over); its rewrite may not.
     expect(seen[2]?.denyTools?.has('reel_render')).toBe(false)
-    for (const t of PAID_TOOLS) expect(seen[3]?.denyTools?.has(t), t).toBe(true)
+    for (const t of paidTools())
+      expect(seen[3]?.denyTools?.has(t), t).toBe(true)
     expect(seen[3]?.denyReasons?.get('reel_render')).toBe(
-      REWRITE_DENY_REASONS.get('reel_render')
+      rewriteDenyReasons().get('reel_render')
     )
     // One reel paid for, one file sent -- the first attempt's.
     expect(run.paid_calls).toBe(1)
@@ -690,8 +693,8 @@ describe('crm_duet: a rewrite round changes words, not work (review of #2709)', 
     ])
     // Calls 1, 2, 3 (voice, familiarity, lived) and 5 (done work) are rewrites.
     for (const k of [1, 2, 3, 5]) {
-      expect(seen[k]?.denyReasons, `call ${k}`).toBe(REWRITE_DENY_REASONS)
-      for (const t of [...PAID_TOOLS, 'feed_publish'])
+      expect(seen[k]?.denyReasons, `call ${k}`).toBe(rewriteDenyReasons())
+      for (const t of [...paidTools(), 'feed_publish'])
         expect(seen[k]?.denyTools?.has(t), `call ${k}: ${t}`).toBe(true)
     }
   })
@@ -1860,8 +1863,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
   it('paid tools are denied on the first two seller turns and offered from the third; feed_publish never', () => {
     expect(DISCOVERY_SELLER_TURNS).toBe(2)
     const paidDenied = (turn: number) =>
-      [...PAID_TOOLS].filter(t => deniedToolsFor(turn).has(t)).length
-    const all = PAID_TOOLS.size
+      [...paidTools()].filter(t => deniedToolsFor(turn).has(t)).length
+    const all = paidTools().size
     expect([0, 1, 2, 7].map(paidDenied)).toEqual([all, all, 0, 0])
     for (const turn of [0, 1, 2, 7])
       expect(deniedToolsFor(turn).has('feed_publish')).toBe(true)
@@ -1883,8 +1886,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     const run = await runDuet(freshRun({ turns: 3 }), ctx, d)
     expect(run.state).toBe('done')
     const paid = (s?: ReadonlySet<string>) =>
-      [...PAID_TOOLS].filter(t => s?.has(t)).length
-    const all = PAID_TOOLS.size
+      [...paidTools()].filter(t => s?.has(t)).length
+    const all = paidTools().size
     expect(denies.map(paid)).toEqual([all, all, 0])
     expect(denies.map(s => s?.has('feed_publish'))).toEqual([true, true, true])
     expect(run.violations).toEqual([])

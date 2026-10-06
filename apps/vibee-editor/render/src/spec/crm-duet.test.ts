@@ -9,7 +9,6 @@ import {
   LEELA_CANON,
   NO_LIVED_EXPERIENCE_RULE,
   NO_PUBLISH_RULE,
-  PAID_TOOLS,
   PLAN_MEANING_RULE,
   REEL_TOOL,
   SELLER_RETRY_ON_LIMIT,
@@ -18,9 +17,10 @@ import {
   TURNS_MAX,
   DISCOVERY_SELLER_TURNS,
   DRY_RUN_BRIEF_NOTE,
-  DRY_RUN_DENY_REASONS,
   DRY_RUN_PAID_REASON,
-  REWRITE_GATE,
+  dryRunDenyReasons,
+  paidTools,
+  rewriteGate,
   buyerRequestBody,
   callIsPaid,
   claimsDoneWork,
@@ -49,8 +49,26 @@ import {
 import { violatesLeelaVoice } from '../agent/leela-canon'
 import { dispatchToolCall } from '../agent/chat'
 import type { ChatMessage } from '../agent/chat'
-import { TOOLS_BY_NAME } from '../agent/tools'
+import { TOOLS, TOOLS_BY_NAME } from '../agent/tools'
+import { toolPrice } from '../agent/tool-charges'
 import type { ToolContext } from '../agent/tools'
+
+/** The paid set v4 wrote out by hand (crm-duet.t27 v4, PAID_TOOLS = 6). */
+const V4_SIX = [
+  'audio_generate',
+  'crm_story_reel',
+  'image_edit',
+  'image_generate',
+  'reel_render',
+  'video_generate',
+] as const
+/** Tools that charge and were on no list: a v4 dry run still offered them. */
+const V4_MISSED = [
+  'lipsync_generate',
+  'story_reel',
+  'split_reel',
+  'crm_voice_clone',
+] as const
 
 /**
  * THE DUET IS WRITTEN IN t27 FIRST (skill t27-spec-first).
@@ -308,15 +326,12 @@ describe("the spec's tests hold against the host", () => {
 
   it('the paid cap is soft and says so', async () => {
     expect(SPEC.PAID_CAP_IS_HARD).toBe(false)
-    expect(PAID_TOOLS.size).toBe(SPEC.PAID_TOOLS)
-    expect([...PAID_TOOLS].sort()).toEqual([
-      'audio_generate',
-      'crm_story_reel',
-      'image_edit',
-      'image_generate',
-      'reel_render',
-      'video_generate',
-    ])
+    // v5: the paid set is priced, not listed -- the six of v4 are in it, and
+    // so are the four that charge and were on no list.
+    expect(SPEC.PAID_TOOL_IS_PRICED).toBe(true)
+    expect(SPEC.PAID_TOOLS_HAND_LIST).toBe(false)
+    for (const t of [...V4_SIX, ...V4_MISSED])
+      expect(paidTools().has(t), t).toBe(true)
     // The cap lives in the brief: one per reply, one portrait and one reel.
     expect(SPEC.PAID_PER_REPLY_SOFT).toBe(1)
     expect(SPEC.PAID_PER_RUN_SOFT).toBe(2)
@@ -599,7 +614,7 @@ describe("the spec's tests hold against the host", () => {
     expect(DISCOVERY_SELLER_TURNS).toBe(SPEC.DISCOVERY_SELLER_TURNS)
     // paid_tool_offered(t) == t >= DISCOVERY_SELLER_TURNS
     for (const t of [0, 1, 2, 3]) {
-      const offered = [...PAID_TOOLS].every(p => !deniedToolsFor(t).has(p))
+      const offered = [...paidTools()].every(p => !deniedToolsFor(t).has(p))
       expect(offered).toBe(t >= SPEC.DISCOVERY_SELLER_TURNS)
       expect(isDiscoveryTurn(t)).toBe(!offered)
     }
@@ -633,7 +648,7 @@ describe("the spec's tests hold against the host", () => {
     expect(TURNS_MAX).toBe(8)
     // paid_tool_offered(t, true) == false for every seller turn.
     for (let t = 0; t < TURNS_MAX; t++) {
-      for (const p of PAID_TOOLS) {
+      for (const p of paidTools()) {
         expect(deniedToolsFor(t, true).has(p), `${p} @${t}`).toBe(true)
         expect(gateFor(t, true).denyTools?.has(p), `${p} @${t}`).toBe(true)
       }
@@ -646,7 +661,7 @@ describe("the spec's tests hold against the host", () => {
     await runDuet(freshRun({ turns: 4, dry_run: true }), ctx, d)
     expect(denies).toHaveLength(4)
     for (const s of denies)
-      expect([...PAID_TOOLS].every(p => s?.has(p))).toBe(true)
+      expect([...paidTools()].every(p => s?.has(p))).toBe(true)
     // ...and its brief says so up front; a real run's brief does not.
     expect(String(histories[0][0].content)).toContain(DRY_RUN_BRIEF_NOTE)
     const live = deps([[text('Какой план ближе?')]], ['А.'])
@@ -659,10 +674,12 @@ describe("the spec's tests hold against the host", () => {
   it('a real run keeps paid tools after discovery', () => {
     // paid_tool_offered(t, false) == t >= DISCOVERY_SELLER_TURNS, turns 0..7.
     for (let t = 0; t < TURNS_MAX; t++) {
-      const offered = [...PAID_TOOLS].every(
+      const offered = [...paidTools()].every(
         p => !deniedToolsFor(t, false).has(p)
       )
-      const hidden = [...PAID_TOOLS].every(p => deniedToolsFor(t, false).has(p))
+      const hidden = [...paidTools()].every(p =>
+        deniedToolsFor(t, false).has(p)
+      )
       expect(offered, `turn ${t}`).toBe(t >= SPEC.DISCOVERY_SELLER_TURNS)
       expect(hidden, `turn ${t}`).toBe(t < SPEC.DISCOVERY_SELLER_TURNS)
       expect(gateFor(t, false).denyReasons).toBe(DUET_DENY_REASONS)
@@ -674,7 +691,7 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.DISCOVERY_REFUSES_PAID_CALL).toBe(true)
     // paid_call_refused(turn, dry_run, rewrite)
     const refused = (t: number, dry: boolean, rewrite: boolean) =>
-      (rewrite ? REWRITE_GATE : gateFor(t, dry)).denyTools?.has('image_edit')
+      (rewrite ? rewriteGate() : gateFor(t, dry)).denyTools?.has('image_edit')
     expect(refused(0, true, false)).toBe(true)
     expect(refused(2, true, false)).toBe(true)
     expect(refused(7, true, false)).toBe(true)
@@ -683,10 +700,10 @@ describe("the spec's tests hold against the host", () => {
     expect(refused(7, false, false)).toBe(false)
     expect(refused(2, false, true)).toBe(true)
     // The refusal says why, in words the model can act on.
-    for (const p of PAID_TOOLS) {
-      expect(DRY_RUN_DENY_REASONS.get(p), p).toContain('пробный прогон')
+    for (const p of paidTools()) {
+      expect(dryRunDenyReasons().get(p), p).toContain('пробный прогон')
     }
-    expect(DRY_RUN_DENY_REASONS.get('image_edit')).toBe(DRY_RUN_PAID_REASON)
+    expect(dryRunDenyReasons().get('image_edit')).toBe(DRY_RUN_PAID_REASON)
     // The REAL dispatcher refuses before any handler runs.
     const tool = TOOLS_BY_NAME.get('image_edit')!
     const handler = vi.spyOn(tool, 'handler')
@@ -730,10 +747,88 @@ describe("the spec's tests hold against the host", () => {
     )
   })
 
+  it('any tool with a price > 0 is refused in a dry run', async () => {
+    // v5: tool_is_paid(price) == price > 0, and priced_tool_offered(price,
+    // turn, true) == false for every priced tool on every seller turn.
+    expect(SPEC.PAID_TOOL_IS_PRICED).toBe(true)
+    expect(SPEC.PAID_TOOLS_HAND_LIST).toBe(false)
+    const byName = new Map(TOOLS.map(t => [t.name, t]))
+    const priceOf = (n: string) => toolPrice(n, byName)
+    const priced = TOOLS.map(t => t.name).filter(n => priceOf(n) > 0)
+    const free = TOOLS.map(t => t.name).filter(n => priceOf(n) === 0)
+    // Positive control: the walk finds the tools that charge -- the six of
+    // v4 and the four it missed -- and the paid set is exactly that walk.
+    for (const t of [...V4_SIX, ...V4_MISSED])
+      expect(priced, `${t} has no price`).toContain(t)
+    expect(new Set(priced)).toEqual(new Set(paidTools()))
+    expect(priceOf('crm_voice_clone')).toBeGreaterThanOrEqual(1200)
+    expect(priceOf('story_reel')).toBeGreaterThan(0)
+    // Negative control: a free tool is not hidden by the dry run.
+    expect(free.length).toBeGreaterThan(10)
+    expect(free).toContain('voice_clone_speak')
+    for (const n of free) {
+      if (DUET_NEVER.has(n)) continue
+      expect(deniedToolsFor(0, true).has(n), `${n} is free`).toBe(false)
+    }
+    // Every priced tool: hidden on every turn of a dry run, with the reason.
+    for (const p of priced) {
+      for (let t = 0; t < TURNS_MAX; t++) {
+        expect(deniedToolsFor(t, true).has(p), `${p} @${t}`).toBe(true)
+        expect(gateFor(t, true).denyTools?.has(p), `${p} @${t}`).toBe(true)
+      }
+      expect(dryRunDenyReasons().get(p), p).toContain('пробный прогон')
+    }
+    // ...and refused by the REAL dispatcher before its handler runs, so
+    // nothing is charged: a charge lives in a handler.
+    for (const p of priced) {
+      const tool = TOOLS_BY_NAME.get(p)!
+      const handler = vi.spyOn(tool, 'handler')
+      try {
+        for (const t of [0, DISCOVERY_SELLER_TURNS, TURNS_MAX - 1]) {
+          const gen = dispatchToolCall(
+            { function: { name: p, arguments: '{}' } },
+            ctx,
+            gateFor(t, true)
+          )
+          let step = await gen.next()
+          while (!step.done) step = await gen.next()
+          const answer = step.value as Record<string, unknown>
+          expect(answer['отказано'], `${p} @${t}`).toBe(true)
+        }
+        expect(handler, p).not.toHaveBeenCalled()
+      } finally {
+        handler.mockRestore()
+      }
+    }
+    // A dry-run turn whose priced calls came back refused counts no paid call.
+    const turn = DISCOVERY_SELLER_TURNS
+    const seller: Array<Array<Record<string, unknown>>> = []
+    for (let i = 0; i < turn; i++) seller.push([text('Какой план ближе?')])
+    seller.push([
+      ...V4_MISSED.map(p =>
+        result(p, {
+          ['ошибка']: `инструмент ${p} недоступен на этом ходу: ${DRY_RUN_PAID_REASON}`, // cyrillic-ok: envelope keys
+          ['отказано']: true, // cyrillic-ok
+        })
+      ),
+      text('Сделал бы ролик её голосом.'),
+    ])
+    const { d, sent } = deps(seller, ['А.', 'Б.', 'В.'])
+    const run = await runDuet(
+      freshRun({ turns: turn + 1, dry_run: true }),
+      ctx,
+      d
+    )
+    expect(run.paid_calls).toBe(0)
+    expect(sent).toEqual([])
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
     const spec = readFileSync(join(__dirname, 'crm-duet.t27'), 'utf8')
-    expect(spec).toContain('v4 (2026-10-06): A DRY RUN IS FREE.')
+    expect(spec).toContain(
+      'v5 (2026-10-06): A PAID TOOL IS ONE WITH A PRICE, NOT ONE ON A LIST.'
+    )
   })
 
   it('a negated claim word is not a claim; pressure is never exempt', () => {

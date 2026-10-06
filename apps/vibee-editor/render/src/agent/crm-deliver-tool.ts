@@ -494,6 +494,8 @@ export function makeCrmDeliverTools(
   return [
     {
       name: 'crm_deliver_photo',
+      // Draws through the borrowed image tools (tool-charges.ts).
+      charges: ['image_generate', 'image_edit'],
       description:
         'ЛИД-МАГНИТ человеку из переписки: портрет 9:16 из ЕГО лица (img2img, GPT Image 2.5) — ' +
         'из присланного им фото или аватарки; чужое лицо не рисует, без фото сам готовит просьбу ' +
