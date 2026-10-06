@@ -229,6 +229,23 @@ capitalised word is someone else's subject only at the start of its clause
 with no preposition anywhere earlier in that clause. Before patching a
 list, ask what STRUCTURE the misses share.
 
+A grid before review, not examples. On one morning (2026-10-06) three
+"structural" fixes each came back from review with an unsafe hole, and each
+hole was a COMBINATION that no hand-written example covered:
+
+- #3728: "capital after a name = surname" made "Анна 🙌 Готово сделала" quiet
+  (a greeting by name, an emoji, then the agent's own sentence).
+- #3730: "spaced к + a word = preposition" made "₽10 к рублей" read as 10, so
+  "₽10" confirmed a printed 10 000 ₽. The fix was to close the list on the
+  safe side: к is a preposition only before a known time word (утру,
+  вечеру...) or a digit.
+
+Before asking for review, write a grid test that crosses every slot (for
+example greeting x addressee x separator x opener x verb, or currency position
+x spacing x following word). Compute the expected value from a one-line rule,
+and run it against main as well. The reviewer should be checking the rule, not
+finding your next missing example.
+
 Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
 (U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
 Both readers share `DIGIT_JOINERS`: `look-at-own-picture.ts` since #3705,
