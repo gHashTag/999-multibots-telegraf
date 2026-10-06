@@ -1400,3 +1400,185 @@ describe('a gap between verb and object stays inside the clause (#3734)', () => 
       expect(claimsBrowserWork(said)).toBe(false)
     })
 })
+
+/*
+ * #3734 round 2: the gap swallowed the verb's real object. "Сделала // cyrillic-ok: quoted input
+ * сценарий видео" made a script, not a video; round 1 read the document noun // cyrillic-ok: quoted input
+ * as a gap and the media noun after it as the object. The reviewer's corpus
+ * of honest answers a content agent gives, rebuilt: document nouns with a
+ * media genitive, questions, imperatives, quotes, archive finds, "бы", // cyrillic-ok: quoted input
+ * comma clauses, someone else's verb, the future. No tool was called in any
+ * of them, so every note is a needless one.
+ */
+describe('a document noun in the gap is the real object (#3734 round 2)', () => {
+  const HONEST = [
+    'Сделала сценарий видео', // cyrillic-ok: test input
+    'Сделала текст афиши', // cyrillic-ok: test input
+    'Сделала раскадровку видео', // cyrillic-ok: test input
+    'Записала текст голосового', // cyrillic-ok: test input
+    'Отправила вам описание ролика', // cyrillic-ok: test input
+    'Подготовила бриф баннера', // cyrillic-ok: test input
+    'Сделала вам подборку референсов афиши', // cyrillic-ok: test input
+    'Сделала вам расчёт стоимости видео', // cyrillic-ok: test input
+    'Отправила вам прайс съёмки видео', // cyrillic-ok: test input
+    'Отправила вам ссылку на оплату видео', // cyrillic-ok: test input
+    'Записала пожелания насчёт голосового', // cyrillic-ok: test input
+    'I made sure the poster is right',
+    'I created a brief describing the poster',
+    'I made the text shorter so the banner fits',
+    'Подготовила план рилса', // cyrillic-ok: test input
+    'Сделала обложку для видео', // cyrillic-ok: test input
+    'Написала сценарий ролика', // cyrillic-ok: test input
+    'Сделала текст поста для рилса', // cyrillic-ok: test input
+    'Подготовила вам смету видео', // cyrillic-ok: test input
+    'Отправила вам договор на съёмку видео', // cyrillic-ok: test input
+    'Сделала таблицу постов', // cyrillic-ok: test input
+    'Составила вам контент-план рилсов', // cyrillic-ok: test input
+    'Сделала заметку про афишу', // cyrillic-ok: test input
+    'Записала адрес съёмки видео', // cyrillic-ok: test input
+    'Отправила вам счёт за видео', // cyrillic-ok: test input
+    'Сделала вам скидку на афишу', // cyrillic-ok: test input
+    'Отправила вам промокод на видео', // cyrillic-ok: test input
+    'Прислала вам инструкцию по записи голосового', // cyrillic-ok: test input
+    'Сделала черновик подписи к фото', // cyrillic-ok: test input
+    'Подготовила вам вопросы к видео', // cyrillic-ok: test input
+    'Сделала вам напоминание о съёмке видео', // cyrillic-ok: test input
+    'Сделала список идей для рилса', // cyrillic-ok: test input
+    'Отправила вам расписание съёмок видео', // cyrillic-ok: test input
+    'Записала вас на съёмку видео', // cyrillic-ok: test input
+    'Сделала бронь на съёмку видео', // cyrillic-ok: test input
+    'Отправила вам тексты для афиши', // cyrillic-ok: test input
+    'Сделать вам афишу?', // cyrillic-ok: test input
+    'Записать вам голосовое?', // cyrillic-ok: test input
+    'Отправить видео сейчас?', // cyrillic-ok: test input
+    'Вы получили видео?', // cyrillic-ok: test input
+    'Прислать вам фото примеров?', // cyrillic-ok: test input
+    'Сделала афишу?', // cyrillic-ok: test input
+    'Хотите, сделаю вам обложку?', // cyrillic-ok: test input
+    'Can I make you a poster?',
+    'Did you get the video?',
+    'Отправьте мне фото, пожалуйста.', // cyrillic-ok: test input
+    'Пришлите голосовое с пожеланиями.', // cyrillic-ok: test input
+    'Сделайте скриншот страницы.', // cyrillic-ok: test input
+    'Скиньте видео, я посмотрю.', // cyrillic-ok: test input
+    'Send me the poster when it is ready.',
+    'Please record a voice note for me.',
+    'Вы написали «сделала вам афишу» — это про прошлый заказ?', // cyrillic-ok: test input
+    'Клиентка пишет: "отправила вам видео".', // cyrillic-ok: test input
+    'В шаблоне стоит «Отправила вам голосовое».', // cyrillic-ok: test input
+    'Нашла в архиве ваше видео.', // cyrillic-ok: test input
+    'Нашла в архиве афишу прошлого года.', // cyrillic-ok: test input
+    'Нашла ваше голосовое в переписке.', // cyrillic-ok: test input
+    'Сделала бы вам афишу, если хотите.', // cyrillic-ok: test input
+    'Я бы отправила видео завтра.', // cyrillic-ok: test input
+    'Записала бы голосовое, но микрофон недоступен.', // cyrillic-ok: test input
+    'Сделала текст, видео будет завтра.', // cyrillic-ok: test input
+    'Записала пожелания, голосовое пришлю позже.', // cyrillic-ok: test input
+    'Отправила ссылку, афишу доделаю вечером.', // cyrillic-ok: test input
+    'Подготовила сценарий, а ролик соберу после согласования.', // cyrillic-ok: test input
+    'Анна прислала фото чека.', // cyrillic-ok: test input
+    'Клиент отправил видео с примеркой.', // cyrillic-ok: test input
+    'Не сделала афишу, Kie недоступен.', // cyrillic-ok: test input
+    'Сделаю вам афишу через пять минут.', // cyrillic-ok: test input
+    'Пришлю видео, как только будет готово.', // cyrillic-ok: test input
+    'Могу записать голосовое.', // cyrillic-ok: test input
+    'Видео ещё в работе.', // cyrillic-ok: test input
+    'Афиша будет готова завтра.', // cyrillic-ok: test input
+    'Отправила вам вопросы по видео.', // cyrillic-ok: test input
+    'Сделала текст для афиши.', // cyrillic-ok: test input
+    'Отправила вам ссылку на фото.', // cyrillic-ok: test input
+    'Записала время съёмки ролика.', // cyrillic-ok: test input
+    'Подготовила тезисы для голосового.', // cyrillic-ok: test input
+    'Сделала вам описание фото для каталога.', // cyrillic-ok: test input
+    'Отправила вам текст голосового сообщения.', // cyrillic-ok: test input
+    'Скинула вам расшифровку голосового.', // cyrillic-ok: test input
+    'Отправила вам примеры видео других мастеров.', // cyrillic-ok: test input
+    'Прислала вам отзывы о фото.', // cyrillic-ok: test input
+    'I made a list of ideas for the video.',
+    'I wrote the script of the video.',
+    'I sent you the link to the audio.',
+    'I made a note about the poster.',
+    'I will make the poster tomorrow.',
+    'I could record a voice note if you like.',
+    'I made certain the video link works.',
+    'I made it so the banner opens on tap.',
+    'I created a draft caption for the image.',
+    'I sent you the price of the video.',
+    'I made the brief for the cover.',
+    'I made changes to the poster text.',
+    'I recorded your wishes for the voice note.',
+    'I generated ideas for the banner.',
+    'I sent the client a quote for the video.',
+  ]
+  // measured on main (#3734 round 2): 2 of 97 noted, neither through a gap --
+  // "Сделала обложку для видео" claims a cover, and "Я бы отправила видео // cyrillic-ok: quoted input
+  // завтра." reads "бы" before the verb as the agent's past. Round 1: 26. // cyrillic-ok: quoted input
+  const MAIN_NOTED = 2
+  it("the corpus is the reviewer's size", () => {
+    expect(HONEST.length).toBe(97)
+  })
+  it("needless notes stay at main's count, within two", () => {
+    const noted = HONEST.filter(
+      said => unbackedKinds(said, []).length > 0 || claimsBrowserWork(said)
+    )
+    expect(noted.length).toBeLessThanOrEqual(MAIN_NOTED + 2)
+  })
+
+  // the review's seven, each silent on main
+  for (const said of [
+    'Сделала сценарий видео', // cyrillic-ok: test input
+    'Сделала текст афиши', // cyrillic-ok: test input
+    'Сделала раскадровку видео', // cyrillic-ok: test input
+    'Записала текст голосового', // cyrillic-ok: test input
+    'Отправила вам описание ролика', // cyrillic-ok: test input
+    'Отправила вам ссылку на оплату видео', // cyrillic-ok: test input
+    'I made sure the poster is right',
+    'I made certain the video link works.',
+    'I made it so the banner opens on tap.',
+  ])
+    it(`the verb's own object ends the gap: ${JSON.stringify(said)}`, () => {
+      expect(unbackedKinds(said, [])).toEqual([])
+    })
+
+  // the family the review asked for: verb + gap + document noun + media
+  // genitive. Every verb of the media and voice families, silent in all.
+  const VERBS: Array<[string[], string[]]> = [
+    [
+      ['Сделала', 'Подготовила', 'Создала', 'Нарисовала'], // cyrillic-ok: test input
+      ['афиши', 'обложки', 'баннера', 'постера', 'картинки'], // cyrillic-ok: test input
+    ],
+    [
+      ['Сделала', 'Смонтировала', 'Собрала'], // cyrillic-ok: test input
+      ['видео', 'ролика', 'рилса'], // cyrillic-ok: test input
+    ],
+    [
+      ['Отправила', 'Прислала', 'Скинула'], // cyrillic-ok: test input
+      ['видео', 'фото', 'афиши', 'ролика', 'файла'], // cyrillic-ok: test input
+    ],
+    [
+      ['Записала', 'Отправила', 'Прислала'], // cyrillic-ok: test input (the voicing verb + text is a claim by itself)
+      ['голосового', 'аудио'], // cyrillic-ok: test input
+    ],
+  ]
+  const GAPS = ['', 'вам', 'Анне уже'] // cyrillic-ok: test input
+  const HEADS = [
+    'сценарий',
+    'текст',
+    'описание',
+    'план',
+    'раскадровку',
+    'ссылку на оплату',
+    'расчёт стоимости',
+  ] // cyrillic-ok: test input
+  const rows: string[] = []
+  for (const [verbs, objects] of VERBS)
+    for (const verb of verbs)
+      for (const gap of GAPS)
+        for (const head of HEADS)
+          for (const obj of objects)
+            rows.push([verb, gap, head, obj].filter(Boolean).join(' ') + '.')
+  it('a document noun before a media genitive is never noted', () => {
+    expect(rows.length).toBe(1050)
+    expect(rows.filter(said => unbackedKinds(said, []).length > 0)).toEqual([])
+  })
+})

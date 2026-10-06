@@ -61,9 +61,9 @@ const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
  * between -- "Сделала Анне афишу", "Отправила вам только что голосовое", // cyrillic-ok: quoted input
  * "I made you the poster" -- left the claim silent, the unsafe side. A count
  * of words would be one more fixed window, so the regex lets any run of
- * words through and gapHolds() bounds it by the clause: no clause break, no
- * word that opens a conditional or a new clause, no preposition governing
- * the object, and, for a Russian verb, no other subject in it.
+ * words through and gapHolds() bounds it: no clause break, only gap-shaped
+ * words (round 2: an addressee, a name, an adverb, a number), no preposition
+ * governing the object, and, for a Russian verb, no other subject in it.
  */
 const GAP = String.raw`(?<gap>(?:[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*\s+)*?)`
 const claim = (source: string) => new RegExp(source, 'diu')
@@ -663,37 +663,152 @@ function asked(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
  * - No clause break (CLAUSE_BREAK: a symbol, " - ", "и"). A line break before // cyrillic-ok: quoted input
  *   a small letter or a digit is a wrapped line (round 4), not a break; one
  *   before a capital starts a new clause.
- * - No word that opens a conditional or another clause (GAP_STOP):
- *   "Сделала бы вам афишу, если хотите" offers, it does not claim. Before // cyrillic-ok: quoted input
- *   #3734 the verb had to touch its object, so "бы" kept it silent by // cyrillic-ok: quoted input
- *   accident; now it does so by rule.
+ * - Every word in it is gap-shaped (gapShaped, round 2): an addressee
+ *   pronoun, a person's name in an oblique case, a time or manner adverb, a
+ *   number, an article or an adjective. Round 1 let any word through, and the
+ *   gap swallowed the verb's REAL object: "Сделала сценарий видео" made a // cyrillic-ok: quoted input
+ *   script, "Отправила вам ссылку на оплату видео" a link, "I made sure the // cyrillic-ok: quoted input
+ *   poster is right" made nothing at all. Telling a noun from the rest needs
+ *   a dictionary the module does not have, so the list is closed on the gap's
+ *   side: a word it lacks ends the match, and the claim stays silent -- what
+ *   main did for every gapped claim, so never worse than main.
  * - No preposition right before the object: "Сделала текст для афиши" made // cyrillic-ok: quoted input
- *   a text, not a poster.
+ *   a text, not a poster. "для" is gap-shaped only before a person: "для // cyrillic-ok: quoted input
+ *   Анны", "для вас". // cyrillic-ok: quoted input
  * - For a Russian verb, no other subject inside the gap: "Прислала Анна // cyrillic-ok: quoted input
  *   фото" is Anna's verb, inverted. The same person rule as before the verb. // cyrillic-ok: quoted input
- * A word these lists lack lets the gap through: a needless note, the safe
- * side of a miss.
  */
-const GAP_STOP = new Set([
-  'бы',
-  'б',
-  'если',
-  'чтобы',
-  'а',
-  'но',
-  'или', // cyrillic-ok: matched words
-  'if',
-  'would',
-  'could',
-  'will',
-  'can',
-  'shall',
-  'should',
-  'might',
-  'and',
-  'but',
-  'or',
+const GAP_WORD = new Set([
+  // the addressee, in the dative
+  'мне',
+  'тебе',
+  'вам',
+  'нам',
+  'ему',
+  'ей',
+  'им',
+  'себе',
+  'лично', // cyrillic-ok: matched words
+  // time and manner
+  'только',
+  'что',
+  'уже',
+  'сегодня',
+  'утром',
+  'днём',
+  'днем',
+  'вечером',
+  'ночью',
+  'вчера',
+  'сейчас',
+  'сразу',
+  'недавно',
+  'ещё',
+  'еще',
+  'тоже',
+  'также',
+  'наконец',
+  'снова',
+  'опять',
+  'заново',
+  'повторно',
+  'специально',
+  'быстро',
+  'срочно',
+  'вот',
+  'тут',
+  'здесь', // cyrillic-ok: matched words
+  // how many
+  'все',
+  'всё',
+  'один',
+  'одну',
+  'одно',
+  'два',
+  'две',
+  'три',
+  'четыре',
+  'пять',
+  'пару',
+  'несколько', // cyrillic-ok: matched words
+  'you',
+  'her',
+  'him',
+  'them',
+  'me',
+  'us',
+  'just',
+  'now',
+  'already',
+  'today',
+  'tonight',
+  'this',
+  'morning',
+  'evening',
+  'yesterday',
+  'finally',
+  'also',
+  'again',
+  'quickly',
+  'here',
+  'the',
+  'a',
+  'an',
+  'your',
+  'new',
+  'another',
+  'fresh',
+  'final',
+  'two',
+  'three',
 ])
+// a pronoun in the genitive, gap-shaped right after the preposition "for"
+const FOR_WHOM = new Set([
+  'тебя',
+  'вас',
+  'меня',
+  'нас',
+  'него',
+  'неё',
+  'нее',
+  'них',
+  'себя', // cyrillic-ok: matched words
+])
+// a Russian adjective in the accusative: "новую", "готовые", "другое" // cyrillic-ok: quoted input
+const ADJECTIVE = /^\p{Ll}{2,}(?:ую|юю|ое|ее|ый|ой|ые)$/u // cyrillic-ok: matched endings
+// a name in an oblique case: "Анне", "Ивану", "Марии", "Игорю", "Анны" // cyrillic-ok: quoted input
+const CASE_ENDING = ['ой', 'ей', 'е', 'у', 'ю', 'и', 'ы', 'а', 'я', ''] // cyrillic-ok: matched endings
+const NOMINATIVE_END = ['', 'а', 'я', 'й', 'ь'] // cyrillic-ok: matched endings
+const SURNAME_OBLIQUE =
+  /^\p{Lu}\p{L}{2,}(?:ову|еву|ёву|ину|ыну|овой|евой|иной|ыной|скому|ской|цкому|цкой|енко|уку|юку|ичу|овне|евне|ичне)$/u // cyrillic-ok: matched suffixes
+
+function nameInGap(words: string[], at: number): boolean {
+  const word = words[at]
+  if (word[0] === word[0].toLowerCase()) return false
+  const key = nameKey(word)
+  for (const end of CASE_ENDING) {
+    if (!key.endsWith(end)) continue
+    const stem = key.slice(0, key.length - end.length)
+    if (NOMINATIVE_END.some(n => FIRST_NAMES.has(stem + n))) return true
+  }
+  const prev = words[at - 1]
+  if (!prev || !nameInGap(words, at - 1)) return false
+  if (LATIN.test(prev) && LATIN.test(word)) return true
+  return SURNAME_OBLIQUE.test(word)
+}
+
+function gapShaped(words: string[], at: number): boolean {
+  const word = words[at]
+  const low = word.toLowerCase()
+  if (GAP_WORD.has(low) || /^\p{N}+$/u.test(word)) return true
+  if (ADJECTIVE.test(word) || nameInGap(words, at)) return true
+  if (FOR_WHOM.has(low)) return words[at - 1]?.toLowerCase() === 'для' // cyrillic-ok: matched word
+  if (low !== 'для') return false // cyrillic-ok: matched word
+  const next = words[at + 1]
+  return (
+    !!next && (FOR_WHOM.has(next.toLowerCase()) || nameInGap(words, at + 1))
+  )
+}
 const ONE_BREAK = new RegExp(CLAUSE_BREAK.source, 'u')
 
 function gapHolds(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
@@ -706,7 +821,7 @@ function gapHolds(sentence: string, m: RegExpMatchArray, verbLed: boolean) {
     .slice(0, -1)
   if (ONE_BREAK.test(gap)) return false
   const words = gap.match(/[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu) ?? []
-  if (words.some(w => GAP_STOP.has(w.toLowerCase()))) return false
+  if (!words.every((_, i) => gapShaped(words, i))) return false
   if (PREPOSITION.has(words.at(-1)!.toLowerCase())) return false
   if (!verbLed) return true
   return !words.some(
