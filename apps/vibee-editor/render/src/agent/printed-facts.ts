@@ -267,14 +267,12 @@ const CLAUSE_END = /[\n\r\u2028\u2029.,;:!?()]/u
 const CLAUSE_WORD = /[\p{L}\p{M}\p{N}$€₽฿£]+/gu
 const MORE_RUN = new RegExp('^(?:more|больше|ещё|еще)$', 'iu') // cyrillic-ok: "more" words
 /*
- * After the noun, a second counted noun stands only right after one of these
- * ("10k people and fans"); RATE_RUN words always ask ("10k people per
- * seat", a Russian "from each person"). NOUN_CONJUNCTION is CLOSED on the safe
- * side: a missing word asks. RATE_RUN is the one list here where a MISSING
- * entry is unsafe -- it names FILLER_RUN words that make the price a rate --
- * so it lists every FILLER_RUN word that can mean "for each".
+ * RATE_RUN: FILLER_RUN words that make the price a rate ("10k people per
+ * seat", a Russian "from each person"); after the noun they always ask. The
+ * one list here where a MISSING entry is unsafe -- such a word would pass
+ * as a filler and confirm -- so it lists every FILLER_RUN word that can mean
+ * "for each", and some that only might ("for", "at", "with").
  */
-const NOUN_CONJUNCTION = new RegExp('^(?:and|or|plus|и|или|а|плюс)$', 'iu') // cyrillic-ok: conjunctions
 const RATE_RUN = new RegExp(
   '^(?:per|each|a|an|for|за|с|со|по|на|в|во|from|от|with|at)$', // cyrillic-ok: rate words
   'iu'
@@ -350,24 +348,22 @@ function laterMultiplier(
     // that follows is a filler, a counted noun or "more".
     if (NOUN_JOINER.test(after)) return false
     // The rest of the clause, up to sentence punctuation or a line break,
-    // may hold ONLY fillers, "more", and a counted noun right after "and" or
-    // "or" ("$5 about 10k tickets and more", "10k people and fans",
-    // "10k followers. On insta"). Any other word -- a money word ("ticket
-    // and merch revenue"), an unknown word ("followers on insta"), a number
-    // -- asks, and so does a rate word ("10k people per seat": the price is
-    // per seat). A clause end missing from CLAUSE_END only makes the clause
+    // may hold ONLY fillers, "more" and counted nouns ("$5 about 10k
+    // tickets and more", "10k people and fans", "10k followers. On
+    // insta"). Any other word -- a money word ("ticket and merch revenue"),
+    // an unknown word ("followers on insta"), a number -- asks, and so does
+    // a rate word ("10k people per seat", "10k people each": the price is
+    // per head). A clause end missing from CLAUSE_END only makes the clause
     // longer, so it asks more, never less.
     const clause = after.split(CLAUSE_END)[0]
-    let prev = ''
-    for (const word of clause.match(CLAUSE_WORD) ?? []) {
-      const counted = COUNTED_NOUNS.test(word) && NOUN_CONJUNCTION.test(prev)
+    for (const word of clause.match(CLAUSE_WORD) ?? [])
       if (
         RATE_RUN.test(word) ||
-        (!counted && !FILLER_RUN.test(word) && !MORE_RUN.test(word))
+        (!COUNTED_NOUNS.test(word) &&
+          !FILLER_RUN.test(word) &&
+          !MORE_RUN.test(word))
       )
         return false
-      prev = word
-    }
     return true
   }
   for (let i = 0; i < 16; i++) {
