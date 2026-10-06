@@ -37,6 +37,12 @@ export interface Approval {
   telegramId: string
   what: string
   state: ApprovalState
+  /**
+   * The host the agent was on when it asked (browser_ask_permission only).
+   * Null for every other question -- tabs to close, a post, a letter -- and
+   * a null question's yes does not open the guard's window (guard.ts).
+   */
+  actHost?: string | null
 }
 
 /** Long enough for somebody to look at their phone, short enough to expire. */
@@ -70,6 +76,15 @@ export async function ensureApprovals(q: Queryable): Promise<void> {
     `ALTER TABLE browser_approvals ADD COLUMN IF NOT EXISTS ttl_ms bigint`,
     []
   )
+  /*
+   * A YES IS FOR ONE PLACE, ONE PURPOSE (2026-10-03). Only a question about
+   * acting on a page carries the host it is about; rows from before carry
+   * null and open nothing (fail closed).
+   */
+  await q.query(
+    `ALTER TABLE browser_approvals ADD COLUMN IF NOT EXISTS act_host text`,
+    []
+  )
   tableReady = true
 }
 
@@ -89,6 +104,8 @@ export interface AskInput {
   newToken: () => string
   /** How long this question stays answerable; default APPROVAL_TTL_MS. */
   ttlMs?: number
+  /** The page host a yes would let the agent act on; null = none. */
+  actHost?: string | null
 }
 
 export async function askFor(
@@ -100,8 +117,8 @@ export async function askFor(
   const denyToken = input.newToken()
   await q.query(
     `INSERT INTO browser_approvals
-       (id, telegram_id, what, state, allow_token, deny_token, ttl_ms)
-     VALUES ($1, $2, $3, 'pending', $4, $5, $6)`,
+       (id, telegram_id, what, state, allow_token, deny_token, ttl_ms, act_host)
+     VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7)`,
     [
       id,
       input.telegramId,
@@ -109,6 +126,7 @@ export async function askFor(
       allowToken,
       denyToken,
       input.ttlMs ?? null,
+      input.actHost || null,
     ]
   )
   return { id, allowToken, denyToken }
@@ -206,7 +224,7 @@ export async function readApproval(
   id: string
 ): Promise<Approval | null> {
   const { rows } = await q.query(
-    `SELECT id, telegram_id, what, state,
+    `SELECT id, telegram_id, what, state, act_host,
             extract(epoch from created_at) * 1000 AS created_ms, ttl_ms
        FROM browser_approvals WHERE id = $1`,
     [id]
@@ -225,7 +243,27 @@ export async function readApproval(
     telegramId: String(row.telegram_id),
     what: String(row.what),
     state,
+    actHost: row.act_host ? String(row.act_host) : null,
   }
+}
+
+/**
+ * The host an ALLOWED question of this person lets the agent act on, or null:
+ * not theirs, not allowed, or not about acting on a page. What the answer
+ * routes hand to markAllowed -- a yes to closing tabs opens no bank.
+ */
+export async function allowedActHost(
+  q: Queryable,
+  id: string,
+  telegramId: string
+): Promise<string | null> {
+  const { rows } = await q.query(
+    `SELECT act_host FROM browser_approvals
+      WHERE id = $1 AND telegram_id = $2 AND state = 'allowed'`,
+    [id, telegramId]
+  )
+  const host = rows[0]?.act_host
+  return host ? String(host) : null
 }
 
 /*
