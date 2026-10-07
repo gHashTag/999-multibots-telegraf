@@ -497,6 +497,26 @@ describe('meta-connect.t27 against the host', () => {
     expect(told.Instagram).toMatch(/^ошибка API/) // cyrillic-ok: meta-connect.ts postInstagram
     expect(same.calls.filter(c => c.includes('/ig1/media?'))).toHaveLength(1)
 
+    /* media_publish itself failed: the post may be up, so even another
+       account coming back is not retried -- nothing is posted twice. */
+    const maybe = relinkGraph({ id: 'ig2', username: 'new' })
+    const maybeFetch: Fetch = async (url, init) =>
+      /\/ig1\/media_publish$/.test(url)
+        ? (maybe.calls.push(`POST ${url}`),
+          Promise.reject(new Error('timeout')))
+        : maybe.f(url, init)
+    const once = await postByApi(
+      relinkPool([fbRow({ ig_id: 'ig1', ig_checked_at: 1 })]) as never,
+      '1',
+      post,
+      { fetch: maybeFetch, sleep: async () => undefined, env, now: () => T0 }
+    )
+    expect(once.Instagram).toMatch(/^ошибка API/) // cyrillic-ok: meta-connect.ts postInstagram
+    expect(maybe.calls.filter(c => c.includes('/media_publish'))).toHaveLength(
+      1
+    )
+    expect(maybe.calls.filter(c => c.includes('/ig2/'))).toHaveLength(0)
+
     /* A Graph error on the re-read is not an answer: the row keeps its own. */
     const kept = await relinkInstagram(
       relinkPool([]) as never,

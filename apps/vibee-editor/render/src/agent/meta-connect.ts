@@ -796,20 +796,29 @@ export async function publishInstagram(
       ),
     d.sleep
   )
-  const done = await call(
-    d.fetch,
-    `${g}/${ig}/media_publish`,
-    { creation_id: String(c.id), access_token: t.token },
-    'POST'
-  )
-  return await permalinkOr(
-    d.fetch,
-    `${g}/${done.id}`,
-    'permalink',
-    t.token,
-    String(done.id || '')
-  )
+  /* From here on the post may exist even when the call fails (a timeout, an
+     answer with no id): such a failure is marked and never retried. */
+  try {
+    const done = await call(
+      d.fetch,
+      `${g}/${ig}/media_publish`,
+      { creation_id: String(c.id), access_token: t.token },
+      'POST'
+    )
+    return await permalinkOr(
+      d.fetch,
+      `${g}/${done.id}`,
+      'permalink',
+      t.token,
+      String(done.id || '')
+    )
+  } catch (e) {
+    throw new MaybePosted(e instanceof Error ? e.message : String(e))
+  }
 }
+
+/** A failure after media_publish was sent: the post may already be up. */
+class MaybePosted extends Error {}
 
 async function permalinkOr(
   f: Fetch,
@@ -884,7 +893,9 @@ export async function postByApi(
  * Instagram through the Page, healing a stale row first (relinkInstagram):
  * an account linked after Connect is found and used in the same post, a
  * failed publish looks once more, and is retried once only when a different
- * account came back (retry_after_relink, IG_PUBLISH_RETRIES). Never throws.
+ * account came back (retry_after_relink, IG_PUBLISH_RETRIES) and the failure
+ * came before media_publish was sent -- a post that may exist is never sent
+ * again. Never throws.
  */
 async function postInstagram(
   q: Queryable,
@@ -902,6 +913,8 @@ async function postInstagram(
   try {
     return say(await publishInstagram(t, p, d))
   } catch (e) {
+    /* Maybe already posted: a second publish could post it twice. */
+    if (e instanceof MaybePosted) return fail(e)
     const before = String(t.meta.ig_id || '')
     t = await relinkInstagram(q, d.fetch, owner, t, now(), true, env)
     const after = String(t.meta.ig_id || '')
