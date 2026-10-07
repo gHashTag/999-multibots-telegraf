@@ -46,6 +46,15 @@ railway logs | grep -E '\[Business\] Connection established|ingested on connect'
 - Соединение бизнес-чата живёт в памяти процесса; после редеплоя восстанавливается `lookupConnection`.
 - Загрузка «прошла», а агент ничего не помнит — смотреть `railway logs | grep 'ingest after connect'`.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `src/navigation/registerCommands.ts` (`registerCrmCommands`), `src/services/crmProactive.ts`, `src/services/crmPlan.ts`

@@ -234,6 +234,15 @@ returns `open` instead; `tri browser doctor` then prints
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
 `ask-input choice WHY "A|B|C"` asks him to press one option.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `docs/architecture/remote-browser-per-user.md` — решения и причины

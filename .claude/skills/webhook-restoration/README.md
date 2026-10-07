@@ -14,6 +14,7 @@
 This skill contains complete procedures for restoring, maintaining, and monitoring the webhook callback infrastructure that enables video generation services (Veo 3, Sora 2, WAN 2.5) to deliver completed videos to users.
 
 **User Quote**:
+
 > "Создай скилл по этому вебхуку, по сертификату, чтобы мы могли восстановиться в любой момент. Ты не забывал вообще о Джинкс, не забывал этот хук, всегда проверял работоспособность его. От него зависит все у нас."
 
 **Translation**: "Create a skill about this webhook and certificates so we can restore it at any time. Never forget about this hook, always check its availability. Everything depends on it."
@@ -51,6 +52,7 @@ Telegram Bot → User receives video
 ## 🚨 When to Use This Skill
 
 **Auto-Activate when detecting:**
+
 - Webhook callback failures in production logs
 - Video generation not delivering to users
 - Nginx configuration issues
@@ -59,6 +61,7 @@ Telegram Bot → User receives video
 - 502/504 Gateway errors from three-head-dragon.shop
 
 **Manual activation:**
+
 - After server reboot or Docker restart
 - After nginx container recreation
 - When SSL certificates are renewed
@@ -82,6 +85,7 @@ curl -I https://three-head-dragon.shop/api/video-callback/test
 ```
 
 **If DNS fails:**
+
 - Update DNS records at domain registrar
 - Wait 5-10 minutes for propagation
 - Verify with `dig` again
@@ -255,6 +259,7 @@ curl -I https://three-head-dragon.shop/api/video-callback/test
 ```
 
 **Expected Response Headers:**
+
 ```
 HTTP/1.1 404 Not Found
 Server: nginx/1.29.3
@@ -358,6 +363,7 @@ chmod +x /root/check-webhook-health.sh
 ### Issue 1: 502 Bad Gateway
 
 **Symptoms:**
+
 ```
 HTTP/1.1 502 Bad Gateway
 Server: nginx/1.29.3
@@ -366,6 +372,7 @@ Server: nginx/1.29.3
 **Root Cause:** Nginx can't reach bot container (wrong IP or container down)
 
 **Solution:**
+
 ```bash
 # 1. Check bot container is running
 docker ps | grep 999-multibots
@@ -387,6 +394,7 @@ curl -I http://three-head-dragon.shop/api/video-callback/test
 ### Issue 2: SSL Certificate Error
 
 **Symptoms:**
+
 ```
 curl: (60) SSL certificate problem: unable to get local issuer certificate
 ```
@@ -394,6 +402,7 @@ curl: (60) SSL certificate problem: unable to get local issuer certificate
 **Root Cause:** Certificate expired or not properly mounted
 
 **Solution:**
+
 ```bash
 # 1. Check certificate expiration
 openssl x509 -in /etc/letsencrypt/live/three-head-dragon.shop/fullchain.pem -noout -dates
@@ -411,6 +420,7 @@ curl -I https://three-head-dragon.shop/api/video-callback/test
 ### Issue 3: Nginx Container Won't Start
 
 **Symptoms:**
+
 ```
 Error response from daemon: Cannot start container
 ```
@@ -418,6 +428,7 @@ Error response from daemon: Cannot start container
 **Root Cause:** Config syntax error or missing certificate files
 
 **Solution:**
+
 ```bash
 # 1. Check nginx config syntax
 docker run --rm -v /root/nginx-config:/etc/nginx/conf.d:ro nginx nginx -t
@@ -437,6 +448,7 @@ docker rm bot-proxy
 ### Issue 4: Webhook Callbacks Not Arriving
 
 **Symptoms:**
+
 - Video generated successfully
 - No webhook callback in logs
 - User doesn't receive video
@@ -444,6 +456,7 @@ docker rm bot-proxy
 **Root Cause:** Health check failed, wrong URL sent to Kie.ai
 
 **Solution:**
+
 ```bash
 # 1. Check health check logs
 docker logs 999-multibots --tail 100 | grep "WEBHOOK HEALTH CHECK"
@@ -465,9 +478,11 @@ docker exec 999-multibots env | grep WEBHOOK
 ### Issue 5: Videos Marked as Failed Despite Success
 
 **Symptoms:**
+
 ```
 ❌ [SORA WEBHOOK] Sora generation failed
 ```
+
 But video URL exists in payload
 
 **Root Cause:** Webhook processing logic error (fixed 2025-11-12)
@@ -485,6 +500,7 @@ const successFlag = ... (payload.code === 200 && (payload.data?.state === 'succe
 ```
 
 **Verification:**
+
 - Deploy latest code to production
 - Generate test video
 - Check logs show: `✅ [UNIVERSAL VIDEO WEBHOOK] Video generation successful`
@@ -528,11 +544,13 @@ docker exec bot-proxy tail -f /var/log/nginx/three-head-dragon.access.log
 ### 1. Never Manually Edit Live Nginx Config
 
 **Wrong:**
+
 ```bash
 docker exec bot-proxy nano /etc/nginx/conf.d/three-head-dragon.conf
 ```
 
 **Correct:**
+
 ```bash
 # Edit on host
 nano /root/nginx-config/three-head-dragon.conf
@@ -658,3 +676,12 @@ When webhook infrastructure is properly configured:
 **Status**: Production-Critical ✅
 
 **Remember**: "От него зависит все у нас" - Everything depends on this working!
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

@@ -918,6 +918,15 @@ Move a row to FIXED only with the PR number and a test that kills the mutation.
   login) and passed an update banner on as the key. Fixed in `_mcp_key`:
   `timeout 15`, `</dev/null`, and a shape check.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related
 
 - `.claude/skills/tri/SKILL.md` -- the CLI itself.
