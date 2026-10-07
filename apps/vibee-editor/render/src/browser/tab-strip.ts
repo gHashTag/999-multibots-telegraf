@@ -193,11 +193,21 @@ const chosenHere = new Map<string, string>()
  * same person poll the same pod; within VISIBILITY_CACHE_MS the second reads
  * the first's answer (or waits on the same question) instead of asking again.
  * Any action on the strip drops it: a switch changes the answer.
+ *
+ * Keyed by the person AND the pod (cacheSlot): one pod is one person's, and
+ * an answer must never be read by somebody else even if an address were ever
+ * reused. Stale slots are pruned on every write, so the map stays as small as
+ * the number of strips polling right now.
  */
 const visibleCache = new Map<
   string,
   { at: number; key: string; answer: Promise<Set<string>> }
 >()
+
+/** The cache slot of one person's strip on one pod. Pure. */
+export function cacheSlot(who: string, endpoint: string): string {
+  return `${who}\n${endpoint}`
+}
 
 export function resetStripMemory(): void {
   chosenHere.clear()
@@ -206,15 +216,19 @@ export function resetStripMemory(): void {
 
 function visibleShared(
   io: StripIo,
+  who: string,
   endpoint: string,
   ids: readonly string[],
   now: number = Date.now()
 ): Promise<Set<string>> {
+  const slot = cacheSlot(who, endpoint)
   const key = ids.join(',')
-  const had = visibleCache.get(endpoint)
+  const had = visibleCache.get(slot)
   if (had && had.key === key && cacheFresh(now - had.at)) return had.answer
+  for (const [s, v] of visibleCache)
+    if (!cacheFresh(now - v.at)) visibleCache.delete(s)
   const answer = io.visible(endpoint, ids).catch(() => new Set<string>())
-  visibleCache.set(endpoint, { at: now, key, answer })
+  visibleCache.set(slot, { at: now, key, answer })
   return answer
 }
 
@@ -238,7 +252,7 @@ async function readStrip(
     .filter(isStripTab)
     .slice(0, SPEC.MAX_TABS_SHOWN)
     .map(t => t.id)
-  const visible = await visibleShared(io, endpoint, ids)
+  const visible = await visibleShared(io, who, endpoint, ids)
   const agents = io.agents ? io.agents(who) : NO_AGENT
   return stripOf(targets, visible, chosenHere.get(who) ?? null, agents)
 }
@@ -357,7 +371,7 @@ export async function handleStrip(
   /* Switching is driving: the person's lease is renewed, never refused. */
   await setWheel(pool, who, 'person').catch(() => {})
   /* Whatever happens next, the old answer about the front tab is stale. */
-  visibleCache.delete(endpoint)
+  visibleCache.delete(cacheSlot(who, endpoint))
   try {
     if (wanted.action === SPEC.ACTION_ACTIVATE) {
       await io.activate(endpoint, wanted.id!)

@@ -31,6 +31,7 @@
  * removing one line and watching them pass.
  */
 import type WebSocketType from 'ws'
+import { VISIBILITY_PROBE_MS } from '../spec/browser-tab-strip.gen'
 
 type WebSocketCtor = new (
   url: string,
@@ -341,43 +342,62 @@ export async function onPage<T>(
  * up to twelve sockets every three seconds just to learn which tab is in
  * front. Here one browser socket attaches to every page as a flattened
  * session, asks each `document.visibilityState` in parallel, and detaches. A
- * page that does not answer is simply not counted as visible.
+ * page that does not answer -- or has not answered within `probeMs` (a hung
+ * renderer, an open alert()) -- is simply not counted as visible: one silent
+ * page must not hold the whole strip for the 20 s call timeout.
  */
 export async function visiblePages(
   endpoint: string,
   ids: readonly string[],
-  open: typeof onBrowser = onBrowser
+  open: typeof onBrowser = onBrowser,
+  probeMs: number = VISIBILITY_PROBE_MS
 ): Promise<Set<string>> {
   if (!ids.length) return new Set()
   return await open(endpoint, async send => {
-    const answers = await Promise.all(
-      ids.map(async targetId => {
-        try {
-          const attached = await send('Target.attachToTarget', {
-            targetId,
-            flatten: true,
-          })
-          const sessionId = String(attached.sessionId || '')
-          if (!sessionId) return null
-          try {
-            const out = await send(
-              'Runtime.evaluate',
-              { expression: 'document.visibilityState', returnByValue: true },
-              sessionId
-            )
-            const value = (out.result as { value?: unknown } | undefined)?.value
-            return value === 'visible' ? targetId : null
-          } finally {
-            await send('Target.detachFromTarget', { sessionId }).catch(
-              () => ({})
-            )
-          }
-        } catch {
-          return null
-        }
+    const ask = async (targetId: string): Promise<string | null> => {
+      const attached = await send('Target.attachToTarget', {
+        targetId,
+        flatten: true,
       })
+      const sessionId = String(attached.sessionId || '')
+      if (!sessionId) return null
+      try {
+        const out = await send(
+          'Runtime.evaluate',
+          { expression: 'document.visibilityState', returnByValue: true },
+          sessionId
+        )
+        const value = (out.result as { value?: unknown } | undefined)?.value
+        return value === 'visible' ? targetId : null
+      } finally {
+        /* Not awaited: a detach that hangs must not hold the answer. */
+        void send('Target.detachFromTarget', { sessionId }).catch(() => ({}))
+      }
+    }
+    const answers = await Promise.all(
+      ids.map(targetId => withinOrNull(ask(targetId), probeMs))
     )
     return new Set(answers.filter((id): id is string => id !== null))
+  })
+}
+
+/** The answer if it comes within `ms`, else null; a late failure is swallowed. */
+function withinOrNull<T>(
+  work: Promise<T | null>,
+  ms: number
+): Promise<T | null> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(null), ms)
+    work.then(
+      v => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
   })
 }
 

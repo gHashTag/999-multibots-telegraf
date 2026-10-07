@@ -13,6 +13,8 @@ import { visiblePages } from './cdp'
 interface FakePod {
   endpoint: string
   sockets: () => number
+  /** The upgrade path of every socket: the BROWSER's, never a page's. */
+  paths: () => string[]
   close: () => Promise<void>
 }
 
@@ -22,9 +24,18 @@ afterEach(async () => {
   while (running.length) await running.pop()!.close()
 })
 
-/** A pod whose front page is `front`; `silent` pages never answer. */
-async function fakePod(front: string, silent: string[] = []): Promise<FakePod> {
+/**
+ * A pod whose front page is `front`; `silent` pages refuse the attach, `hung`
+ * pages attach and then never answer the evaluate (a renderer stuck in an
+ * alert() or a busy loop).
+ */
+async function fakePod(
+  front: string,
+  silent: string[] = [],
+  hung: string[] = []
+): Promise<FakePod> {
   let connections = 0
+  const paths: string[] = []
   const http: Server = createServer((req, res) => {
     const { port } = http.address() as AddressInfo
     res.setHeader('content-type', 'application/json')
@@ -35,8 +46,9 @@ async function fakePod(front: string, silent: string[] = []): Promise<FakePod> {
     )
   })
   const wss = new WebSocketServer({ server: http })
-  wss.on('connection', ws => {
+  wss.on('connection', (ws, req) => {
     connections += 1
+    paths.push(String(req.url))
     ws.on('message', raw => {
       const msg = JSON.parse(String(raw)) as {
         id: number
@@ -56,6 +68,7 @@ async function fakePod(front: string, silent: string[] = []): Promise<FakePod> {
       }
       if (msg.method === 'Runtime.evaluate') {
         const target = String(msg.sessionId).replace(/^s-/, '')
+        if (hung.includes(target)) return
         return answer({
           result: { value: target === front ? 'visible' : 'hidden' },
         })
@@ -68,6 +81,7 @@ async function fakePod(front: string, silent: string[] = []): Promise<FakePod> {
   const pod: FakePod = {
     endpoint: `127.0.0.1:${port}`,
     sockets: () => connections,
+    paths: () => paths,
     close: () =>
       new Promise<void>(r => {
         for (const c of wss.clients) c.terminate()
@@ -85,6 +99,26 @@ describe('visiblePages: one socket per poll', () => {
     const visible = await visiblePages(pod.endpoint, ids)
     expect([...visible]).toEqual(['p7'])
     expect(pod.sockets()).toBe(SPEC.SOCKETS_PER_POLL)
+    /* A page socket is silent on this pod; only the browser's answers. */
+    expect(pod.paths()).toEqual(['/devtools/browser/x'])
+  })
+
+  it('a page that attaches and never answers is not visible, within the probe', async () => {
+    const pod = await fakePod('b', [], ['a'])
+    const started = Date.now()
+    const visible = await visiblePages(pod.endpoint, ['a', 'b', 'c'])
+    const took = Date.now() - started
+    expect([...visible]).toEqual(['b'])
+    /* The probe, not the 20 s call timeout, bounds the read. */
+    expect(took).toBeGreaterThanOrEqual(SPEC.VISIBILITY_PROBE_MS - 50)
+    expect(took).toBeLessThan(SPEC.VISIBILITY_CACHE_MS + 1000)
+    expect(pod.sockets()).toBe(SPEC.SOCKETS_PER_POLL)
+  })
+
+  it('a hung FRONT page counts as not visible once the probe runs out', async () => {
+    const pod = await fakePod('a', [], ['a'])
+    const visible = await visiblePages(pod.endpoint, ['a', 'b'], undefined, 100)
+    expect(visible.size).toBe(0)
   })
 
   it('a page that does not answer is not visible, and costs no extra socket', async () => {

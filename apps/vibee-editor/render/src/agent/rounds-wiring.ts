@@ -114,8 +114,21 @@ export async function runRoundNow(
     goTo: async (targetId, url) => {
       await deskMayGo(who, url)
       await goTo(await endpoint(), targetId, url)
+      /* Each step renews the hold: a round longer than DESK_HOLD_MS stays marked. */
+      holdDeskTab(targetId)
     },
-    alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
+    /*
+     * A window a restart took is let go here, not left to expire: the round
+     * opens a new one, and the old id must not stay marked as the desk's.
+     */
+    alive: async targetId => {
+      const ok = await pageUrl(await endpoint(), targetId).then(
+        u => !!u,
+        () => false
+      )
+      if (!ok) releaseDeskTab(targetId)
+      return ok
+    },
     close: async targetId => {
       releaseDeskTab(targetId)
       await closeWindow(await endpoint(), targetId)
