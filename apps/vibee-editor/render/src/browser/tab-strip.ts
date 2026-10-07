@@ -13,18 +13,29 @@
  *
  * What leaves the pod is a title, clipped, and a host. Never a path, never a
  * query (that is where a reset token or a search lives), never page text.
+ *
+ * v2: a tab the agent is working in carries one word, `agent: 'desk' |
+ * 'chat'`, and closing it needs `{confirm: true}` -- without it the door
+ * answers 409 `agent-working`, so a client that does not know the mark cannot
+ * close the agent's page silently. Which tab is in front is asked over ONE
+ * browser socket per read (cdp.ts visiblePages), and the answer is shared for
+ * VISIBILITY_CACHE_MS between readers of the same pod.
  */
 import * as SPEC from '../spec/browser-tab-strip.gen'
 import {
   activatePage,
   closePage,
-  evaluateOn,
   listTargets,
   newPage,
+  visiblePages,
   type CdpTarget,
 } from './cdp'
-import { forgetFront, rememberFront } from './front-page'
+import { deskTabsHeld, releaseDeskTab } from './desk-page'
+import { agentChosenFrontsOf, forgetFront, rememberFront } from './front-page'
 import { readSession, setWheel, type Queryable } from './sessions'
+
+/** Who is working in a tab: one coarse word, never what they are doing. */
+export type AgentMark = typeof SPEC.AGENT_DESK | typeof SPEC.AGENT_CHAT | null
 
 /** One tab as the player sees it. */
 export interface StripTab {
@@ -32,7 +43,16 @@ export interface StripTab {
   title: string
   host: string
   active: boolean
+  agent: AgentMark
 }
+
+/** The tabs an agent is working in right now, by kind. */
+export interface AgentTabs {
+  desk: ReadonlySet<string>
+  chat: ReadonlySet<string>
+}
+
+const NO_AGENT: AgentTabs = { desk: new Set(), chat: new Set() }
 
 export type StripAction =
   | typeof SPEC.ACTION_ACTIVATE
@@ -58,6 +78,30 @@ export function isStripTab(t: { type: string; url: string }): boolean {
 /** The spec's `may_close`: another page would remain. Pure. */
 export function mayClose(openPages: number): boolean {
   return openPages > 1
+}
+
+/** The spec's `mark`: a desk run wins over a chat lane. Pure. */
+export function agentMark(desk: boolean, chat: boolean): AgentMark {
+  if (desk) return SPEC.AGENT_DESK
+  if (chat) return SPEC.AGENT_CHAT
+  return null
+}
+
+/**
+ * The spec's `may_close_tab`: never the last page, and never an agent's tab
+ * without the person's confirm. Pure.
+ */
+export function mayCloseTab(
+  openPages: number,
+  agentHere: boolean,
+  confirmed: boolean
+): boolean {
+  return mayClose(openPages) && (!agentHere || confirmed)
+}
+
+/** The spec's `cache_fresh`. Pure. */
+export function cacheFresh(ageMs: number): boolean {
+  return ageMs < SPEC.VISIBILITY_CACHE_MS
 }
 
 /** The spec's `may_open`: below the pod's cap. Pure. */
@@ -92,7 +136,8 @@ export function hostOnly(url: string): string {
 export function stripOf(
   targets: readonly CdpTarget[],
   visible: ReadonlySet<string>,
-  remembered: string | null
+  remembered: string | null,
+  agents: AgentTabs = NO_AGENT
 ): StripTab[] {
   const pages = targets.filter(isStripTab).slice(0, SPEC.MAX_TABS_SHOWN)
   const ids = new Set(pages.map(p => p.id))
@@ -106,6 +151,7 @@ export function stripOf(
     title: clipTitle(p.title || ''),
     host: hostOnly(p.url),
     active: p.id === active,
+    agent: agentMark(agents.desk.has(p.id), agents.chat.has(p.id)),
   }))
 }
 
@@ -117,31 +163,59 @@ export interface StripIo {
   activate: (endpoint: string, id: string) => Promise<void>
   open: (endpoint: string, url: string) => Promise<CdpTarget>
   close: (endpoint: string, id: string) => Promise<void>
+  /** The tabs an agent works in for this person (desk-page, front-page). */
+  agents?: (who: string) => AgentTabs
+}
+
+/** Desk holds and the agent's own lane choices -- never the person's taps. */
+export function agentTabsOf(who: string, now: number = Date.now()): AgentTabs {
+  return {
+    desk: new Set(deskTabsHeld(now)),
+    chat: new Set(agentChosenFrontsOf(who, now)),
+  }
 }
 
 export const cdpStripIo: StripIo = {
   list: listTargets,
-  async visible(endpoint, ids) {
-    const answers = await Promise.all(
-      ids.map(id =>
-        evaluateOn(endpoint, id, 'document.visibilityState').then(
-          v => (v === 'visible' ? id : null),
-          () => null
-        )
-      )
-    )
-    return new Set(answers.filter((id): id is string => id !== null))
-  },
+  /* ONE browser socket per read, whatever the number of pages. */
+  visible: (endpoint, ids) => visiblePages(endpoint, ids),
   activate: activatePage,
   open: newPage,
   close: closePage,
+  agents: who => agentTabsOf(who),
 }
 
 /* The tab each person last chose on the strip; in memory, like front-page.ts. */
 const chosenHere = new Map<string, string>()
 
+/*
+ * The last answer about which pages are visible, per pod. Two app tabs of the
+ * same person poll the same pod; within VISIBILITY_CACHE_MS the second reads
+ * the first's answer (or waits on the same question) instead of asking again.
+ * Any action on the strip drops it: a switch changes the answer.
+ */
+const visibleCache = new Map<
+  string,
+  { at: number; key: string; answer: Promise<Set<string>> }
+>()
+
 export function resetStripMemory(): void {
   chosenHere.clear()
+  visibleCache.clear()
+}
+
+function visibleShared(
+  io: StripIo,
+  endpoint: string,
+  ids: readonly string[],
+  now: number = Date.now()
+): Promise<Set<string>> {
+  const key = ids.join(',')
+  const had = visibleCache.get(endpoint)
+  if (had && had.key === key && cacheFresh(now - had.at)) return had.answer
+  const answer = io.visible(endpoint, ids).catch(() => new Set<string>())
+  visibleCache.set(endpoint, { at: now, key, answer })
+  return answer
 }
 
 interface Result {
@@ -164,14 +238,16 @@ async function readStrip(
     .filter(isStripTab)
     .slice(0, SPEC.MAX_TABS_SHOWN)
     .map(t => t.id)
-  const visible = await io.visible(endpoint, ids).catch(() => new Set<string>())
-  return stripOf(targets, visible, chosenHere.get(who) ?? null)
+  const visible = await visibleShared(io, endpoint, ids)
+  const agents = io.agents ? io.agents(who) : NO_AGENT
+  return stripOf(targets, visible, chosenHere.get(who) ?? null, agents)
 }
 
 /** Parse the POST body; throws only its own fixed sentences. */
 export function parseStripBody(raw: string): {
   action: StripAction
   id: string | null
+  confirm: boolean
 } {
   let body: unknown
   try {
@@ -179,7 +255,11 @@ export function parseStripBody(raw: string): {
   } catch {
     throw new Error('the body is not JSON')
   }
-  const b = (body ?? {}) as { action?: unknown; id?: unknown }
+  const b = (body ?? {}) as {
+    action?: unknown
+    id?: unknown
+    confirm?: unknown
+  }
   const action = b.action
   if (
     action !== SPEC.ACTION_ACTIVATE &&
@@ -189,7 +269,8 @@ export function parseStripBody(raw: string): {
     throw new Error('unknown action')
   const id = typeof b.id === 'string' && b.id ? b.id : null
   if (action !== SPEC.ACTION_NEW && !id) throw new Error('which tab?')
-  return { action, id }
+  /* Only a literal true is a yes: "true", 1 or a missing field are not. */
+  return { action, id, confirm: b.confirm === true }
 }
 
 /**
@@ -248,6 +329,25 @@ export async function handleStrip(
       status: SPEC.REFUSED_STATUS,
       body: { ok: false, error: 'the last tab stays open' },
     }
+  if (wanted.action === SPEC.ACTION_CLOSE) {
+    const agents = io.agents ? io.agents(who) : NO_AGENT
+    const mark = agentMark(
+      agents.desk.has(wanted.id!),
+      agents.chat.has(wanted.id!)
+    )
+    if (!mayCloseTab(pages.length, mark !== null, wanted.confirm))
+      return {
+        status: SPEC.AGENT_TAB_STATUS,
+        body: {
+          ok: false,
+          /* `error` is the machine code the player's apiFetch reads. */
+          error: SPEC.REASON_AGENT_WORKING,
+          reason: SPEC.REASON_AGENT_WORKING,
+          detail: 'the agent is working in this tab; confirm to close it',
+          agent: mark,
+        },
+      }
+  }
   if (wanted.action === SPEC.ACTION_NEW && !mayOpen(pages.length))
     return {
       status: SPEC.REFUSED_STATUS,
@@ -256,22 +356,30 @@ export async function handleStrip(
 
   /* Switching is driving: the person's lease is renewed, never refused. */
   await setWheel(pool, who, 'person').catch(() => {})
+  /* Whatever happens next, the old answer about the front tab is stale. */
+  visibleCache.delete(endpoint)
   try {
     if (wanted.action === SPEC.ACTION_ACTIVATE) {
       await io.activate(endpoint, wanted.id!)
       chosenHere.set(who, wanted.id!)
-      /* The agent acts on the tab the person is looking at (front-page.ts). */
-      rememberFront(who, wanted.id!)
+      /*
+       * The agent acts on the tab the person is looking at (front-page.ts),
+       * and the choice is recorded as the PERSON's: it is not a tab the agent
+       * is working in, so the strip does not mark it.
+       */
+      rememberFront(who, wanted.id!, Date.now(), 'person')
     } else if (wanted.action === SPEC.ACTION_NEW) {
       const made = await io.open(endpoint, SPEC.NEW_TAB_URL)
       await io.activate(endpoint, made.id).catch(() => {})
       chosenHere.set(who, made.id)
-      rememberFront(who, made.id)
+      rememberFront(who, made.id, Date.now(), 'person')
     } else {
       await io.close(endpoint, wanted.id!)
       if (chosenHere.get(who) === wanted.id) chosenHere.delete(who)
       /* A closed tab is nobody's choice, whichever lane made it. */
       forgetFront(who, wanted.id!)
+      /* Nor a desk's: the person said yes to closing it. */
+      releaseDeskTab(wanted.id!)
     }
   } catch {
     return {

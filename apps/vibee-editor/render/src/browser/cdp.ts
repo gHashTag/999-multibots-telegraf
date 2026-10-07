@@ -230,16 +230,22 @@ export async function browserWsUrl(given: string): Promise<string> {
   return rewriteWsUrl(info.webSocketDebuggerUrl, endpoint)
 }
 
+/** A call on the browser socket; with a sessionId it reaches that page. */
+export type BrowserSend = (
+  method: string,
+  params: Record<string, unknown>,
+  sessionId?: string
+) => Promise<Record<string, unknown>>
+
 /**
- * Opens one socket to the browser, attaches to the target, runs the calls and
- * leaves. A pooled connection would be faster and would also mean one slow
- * page holding up another call; a pod is one person's browser and the calls
- * are seconds apart.
+ * Opens ONE socket to the browser, hands the work a `send` that can address
+ * the browser itself or any flattened page session on it, and leaves.
+ * Everything that needs a page goes through here (see the note above on the
+ * silent page socket).
  */
-export async function onPage<T>(
+export async function onBrowser<T>(
   endpoint: string,
-  targetId: string,
-  work: (call: Call) => Promise<T>
+  work: (send: BrowserSend) => Promise<T>
 ): Promise<T> {
   const WS = await socketClass()
   const socket = new WS(await browserWsUrl(endpoint), {
@@ -278,11 +284,7 @@ export async function onPage<T>(
       waiter(msg)
     })
 
-    const send = (
-      method: string,
-      params: Record<string, unknown>,
-      sessionId?: string
-    ) =>
+    const send: BrowserSend = (method, params, sessionId) =>
       new Promise<Record<string, unknown>>((resolve, reject) => {
         const id = nextId++
         const timer = setTimeout(() => {
@@ -305,17 +307,78 @@ export async function onPage<T>(
         )
       })
 
+    return await work(send)
+  } finally {
+    socket.close()
+  }
+}
+
+/**
+ * Opens one socket to the browser, attaches to the target, runs the calls and
+ * leaves. A pooled connection would be faster and would also mean one slow
+ * page holding up another call; a pod is one person's browser and the calls
+ * are seconds apart.
+ */
+export async function onPage<T>(
+  endpoint: string,
+  targetId: string,
+  work: (call: Call) => Promise<T>
+): Promise<T> {
+  return await onBrowser(endpoint, async send => {
     const attached = await send('Target.attachToTarget', {
       targetId,
       flatten: true,
     })
     const sessionId = String(attached.sessionId || '')
     if (!sessionId) throw new Error('could not attach to the page')
-
     return await work((method, params = {}) => send(method, params, sessionId))
-  } finally {
-    socket.close()
-  }
+  })
+}
+
+/**
+ * WHICH OF THESE PAGES ARE VISIBLE, OVER ONE SOCKET (browser-tab-strip.t27
+ * SOCKETS_PER_POLL). The tab strip used to call `evaluateOn` once per page:
+ * up to twelve sockets every three seconds just to learn which tab is in
+ * front. Here one browser socket attaches to every page as a flattened
+ * session, asks each `document.visibilityState` in parallel, and detaches. A
+ * page that does not answer is simply not counted as visible.
+ */
+export async function visiblePages(
+  endpoint: string,
+  ids: readonly string[],
+  open: typeof onBrowser = onBrowser
+): Promise<Set<string>> {
+  if (!ids.length) return new Set()
+  return await open(endpoint, async send => {
+    const answers = await Promise.all(
+      ids.map(async targetId => {
+        try {
+          const attached = await send('Target.attachToTarget', {
+            targetId,
+            flatten: true,
+          })
+          const sessionId = String(attached.sessionId || '')
+          if (!sessionId) return null
+          try {
+            const out = await send(
+              'Runtime.evaluate',
+              { expression: 'document.visibilityState', returnByValue: true },
+              sessionId
+            )
+            const value = (out.result as { value?: unknown } | undefined)?.value
+            return value === 'visible' ? targetId : null
+          } finally {
+            await send('Target.detachFromTarget', { sessionId }).catch(
+              () => ({})
+            )
+          }
+        } catch {
+          return null
+        }
+      })
+    )
+    return new Set(answers.filter((id): id is string => id !== null))
+  })
 }
 
 interface CdpMessage {

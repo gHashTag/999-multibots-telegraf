@@ -1007,8 +1007,9 @@ describe('the agent starts the browser itself (A2A test, 2026-09-22)', () => {
 
 describe("the tab strip is the person's door (/api/browser/strip)", () => {
   /* A pod with three real pages and the browser's own machinery beside them. */
-  const pod = (targets?: CdpTarget[]) => {
+  const pod = (targets?: CdpTarget[], agents?: StripIo['agents']) => {
     const calls: string[] = []
+    let visibleAsked = 0
     let list: CdpTarget[] = targets ?? [
       {
         id: 'A',
@@ -1044,7 +1045,11 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
     ]
     const io: StripIo = {
       list: async () => list,
-      visible: async () => new Set(['B']),
+      visible: async () => {
+        visibleAsked += 1
+        return new Set(['B'])
+      },
+      agents,
       activate: async (_, id) => {
         calls.push(`activate:${id}`)
       },
@@ -1059,7 +1064,7 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
         list = list.filter(t => t.id !== id)
       },
     }
-    return { io, calls }
+    return { io, calls, visibleAsked: () => visibleAsked }
   }
   const live = async (d: BrowserDeps) => {
     const pool = (await d.getPool()) as unknown as ReturnType<typeof fakePool>
@@ -1084,7 +1089,13 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
       { ...d, readBody: async () => JSON.stringify(body) }
     )
   type Tabs = {
-    tabs: Array<{ id: string; title: string; host: string; active: boolean }>
+    tabs: Array<{
+      id: string
+      title: string
+      host: string
+      active: boolean
+      agent: 'desk' | 'chat' | null
+    }>
   }
 
   beforeEach(() => resetStripMemory())
@@ -1103,6 +1114,7 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
       title: 'Inbox',
       host: 'mail.example.com',
       active: false,
+      agent: null,
     })
     /* The visible document is the one in front. */
     expect(tabs[1].active).toBe(true)
@@ -1222,5 +1234,69 @@ describe("the tab strip is the person's door (/api/browser/strip)", () => {
     expect(
       pool.statements.filter(s => /^\s*(update|insert|delete)/i.test(s))
     ).toEqual([])
+  })
+
+  it('marks the tab an agent works in with one word: desk or chat', async () => {
+    const { io } = pod(undefined, () => ({
+      desk: new Set(['A']),
+      chat: new Set(['B']),
+    }))
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    const { tabs } = (await get(d)).body as unknown as Tabs
+    expect(tabs.map(t => [t.id, t.agent])).toEqual([
+      ['A', 'desk'],
+      ['B', 'chat'],
+    ])
+  })
+
+  it("will not close an agent's tab without the person's confirm (409 agent-working)", async () => {
+    const { io, calls } = pod(undefined, () => ({
+      desk: new Set(['A']),
+      chat: new Set(),
+    }))
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    const refused = await post(d, { action: 'close', id: 'A' })
+    expect(refused.status).toBe(409)
+    expect(refused.body).toMatchObject({
+      ok: false,
+      error: 'agent-working',
+      reason: 'agent-working',
+      agent: 'desk',
+    })
+    /* A string or a number is not a yes. */
+    expect(
+      (await post(d, { action: 'close', id: 'A', confirm: 'true' })).status
+    ).toBe(409)
+    expect(calls).toEqual([])
+    const done = await post(d, { action: 'close', id: 'A', confirm: true })
+    expect(done.status).toBe(200)
+    expect(calls).toEqual(['close:A'])
+  })
+
+  it('a tab nobody works in closes without a confirm', async () => {
+    const { io, calls } = pod(undefined, () => ({
+      desk: new Set(),
+      chat: new Set(['B']),
+    }))
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    expect((await post(d, { action: 'close', id: 'A' })).status).toBe(200)
+    expect(calls).toEqual(['close:A'])
+  })
+
+  it('two reads inside the cache ask the pod which tab is in front once', async () => {
+    const { io, visibleAsked } = pod()
+    const { d } = deps({ stripIo: io })
+    await live(d)
+    expect((await get(d)).status).toBe(200)
+    expect((await get(d)).status).toBe(200)
+    expect(visibleAsked()).toBe(1)
+    /* An action makes the old answer stale: the next read asks again. */
+    await post(d, { action: 'activate', id: 'A' })
+    expect(visibleAsked()).toBe(2)
+    await get(d)
+    expect(visibleAsked()).toBe(2)
   })
 })
