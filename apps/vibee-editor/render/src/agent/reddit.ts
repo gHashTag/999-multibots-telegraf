@@ -231,15 +231,17 @@ export function communityStateOf(raw: unknown): CommunityState {
     const r = d.data as Record<string, unknown>
     if (r.quarantine === true) return 'quarantined'
     /*
-     * A restricted community takes posts only from approved members. The
-     * signed-in read says whether the owner is one; the anonymous read cannot,
-     * and a skip it causes expires by itself (SPEC.SKIP_MS).
+     * A restricted community takes posts only from approved members. Only the
+     * signed-in read can say whether the owner is one (`user_is_contributor`
+     * true or false); the anonymous read carries null there, so it says
+     * `unknown` and the signed-in read decides -- an anonymous read must not
+     * skip a community the owner may well be approved in.
      */
-    if (
-      NOT_POSTABLE_TYPES.has(String(r.subreddit_type ?? '').toLowerCase()) &&
-      r.user_is_contributor !== true
-    )
-      return 'restricted'
+    if (NOT_POSTABLE_TYPES.has(String(r.subreddit_type ?? '').toLowerCase())) {
+      if (r.user_is_contributor === true) return 'open'
+      if (r.user_is_contributor === false) return 'restricted'
+      return 'unknown'
+    }
     return 'open'
   }
   return 'unknown'
