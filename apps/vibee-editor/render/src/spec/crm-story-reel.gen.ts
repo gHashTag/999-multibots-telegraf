@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-story-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 29 satisfies number;
+export const VERSION = 30 satisfies number;
 export const FACE_REQUIRED = true satisfies boolean;
 export const VOICE_REQUIRED = true satisfies boolean;
 export const VOICE_SOURCE = "own-voice-notes-in-owner-dm" satisfies string;
@@ -322,6 +322,8 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: fn slots_to_render was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn retry_price was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn slot_renders was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn carry_stills was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn carry_clips was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn hex_digits_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn end_card_readable was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn end_card_refused was not emitted -- this backend lowers declarations, not bodies.
@@ -369,6 +371,8 @@ export const Job = Object.freeze({ __struct__: "Job", fields: [["has_face", "boo
 // t27c gen-ts: fn name_mark was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn code_mark was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn product_mark was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
