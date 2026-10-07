@@ -46,6 +46,7 @@ import { lateRefundRef, LATE_WATCH_MS } from '../agent/late-picture'
 import { cutAt, voiceMode } from '../agent/story-voice-notes'
 import { cardButtons, storyTurn } from '../agent/story-card'
 import { TOKEN_PRICES } from '../agent/billing-shared'
+import { carryClips, carryStills } from '../agent/story-template'
 import { EDIT_MODEL } from '../agent/kie-edit-model'
 import { LIPSYNC_DEFAULT_MODEL } from '../agent/lipsync-voice'
 import {
@@ -1277,7 +1278,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(29)
+    expect(SPEC.VERSION).toBe(30)
   })
 
   it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {
@@ -2359,5 +2360,21 @@ describe('v27-v29: gallery preview, retry slots, brand kit (host)', () => {
     // The day's-cap count of a retry is the same rule: two stills done of
     // three leaves one still, three clips and the cut.
     expect(slotsNeeded(3, 2, 0, false)).toBe(1 + 3 + SPEC.CAP_SLOT_PER_RENDER)
+  })
+})
+
+describe('crm-story-reel v30: what a retry carries', () => {
+  it('a retry carries stills only in the same style', () => {
+    expect(carryStills(true)).toBe(true)
+    expect(carryStills(false)).toBe(false)
+  })
+
+  it('a retry carries clips only with carried stills and a recorded, matching voice mode', () => {
+    expect(carryClips(true, true, true)).toBe(true)
+    expect(carryStills(true)).toBe(true)
+    expect(carryClips(true, false, true)).toBe(false)
+    expect(carryClips(false, true, true)).toBe(false)
+    expect(carryClips(true, true, false)).toBe(false)
+    expect(carryClips(true, false, false)).toBe(false)
   })
 })

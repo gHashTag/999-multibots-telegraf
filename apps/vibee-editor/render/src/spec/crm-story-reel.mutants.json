@@ -1334,5 +1334,40 @@
     "from": "          // The voice the clips so far speak in, for a retry to compare.\n          mode,\n",
     "to": "          // The voice the clips so far speak in, for a retry to compare.\n          null,\n",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "stills carried in another style",
+    "file": "src/agent/story-template.ts",
+    "from": "  return sameStyle\n}",
+    "to": "  return true\n}",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried across a voice change",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return carryStills(sameStyle) && voiceKnown",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried from an unrecorded voice",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return carryStills(sameStyle) && sameVoice",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried without their stills",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return voiceKnown && sameVoice",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "carryFromFailed ignores the clip rule",
+    "file": "src/agent/story-template.ts",
+    "from": "const clips = carryClips(sameLook, sameVoice, voiceKnown)",
+    "to": "const clips = carryStills(sameLook)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]
