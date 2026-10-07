@@ -10,13 +10,14 @@ import { describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import {
   failingStands,
   issueTitle,
@@ -293,4 +294,97 @@ writeFileSync(dir + '/issues.json', JSON.stringify(db))
       rmSync(dir, { recursive: true, force: true })
     }
   }, 60_000)
+})
+
+describe('tri stands-after-deploy install (PATH of the launchd job)', () => {
+  // Two railways, as on the owner's Mac (2026-10-07): the logged-in one on
+  // the PATH install runs under, and an old logged-out one that only a LOGIN
+  // shell finds first (its ~/.bash_profile prepends it). install must bake
+  // the first one into the plist and refuse, loudly, when it is logged out.
+  const setup = (goodLoggedIn = true) => {
+    const home = mkdtempSync(join(tmpdir(), 'stands-home-'))
+    const bin = (dir: string, name: string, body: string) => {
+      mkdirSync(join(home, dir), { recursive: true })
+      writeFileSync(join(home, dir, name), `#!/bin/sh\n${body}\n`, {
+        mode: 0o755,
+      })
+    }
+    bin(
+      'good',
+      'railway',
+      goodLoggedIn
+        ? 'echo "Logged in as bee"; exit 0'
+        : 'echo "Unauthorized tok_FAKE_NOT_A_SECRET" >&2; exit 1'
+    )
+    bin('good', 'gh', 'exit 0')
+    bin(
+      'stale',
+      'railway',
+      'echo "Unauthorized tok_FAKE_NOT_A_SECRET" >&2; exit 1'
+    )
+    writeFileSync(
+      join(home, '.bash_profile'),
+      `export PATH="${join(home, 'stale')}:$PATH"\n`
+    )
+    bin('fake', 'launchctl', `echo "$@" >> "${join(home, 'launchctl.log')}"`)
+    return home
+  }
+  const install = (home: string) =>
+    spawnSync('node', [CLI, 'install', '--main', '/the/main/checkout'], {
+      encoding: 'utf8',
+      env: {
+        HOME: home,
+        LAUNCHCTL: join(home, 'fake/launchctl'),
+        PATH: [
+          join(home, 'good'),
+          dirname(process.execPath),
+          '/usr/bin',
+          '/bin',
+        ].join(':'),
+      },
+    })
+  const plistOf = (home: string) =>
+    join(home, 'Library/LaunchAgents/ai.t27.stands-after-deploy.plist')
+
+  it('bakes the logged-in railway from the current PATH, not a login shell', () => {
+    const home = setup()
+    try {
+      const r = install(home)
+      expect(r.stdout).toContain('stands: installed')
+      expect(r.status).toBe(0)
+      const plist = readFileSync(plistOf(home), 'utf8')
+      const path = /<key>PATH<\/key>\s*<string>([^<]*)<\/string>/.exec(
+        plist
+      )?.[1]
+      expect(path?.split(':')[0]).toBe(join(home, 'good'))
+      expect(path).not.toContain(join(home, 'stale'))
+      expect(path).toContain(dirname(process.execPath))
+      // Persistent paths only: the installed copy and the main checkout.
+      expect(plist).toContain(
+        `<string>${join(home, '.local/lib/t27-stands/stands-after-deploy.mjs')}</string>`
+      )
+      expect(plist).toContain('<string>/the/main/checkout</string>')
+      expect(plist).toContain(`<string>${process.execPath}</string>`)
+      expect(readFileSync(join(home, 'launchctl.log'), 'utf8')).toContain(
+        'bootstrap'
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, 30_000)
+
+  it('a logged-out railway refuses loudly, writes no plist, prints no token', () => {
+    const home = setup(false)
+    try {
+      const r = install(home)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain('not logged in')
+      expect(r.stdout).toContain(join(home, 'good/railway'))
+      expect(r.stdout + r.stderr).not.toContain('tok_FAKE')
+      expect(existsSync(plistOf(home))).toBe(false)
+      expect(existsSync(join(home, 'launchctl.log'))).toBe(false)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, 30_000)
 })
