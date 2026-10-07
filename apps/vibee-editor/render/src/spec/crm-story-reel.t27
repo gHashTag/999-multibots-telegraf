@@ -241,6 +241,19 @@
 // Delivered live on 2026-09-26 (two reels for one client, forwarded by the owner). On
 // 2026-09-27 the voice provider answered HTTP 402 (no credit): the voice leg is BLOCKED by
 // money, not by code, and Kie has no voice cloning to fall back to.
+// v27 (2026-10-06, 999#3803): the template gallery previews each script's end card before the
+// press, and with no card in the panel yet it drew black and a green #00FF88 button while the
+// render delivers #0B0B0B and gold. A preview is a promise about the render: a field the panel
+// has no card for is drawn in END_CARD_DEFAULT_*, the same values card_complete fills, never a
+// colour of the host's own theme (gallery_preview_field).
+// v28 (2026-10-07, 999#3804, t27#6999): a failed job threw away the clips it had already made
+// (jobs 10 and 11), so a retry paid for them twice. A retry renders only the empty slots: of
+// slots_total, slots_done are kept and slots_total - slots_done are rendered (slots_to_render);
+// the price counts only those (retry_price); a done slot is never rendered again (slot_renders).
+// v29 (2026-10-07, 999#3806): brand kit. A client's saved palette (the one kept for her, v10)
+// colours every surface that shows her end card -- each template preview in the gallery and the
+// rendered card alike -- and with none saved both fall to END_CARD_DEFAULT_*. No surface ever
+// takes the host theme's green (brand_kit_field; preview and render never disagree).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_story_reel {
@@ -248,7 +261,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 26;
+    pub const VERSION : u8 = 29;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -533,6 +546,12 @@ module automation::crm_story_reel {
     pub const LANGUAGE_ARG : str = "language";  // and in which language its lines are spoken
     pub const TEMPLATE_HOOK_STUDIO : str = "hook-studio";
     pub const TEMPLATES_FROM_SERVER : bool = true;  // the panel draws the server's list, no copy of its own
+    pub const RETRY_REUSES_DONE_SLOTS : bool = true;  // v28: a retry keeps every clip already made
+    pub const BRAND_KIT_ON_EVERY_SURFACE : bool = true;  // v29: saved palette on preview and render alike
+    pub const SURFACE_PREVIEW : u8 = 0;  // a template's preview in the gallery
+    pub const SURFACE_RENDER : u8 = 1;  // the rendered end card
+    pub const HOST_THEME_ACCENT : str = "#00FF88";  // the host's own green: never a card colour
+    pub const GALLERY_PREVIEW_FROM_CARD_DEFAULTS : bool = true;  // v27: no card yet -> the render's defaults, not the theme
     pub const TEMPLATE_LINES_EDITABLE : bool = true;  // every line may be changed before the press
     pub const TEMPLATE_SCENES : u16 = 4;  // wide on the hook, then close, medium, close
     pub const TEMPLATE_BUTTON : str = "@t27ai_bot";  // where the reel sends whoever wants the same
@@ -784,6 +803,43 @@ module automation::crm_story_reel {
             return FIELD_FROM_PROFILE;
         }
         return FIELD_FROM_DEFAULT;
+    }
+
+    // Where a gallery preview takes a field of the end card (v27): the panel's card when it holds
+    // one, else the render's default -- the preview never invents a colour of its own.
+    fn gallery_preview_field(panel_has: bool) -> u8 {
+        if panel_has {
+            return FIELD_FROM_SELLER;
+        }
+        return FIELD_FROM_DEFAULT;
+    }
+
+    // Where a surface takes an end-card colour (v29, brand kit): the client's saved palette when
+    // she has one, else the render's default -- the same answer on every surface.
+    fn brand_kit_field(has_client_palette: bool, surface: u8) -> u8 {
+        if has_client_palette {
+            return FIELD_FROM_KEPT;
+        }
+        return FIELD_FROM_DEFAULT;
+    }
+
+    // How many slots a retry renders (v28): only the empty ones. A count of done slots above the
+    // total is a broken row, and renders nothing rather than wrapping around.
+    fn slots_to_render(slots_total: u16, slots_done: u16) -> u16 {
+        if slots_done >= slots_total {
+            return 0;
+        }
+        return slots_total - slots_done;
+    }
+
+    // What a retry charges (v28): the slots it renders, never the ones already made.
+    fn retry_price(slots_total: u16, slots_done: u16, per_slot: u16) -> u16 {
+        return slots_to_render(slots_total, slots_done) * per_slot;
+    }
+
+    // Whether one slot is rendered on a retry (v28): a done slot never is.
+    fn slot_renders(done: bool) -> bool {
+        return !done;
     }
 
     // Whether a #hex colour has a length CSS reads: #rgb, #rgba, #rrggbb, #rrggbbaa.
@@ -1386,6 +1442,16 @@ module automation::crm_story_reel {
         assert(DM_SEND_RECORDED_AS_GIFT);
     }
 
+    test "a gallery preview with no card yet is drawn in the render's defaults, not the theme's green" {
+        assert(GALLERY_PREVIEW_FROM_CARD_DEFAULTS);
+        assert(gallery_preview_field(false) == FIELD_FROM_DEFAULT);
+        assert(gallery_preview_field(true) == FIELD_FROM_SELLER);
+        assert(gallery_preview_field(false) == end_card_field(false, false, false));
+        assert(END_CARD_DEFAULT_ACCENT == END_CARD_DEFAULT_TITLE);
+        assert(END_CARD_DEFAULT_ACCENT != "#00FF88");
+        assert(END_CARD_DEFAULT_BG != "#000000");
+    }
+
     test "her visual at the end: the seller's word, then her profile, then the default, kept in the job" {
         assert(END_CARD_ARG == "end_card");
         assert(END_CARD_KEPT_IN_JOB);
@@ -1580,8 +1646,25 @@ module automation::crm_story_reel {
         assert(!setting_drawn(false, false));
     }
 
+    test "brand kit: no palette -> defaults on preview and render" {
+        assert(BRAND_KIT_ON_EVERY_SURFACE);
+        assert(brand_kit_field(false, SURFACE_PREVIEW) == FIELD_FROM_DEFAULT);
+        assert(brand_kit_field(false, SURFACE_RENDER) == FIELD_FROM_DEFAULT);
+        assert(brand_kit_field(false, SURFACE_PREVIEW) == end_card_field(false, false, false));
+        assert(END_CARD_DEFAULT_ACCENT != HOST_THEME_ACCENT);
+    }
+
+    test "brand kit: palette present -> client colours on every surface, never theme green" {
+        assert(brand_kit_field(true, SURFACE_PREVIEW) == FIELD_FROM_KEPT);
+        assert(brand_kit_field(true, SURFACE_RENDER) == FIELD_FROM_KEPT);
+        assert(brand_kit_field(true, SURFACE_PREVIEW) == brand_kit_field(true, SURFACE_RENDER));
+        assert(brand_kit_field(true, SURFACE_RENDER) == end_card_field(false, true, false));
+        assert(brand_kit_field(true, SURFACE_PREVIEW) != FIELD_FROM_DEFAULT);
+        assert(brand_kit_field(true, SURFACE_PREVIEW) != FIELD_FROM_TEMPLATE);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 26);
+        assert(VERSION == 29);
     }
 
     test "a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink" {
@@ -1900,6 +1983,26 @@ module automation::crm_story_reel {
         assert(!reel_is_own(false, false));
         assert(line_way(true, reel_is_own(false, true), LINE_FROM_EDIT) == LINE_KEPT);
         assert(line_way(true, reel_is_own(false, false), LINE_FROM_EDIT) == LINE_REFUSED);
+    }
+
+    test "a retry renders only the empty slots and charges only for them" {
+        assert(RETRY_REUSES_DONE_SLOTS);
+        // Nothing made yet: every slot, at full price.
+        assert(slots_to_render(3, 0) == 3);
+        assert(retry_price(3, 0, TOKENS_PER_STILL) == 3 * TOKENS_PER_STILL);
+        // Partly made: only the rest.
+        assert(slots_to_render(3, 2) == 1);
+        assert(retry_price(3, 2, TOKENS_PER_LINE) == TOKENS_PER_LINE);
+        assert(slots_to_render(5, 1) == 4);
+        // All made: nothing rendered, nothing charged.
+        assert(slots_to_render(3, 3) == 0);
+        assert(retry_price(3, 3, TOKENS_PER_LINE) == 0);
+        assert(slots_to_render(0, 0) == 0);
+        // A broken row with more done than total renders nothing, never wraps.
+        assert(slots_to_render(2, 5) == 0);
+        // A done slot is never rendered again; an empty one is.
+        assert(!slot_renders(true));
+        assert(slot_renders(false));
     }
 
     test "every end card the pause shows has a ground and a readable call and button" {
