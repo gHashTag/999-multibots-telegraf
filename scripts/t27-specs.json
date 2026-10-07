@@ -23,9 +23,11 @@
     }
   ],
   "unbound": [
+    "automation/agent-conversations",
     "automation/browser-pod-restart",
     "automation/browser-sign-in",
     "automation/crm-client-ownership",
+    "automation/inngest-functions-status",
     "automation/inngest-probe-suite",
     "automation/leela-agent-link",
     "crons/999-multibots-telegraf-agent-autopilot-L1118",
@@ -56,6 +58,7 @@
     "functions/content-detailed-script-generate",
     "functions/content-scenario-clips-generate",
     "functions/content-scripts-generate",
+    "functions/crm-proactive-sweep",
     "functions/instagram-competitors-find",
     "functions/instagram-reels-analyze",
     "functions/instagram-top-content-extract",
@@ -86,9 +89,5 @@
     "numeric/formats",
     "server/api"
   ],
-  "citedMissing": [
-    "automation/agent-conversations",
-    "automation/inngest-functions-status",
-    "functions/crm-proactive-sweep"
-  ]
+  "citedMissing": []
 }
