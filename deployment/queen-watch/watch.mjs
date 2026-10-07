@@ -19,14 +19,13 @@
  * restart. Its long form sits above `probeBrowserPage`.
  *
  * Railway runs this as a CRON service (`0 * * * *`): it runs once and exits.
- * Exit code = the worse of the two watches: 0 every road and the page answer,
+ * Exit code = the worst of the watches: 0 every road and the page answer,
  * 1 something is broken, 2 nothing broken but something not measured. A cron
  * container has no memory, so the previous result lives in a JSON file on a
  * small Railway volume (STATE_DIR, /data); the page keeps its own key in it
  * (`page`), so one watch's "already reported" never silences the other. A
- * volume and not a Postgres row because the service has no npm dependencies,
- * and node has no Postgres client built in; a file is the whole of what this
- * needs.
+ * volume and not a Postgres row: a file is the whole of what this needs, and
+ * the one Postgres client here (the schema watch's) is read-only on purpose.
  *
  * Secrets: every value arrives as a Railway REFERENCE variable and is never
  * printed. Keys are compared by sha256 and only the first 8 hex characters of
@@ -54,7 +53,19 @@
  *   BROWSER_PAGE_URL     optional, a plain URL (not a secret); `off` stops
  *                        the page watch. Default: BROWSER_PAGE below.
  *
- * After the two watches, on the same run, igla.mjs watches the IGLA-Coder
+ * A THIRD WATCH, DAILY (2026-10-07: the Supabase -> Railway copy of 01.10
+ * silently lost 14 unique indexes and several column defaults, found only when
+ * ON CONFLICT and inserts started failing): `watchSchema` reads the live
+ * Postgres-NFrq's unique indexes, column defaults and NOT NULL -- read-only,
+ * with a short statement_timeout -- and compares them with the committed
+ * baseline (schema.mjs, schema-baseline.json). It reports, it never runs DDL.
+ *   DATABASE_URL         ${{Postgres-NFrq.DATABASE_URL}}  optional; unset or
+ *                        SCHEMA_WATCH=off and the schema watch only logs
+ *                        that it is off. SCHEMA_EVERY_S: 86400 by default.
+ * This is the service's one npm dependency, `pg`, imported only when the
+ * schema watch measures (package.json in this directory).
+ *
+ * After the watches, on the same run, igla.mjs watches the IGLA-Coder
  * loop (gHashTag/igla-coder-gpu) and reports it to the Queen as `igla-loop`.
  * Its optional variables are listed in its own header; it never changes the
  * exit code above (another project's budget is not a broken road here), and
@@ -65,6 +76,13 @@ import { createRequire } from 'node:module'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
+import {
+  SCHEMA_EVERY_S,
+  checkSchema,
+  loadBaseline,
+  readLive,
+} from './schema.mjs'
 
 export const OWNER_CHAT = '144022504'
 export const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
@@ -94,6 +112,8 @@ export const PAGE_ASSETS_MAX = 40
  */
 export const RELAYS_ISSUE_TITLE = 'queen-watch: a bot -> render road is broken'
 export const PAGE_ISSUE_TITLE = 'queen-watch: the BROWSER page is broken'
+export const SCHEMA_ISSUE_TITLE =
+  'queen-watch: the database schema drifted from its baseline'
 
 export function config(env = process.env) {
   const n = (v, d) => (v !== undefined && v !== '' ? Number(v) : d)
@@ -128,6 +148,10 @@ export function config(env = process.env) {
         ? ''
         : env.BROWSER_PAGE_URL || BROWSER_PAGE,
     stateDir: env.STATE_DIR || '/data',
+    /* The schema watch (watchSchema); '' = off. A secret: it carries the
+     * password, so secretsOf scrubs it and its password. */
+    schemaUrl: env.SCHEMA_WATCH === 'off' ? '' : env.DATABASE_URL || '',
+    schemaEveryS: n(env.SCHEMA_EVERY_S, SCHEMA_EVERY_S),
     /* relays-watch.sh's own numbers. */
     healEveryS: n(env.HEAL_EVERY_S, 21600),
     repeatS: n(env.REPEAT_S, 21600),
@@ -162,7 +186,25 @@ export function secretsOf(cfg) {
     cfg.runpodKey,
     cfg.iglaGhToken,
     cfg.iglaRailwayToken,
+    cfg.schemaUrl,
+    ...passwordOf(cfg.schemaUrl),
   ].filter(s => typeof s === 'string' && s.length >= 6)
+}
+
+/* A database URL's password, as written and decoded: either can be quoted. */
+function passwordOf(url) {
+  if (!url) return []
+  try {
+    const raw = new URL(url).password
+    if (!raw) return []
+    let plain = raw
+    try {
+      plain = decodeURIComponent(raw)
+    } catch {}
+    return [raw, plain]
+  } catch {
+    return []
+  }
 }
 
 export function redact(text, secrets) {
@@ -986,6 +1028,50 @@ export function pageIssueSpec({ result, note, when, url = BROWSER_PAGE }) {
   ].join('\n')
 }
 
+/**
+ * The schema watch's issue. The fix is DDL a person reviews: an index or a
+ * default restored by a migration, or the baseline refreshed when the change
+ * was meant. The watch never runs either.
+ */
+export function schemaIssueSpec({ result, note, when }) {
+  return [
+    '## Context',
+    '',
+    `queen-watch (Railway cron, \`deployment/queen-watch/schema.mjs\`) found the production database (Railway Postgres-NFrq) drifted from its committed baseline at ${when}.`,
+    'The Supabase -> Railway copy of 2026-10-01 silently lost 14 unique indexes and several defaults: an upsert whose ON CONFLICT target has no unique index fails, and an insert that relied on a default writes NULL or fails.',
+    '',
+    '```',
+    ...result.lines.map(l => `${l.mark.padEnd(4)}  ${l.text}`),
+    '```',
+    note ? `\nWhat the watch already did: ${note}` : '',
+    '',
+    '## Boundary',
+    '',
+    '- `migrations/` -- a migration that restores the missing index or default',
+    '- `deployment/queen-watch/schema-baseline.json` -- refreshed with `tri schema-drift --baseline` only when the change was meant',
+    '- `deployment/queen-watch/schema.mjs` -- the check and its exemptions',
+    '- `bin/helpers/schema-baseline.sh` -- `tri schema-drift`',
+    '',
+    '## User Scenarios & Testing',
+    '',
+    '- **Given** a unique index in the baseline, **When** the code upserts with ON CONFLICT on its columns, **Then** the live database has a unique index of the same shape and the upsert succeeds.',
+    '- **Given** a column default in the baseline, **When** a row is inserted without that column, **Then** the live database fills it with the same default.',
+    '',
+    '## Requirements',
+    '',
+    '- FR-001: Every unique index of the baseline MUST exist in the live database with the same method, columns and predicate.',
+    '- FR-002: Every column default and NOT NULL of the baseline MUST match the live database.',
+    '- FR-003: A new table MUST have a primary key.',
+    '- FR-004: The fix MUST be a reviewed migration or a refreshed baseline; DDL MUST NOT be run by the watch.',
+    '',
+    '## Success Criteria',
+    '',
+    '- `tri schema-drift` exits 0 and prints no FAIL line.',
+    '- The next queen-watch run logs "queen-watch: schema: ok".',
+    '',
+  ].join('\n')
+}
+
 async function gh(cfg, deps, path, init = {}) {
   const r = await call(cfg, deps, `${GITHUB_API}${path}`, {
     ...init,
@@ -1107,9 +1193,9 @@ export async function run(cfg, deps) {
       return 2
     }
   }
-  const relays = await apart('the relays watch', watchRelays)
-  if (!cfg.pageUrl) return relays
-  return worst(relays, await apart('the page watch', watchPage))
+  let rc = await apart('the relays watch', watchRelays)
+  if (cfg.pageUrl) rc = worst(rc, await apart('the page watch', watchPage))
+  return worst(rc, await apart('the schema watch', watchSchema))
 }
 
 // --- the relays watch (relays-watch.sh run) -----------------------------
@@ -1245,7 +1331,8 @@ async function watchRelays(cfg, deps, { log, show, st, now, when, persist }) {
       issue: {
         title: RELAYS_ISSUE_TITLE,
         body: issueSpec({ result, note: enTail, when }),
-        owns: i => i.title !== PAGE_ISSUE_TITLE,
+        owns: i =>
+          i.title !== PAGE_ISSUE_TITLE && i.title !== SCHEMA_ISSUE_TITLE,
       },
       headline: `a bot -> render road is broken (${result.lines.find(l => l.mark === 'FAIL')?.text.split(':')[0] || 'see body'})`,
       body: [...fails(result), enTail].filter(Boolean).join('\n'),
@@ -1388,6 +1475,139 @@ async function watchPage(cfg, deps, { log, show, st, now, when, persist }) {
   return 1
 }
 
+// --- the schema watch (schema.mjs) ---------------------------------------
+
+/*
+ * Daily, not hourly: a schema changes by migration, and one read a day is
+ * enough to find a lost index before a person does. Off the hour it is due it
+ * returns 0 and says when it looked last, so the run's code is the relays'
+ * and the page's alone. A run that could not measure is not a look: the next
+ * hour tries again. Report rules as the page's -- first run, a change, a
+ * DIFFERENT set of drift, or REPEAT_S while still drifted; three unmeasured
+ * runs in a row ask for a person. State: `st.schema`. Never any DDL.
+ */
+async function watchSchema(cfg, deps, { log, show, st, now, when, persist }) {
+  const say = s => log(`queen-watch: schema: ${s}`)
+  if (!cfg.schemaUrl) {
+    say('off (no DATABASE_URL on this service)')
+    return 0
+  }
+  const first = !st.schema
+  const sc = (st.schema = {
+    state: 'unknown',
+    unmeasured: 0,
+    checked_at: 0,
+    told_at: 0,
+    drift_key: '',
+    ...st.schema,
+  })
+  const ago = now - (sc.checked_at || 0)
+  if (sc.checked_at && ago < cfg.schemaEveryS) {
+    say(
+      `${sc.state}, looked ${Math.floor(ago / 3600)} h ago -- next look in ${Math.ceil((cfg.schemaEveryS - ago) / 3600)} h`
+    )
+    return 0
+  }
+  say(`previous: ${first ? 'none (first run)' : sc.state}`)
+  const result = await checkSchema({
+    baseline: await deps.schemaBaseline(),
+    query: () => deps.schemaRead(cfg),
+  })
+  show(result)
+
+  if (result.rc === 2) {
+    sc.unmeasured += 1
+    say(`not measured (${sc.unmeasured} in a row)`)
+    const why = result.lines.map(l => `- ${l.text}`)
+    if (sc.unmeasured === 3 || first) {
+      await report(cfg, deps, log, {
+        watch: 'schema',
+        red: false,
+        needsYou: true,
+        headline: `the database schema could not be measured (${sc.unmeasured} run(s) in a row)`,
+        body: why.join('\n'),
+        telegram: [
+          `⚠️ Сторож схемы базы на Railway не может её прочитать (${sc.unmeasured} раз подряд).`, // cyrillic-ok
+          'Ничего не менял: схему только читаю.', // cyrillic-ok
+          ...why,
+        ].join('\n'),
+      })
+    }
+    if (first) sc.state = 'unmeasured'
+    await persist()
+    return 2
+  }
+  sc.unmeasured = 0
+  sc.checked_at = now
+  const all = result.lines.map(l => `${l.mark}  ${l.text}`)
+
+  if (result.rc === 0) {
+    if (sc.state === 'broken' || first) {
+      await report(cfg, deps, log, {
+        watch: 'schema',
+        red: false,
+        needsYou: false,
+        headline: first
+          ? 'live on Railway: the database schema watch -- unique indexes and defaults match the baseline'
+          : 'the database schema matches its baseline again',
+        body: all.join('\n'),
+        telegram: first
+          ? '✅ Сторож схемы базы теперь работает на Railway, раз в сутки. Сейчас уникальные индексы и значения по умолчанию совпадают с эталоном.' // cyrillic-ok
+          : '✅ Схема базы снова совпадает с эталоном: уникальные индексы и значения по умолчанию на месте.', // cyrillic-ok
+      })
+    }
+    sc.state = 'ok'
+    sc.drift_key = ''
+    await persist()
+    say('ok -- unique indexes, defaults and NOT NULL match the baseline')
+    return 0
+  }
+
+  const drift = fails(result)
+  const key = hash8(drift.slice().sort().join('\n'))
+  const enTail =
+    'Not fixed: the watch never runs DDL. Restore it with a reviewed migration, or refresh the baseline (tri schema-drift --baseline) if the change was meant.'
+  const ruTail =
+    'Сам не чиню: DDL сторож не запускает никогда. Вернуть индекс или значение — миграцией после ревью; если изменение задумано — обновить эталон (tri schema-drift --baseline). Задача для пчёл — в issue.' // cyrillic-ok
+  if (
+    sc.state !== 'broken' ||
+    sc.drift_key !== key ||
+    now - (sc.told_at || 0) >= cfg.repeatS
+  ) {
+    await report(cfg, deps, log, {
+      watch: 'schema',
+      red: true,
+      needsYou: true,
+      result,
+      when,
+      noteEn: enTail,
+      issue: {
+        title: SCHEMA_ISSUE_TITLE,
+        body: schemaIssueSpec({ result, note: enTail, when }),
+        owns: i => i.title === SCHEMA_ISSUE_TITLE,
+      },
+      headline: `the database schema drifted from its baseline (${drift.length} item(s))`,
+      body: [...drift, enTail].join('\n'),
+      telegram: [
+        '🔴 Схема базы на Railway разошлась с эталоном — upsert и вставки могут падать.', // cyrillic-ok
+        ...drift.slice(0, 15),
+        drift.length > 15 ? `... и ещё ${drift.length - 15}` : null, // cyrillic-ok
+        ruTail,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    })
+    sc.told_at = now
+  } else {
+    say('still drifted, already reported -- quiet until REPEAT_S')
+  }
+  sc.state = 'broken'
+  sc.drift_key = key
+  await persist()
+  say(`drifted -- ${drift.length} item(s) (see FAIL)`)
+  return 1
+}
+
 export function realDeps() {
   return {
     fetch: globalThis.fetch,
@@ -1396,6 +1616,8 @@ export function realDeps() {
     write: s => process.stdout.write(s),
     randomHex: n => randomBytes(n).toString('hex'),
     restartRender: null,
+    schemaBaseline: () => loadBaseline(),
+    schemaRead: cfg => readLive(cfg.schemaUrl),
   }
 }
 
