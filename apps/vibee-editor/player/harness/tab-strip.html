@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>harness: browser tab strip</title>
+  </head>
+  <body>
+    <!-- tri shot: the tab strip of the person's own browser, mounted where the
+         /browser page mounts it, over a stand-in for the picture. Served by
+         the dev server only; the build never sees it. -->
+    <div id="root"></div>
+    <script type="module" src="/src/harness/tabStrip.tsx"></script>
+  </body>
+</html>
