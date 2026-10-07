@@ -1288,6 +1288,7 @@ import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
 import { BOTFATHER_TOOLS } from './botfather-main-app'
 import { BOT_CREATE_TOOLS } from './managed-bot-create'
+import { TABS_TOOLS } from './topic-tabs-tools'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -4296,6 +4297,12 @@ TOOLS.push(...BOTFATHER_TOOLS)
 /* A new bot through Bot API 9.6 Managed Bots (managed-bot-create.ts). */
 TOOLS.push(...BOT_CREATE_TOOLS)
 /*
+ * A person's private-chat topic tabs, read and set up without /start
+ * (topic-tabs-tools.ts, spec bot-topic-tabs.t27). The claim protocol is the
+ * bot's own engine, copied byte for byte. tabs_setup is direct-call only.
+ */
+TOOLS.push(...TABS_TOOLS)
+/*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
  * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
@@ -4556,6 +4563,13 @@ export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
    * to, and a client's sentence must not be able to enumerate a room.
    */
   'crm_room_people',
+  /*
+   * Makes topics and sends their first messages INTO a person's chat
+   * (topic-tabs-tools.ts). The app and an MCP agent call it on purpose; a
+   * sentence in a client's message must not be able to write into somebody's
+   * chat, six messages at a time. tabs_status stays reachable: it reads.
+   */
+  'tabs_setup',
 ])
 
 let compactWarned = false

@@ -11,6 +11,7 @@ import {
   TABS,
   ensureTabs,
   nameFreshTopic,
+  prepareTabsTable,
   setTopicTabsDbForTests,
   topicsEnabled,
 } from '@/navigation/topics/tabs'
@@ -87,7 +88,7 @@ function memoryDb() {
           r.thread_id = p[3]
           r.title = p[4]
         }
-        return { rows: [] }
+        return { rows: r ? [{ thread_id: p[3] }] : [] }
       }
       if (q.startsWith('DELETE')) {
         for (let i = rows.length - 1; i >= 0; i--)
@@ -304,25 +305,35 @@ describe('fixed tabs: made once per person', () => {
   })
 })
 
-/** A Telegram that makes topics, and remembers which ones the person deleted. */
+/**
+ * A Telegram that makes topics, and remembers which ones the person deleted.
+ * The /tabs probe is editForumTopic with no name: a live topic answers
+ * TOPIC_NOT_MODIFIED (nothing changed), a deleted one "thread not found".
+ * A chat action is accepted either way, as the real one was.
+ */
 function telegram(opts: { deleted?: number[]; probeError?: string } = {}) {
   let next = 100
   const calls: any[] = []
   return {
     calls,
     made: () => calls.filter(c => c[0] === 'createForumTopic'),
+    renames: () =>
+      calls.filter(c => c[0] === 'editForumTopic' && 'name' in c[1]),
     async callApi(method: string, payload: any) {
       calls.push([method, payload])
       await new Promise(r => setTimeout(r, 0))
       if (method === 'createForumTopic')
         return { message_thread_id: next++, name: payload.name }
-      if (method === 'sendChatAction') {
+      if (method === 'editForumTopic' && !('name' in payload)) {
         if (opts.probeError) throw new Error(opts.probeError)
         if (opts.deleted?.includes(payload.message_thread_id)) {
           const e: any = new Error('400: Bad Request: message thread not found')
           e.response = { description: 'Bad Request: message thread not found' }
           throw e
         }
+        const e: any = new Error('400: Bad Request: TOPIC_NOT_MODIFIED')
+        e.response = { description: 'Bad Request: TOPIC_NOT_MODIFIED' }
+        throw e
       }
       return true
     },
@@ -364,7 +375,7 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
       if (kind !== TABS[2].kind) expect(after.get(kind)).toBe(thread)
     expect(after.get(TABS[2].kind)).toBe(106)
     expect(db.rows).toHaveLength(TABS.length)
-    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toEqual([])
+    expect(tg.renames()).toEqual([])
   })
 
   it('1. /tabs twice makes nothing, and a network error forgets nothing', async () => {
@@ -386,7 +397,7 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     const tg = telegram()
     const fixed = TABS[1].ru
     expect(await nameFreshTopic(tg, 'b', 777, 900, 'hello', fixed)).toBe('')
-    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toEqual([])
+    expect(tg.renames()).toEqual([])
   })
 
   it('2. two /start at once make one set of tabs', async () => {
@@ -470,7 +481,7 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     const named = db.selects
     expect(await nameFreshTopic(tg, 'b', 777, 555, 'again')).toBe('')
     expect(db.selects).toBe(named)
-    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toHaveLength(1)
+    expect(tg.renames()).toHaveLength(1)
   })
 
   it('4. a make drops the cached tabs, so a new tab is known at once', async () => {
@@ -481,5 +492,182 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     await nameFreshTopic(tg, 'b', 777, 999, '/start')
     await ensureTabs(tg, 'b', 777, true)
     expect(await nameFreshTopic(tg, 'b', 777, 101, 'hello')).toBe('')
+  })
+})
+
+describe('review follow-ups: a slow maker, the naming window, the probe', () => {
+  let db: ReturnType<typeof memoryDb>
+  beforeEach(() => {
+    db = memoryDb()
+    setTopicTabsDbForTests(db)
+  })
+
+  it('A1. a maker slower than the claim lifetime keeps nothing and deletes its topic', async () => {
+    const tg = telegram()
+    let release: () => void = () => undefined
+    const held = new Promise<void>(r => (release = r))
+    let first = true
+    const slow = {
+      calls: tg.calls,
+      async callApi(method: string, payload: any) {
+        if (method === 'createForumTopic' && first) {
+          first = false
+          tg.calls.push([method, payload])
+          await held
+          return { message_thread_id: 900, name: payload.name }
+        }
+        return tg.callApi(method, payload)
+      },
+    }
+    const a = ensureTabs(slow, 'b', 777, false)
+    // let A claim its first tab and hang inside createForumTopic
+    while (!tg.calls.some(c => c[0] === 'createForumTopic'))
+      await new Promise(r => setTimeout(r, 0))
+    // B comes three minutes later: A's claim is dead to it
+    const b = await ensureTabs(tg, 'b', 777, false, undefined, {
+      now: Date.now() + 3 * 60_000,
+    })
+    expect(b).toEqual(TABS.map(t => t.kind))
+    release()
+    const madeByA = await a
+    expect(madeByA).toEqual([])
+    // one row per tab, none of them A's late topic
+    expect(db.rows).toHaveLength(TABS.length)
+    expect(db.rows.every(r => r.thread_id > 0)).toBe(true)
+    expect(db.rows.map(r => r.thread_id)).not.toContain(900)
+    // A deleted the topic it made and wrote nothing into it
+    expect(tg.calls.filter(c => c[0] === 'deleteForumTopic')).toEqual([
+      ['deleteForumTopic', { chat_id: 777, message_thread_id: 900 }],
+    ])
+    const into900 = tg.calls.filter(
+      c => c[0] === 'sendMessage' && c[1].message_thread_id === 900
+    )
+    expect(into900).toEqual([])
+  })
+
+  it("A1. a slow maker never takes over another attempt's claim", async () => {
+    // B's claim is still pending (B is creating) when A's late answer comes
+    const tg = telegram()
+    let releaseA: () => void = () => undefined
+    let releaseB: () => void = () => undefined
+    const heldA = new Promise<void>(r => (releaseA = r))
+    const heldB = new Promise<void>(r => (releaseB = r))
+    let n = 0
+    const api = {
+      calls: tg.calls,
+      async callApi(method: string, payload: any) {
+        if (method === 'createForumTopic' && payload.name === TABS[0].en) {
+          const mine = n++
+          tg.calls.push([method, payload])
+          await (mine === 0 ? heldA : heldB)
+          return { message_thread_id: mine === 0 ? 900 : 901, name: 'x' }
+        }
+        return tg.callApi(method, payload)
+      },
+    }
+    const a = ensureTabs(api, 'b', 777, false)
+    while (n < 1) await new Promise(r => setTimeout(r, 0))
+    const b = ensureTabs(api, 'b', 777, false, undefined, {
+      now: Date.now() + 3 * 60_000,
+    })
+    while (n < 2) await new Promise(r => setTimeout(r, 0))
+    releaseA()
+    await new Promise(r => setTimeout(r, 5))
+    releaseB()
+    await Promise.all([a, b])
+    const agent = db.rows.filter(r => r.kind === TABS[0].kind)
+    expect(agent).toHaveLength(1)
+    expect(agent[0].thread_id).toBe(901)
+    expect(
+      tg.calls.filter(c => c[0] === 'deleteForumTopic').map(c => c[1])
+    ).toEqual([{ chat_id: 777, message_thread_id: 900 }])
+  })
+
+  it('A2. no topic is named while one of the tabs is being made', async () => {
+    db.rows.push({
+      bot: 'b',
+      tid: 777,
+      thread_id: -5,
+      kind: TABS[3].kind,
+      title: TABS[3].en,
+      created_at: new Date(),
+    })
+    const tg = telegram()
+    // thread 700 may be the tab being made right now: its row does not name it yet
+    expect(await nameFreshTopic(tg, 'b', 777, 700, 'hello there')).toBe('')
+    expect(tg.renames()).toEqual([])
+    // a dead claim does not hold naming back
+    db.rows[0].created_at = new Date(Date.now() - 3 * 60_000)
+    expect(await nameFreshTopic(tg, 'b', 777, 701, 'coffee reel')).toBe(
+      'coffee reel'
+    )
+  })
+
+  it('A2. a claim made by another process is seen even with a warm cache', async () => {
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, false)
+    // warm the cache: a known tab costs no read
+    expect(await nameFreshTopic(tg, 'b', 777, 100, 'hi')).toBe('')
+    // another process (render's tabs_setup) claims a tab behind our back
+    const agent = db.rows.find(r => r.kind === TABS[0].kind)!
+    agent.thread_id = -77
+    agent.created_at = new Date()
+    expect(await nameFreshTopic(tg, 'b', 777, 800, 'hello')).toBe('')
+    expect(tg.renames()).toEqual([])
+  })
+
+  it('A3. /tabs probes the topic itself: an edit that changes nothing', async () => {
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, false)
+    tg.calls.length = 0
+    await ensureTabs(tg, 'b', 777, false, undefined, { probe: true })
+    const probes = tg.calls.filter(c => c[0] === 'editForumTopic')
+    expect(probes).toHaveLength(TABS.length)
+    for (const [, p] of probes)
+      expect(Object.keys(p).sort()).toEqual(['chat_id', 'message_thread_id'])
+    expect(tg.calls.filter(c => c[0] === 'sendChatAction')).toEqual([])
+    // TOPIC_NOT_MODIFIED is a live topic: nothing made, nothing forgotten
+    expect(tg.made()).toEqual([])
+    expect(db.rows).toHaveLength(TABS.length)
+  })
+
+  it('A3. known limit: a probe Telegram answers without an error keeps the tab', async () => {
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, false)
+    // a Telegram that accepted the no-op edit of a deleted topic would hide it
+    const lenient = {
+      calls: tg.calls,
+      callApi: async (method: string, payload: any) =>
+        method === 'editForumTopic' ? true : tg.callApi(method, payload),
+    }
+    await ensureTabs(lenient, 'b', 777, false, undefined, { probe: true })
+    expect(tg.made()).toHaveLength(TABS.length)
+  })
+})
+
+describe('B. the table is made at launch, not at the first /start', () => {
+  it('a bot with topics on creates the table and its keys at startup', async () => {
+    const db = memoryDb()
+    setTopicTabsDbForTests(db)
+    expect(await prepareTabsTable({ has_topics_enabled: true })).toBe('ready')
+    expect(db.ddl.join('\n')).toMatch(
+      /CREATE TABLE IF NOT EXISTS bot_topic_tabs/
+    )
+    expect(
+      db.ddl.filter(q => q.startsWith('CREATE UNIQUE INDEX'))
+    ).toHaveLength(2)
+  })
+
+  it('a bot without topics touches nothing; a refused CREATE is said, not thrown', async () => {
+    const db = memoryDb()
+    setTopicTabsDbForTests(db)
+    expect(await prepareTabsTable({ has_topics_enabled: false })).toBe('off')
+    expect(db.ddl).toEqual([])
+    setTopicTabsDbForTests({
+      query: async () => {
+        throw new Error('permission denied for schema public')
+      },
+    })
+    expect(await prepareTabsTable({ has_topics_enabled: true })).toBe('failed')
   })
 })
