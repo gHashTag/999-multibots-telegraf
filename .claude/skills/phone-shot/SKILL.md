@@ -66,6 +66,18 @@ scheduler reads the exit code. `--from FILE` parses saved `all` output (that
 is how `scripts/shot-watch.test.ts` drives it without a browser);
 `--state FILE` keeps a second history, e.g. one per branch.
 
+### After every deploy: `tri stands-after-deploy`
+
+`tri stands-after-deploy run` (launchd `ai.t27.stands-after-deploy`, every
+15 min, installed by `tri stands-after-deploy install`) waits for a new
+SUCCESS deploy of vibee-editor, runs `all` on THAT commit in a detached
+worktree `~/.local/state/stands/tree`, plus the read-only `tri browser
+doctor`, and files one issue per failing stand + deploy (label
+`stands-after-deploy`, a delegatable spec with `## Boundary`). State, ledger
+and the red screenshots live in `~/.local/state/stands/`. The how, the
+numbers and the dedupe rule are in the header of
+`bin/helpers/stands-after-deploy.mjs`; `status` shows the last runs.
+
 ## Что меряется
 
 - **small** — кнопка, поле или ссылка меньше цели по любой стороне. Цель

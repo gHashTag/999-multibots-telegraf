@@ -1121,7 +1121,13 @@ if (name === 'all') {
     const r = results[i]
     const verdict = r.stdout
       .split('\n')
-      .filter(x => /^== shot|^\s+(small|cut|overlap|order|card|error) /.test(x))
+      // The per-state line carries the screenshot path and the sideways
+      // shift (`wider N px`); without it a watch could name neither.
+      .filter(x =>
+        /^== shot|^(?:RED|ok)\s+\S+: |^could not measure: |^\s+(small|cut|overlap|order|card|error|hint) /.test(
+          x
+        )
+      )
     for (const x of verdict) console.log(x)
     if (!verdict.length)
       console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
