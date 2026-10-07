@@ -324,3 +324,11 @@ drift` уже значил «влито, но не выехало»; `case` бе
 - `apps/vibee-editor/render/src/spec/` — привязанные спеки и их тесты
 - навык `own-language-first` — наш язык для документов о себе
 - CLAUDE.md, «Миссия: t27 в центре»
+- навык `own-language-first` — наш язык для документов о себе
+- CLAUDE.md, «Миссия: t27 в центре»
+
+- **Stacked spec PRs conflict after a squash merge (07.10, t27#7000/#7009).**
+  After the first PR squash-merges, every retargeted child conflicts in the
+  spec and its seal. Fix with a plain `git merge origin/master` (keep the
+  child's spec, `t27c seal --save`), never force push; re-wait required checks
+  started AFTER the push. Better: do not stack spec PRs while Actions is down.
