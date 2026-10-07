@@ -556,9 +556,12 @@ async function runLocked(opt, dir) {
  * The launchd job runs the installed copy against the main checkout. PATH is
  * pinned to the railway, node and gh found here (launchd's bare PATH once
  * found an old, logged-out railway -- relays-watch.sh, 2026-10-03).
+ * The lookup uses THIS process's PATH (`bash -c`, as relays-watch does), not
+ * a login shell: on this Mac `bash -lc` finds /usr/local/bin/railway 4.5.4,
+ * logged out, ahead of the working nvm one, and install refused (2026-10-07).
  */
 function install(opt) {
-  const which = c => sh('bash', ['-lc', `command -v ${c}`]).stdout.trim()
+  const which = c => sh('bash', ['-c', `command -v ${c}`]).stdout.trim()
   const bins = ['railway', 'node', 'gh', 'git'].map(which)
   if (bins.some(b => !b)) {
     console.log(
