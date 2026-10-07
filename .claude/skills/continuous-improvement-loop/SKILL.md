@@ -2431,6 +2431,19 @@ main it is. It refuses a closed or fork PR, a silent gh ("unknown", never
 "no such PR"), and a local branch of that name with unpushed commits -- moving
 it to origin would drop someone's work.
 
+**Push with `tri push`, deploy the runner with `tri runner deploy --wait`.**
+A 6-13 minute green gate followed by "Connection reset" (rc 141) is a push that
+may or may not have landed. `tri push [branch]` runs `tri online` without a
+pipe, pushes over ssh with keepalive, and counts success only when
+`git ls-remote` shows the branch at your HEAD (one retry; refuses `-f` and
+main). `tri runner deploy --wait` returns 0 only for a NEW deployment id that
+is SUCCESS and whose `/health` says ok; without `--wait`, `railway up` only
+means the upload was accepted.
+
+**A fresh worktree needs render deps before the first push:** `tri wt-deps <tree>`
+(see above). Without them the gate's LOCAL fallback (runner busy over 240 s)
+fails with "Cannot find package 'undici'" -- the tree is broken, not the change.
+
 ## Lessons of the night of 2026-10-06: review rounds that end
 
 The one home of these rules. Other files point here and do not restate them.
