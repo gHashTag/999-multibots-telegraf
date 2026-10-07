@@ -277,11 +277,23 @@ const realDeps: SocialDeps = {
     return { ...meta, ...social }
   },
   async status(ctx) {
-    const { readTokens, statusView, appOf } = await import('./meta-connect')
+    const { readTokensRelinked, statusView, appOf } = await import(
+      './meta-connect'
+    )
     const { loginsOfPerson } = await import('../browser/logins')
     const owner = String(ctx.telegramId)
     const [held, logins] = await Promise.all([
-      readTokens(ctx.pool, owner),
+      /* An Instagram linked to the Page after Connect is found here (v2). */
+      readTokensRelinked(
+        ctx.pool,
+        ((url: string, init?: object) =>
+          fetch(url, {
+            ...init,
+            signal: AbortSignal.timeout(10_000),
+          })) as never,
+        owner,
+        Date.now()
+      ),
       loginsOfPerson(ctx.pool, owner).catch(() => null),
     ])
     const apps = {} as Record<Network, boolean>
