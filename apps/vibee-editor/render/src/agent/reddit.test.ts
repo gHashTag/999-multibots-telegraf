@@ -873,18 +873,37 @@ describe('the desk heals its own list (spec reddit-desk.t27)', () => {
     )
     const t5 = (data: Record<string, unknown>) => ({ kind: 't5', data })
     expect(communityStateOf(t5({ quarantine: true }))).toBe('quarantined')
+    /* Anonymous: no word on membership, so the signed-in read decides. */
     expect(communityStateOf(t5({ subreddit_type: 'restricted' }))).toBe(
-      'restricted'
+      'unknown'
     )
-    expect(communityStateOf(t5({ subreddit_type: 'archived' }))).toBe(
-      'restricted'
-    )
+    expect(
+      communityStateOf(
+        t5({ subreddit_type: 'restricted', user_is_contributor: false })
+      )
+    ).toBe('restricted')
+    expect(
+      communityStateOf(
+        t5({ subreddit_type: 'archived', user_is_contributor: false })
+      )
+    ).toBe('restricted')
     expect(
       communityStateOf(
         t5({ subreddit_type: 'restricted', user_is_contributor: true })
       )
     ).toBe('open')
     expect(communityStateOf(t5({ subreddit_type: 'public' }))).toBe('open')
+  })
+
+  it('lets the signed-in read decide a restricted community', async () => {
+    const anon = { kind: 't5', data: { subreddit_type: 'restricted' } }
+    const member = {
+      kind: 't5',
+      data: { subreddit_type: 'restricted', user_is_contributor: true },
+    }
+    expect(
+      await subredditOpen('FPGA', [async () => anon, async () => member])
+    ).toBe('open')
   })
 
   it('keeps a skip at its first time, and reads only well-formed rows', () => {
