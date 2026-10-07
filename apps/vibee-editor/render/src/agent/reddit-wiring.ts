@@ -31,8 +31,10 @@ import {
   type CommunityState,
   type Mention,
   type PlannedPost,
+  type Skip,
 } from './reddit'
 import { RSS_URL, redditPressedKeys } from './blog-share'
+import * as SPEC from '../spec/reddit-desk.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -66,10 +68,11 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     return 'reddit is not signed in'
 
   /* The desk's own list of communities, from its row if it has one. */
-  const row = await readStrategy(pool, 'reddit:subreddits').catch(() => null)
+  const row = await readStrategy(pool, SPEC.LIST_KEY).catch(() => null)
   const subs = subredditsOf(
     (row as { subreddits?: unknown } | null)?.subreddits
   )
+  const skipped = skipStore(pool)
 
   return await redditTick({
     pool,
@@ -91,7 +94,30 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     tell: text => sendToTelegram(owner, `[Reddit] ${text}`),
     communityState: communityStateFor(pool, owner),
     blogPosted: () => blogRedditPosts(pool),
+    readSkips: skipped.read,
+    writeSkips: skipped.write,
   })
+}
+
+/**
+ * The desk's skip record: its own strategy row (SPEC.SKIP_KEY), beside the
+ * owner's list (SPEC.LIST_KEY) and never in place of it. Reading never throws;
+ * a failed write is reported by the tick.
+ */
+export function skipStore(pool: Queryable): {
+  read: () => Promise<unknown>
+  write: (skips: Skip[]) => Promise<void>
+} {
+  return {
+    read: async () => {
+      const { readStrategy } = await import('./strategies')
+      return await readStrategy(pool, SPEC.SKIP_KEY).catch(() => null)
+    },
+    write: async skips => {
+      const { writeStrategy } = await import('./strategies')
+      await writeStrategy(pool, SPEC.SKIP_KEY, { skips })
+    },
+  }
 }
 
 /**
