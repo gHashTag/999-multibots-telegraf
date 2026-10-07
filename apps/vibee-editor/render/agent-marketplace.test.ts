@@ -93,7 +93,15 @@ describe('a keeper can open a trainee, nobody else can', () => {
   })
 
   it('opens every catalogued trainee for the keeper, each in its own thread', async () => {
-    for (const id of ['job', 'google', 'tiktok', 'scientist', 'fpga', 'rtl']) {
+    for (const id of [
+      'job',
+      'google',
+      'tiktok',
+      'scientist',
+      'fpga',
+      'rtl',
+      't27b',
+    ]) {
       await expect(threadFor(null, KEEPER, getPool, id)).resolves.toEqual({
         ok: true,
         thread: `agent:${id}`,
@@ -173,6 +181,13 @@ describe('specialist contracts', () => {
     /* The engineers run what they write, and quote it (hdl-run.ts). */
     expect(marketplaceAgentPrompt('rtl')).toContain('hdl_run')
     expect(marketplaceAgentPrompt('fpga')).toContain('hdl_run mode synth')
+    /* t27b cannot run the compiler here: numbers come only from a run. */
+    const t27b = marketplaceAgentPrompt('t27b')
+    expect(t27b).toContain('#6063')
+    expect(t27b).toContain('--blockers')
+    expect(t27b).toContain('не запускалось') // cyrillic-ok: contract words
+    expect(t27b).toContain('расхождение с эталоном — остановка') // cyrillic-ok: contract words
+    expect(t27b).toContain('не мержишь') // cyrillic-ok: contract words
   })
 })
 

@@ -119,13 +119,26 @@ describe('an operation without a price is refused, not given away', () => {
      */
     const src = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
     expect(src).toContain("typeof exact === 'number' && exact > 0 ? exact :")
-    const calls = [...src.matchAll(/await refundTokens\(([\s\S]{0,300}?)\)/g)]
+    /*
+     * EVERY call, not only the awaited ones: a refund handed back with
+     * `return refundTokens(` or chained with `.then` is a refund site too
+     * (refundTooLongVoice, the voice clone's refund). Only the definition
+     * itself is not a call.
+     */
+    const calls = [
+      ...src.matchAll(/(?<!function )\brefundTokens\(([\s\S]{0,300}?)\)/g),
+    ]
     expect(
       calls.length,
       'no refund sites found — the matcher, not the code'
     ).toBeGreaterThan(0)
+    expect(
+      calls.filter(m => !/^await /.test(src.slice(m.index! - 6, m.index))),
+      'the non-awaited sites must be seen too'
+    ).not.toHaveLength(0)
     /*
-     * THREE measured sources, all the same number, and no fourth.
+     * THREE measured sources, all the same number (two more names for it
+     * below, each pinned to where it is read).
      *
      * The charge's own spent-field is what the deduction measured a moment ago.
      * `owed` is that SAME measured number read back from
@@ -142,7 +155,24 @@ describe('an operation without a price is refused, not given away', () => {
       "ctx.onImageTask!(id, { charged: charge['потрачено'] ?? 0, op })" // cyrillic-ok: the API field carried
     )
     expect(src).toContain('t.charged ?? 0,')
-    const measured = /потрачено|owed|t\.charged/ // cyrillic-ok: the API field carried
+    /*
+     * Two more, the same number under other names. `voice.charged` is the
+     * sum split_reel read off audio_generate's own receipt; `spent` is the
+     * voice clone's charge, its spent-field carried to its refund. Each is
+     * pinned to that source, and `spent` to its one site.
+     */
+    const reel = fs.readFileSync(
+      path.join(__dirname, 'split-reel-tool.ts'),
+      'utf8'
+    )
+    expect(reel).toContain(
+      "charged: Number(v?.['токены']?.['потрачено']) || 0" // cyrillic-ok: the API field carried
+    )
+    expect(src).toContain("{ ok: true, spent: c['потрачено'] ?? 0 }") // cyrillic-ok: the API field carried
+    expect(calls.filter(m => /\bspent\b/.test(m[1])).map(m => m[1])).toEqual([
+      "ctx, 'voice_clone', why, spent",
+    ])
+    const measured = /потрачено|owed|t\.charged|voice\.charged|\bspent\b/ // cyrillic-ok: the API field carried
     const withoutAmount = calls.filter(m => !measured.test(m[1])).length
     expect(withoutAmount, 'refund sites not carrying the charged amount').toBe(
       0

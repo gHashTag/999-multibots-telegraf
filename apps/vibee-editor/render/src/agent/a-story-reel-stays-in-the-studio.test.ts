@@ -139,7 +139,10 @@ describe('story_reel stays in the studio', () => {
       undefined,
       async (_u, shot) => `https://ours/shot-${shot}.jpg`,
       hear
-    ).handler({ image_url: SOURCE, scenes: [{ line: HOOK }, { line: 'Два.' }] }, ctx) // cyrillic-ok: a line
+    ).handler(
+      { image_url: SOURCE, scenes: [{ line: HOOK }, { line: 'Два.' }] },
+      ctx
+    ) // cyrillic-ok: a line
     expect(r.done).toBe(true)
     expect(r.captions).toBeTruthy()
     expect(heardAs.map(h => h[1])).toEqual(['ru', 'ru'])

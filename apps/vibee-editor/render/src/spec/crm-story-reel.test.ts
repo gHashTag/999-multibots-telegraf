@@ -16,9 +16,13 @@ import {
   failedMoneyLine,
   jobKept,
   missingFor,
+  parseStory,
+  settingDrawn,
+  slotsNeeded,
   storyPriceEstimateNotes,
   storyPayer,
   storyPriceEstimate,
+  writerMessages,
   type StorySettings,
 } from '../agent/story-template'
 import {
@@ -27,7 +31,13 @@ import {
   STORY_SCENES_MAX,
   STORY_SCENES_MIN,
   STORY_STILL_WAIT_MS,
+  brandKitField,
+  endCardField,
+  galleryPreviewField,
   makeStoryReelTool,
+  retryPrice,
+  slotRenders,
+  slotsToRender,
   pauseOf,
   scenesOf,
   stillResume,
@@ -703,7 +713,7 @@ describe("the spec's tests hold against the host", () => {
     expect(contrastX10(SPEC.END_CARD_DEFAULT_TITLE, '#ffffff')).toBe(14)
     // #767676 on white is the classic 4,54:1 -- readable; #777 is 4,48 -- not.
     expect(endCardReadable(contrastX10('#767676', '#ffffff'))).toBe(true)
-    expect(endCardReadable(contrastX10('#777777', '#ffffff'))).toBe(false)
+    expect(endCardReadable(contrastX10('#7a7a7a', '#ffffff'))).toBe(false)
     expect(endCardRefused(true, false)).toBe(true)
     expect(endCardRefused(true, true)).toBe(false)
     expect(endCardRefused(false, false)).toBe(false)
@@ -1018,7 +1028,7 @@ describe("the spec's tests hold against the host", () => {
             '#000000',
             '#f5efe0',
             '#10182a',
-            '#777777',
+            '#7a7a7a',
           ]) {
             const colour = `#${r}${g}${b}`
             if (endCardReadable(contrastX10(colour, ground))) continue
@@ -1146,7 +1156,7 @@ describe("the spec's tests hold against the host", () => {
     expect(SPEC.STORY_DEFAULT_MAX_SEC).toBeLessThanOrEqual(SPEC.REEL_MAX_SEC)
   })
 
-  it('the finished reel reaches the house through its own bot, and the house speaks its clone', async () => {
+  it('the finished reel reaches the house through its own bot', async () => {
     // The order the bots are tried in; render-server.ts sends through it.
     const { buyerBotTokens } = await import('../buyer-delivery')
     const deps = (house: boolean) => ({
@@ -1170,12 +1180,6 @@ describe("the spec's tests hold against the host", () => {
       'utf8'
     )
     expect(server.match(/deliverToBuyer\(/g)?.length).toBe(2)
-    // The house never borrows a voice from ElevenLabs: its clone speaks.
-    expect(SPEC.HOUSE_SKIPS_ELEVENLABS).toBe(true)
-    const { asksElevenLabs } = await import('../house-ids')
-    expect(asksElevenLabs(true, '', '')).toBe(false)
-    expect(asksElevenLabs(false, '', '')).toBe(true)
-    expect(asksElevenLabs(false, '', 'her-clone')).toBe(false)
   })
 
   it('a talking-head reel opens on the talking head, wide, with a hook', async () => {
@@ -1226,10 +1230,663 @@ describe("the spec's tests hold against the host", () => {
     expect(scenesOf([{ line: 'Один' }, { line: 'Два' }])).toHaveLength(2) // cyrillic-ok: lines
   })
 
+  it('a reel ordered by a topic stays in the studio: the writer writes lines, never places', () => {
+    // setting_drawn(from_writer, has_setting); a seller's topic reel end to
+    // end -- the writer's places never reaching story_reel -- runs in
+    // a-story-reel-for-any-client.test.ts.
+    expect(SPEC.STUDIO_SHOTS).toBe(true)
+    expect(SPEC.NEW_SETTING_EACH_SCENE).toBe(false)
+    expect(SPEC.WRITER_WRITES_SETTINGS).toBe(false)
+    expect(SPEC.WRITER_SETTING_DROPPED).toBe(true)
+    expect(settingDrawn(true, true)).toBe(false)
+    expect(settingDrawn(true, false)).toBe(false)
+    expect(settingDrawn(false, true)).toBe(true)
+    expect(settingDrawn(false, false)).toBe(false)
+    // The writer is asked for lines, never for a place...
+    const [system] = writerMessages(
+      { title: 'Flowers outlive the hype', note: '' },
+      { about: 'a florist', cta: '', name: '' }
+    )
+    expect(system.content).not.toMatch(/setting/i)
+    expect(system.content).toContain('{"line": "..."}')
+    // ...and a place it returns anyway is dropped by code.
+    const story = parseStory(
+      JSON.stringify({
+        title: 'Flowers',
+        scenes: [
+          { setting: 'a beach at dawn', line: 'One.' },
+          { setting: 'a busy cafe', line: 'Two.' },
+          { setting: 'a night street', line: 'Three.' },
+        ],
+      }),
+      3
+    )
+    expect(story?.scenes.map(s => s.setting)).toEqual(['', '', ''])
+    expect(story?.scenes.map(s => s.line)).toEqual(['One.', 'Two.', 'Three.'])
+    // A caller's own script keeps its place.
+    const own = scenesOf([
+      { setting: 'a beach at dawn', line: 'One.' },
+      { setting: '', line: 'Two.' },
+    ])
+    expect(Array.isArray(own) && own.map(s => s.setting)).toEqual([
+      'a beach at dawn',
+      '',
+    ])
+  })
+
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(20)
+    expect(SPEC.VERSION).toBe(29)
+  })
+
+  it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {
+    // default_ink(own_reel, white_x10, black_x10); the runner and story_reel
+    // handing the filled card run in a-story-reel-for-any-client.test.ts.
+    const { defaultInk, endCardForReel, endCardReadable, contrastX10 } =
+      await import('../agent/story-reel-tool')
+    expect(SPEC.HOUSE_COLOURS_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.INK_WHITE_HEX).toBe('#FFFFFF')
+    expect(SPEC.INK_BLACK_HEX).toBe('#000000')
+    expect(defaultInk(true, 210, 10)).toBe(SPEC.INK_HOUSE)
+    expect(defaultInk(true, 11, 180)).toBe(SPEC.INK_HOUSE)
+    expect(defaultInk(false, 210, 10)).toBe(SPEC.INK_WHITE)
+    expect(defaultInk(false, 11, 180)).toBe(SPEC.INK_BLACK)
+    expect(defaultInk(false, 45, 45)).toBe(SPEC.INK_WHITE)
+    expect(defaultInk(false, 44, 45)).toBe(SPEC.INK_BLACK)
+    expect(defaultInk(false, 46, 45)).toBe(SPEC.INK_WHITE)
+    expect(endCardReadable(SPEC.EXTREME_MIN_CONTRAST_X10)).toBe(true)
+    expect(SPEC.CLIENT_CARD_CHECKED_AS_DRAWN).toBe(true)
+    // The host, in colours: no ground, light or dark, mid or extreme, gives
+    // a client's card the house's gold or green, and the ink always reads.
+    const house = [SPEC.END_CARD_DEFAULT_TITLE, SPEC.END_CARD_DEFAULT_ACCENT]
+    for (const bg of ['#f5efe0', '#10182a', '#7a7a7a', '#ffd700', '#fff']) {
+      const card = endCardForReel({ bg }, false, 'Write to me')!
+      for (const k of ['title', 'text', 'accent'] as const) {
+        expect(house).not.toContain(card[k])
+        expect([SPEC.INK_WHITE_HEX, SPEC.INK_BLACK_HEX]).toContain(card[k])
+        expect(endCardReadable(contrastX10(card[k]!, bg))).toBe(true)
+      }
+    }
+    // Light ground: black ink. Dark ground: white ink. Hers stays hers.
+    expect(endCardForReel({ bg: '#f5efe0' }, false, 'Hi')!.title).toBe(
+      SPEC.INK_BLACK_HEX
+    )
+    expect(endCardForReel({ bg: '#10182a' }, false, 'Hi')!.title).toBe(
+      SPEC.INK_WHITE_HEX
+    )
+    expect(
+      endCardForReel({ bg: '#10182a', title: '#e0c3fc' }, false, 'Hi')
+    ).toEqual({
+      bg: '#10182a',
+      title: '#e0c3fc',
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    // The house's own reel keeps what was given, and since v26
+    // (card_complete) the rest is the house's defaults, never left empty.
+    expect(endCardForReel({ bg: '#10182a' }, true, 'Hi')).toEqual({
+      bg: '#10182a',
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+    })
+  })
+
+  it("a client's card is filled whenever the pause shows it, so the house default never reaches her reel", async () => {
+    // card_filled(own_reel, has_end_card, call_chars)
+    const { cardFilled, endCardForReel } = await import(
+      '../agent/story-reel-tool'
+    )
+    expect(cardFilled(false, false, 14)).toBe(true)
+    expect(cardFilled(false, true, 0)).toBe(true)
+    expect(cardFilled(false, true, 14)).toBe(true)
+    expect(cardFilled(false, false, 0)).toBe(false)
+    expect(cardFilled(true, false, 14)).toBe(false)
+    expect(cardFilled(true, true, 14)).toBe(false)
+    // The host, as StoryReel reads the call: no palette at all and a call
+    // still gets a card -- on the spec's ground, in ink.
+    expect(endCardForReel(null, false, 'Write to me')).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    // No call and no card: the pause shows nothing, so nothing is made.
+    expect(endCardForReel(null, false, '   ')).toBeNull()
+    expect(endCardForReel(null, true, '   ')).toBeNull()
+  })
+
+  it('a reel whose client is the caller himself is his own, and his lines may name the house', async () => {
+    // reel_is_own(house_own, lead_is_caller); line_way on the result. The
+    // voice step that reads it (audio_generate's name check) is held below.
+    const { reelIsOwn } = await import('../agent/story-reel-tool')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.CALLER_OWN_LEAD_IS_OWN_REEL).toBe(true)
+    expect(reelIsOwn(false, true)).toBe(true)
+    expect(reelIsOwn(true, false)).toBe(true)
+    expect(reelIsOwn(true, true)).toBe(true)
+    expect(reelIsOwn(false, false)).toBe(false)
+    expect(lineWay(true, reelIsOwn(false, true), SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_KEPT
+    )
+    expect(lineWay(true, reelIsOwn(false, false), SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_REFUSED
+    )
+    // The host: the voice step judges the house's name on reelIsOwn, with
+    // for_lead compared to the caller -- not on the house's turn alone.
+    const tools = readFileSync(join(HERE, '..', 'agent', 'tools.ts'), 'utf8')
+    expect(tools).toMatch(
+      /reelIsOwn\(\s*houseReel,\s*!!forLead && forLead === String\(ctx\.telegramId \?\? ''\)\s*\)/
+    )
+    expect(tools).toMatch(/!houseNameAllowed\(\s*ownReel,/)
+  })
+
+  it('every end card the pause shows has a ground and a readable call and button', async () => {
+    // card_complete(own_reel, has_end_card, call_chars)
+    const { cardComplete, endCardForReel, contrastX10, endCardReadable } =
+      await import('../agent/story-reel-tool')
+    expect(SPEC.OWN_CARD_FILLED).toBe(true)
+    expect(cardComplete(true, false, 14)).toBe(true)
+    expect(cardComplete(true, true, 0)).toBe(true)
+    expect(cardComplete(true, false, 1)).toBe(true)
+    expect(cardComplete(false, false, 14)).toBe(true)
+    expect(cardComplete(false, true, 0)).toBe(true)
+    expect(cardComplete(true, false, 0)).toBe(false)
+    expect(cardComplete(false, false, 0)).toBe(false)
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).toBe(SPEC.END_CARD_DEFAULT_TITLE)
+    // The numbers of the law, measured by the host's own contrast.
+    expect(
+      contrastX10(SPEC.END_CARD_DEFAULT_TITLE, SPEC.END_CARD_DEFAULT_BG)
+    ).toBe(SPEC.DEFAULT_TITLE_CONTRAST_X10)
+    expect(
+      contrastX10(SPEC.END_CARD_DEFAULT_TEXT, SPEC.END_CARD_DEFAULT_BG)
+    ).toBe(SPEC.DEFAULT_TEXT_CONTRAST_X10)
+    expect(SPEC.DEFAULT_TITLE_CONTRAST_X10).toBe(140)
+    expect(SPEC.DEFAULT_TEXT_CONTRAST_X10).toBe(196)
+    expect(endCardReadable(SPEC.DEFAULT_TITLE_CONTRAST_X10)).toBe(true)
+    expect(endCardReadable(SPEC.DEFAULT_TEXT_CONTRAST_X10)).toBe(true)
+    // Job 11: the template passed only the button. The card drawn has a
+    // ground and every colour, and the button's text reads on the button.
+    const card = endCardForReel({ button: 'Write' }, true, 'Write to me')!
+    expect(card).toEqual({
+      button: 'Write',
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.END_CARD_DEFAULT_TITLE,
+      text: SPEC.END_CARD_DEFAULT_TEXT,
+      accent: SPEC.END_CARD_DEFAULT_ACCENT,
+    })
+    expect(endCardReadable(contrastX10(card.title!, card.bg!))).toBe(true)
+    expect(endCardReadable(contrastX10(card.bg!, card.accent!))).toBe(true)
+    // story_reel fills the card it renders, on any reel.
+    const tool = readFileSync(
+      join(HERE, '..', 'agent', 'story-reel-tool.ts'),
+      'utf8'
+    )
+    expect(tool).toContain(
+      'const drawnCard = endCardForReel(endCard, !lead || lead === me, cta)'
+    )
+    expect(tool).toContain('...(drawnCard ? { endCard: drawnCard } : {}),')
+  })
+
+  it("a client's reel carries her call: the seller's for her, then her own, never the house's", async () => {
+    // call_from(seller_ok, template_given, own_reel),
+    // profile_call_from(story_ok, approved_ok); the press and the runner
+    // taking it run in a-story-reel-for-any-client.test.ts.
+    const { callFrom, profileCallFrom, reelCall, ownCallOf } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.HOUSE_CALL_ON_CLIENT_REEL).toBe(false)
+    expect(callFrom(true, true, false)).toBe(SPEC.CALL_FROM_SELLER)
+    expect(callFrom(true, true, true)).toBe(SPEC.CALL_FROM_SELLER)
+    expect(callFrom(false, true, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(callFrom(false, true, true)).toBe(SPEC.CALL_FROM_TEMPLATE)
+    expect(callFrom(false, false, true)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(callFrom(false, false, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(profileCallFrom(true, true)).toBe(SPEC.CALL_FROM_STORY)
+    expect(profileCallFrom(true, false)).toBe(SPEC.CALL_FROM_STORY)
+    expect(profileCallFrom(false, true)).toBe(SPEC.CALL_FROM_APPROVED)
+    expect(profileCallFrom(false, false)).toBe(SPEC.CALL_FROM_DEFAULT)
+    // The host's call, in words: a template pressed for her ends with hers.
+    const hers = 'Book a fitting'
+    expect(
+      reelCall({
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: false,
+        ownCall: hers,
+      }).call
+    ).toBe(hers)
+    expect(
+      reelCall({
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: true,
+        ownCall: hers,
+      }).call
+    ).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(
+      reelCall({
+        given: 'Come by on Friday',
+        templateCall: SPEC.TEMPLATE_CALL_EN,
+        ownReel: false,
+        ownCall: hers,
+      }).call
+    ).toBe('Come by on Friday')
+    // Her profile: the story call, then the approved one, then the default.
+    expect(ownCallOf('Story call', 'Approved call', false, 'Default')).toBe(
+      'Story call'
+    )
+    expect(ownCallOf('', 'Approved call', false, 'Default')).toBe(
+      'Approved call'
+    )
+    expect(ownCallOf('', '', false, 'Default')).toBe('Default')
+  })
+
+  it("a call or a button naming the house on a client's reel is replaced by hers, and the answer says so", async () => {
+    // word_taken(chars, names_house, own_reel),
+    // house_word_replaced(chars, names_house, own_reel)
+    const {
+      HOUSE_MARKS,
+      namesHouse,
+      wordTaken,
+      houseWordReplaced,
+      callFrom,
+      takenWord,
+      reelCall,
+      cardForReel,
+      houseReplacedNote,
+      ownCallOf,
+    } = await import('../agent/story-reel-templates')
+    expect(HOUSE_MARKS).toHaveLength(SPEC.HOUSE_MARKS)
+    expect(SPEC.BOT_SPOKEN_AS).toBe('Trinity')
+    expect(SPEC.HOUSE_DELIVERY_BOT).toBe('t27ai_bot')
+    expect(SPEC.TEMPLATE_BUTTON).toBe('@t27ai_bot')
+    expect(SPEC.HOUSE_WORD_REPLACED_SAID).toBe(true)
+    expect(wordTaken(12, false, false)).toBe(true)
+    expect(wordTaken(12, true, false)).toBe(false)
+    expect(wordTaken(12, true, true)).toBe(true)
+    expect(wordTaken(0, false, false)).toBe(false)
+    expect(wordTaken(0, false, true)).toBe(false)
+    expect(houseWordReplaced(12, true, false)).toBe(true)
+    expect(houseWordReplaced(12, true, true)).toBe(false)
+    expect(houseWordReplaced(12, false, false)).toBe(false)
+    expect(houseWordReplaced(0, true, false)).toBe(false)
+    expect(callFrom(wordTaken(16, true, false), false, false)).toBe(
+      SPEC.CALL_FROM_PROFILE
+    )
+    expect(callFrom(wordTaken(16, true, true), false, true)).toBe(
+      SPEC.CALL_FROM_SELLER
+    )
+    // Every mark is caught, in any case, in either script.
+    for (const mark of HOUSE_MARKS) {
+      expect(namesHouse(`Say hi to ${mark.toUpperCase()} today`)).toBe(true)
+    }
+    expect(namesHouse('Напиши Тринити')).toBe(true) // cyrillic-ok: a house call
+    expect(namesHouse('Book a fitting')).toBe(false)
+    // The host replaces it and says so in one line naming her call.
+    expect(takenWord(SPEC.TEMPLATE_BUTTON, false)).toEqual({
+      word: '',
+      replaced: true,
+    })
+    expect(takenWord(SPEC.TEMPLATE_BUTTON, true)).toEqual({
+      word: SPEC.TEMPLATE_BUTTON,
+      replaced: false,
+    })
+    const call = reelCall({
+      given: SPEC.TEMPLATE_CALL_EN,
+      ownReel: false,
+      ownCall: 'Book a fitting',
+    })
+    expect(call.call).toBe('Book a fitting')
+    expect(call.replaced).toBe(SPEC.TEMPLATE_CALL_EN)
+    const said = houseReplacedNote([call.replaced], call.call)
+    expect(said).toContain(`«${SPEC.TEMPLATE_CALL_EN}»`)
+    expect(said).toContain('«Book a fitting»')
+    expect(said.split('\n')).toHaveLength(1)
+    expect(houseReplacedNote(['', ''], call.call)).toBe('')
+    expect(
+      cardForReel({ bg: '#10182a', button: SPEC.TEMPLATE_BUTTON }, false)
+    ).toEqual({ bg: '#10182a' })
+    expect(cardForReel({ button: SPEC.TEMPLATE_BUTTON }, false)).toBeNull()
+    // Her profile's own house call is not hers on her reel.
+    expect(ownCallOf(SPEC.TEMPLATE_CALL_EN, '', false, 'Default')).toBe(
+      'Default'
+    )
+  })
+
+  it("a client's end-card button: the seller's, her kept card, her profile, or none -- never the house bot", async () => {
+    // button_from(seller_ok, template_given, own_reel, kept_ok, profile_ok)
+    const { buttonFrom } = await import('../agent/story-reel-templates')
+    expect(SPEC.HOUSE_BUTTON_ON_CLIENT_REEL).toBe(false)
+    for (const other of [
+      SPEC.FIELD_FROM_SELLER,
+      SPEC.FIELD_FROM_KEPT,
+      SPEC.FIELD_FROM_PROFILE,
+      SPEC.FIELD_FROM_DEFAULT,
+    ])
+      expect(SPEC.FIELD_FROM_TEMPLATE).not.toBe(other)
+    expect(buttonFrom(true, true, false, true, true)).toBe(
+      SPEC.FIELD_FROM_SELLER
+    )
+    expect(buttonFrom(false, true, false, true, true)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(false, true, false, false, true)).toBe(
+      SPEC.FIELD_FROM_PROFILE
+    )
+    expect(buttonFrom(false, true, false, false, false)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(buttonFrom(false, true, true, true, true)).toBe(
+      SPEC.FIELD_FROM_TEMPLATE
+    )
+    expect(buttonFrom(false, false, true, true, true)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(true, true, true, false, false)).toBe(
+      SPEC.FIELD_FROM_SELLER
+    )
+  })
+
+  it("the template's last line on a client's reel ends with her call, within the editor's limit", async () => {
+    // last_line_way(lead_chars, call_chars, same_language)
+    const { lastLineWay, lastLineFor, templateOf, templatesForPanel } =
+      await import('../agent/story-reel-templates')
+    expect(SPEC.TEMPLATE_LEAD_EN_4).toBe('Want the same?')
+    const M = SPEC.LINE_MAX_CHARS
+    expect(lastLineWay(14, 16, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
+    expect(lastLineWay(14, M - 15, true)).toBe(SPEC.LAST_LINE_LEAD_AND_CALL)
+    expect(lastLineWay(14, M - 14, true)).toBe(SPEC.LAST_LINE_CALL)
+    expect(lastLineWay(14, M, true)).toBe(SPEC.LAST_LINE_CALL)
+    expect(lastLineWay(14, M + 1, true)).toBe(SPEC.LAST_LINE_LEAD)
+    expect(lastLineWay(14, 16, false)).toBe(SPEC.LAST_LINE_LEAD)
+    expect(lastLineWay(14, 0, true)).toBe(SPEC.LAST_LINE_LEAD)
+    // The host's line, in words.
+    const en = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    expect(en.lead).toBe(SPEC.TEMPLATE_LEAD_EN_4)
+    expect(SPEC.TEMPLATE_LINE_EN_4.startsWith(en.lead)).toBe(true)
+    expect(lastLineFor(en, 'Book a fitting')).toBe(
+      'Want the same? Book a fitting.'
+    )
+    expect(lastLineFor(en, 'x'.repeat(M - 14))).toBe('x'.repeat(M - 15) + 'x.')
+    expect(lastLineFor(en, 'Напишите мне')).toBe(en.lead) // cyrillic-ok: a call in the other language
+    for (const t of templatesForPanel({ call: 'Book a fitting' })) {
+      expect(t.button).toBe('')
+      expect(t.lines).toHaveLength(templateOf(t.id, t.language)!.lines.length)
+      for (const line of t.lines) {
+        expect(line.length).toBeLessThanOrEqual(M)
+        expect(line).not.toMatch(/Trinity|Тринити|t27ai_bot|\bT27\b/i) // cyrillic-ok: the house name
+      }
+    }
+  })
+
+  it("story_reel for a client takes the same call and card, and speaks her voice, never the owner's", async () => {
+    // voice_of(lead_named, client_turn, names_this_client); the tool
+    // speaking, calling and ending with hers runs in
+    // a-story-reel-for-any-client.test.ts.
+    const { voiceOf, callFrom, buttonFrom } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.CLIENT_TURN_SPEAKS_CLIENT).toBe(true)
+    expect(voiceOf(true, false, false)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(false, true, false)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(true, true, true)).toBe(SPEC.SPEAKS_LEAD)
+    expect(voiceOf(true, true, false)).toBe(SPEC.SPEAKS_REFUSED)
+    expect(voiceOf(false, false, false)).toBe(SPEC.SPEAKS_CALLER)
+    expect(callFrom(false, false, false)).toBe(SPEC.CALL_FROM_PROFILE)
+    expect(buttonFrom(false, false, false, true, false)).toBe(
+      SPEC.FIELD_FROM_KEPT
+    )
+    expect(buttonFrom(false, false, false, false, true)).toBe(
+      SPEC.FIELD_FROM_PROFILE
+    )
+  })
+
+  it("every template line on a client's reel is its client version, the first as much as the last", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_TEMPLATE), line_names_house
+    const {
+      lineWay,
+      lineNamesHouse,
+      clientLines,
+      clientVersion,
+      templateOf,
+      templatesForPanel,
+      namesHouse,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.CLIENT_VERSION_NAMES_HOUSE).toBe(false)
+    expect(SPEC.CLIENT_LIST_HOUSE_FREE).toBe(true)
+    for (const house of [true, false]) {
+      expect(lineWay(house, false, SPEC.LINE_FROM_TEMPLATE)).toBe(
+        SPEC.LINE_CLIENT_VERSION
+      )
+      expect(
+        lineNamesHouse(lineWay(house, false, SPEC.LINE_FROM_TEMPLATE), house)
+      ).toBe(false)
+      expect(lineWay(house, true, SPEC.LINE_FROM_TEMPLATE)).toBe(SPEC.LINE_KEPT)
+    }
+    // The host, in words: each template has a house-free client version of
+    // EVERY line, in both languages, and a press speaks it line by line.
+    for (const language of ['ru', 'en'] as const) {
+      const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, language)!
+      expect(t.language).toBe(language)
+      expect(t.client).toHaveLength(t.lines.length)
+      expect(t.lines.some(line => namesHouse(line))).toBe(true)
+      for (const line of t.client) expect(namesHouse(line)).toBe(false)
+      const out = clientLines(t, t.lines, '')
+      expect(out.refused).toBe('')
+      expect(out.lines).toEqual(t.lines.map((_, i) => clientVersion(t, i, '')))
+      for (const line of out.lines) expect(namesHouse(line)).toBe(false)
+    }
+    // CLIENT_LIST_HOUSE_FREE: her panel lists only the client versions; the
+    // house's own panel keeps the house's lines.
+    for (const t of templatesForPanel({ call: '' }))
+      for (const line of t.lines) expect(namesHouse(line)).toBe(false)
+    expect(
+      templatesForPanel().some(t => t.lines.some(line => namesHouse(line)))
+    ).toBe(true)
+  })
+
+  it("a written or edited line naming the house on a client's reel is refused before anything is spent", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_EDIT), charged(refused)
+    const {
+      lineWay,
+      lineNamesHouse,
+      charged,
+      clientLines,
+      houseLineRefused,
+      templateOf,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.HOUSE_LINE_ON_CLIENT_REEL).toBe(false)
+    expect(SPEC.REFUSED_BEFORE_SPEND).toBe(true)
+    expect(lineWay(true, false, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_REFUSED)
+    expect(lineWay(false, false, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(true, true, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(false, true, SPEC.LINE_FROM_EDIT)).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineNamesHouse(lineWay(true, false, SPEC.LINE_FROM_EDIT), true)
+    ).toBe(false)
+    expect(
+      lineNamesHouse(lineWay(false, false, SPEC.LINE_FROM_EDIT), false)
+    ).toBe(false)
+    expect(
+      charged(lineWay(true, false, SPEC.LINE_FROM_EDIT) === SPEC.LINE_REFUSED)
+    ).toBe(false)
+    expect(
+      charged(lineWay(false, false, SPEC.LINE_FROM_EDIT) === SPEC.LINE_REFUSED)
+    ).toBe(true)
+    // The host: any line, the first as much as the last, by any of the marks.
+    const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
+    // cyrillic-ok: a house mark
+    for (const mark of ['Trinity', 'Тринити', 't27ai_bot', '@t27ai_bot', 'T27'])
+      for (const at of t.lines.keys()) {
+        const lines = [...t.client]
+        lines[at] = `Say hi to ${mark} today.`
+        const out = clientLines(t, lines, '')
+        expect(out.lines).toEqual([])
+        expect(out.refused).toContain(`${at + 1}`)
+        expect(
+          houseLineRefused(
+            lines.map(line => ({ line })),
+            false
+          )
+        ).toContain(`${at + 1}`)
+        // The house's own reel says its own name.
+        expect(houseLineRefused(lines, true)).toBe('')
+      }
+    expect(houseLineRefused(t.client, false)).toBe('')
+    expect(houseLineRefused(null, false)).toBe('')
+  })
+
+  it("only the person's own words typed this turn may name the house on a client's reel", async () => {
+    // line_way(names_house, own_reel, LINE_FROM_PERSON)
+    const { lineWay, lineNamesHouse, houseLineRefused, houseNameByAgent } =
+      await import('../agent/story-reel-templates')
+    expect(lineWay(true, false, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(false, false, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(lineWay(true, true, SPEC.LINE_FROM_PERSON)).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineNamesHouse(lineWay(true, false, SPEC.LINE_FROM_PERSON), true)
+    ).toBe(true)
+    expect(
+      lineNamesHouse(lineWay(false, false, SPEC.LINE_FROM_PERSON), false)
+    ).toBe(false)
+    expect(lineWay(true, false, SPEC.LINE_FROM_EDIT)).not.toBe(
+      lineWay(true, false, SPEC.LINE_FROM_PERSON)
+    )
+    // The host: what she typed this turn names the house -> it is hers.
+    const lines = ['My studio opens at nine.', 'I found my AI at T27.']
+    expect(houseNameByAgent(lines[1], 'Say: I found my AI at T27.')).toBe(false)
+    expect(houseLineRefused(lines, false, 'Say: I found my AI at T27.')).toBe(
+      ''
+    )
+    // Words of hers that name no house lend the agent no house name.
+    expect(houseNameByAgent(lines[1], 'Make it about my studio.')).toBe(true)
+    expect(
+      houseLineRefused(lines, false, 'Make it about my studio.')
+    ).toContain('2')
+    expect(houseLineRefused(lines, false)).toContain('2')
+  })
+
+  it("her own words are judged line by line: naming the bot lends no line the house's name", async () => {
+    // own_words(line_in_said, phrase_in_said, said_names_house), line_from(own)
+    const {
+      ownWords,
+      ownWordsFacts,
+      typedByHer,
+      houseNameByAgent,
+      houseLineRefused,
+      lineFrom,
+      lineWay,
+      charged,
+      namesHouse,
+    } = await import('../agent/story-reel-templates')
+    expect(SPEC.NAMING_THE_BOT_LENDS).toBe(false)
+    expect(ownWords(false, false, true)).toBe(false)
+    expect(lineFrom(ownWords(false, false, true))).toBe(SPEC.LINE_FROM_EDIT)
+    const refused = lineWay(true, false, lineFrom(ownWords(false, false, true)))
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    expect(ownWords(true, false, true)).toBe(true)
+    expect(lineWay(true, false, lineFrom(ownWords(true, false, true)))).toBe(
+      SPEC.LINE_KEPT
+    )
+    expect(ownWords(false, true, true)).toBe(true)
+    expect(lineFrom(ownWords(false, true, true))).toBe(SPEC.LINE_FROM_PERSON)
+    expect(SPEC.OWN_WORDS_REACH).toBeGreaterThan(0)
+    expect(ownWords(false, false, false)).toBe(false)
+    // The host, in words: the spec's English vectors and their Russian pair.
+    // Her message names the house in every one; only the line decides.
+    const pairs = [
+      {
+        said: SPEC.OWN_SAID_ADDRESS_EN,
+        line: SPEC.OWN_LINE_ADDRESS_EN,
+        hers: false,
+      },
+      {
+        said: SPEC.OWN_SAID_QUOTE_EN,
+        line: SPEC.OWN_LINE_QUOTE_EN,
+        hers: true,
+      },
+      {
+        said: 'Тринити, сделай рилс', // cyrillic-ok: she addresses the bot
+        line: 'Это Тринити', // cyrillic-ok: a line the agent wrote
+        hers: false,
+      },
+      {
+        said: 'в конце пусть скажет: Напиши Тринити', // cyrillic-ok: she dictates the line
+        line: 'Напиши Тринити', // cyrillic-ok: the line she dictated
+        hers: true,
+      },
+    ]
+    for (const { said, line, hers } of pairs) {
+      expect(namesHouse(said)).toBe(true)
+      expect(typedByHer(said, line)).toBe(hers)
+      expect(houseNameByAgent(line, said)).toBe(!hers)
+      expect(
+        houseLineRefused(['My studio opens at nine.', line], false, said)
+      ).toEqual(hers ? '' : expect.stringContaining('2'))
+    }
+    expect(
+      ownWordsFacts(SPEC.OWN_SAID_ADDRESS_EN, SPEC.OWN_LINE_ADDRESS_EN)
+    ).toEqual({ lineInSaid: false, phraseInSaid: false, saidNamesHouse: true })
+    expect(
+      ownWordsFacts(SPEC.OWN_SAID_QUOTE_EN, SPEC.OWN_LINE_QUOTE_EN)
+    ).toEqual({ lineInSaid: true, phraseInSaid: true, saidNamesHouse: true })
+    // Case, punctuation and spaces aside.
+    expect(
+      typedByHer('В КОНЦЕ:   «напиши   тринити!»', 'Напиши, Тринити.') // cyrillic-ok: the same words, other marks
+    ).toBe(true)
+    // The bot's name alone is never her line, even when she typed it.
+    expect(typedByHer('Тринити, сделай рилс', 'Тринити!')).toBe(false) // cyrillic-ok: the address alone
+    expect(typedByHer('Trinity', 'Trinity')).toBe(false)
+    // A house name with her words around it, inside a longer line: hers.
+    const longer = ownWordsFacts(
+      'say that I found my AI at T27',
+      'A year ago I found my AI at T27.'
+    )
+    expect(longer).toEqual({
+      lineInSaid: false,
+      phraseInSaid: true,
+      saidNamesHouse: true,
+    })
+    // Her words around the name in HER message do not stretch to the line's.
+    expect(
+      typedByHer(
+        'Trinity, make Masha a reel from the template',
+        'Trinity, make one for yourself too'
+      )
+    ).toBe(false)
+    expect(
+      typedByHer(
+        'Trinity, make Masha a reel from the template',
+        'Trinity, make a reel'
+      )
+    ).toBe(false)
+    // Every house name in the line must be hers, not just the first.
+    expect(
+      typedByHer('end with: Write to Trinity', 'Write to Trinity at T27')
+    ).toBe(false)
+    expect(
+      typedByHer(
+        'end with: write to Trinity now, later we go home',
+        'Write to Trinity now. Later we visit the T27 shop.'
+      )
+    ).toBe(false)
+  })
+
+  it('a refusal comes before the charge, so a refused press costs nothing', async () => {
+    // charged(refused); the press refused with no row and no spend runs in
+    // a-template-stays-home.test.ts.
+    const { charged } = await import('../agent/story-reel-templates')
+    expect(charged(true)).toBe(false)
+    expect(charged(false)).toBe(true)
+    const ways = [SPEC.LINE_KEPT, SPEC.LINE_CLIENT_VERSION, SPEC.LINE_REFUSED]
+    expect(new Set(ways).size).toBe(3)
+    const from = [
+      SPEC.LINE_FROM_TEMPLATE,
+      SPEC.LINE_FROM_EDIT,
+      SPEC.LINE_FROM_PERSON,
+    ]
+    expect(new Set(from).size).toBe(3)
   })
 
   it('the hook reel is a template of four studio shots with the call to the house bot', async () => {
@@ -1275,7 +1932,8 @@ describe("the spec's tests hold against the host", () => {
       SPEC.TEMPLATE_LINE_EN_4,
     ])
     // Every template line is a hook-safe line the press accepts as written.
-    for (const t of all) expect(typeof scenesOf(t.lines.map(line => ({ line })))).toBe('object')
+    for (const t of all)
+      expect(typeof scenesOf(t.lines.map(line => ({ line })))).toBe('object')
   })
 
   it('a template line fits the editor, and an empty or long one is refused before the press', async () => {
@@ -1287,7 +1945,9 @@ describe("the spec's tests hold against the host", () => {
     expect(lineFitsChars(SPEC.LINE_MAX_CHARS)).toBe(true)
     expect(lineFitsChars(0)).toBe(false)
     expect(lineFitsChars(SPEC.LINE_MAX_CHARS + 1)).toBe(false)
-    expect((SPEC.LINE_MAX_CHARS * 1000) / SPEC.LINE_MAX_MS).toBeGreaterThanOrEqual(13)
+    expect(
+      (SPEC.LINE_MAX_CHARS * 1000) / SPEC.LINE_MAX_MS
+    ).toBeGreaterThanOrEqual(13)
     const t = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!
     for (const line of t.lines) expect(lineFitsChars(line.length)).toBe(true)
     const mine = 'x'.repeat(SPEC.LINE_MAX_CHARS)
@@ -1343,14 +2003,16 @@ describe("the spec's tests hold against the host", () => {
     expect(as[2].startMs).toBe(500)
     // A word whisper split or merged: its own words, never misaligned ones.
     const off = sceneCaptions('This is Trinity now.', heard)
-    expect(off.map(c => c.text.toLowerCase())).toEqual(['this', 'is', 'trinidy'])
+    expect(off.map(c => c.text.toLowerCase())).toEqual([
+      'this',
+      'is',
+      'trinidy',
+    ])
   })
 
   it('the pause shows the call as the widget draws it, when there is a call', async () => {
     // cta_card_shown(call_chars, has_end_card)
-    const { ctaCardShown, ctaPulse } = await import(
-      '../compositions/StoryReel'
-    )
+    const { ctaCardShown, ctaPulse } = await import('../compositions/StoryReel')
     expect(SPEC.CTA_CARD_LIKE_WIDGET).toBe(true)
     expect(SPEC.CTA_PULSE_MS).toBe(2400)
     expect(ctaCardShown('Напиши Тринити', false)).toBe(true) // cyrillic-ok: a call
@@ -1458,5 +2120,244 @@ describe("the spec's tests hold against the host", () => {
     expect(jobKept(1, 0, 0)).toBe(true)
     expect(jobKept(0, 1, 0)).toBe(true)
     expect(jobKept(0, 0, 0)).toBe(false)
+  })
+
+  it('a Cyrillic letter that looks Latin reads as that letter, and an invisible one splits no name', async () => {
+    // FOLD_LOOKALIKES, INVISIBLES_DROPPED, LOOKALIKE_LATIN, name_mark
+    const { foldMarks, lookalikeLatinSide, nameMark, namesHouse } =
+      await import('../house-names')
+    const { lineWay, charged, houseNameByAgent } = await import(
+      '../agent/story-reel-templates'
+    )
+    expect(SPEC.FOLD_LOOKALIKES).toBe(true)
+    expect(SPEC.INVISIBLES_DROPPED).toBe(true)
+    expect(lookalikeLatinSide()).toBe(SPEC.LOOKALIKE_LATIN)
+    expect(nameMark(false, false)).toBe(true)
+    const refused = lineWay(nameMark(false, false), false, SPEC.LINE_FROM_EDIT)
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    // The Russian row of 999#3564: Trinity in Cyrillic with a Latin T.
+    const latinT = 'спроси Tринити' // cyrillic-ok: a Latin T in a Russian word
+    expect(namesHouse(latinT)).toBe(true)
+    expect(houseNameByAgent(latinT, 'Make it about my studio.')).toBe(true)
+    expect(foldMarks('Tринити')).toBe(foldMarks('Тринити')) // cyrillic-ok
+    // Both ways: a Cyrillic Te or U inside the English name and the brand.
+    expect(namesHouse('ask Тrinitу')).toBe(true) // cyrillic-ok: Cyrillic Te, U
+    expect(namesHouse('ТРИНИТИ')).toBe(true) // cyrillic-ok: all capitals
+    expect(namesHouse('Т27')).toBe(true) // cyrillic-ok: a Cyrillic Te
+    // Invisible characters split no name: zero-width space, soft hyphen,
+    // word joiner; a full-width spelling is its letters (NFKC).
+    const [zwsp, shy, wj] = [0x200b, 0xad, 0x2060].map(c =>
+      String.fromCharCode(c)
+    )
+    expect(namesHouse(`Tri${zwsp}nity`)).toBe(true)
+    expect(namesHouse(`Trin${shy}ity`)).toBe(true)
+    expect(namesHouse(`T${wj}27`)).toBe(true)
+    expect(namesHouse('ＴＲＩＮＩＴＹ')).toBe(true)
+    // The fold makes no house of a Russian line that names none.
+    expect(namesHouse('Запишитесь на примерку к Анне')).toBe(false) // cyrillic-ok
+    expect(namesHouse('Тренинг в четверг')).toBe(false) // cyrillic-ok
+  })
+
+  it('T27 starting a word is the brand: t27ai and t27_ai, not at27 nor T270', async () => {
+    // code_mark(word_before, digit_after, letter_after), CODE_MARK_PREFIX
+    const { codeMark, namesHouse } = await import('../house-names')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_T27AI_EN).toBe('write to t27ai')
+    expect(SPEC.CODE_MARK_PREFIX).toBe(true)
+    expect(codeMark(false, false, true)).toBe(true)
+    expect(codeMark(false, false, false)).toBe(true)
+    expect(codeMark(true, false, false)).toBe(false)
+    expect(codeMark(true, false, true)).toBe(false)
+    expect(codeMark(false, true, false)).toBe(false)
+    expect(
+      lineWay(codeMark(false, false, true), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_REFUSED)
+    expect(
+      lineWay(codeMark(true, false, true), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_KEPT)
+    // The host's detector, on the row of 999#3564 and its neighbours.
+    expect(namesHouse(SPEC.MARK_ROW_T27AI_EN)).toBe(true)
+    for (const brand of ['t27ai', 'T27AI', 't27_ai', 'T27.ai', 'T27', '(t27)'])
+      expect(namesHouse(`write to ${brand}`)).toBe(true)
+    for (const other of ['at27', 'AT27 engine', 'T270', 'model t275', '5t27'])
+      expect(namesHouse(other)).toBe(false)
+  })
+
+  it('the product is one token: our S3 AI pipeline names no house', async () => {
+    // product_mark(code_ok, space_inside), PRODUCT_ONE_TOKEN
+    const { codeMark, productMark, namesHouse } = await import('../house-names')
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_S3_SPACE_EN).toBe('our S3 AI pipeline')
+    expect(SPEC.HOUSE_PRODUCT).toBe('S3AI')
+    expect(SPEC.PRODUCT_ONE_TOKEN).toBe(true)
+    expect(productMark(codeMark(false, false, false), true)).toBe(false)
+    expect(productMark(codeMark(false, false, false), false)).toBe(true)
+    expect(productMark(codeMark(false, false, true), false)).toBe(true)
+    expect(productMark(codeMark(true, false, false), false)).toBe(false)
+    expect(
+      lineWay(
+        productMark(codeMark(false, false, false), true),
+        false,
+        SPEC.LINE_FROM_EDIT
+      )
+    ).toBe(SPEC.LINE_KEPT)
+    expect(
+      lineWay(
+        productMark(codeMark(false, false, false), false),
+        false,
+        SPEC.LINE_FROM_EDIT
+      )
+    ).toBe(SPEC.LINE_REFUSED)
+    // The host's detector: the row of 999#3564, and the product as a token.
+    expect(namesHouse(SPEC.MARK_ROW_S3_SPACE_EN)).toBe(false)
+    expect(namesHouse('files in S3, AI on top')).toBe(false)
+    expect(namesHouse('S 3 AI')).toBe(false)
+    const zwsp = String.fromCharCode(0x200b)
+    for (const product of ['S3AI', 's3ai', 'S³AI', 'S3AIs', `S${zwsp}3AI`])
+      expect(namesHouse(`made with ${product}`)).toBe(true)
+    expect(namesHouse('BS3AI')).toBe(false)
+    expect(namesHouse('S3AI2')).toBe(false)
+  })
+
+  it('Trinity College stays a house name: a refused line is rewritten, a missed one is on her reel', async () => {
+    // name_mark(inside_word, word_after), NAME_IN_ANY_CONTEXT
+    const { nameMark, namesHouse } = await import('../house-names')
+    const { lineWay, lineFrom, ownWords, charged, houseNameByAgent } =
+      await import('../agent/story-reel-templates')
+    expect(SPEC.MARK_ROW_COLLEGE_EN).toBe('I studied at Trinity College')
+    expect(SPEC.NAME_IN_ANY_CONTEXT).toBe(true)
+    expect(nameMark(false, true)).toBe(true)
+    const refused = lineWay(nameMark(false, true), false, SPEC.LINE_FROM_EDIT)
+    expect(refused).toBe(SPEC.LINE_REFUSED)
+    expect(charged(refused === SPEC.LINE_REFUSED)).toBe(false)
+    expect(
+      lineWay(
+        nameMark(false, true),
+        false,
+        lineFrom(ownWords(true, false, true))
+      )
+    ).toBe(SPEC.LINE_KEPT)
+    // The host's detector: the agent's college line is refused...
+    const college = SPEC.MARK_ROW_COLLEGE_EN
+    expect(namesHouse(college)).toBe(SPEC.NAME_IN_ANY_CONTEXT)
+    expect(houseNameByAgent(college, 'Make it about my studies.')).toBe(true)
+    // ...and her own typed line is hers, college and all.
+    expect(houseNameByAgent(college, `Say: ${college}.`)).toBe(false)
+  })
+
+  it('no rule that clears a false positive clears a mark: Trinity, Trinity S3AI, T27 and @t27ai_bot stay', async () => {
+    // name_mark, code_mark, product_mark over every mark the house has
+    const { nameMark, codeMark, productMark, namesHouse } = await import(
+      '../house-names'
+    )
+    const { lineWay } = await import('../agent/story-reel-templates')
+    expect(SPEC.BOT_SPOKEN_AS).toBe('Trinity')
+    expect(SPEC.HOUSE_BRAND).toBe('T27')
+    expect(SPEC.TEMPLATE_BUTTON).toBe('@t27ai_bot')
+    expect(SPEC.MARK_ROW_TITLE_CASE_EN).toBe('Write To Trinity AI')
+    expect(nameMark(false, false)).toBe(true)
+    expect(nameMark(false, true)).toBe(true)
+    expect(SPEC.NAME_INSIDE_WORD).toBe(true)
+    expect(nameMark(true, false)).toBe(true)
+    expect(productMark(codeMark(false, false, false), false)).toBe(true)
+    expect(codeMark(false, false, false)).toBe(true)
+    expect(codeMark(false, false, true)).toBe(true)
+    expect(lineWay(nameMark(false, true), false, SPEC.LINE_FROM_EDIT)).toBe(
+      SPEC.LINE_REFUSED
+    )
+    expect(
+      lineWay(codeMark(false, false, false), false, SPEC.LINE_FROM_EDIT)
+    ).toBe(SPEC.LINE_REFUSED)
+    // The host's detector: every mark, bare and in a line, stays flagged.
+    const stay = [
+      SPEC.BOT_SPOKEN_AS,
+      'Тринити', // cyrillic-ok: the bare Russian name
+      'Trinity S³AI',
+      SPEC.HOUSE_BRAND,
+      't27',
+      SPEC.TEMPLATE_BUTTON,
+      SPEC.MARK_ROW_TITLE_CASE_EN,
+      'ask Trinity, she knows',
+      'TrinityBot',
+      'Trinity.',
+      'S3AI',
+    ]
+    for (const mark of stay) expect(namesHouse(mark)).toBe(true)
+  })
+})
+
+describe('v27-v29: gallery preview, retry slots, brand kit (host)', () => {
+  it("a gallery preview with no card yet is drawn in the render's defaults, not the theme's green", () => {
+    expect(SPEC.GALLERY_PREVIEW_FROM_CARD_DEFAULTS).toBe(true)
+    expect(galleryPreviewField(false)).toBe(SPEC.FIELD_FROM_DEFAULT)
+    expect(galleryPreviewField(true)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(galleryPreviewField(false)).toBe(endCardField(false, false, false))
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).toBe(SPEC.END_CARD_DEFAULT_TITLE)
+    expect(SPEC.END_CARD_DEFAULT_ACCENT.toUpperCase()).not.toBe('#00FF88')
+    expect(SPEC.END_CARD_DEFAULT_BG).not.toBe('#000000')
+    // The player's gallery draws a missing field from the same defaults.
+    const gallery = readFileSync(
+      join(
+        __dirname,
+        '../../../player/src/components/Crm/StoryTemplateGallery.tsx'
+      ),
+      'utf8'
+    )
+    expect(gallery.toLowerCase()).not.toContain('#00ff88')
+    expect(gallery.toLowerCase()).not.toContain('#000000')
+    for (const f of ['BG', 'TEXT', 'TITLE', 'ACCENT'])
+      expect(gallery).toContain(`SPEC.END_CARD_DEFAULT_${f}`)
+  })
+
+  it('brand kit: no palette -> defaults on preview and render', () => {
+    expect(SPEC.BRAND_KIT_ON_EVERY_SURFACE).toBe(true)
+    expect(brandKitField(false, SPEC.SURFACE_PREVIEW)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(false, SPEC.SURFACE_RENDER)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(false, SPEC.SURFACE_PREVIEW)).toBe(
+      endCardField(false, false, false)
+    )
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).not.toBe(SPEC.HOST_THEME_ACCENT)
+  })
+
+  it('brand kit: palette present -> client colours on every surface, never theme green', () => {
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(brandKitField(true, SPEC.SURFACE_RENDER)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).toBe(
+      brandKitField(true, SPEC.SURFACE_RENDER)
+    )
+    expect(brandKitField(true, SPEC.SURFACE_RENDER)).toBe(
+      endCardField(false, true, false)
+    )
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).not.toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).not.toBe(
+      SPEC.FIELD_FROM_TEMPLATE
+    )
+  })
+
+  it('a retry renders only the empty slots and charges only for them', () => {
+    expect(SPEC.RETRY_REUSES_DONE_SLOTS).toBe(true)
+    expect(slotsToRender(3, 0)).toBe(3)
+    expect(retryPrice(3, 0, SPEC.TOKENS_PER_STILL)).toBe(
+      3 * SPEC.TOKENS_PER_STILL
+    )
+    expect(slotsToRender(3, 2)).toBe(1)
+    expect(retryPrice(3, 2, SPEC.TOKENS_PER_LINE)).toBe(SPEC.TOKENS_PER_LINE)
+    expect(slotsToRender(5, 1)).toBe(4)
+    expect(slotsToRender(3, 3)).toBe(0)
+    expect(retryPrice(3, 3, SPEC.TOKENS_PER_LINE)).toBe(0)
+    expect(slotsToRender(0, 0)).toBe(0)
+    expect(slotsToRender(2, 5)).toBe(0)
+    expect(slotRenders(true)).toBe(false)
+    expect(slotRenders(false)).toBe(true)
+    // The day's-cap count of a retry is the same rule: two stills done of
+    // three leaves one still, three clips and the cut.
+    expect(slotsNeeded(3, 2, 0, false)).toBe(1 + 3 + SPEC.CAP_SLOT_PER_RENDER)
   })
 })

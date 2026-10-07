@@ -153,6 +153,15 @@ describe('where the browser may be shown', () => {
     expect(absoluteViewUrl('/live/s1?t=x')).not.toContain('render.example.com')
   })
 
+  it('carries the APP language to the window, and nothing else', async () => {
+    const { absoluteViewUrl } = await load()
+    expect(absoluteViewUrl('/live/s1?t=x', 'ru')).toBe(
+      `${window.location.origin}/live/s1?t=x&lang=ru`
+    )
+    expect(absoluteViewUrl('/live/s1?t=x', 'en')).toContain('lang=en')
+    expect(absoluteViewUrl('/live/s1?t=x')).not.toContain('lang=')
+  })
+
   it('embeds its own origin', async () => {
     const { canEmbed } = await load()
     expect(canEmbed('/live/s1?t=x')).toBe(true)

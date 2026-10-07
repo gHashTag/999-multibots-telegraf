@@ -16,11 +16,14 @@ import {
   PROFILE_LOOKS,
   PROFILE_SETTLE_MS,
   profileUrlFor,
+  QUEUE_SKILL,
+  redditPressLine,
   RSS_URL,
   SEEN_ON_PROFILE,
   seenOn,
   SHARE_LABELS,
   shareUrls,
+  SUBREDDIT,
   summaryWithEvidence,
   type Article,
   type Answer,
@@ -56,6 +59,17 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),
     tell: text => sendToTelegram(owner, text),
+    /* The order's one home: the owner's own skill (blog-share.ts QUEUE_SKILL). */
+    queue: async () => {
+      const { rows } = await pool.query(
+        `SELECT content FROM user_skills WHERE telegram_id = $1 AND name = $2
+          ORDER BY updated_at DESC LIMIT 1`,
+        [owner, QUEUE_SKILL]
+      )
+      return String(
+        (rows[0] as { content?: unknown } | undefined)?.content ?? ''
+      )
+    },
   })
 }
 
@@ -172,7 +186,10 @@ export async function publishEverywhere(
   for (const [net, url, labels] of [
     ['X', urls.x, SHARE_LABELS.X],
     ['LinkedIn', urls.linkedin, SHARE_LABELS.LinkedIn],
-    ['Reddit', urls.reddit, SHARE_LABELS.Reddit],
+    /* Switched off by the owner (spec v3, network_used): not even opened. */
+    ...(urls.reddit === null
+      ? []
+      : ([['Reddit', urls.reddit, SHARE_LABELS.Reddit]] as const)),
     ['Threads', urls.threads, SHARE_LABELS.Threads],
   ] as const) {
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))
@@ -182,6 +199,24 @@ export async function publishEverywhere(
     if (isNotConnected(url, logins)) {
       out[net] = notOpened(net)
       continue
+    }
+    /*
+     * A COMMUNITY REDDIT CLOSED IS NOT OPENED (reddit.ts redditShareRefusal):
+     * r/t27ai was banned on 2026-10-03, and every run since opened its dead
+     * submit page and left the form in the owner's browser. Nor is an
+     * article the Reddit desk already offered or posted there opened again.
+     */
+    if (net === 'Reddit' && SUBREDDIT) {
+      const { redditShareRefusal, deskPostedTo } = await import('./reddit')
+      const { communityStateFor } = await import('./reddit-wiring')
+      const refused = await redditShareRefusal(SUBREDDIT, a.slug, {
+        state: communityStateFor(pool, owner),
+        deskPosted: (sub, slug) => deskPostedTo(pool, sub, slug),
+      })
+      if (refused) {
+        out[net] = refused
+        continue
+      }
     }
     try {
       const page = await newDeskPage(cdp, url, who)
@@ -230,7 +265,9 @@ export async function publishEverywhere(
       }
       if (net === 'X') void noteShape(pool, a.slug, 'single')
       out[net] = pressed
-        ? `нажато «${pressed}` // cyrillic-ok: told to the owner
+        ? net === 'Reddit' && SUBREDDIT
+          ? redditPressLine(`нажато «${pressed}`, SUBREDDIT) // cyrillic-ok: told to the owner
+          : `нажато «${pressed}` // cyrillic-ok: told to the owner
         : 'кнопка публикации не найдена — окно оставлено открытым' // cyrillic-ok: told to the owner
     } catch (e) {
       out[net] = `ошибка: ${String(e).slice(0, 120)}` // cyrillic-ok: told to the owner

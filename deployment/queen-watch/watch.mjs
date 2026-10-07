@@ -11,12 +11,22 @@
  *   watch    bin/helpers/relays-watch.sh  -- the same heal and report rules
  * Read those two first; every rule below names the one it carries over.
  *
+ * A SECOND, INDEPENDENT WATCH (owner, 2026-10-04: the Queen watches the
+ * BROWSER page too, and reports through the same channels): `watchPage` opens
+ * app.t27.ai/game/browser as a person's browser would -- the page, the Queen
+ * board it frames at /queen/, and every script and stylesheet the two name --
+ * with public GETs and no secret. It never heals: a static page has nothing to
+ * restart. Its long form sits above `probeBrowserPage`.
+ *
  * Railway runs this as a CRON service (`0 * * * *`): it runs once and exits.
- * Exit code = the probe: 0 every road answers, 1 a road is broken, 2 not
- * measured. A cron container has no memory, so the previous result lives in
- * a JSON file on a small Railway volume (STATE_DIR, /data). A volume and not
- * a Postgres row because the service has no npm dependencies, and node has no
- * Postgres client built in; a file is the whole of what this needs.
+ * Exit code = the worse of the two watches: 0 every road and the page answer,
+ * 1 something is broken, 2 nothing broken but something not measured. A cron
+ * container has no memory, so the previous result lives in a JSON file on a
+ * small Railway volume (STATE_DIR, /data); the page keeps its own key in it
+ * (`page`), so one watch's "already reported" never silences the other. A
+ * volume and not a Postgres row because the service has no npm dependencies,
+ * and node has no Postgres client built in; a file is the whole of what this
+ * needs.
  *
  * Secrets: every value arrives as a Railway REFERENCE variable and is never
  * printed. Keys are compared by sha256 and only the first 8 hex characters of
@@ -41,6 +51,14 @@
  *   TELEGRAM_API_FILES_ROOT ${{vibee-render.TELEGRAM_API_FILES_ROOT}}
  *   BOT_API_LOCAL_BOTS   ${{vibee-render.BOT_API_LOCAL_BOTS}}
  *   RAILWAY_ENVIRONMENT_ID is given to every Railway service.
+ *   BROWSER_PAGE_URL     optional, a plain URL (not a secret); `off` stops
+ *                        the page watch. Default: BROWSER_PAGE below.
+ *
+ * After the two watches, on the same run, igla.mjs watches the IGLA-Coder
+ * loop (gHashTag/igla-coder-gpu) and reports it to the Queen as `igla-loop`.
+ * Its optional variables are listed in its own header; it never changes the
+ * exit code above (another project's budget is not a broken road here), and
+ * a crash in it is one scrubbed log line.
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -61,6 +79,21 @@ export const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
 const { telegramApiFor } = createRequire(import.meta.url)('./telegram-api.cjs')
 const GITHUB_API = 'https://api.github.com'
 const LABEL = 'queen-watch'
+/*
+ * The address the owner opens, with a spec in it: the same URL a shared link
+ * carries, so the probe asks for what a person asks for.
+ */
+export const BROWSER_PAGE =
+  'https://app.t27.ai/game/browser?spec=specs%2Fdemos%2Fhello_world.t27'
+/* How many assets one run fetches at most; more are named "NOT measured". */
+export const PAGE_ASSETS_MAX = 40
+/*
+ * One open issue per watch, told apart by title: the label predates the page
+ * watch, so a queen-watch issue with any OTHER title (one a person retitled
+ * included) stays the relays' issue, as it always was.
+ */
+export const RELAYS_ISSUE_TITLE = 'queen-watch: a bot -> render road is broken'
+export const PAGE_ISSUE_TITLE = 'queen-watch: the BROWSER page is broken'
 
 export function config(env = process.env) {
   const n = (v, d) => (v !== undefined && v !== '' ? Number(v) : d)
@@ -89,6 +122,11 @@ export function config(env = process.env) {
     ownerChat: env.OWNER_CHAT || OWNER_CHAT,
     ghToken: env.GITHUB_TOKEN || '',
     ghRepo: env.GITHUB_REPO || 'gHashTag/999-multibots-telegraf',
+    /* The BROWSER page (watchPage); '' when turned off with `off`. */
+    pageUrl:
+      env.BROWSER_PAGE_URL === 'off'
+        ? ''
+        : env.BROWSER_PAGE_URL || BROWSER_PAGE,
     stateDir: env.STATE_DIR || '/data',
     /* relays-watch.sh's own numbers. */
     healEveryS: n(env.HEAL_EVERY_S, 21600),
@@ -96,6 +134,19 @@ export function config(env = process.env) {
     retryWaitS: n(env.RETRY_WAIT_S, 60),
     swapWaitS: n(env.SWAP_WAIT_S, 90),
     healWaitS: n(env.HEAL_WAIT_S, 240),
+    /* igla.mjs, the IGLA-Coder loop on the same tick: its header says why. */
+    iglaOn: env.IGLA !== '0',
+    /* '0' watches without the tick (it replaces IGLA_DISPATCH). */
+    iglaTrigger: env.IGLA_TRIGGER !== '0',
+    /* Empty = igla.mjs IGLA_BOARD. The repo is igla.mjs's constant, not env. */
+    iglaBoard: env.IGLA_BOARD_URL || '',
+    runpodKey: env.RUNPOD_API_KEY || '',
+    /* Retired with the GitHub tick: nothing sends it. Read only so that
+     * secretsOf scrubs it if the owner leaves it set. */
+    iglaGhToken: env.IGLA_GITHUB_TOKEN || '',
+    /* igla-judge production project token: JUDGEUP, the loop runner, and
+     * the tick (igla.mjs sends it to RAILWAY_API only). */
+    iglaRailwayToken: env.IGLA_RAILWAY_TOKEN || '',
   }
 }
 
@@ -108,6 +159,9 @@ export function secretsOf(cfg) {
     cfg.queenToken,
     cfg.tgToken,
     cfg.ghToken,
+    cfg.runpodKey,
+    cfg.iglaGhToken,
+    cfg.iglaRailwayToken,
   ].filter(s => typeof s === 'string' && s.length >= 6)
 }
 
@@ -121,6 +175,20 @@ export function redact(text, secrets) {
     if (inJson !== s) out = out.split(inJson).join('[redacted]')
   }
   return out
+}
+
+/**
+ * A crash as ONE scrubbed log line: `<what> crashed: <Name>: <message> |
+ * <first stack frame>`. A raw stack spans lines, and a log reader (Railway's
+ * included) takes each line alone; a line break inside the message folds too.
+ */
+export function crashLine(what, e, secrets) {
+  const head = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+  const frame = String(e?.stack || '')
+    .split('\n')
+    .find(l => /^\s*at /.test(l))
+  const line = `${what} crashed: ${head}${frame ? ` | ${frame.trim()}` : ''}`
+  return redact(line.replace(/\s*[\r\n]+\s*/g, ' '), secrets)
 }
 
 export const hash8 = v =>
@@ -137,7 +205,7 @@ const same = (a, b) =>
  * sender that truncates its text still redacts BEFORE slicing (a cut through
  * the middle of a secret leaves a prefix nothing here can recognise).
  */
-async function call(cfg, deps, url, init = {}, timeoutMs = 15000) {
+export async function call(cfg, deps, url, init = {}, timeoutMs = 15000) {
   const out = { ...init, signal: AbortSignal.timeout(timeoutMs) }
   if (out.body !== undefined) out.body = redact(out.body, secretsOf(cfg))
   try {
@@ -428,6 +496,267 @@ export function kindOf(result) {
 const fails = result =>
   result.lines.filter(l => l.mark === 'FAIL').map(l => `- ${l.text}`)
 
+// --- the BROWSER page (app.t27.ai/game/browser) --------------------------
+
+/*
+ * WHAT A PERSON'S BROWSER FETCHES, NOT WHAT A ROUTE SAYS.
+ *
+ * /game/browser is two documents. The app's own index.html (the player,
+ * apps/vibee-editor/player) draws the tab bar and an <iframe> of the Queen
+ * board at /queen/ -- `queenPage()` in apps/vibee-editor/player/src/lib/hive.ts,
+ * framed by pages/Hive.tsx. The board is gHashTag/trinity apps/website, built
+ * into this image by the Dockerfile stage `queen` at a pinned QUEEN_REF. The
+ * <iframe> is made by the app's script, so it is not in the HTML: the frame's
+ * address is read from that source, and was checked in the live bundle
+ * (index-*.js carries `/queen/?lang=`) on 2026-10-04.
+ *
+ * WHY EVERY ASSET, NOT ONLY THE PAGES. A deploy that drops a chunk leaves the
+ * index naming a file that is not there: every HTML route still answers 200
+ * and the person sees a blank page. So each <script src>, modulepreload and
+ * stylesheet the two documents name ON THIS HOST is fetched, and has to answer
+ * 200 with a body that is not HTML -- nginx's 404 page is HTML, and so would be
+ * an SPA fallback answering 200 for a missing file (measured 2026-10-04: a
+ * missing /queen/assets/*.js is 404 today; the HTML rule keeps it caught if a
+ * config change ever routes it to index.html). Third-party files (Telegram's
+ * SDK, Google Fonts) are not ours and are not fetched: their outage is not an
+ * issue in this repository.
+ *
+ * AS THE FRAME ASKS. nginx sends a top-level visit to /queen/ on to /game
+ * (`$http_sec_fetch_dest = "document"` in nginx/default.conf.template); the
+ * Hive's frame asks with Sec-Fetch-Dest: iframe. The probe says the same, and
+ * never follows a redirect: a 302 to /game would answer 200 with the APP's
+ * index, and the board would look present while the frame drew the app inside
+ * itself.
+ *
+ * NOT MEASURED HERE, on purpose and said so: the board's lazy chunks (69 on
+ * 2026-10-04, the Queen view among them -- only what the two index documents
+ * name is fetched), and whether the code runs (a script that throws is
+ * `tri harness`'s finding, not this one's).
+ *
+ * Not measured vs broken, as in `probe`: a GET that got no answer at all
+ * (status 0 -- DNS, TCP, timeout from Railway's side) is `??`, rc 2; an
+ * answer that is wrong (404, 5xx, a redirect, HTML for a script) is FAIL,
+ * rc 1. A host that is really down answers 502 from Railway's edge, so a
+ * real outage is a FAIL, not a silence.
+ */
+
+/** True for a body that is an HTML document (an index, a fallback, a 404). */
+export const looksLikeHtml = text => /^\s*<(!doctype\s+html|html)\b/i.test(text)
+
+/**
+ * The same-host assets an HTML document names, as absolute URLs, in order,
+ * once each: <script src>, <link rel=modulepreload> and <link rel=stylesheet>
+ * whose path starts with `prefix` (`/assets/` for the app, `/queen/assets/`
+ * for the board). Pure: the probe and the tests call the same function.
+ */
+export function assetsOf(html, docUrl, prefix) {
+  const base = new URL(docUrl)
+  const attr = (attrs, name) => {
+    const m = new RegExp(
+      `(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+      'i'
+    ).exec(attrs)
+    return m ? (m[1] ?? m[2] ?? m[3]) : null
+  }
+  const out = []
+  for (const m of String(html).matchAll(/<(script|link)\b([^>]*)>/gi)) {
+    let ref = null
+    if (m[1].toLowerCase() === 'script') ref = attr(m[2], 'src')
+    else {
+      const rel = (attr(m[2], 'rel') || '').toLowerCase().split(/\s+/)
+      if (rel.includes('modulepreload') || rel.includes('stylesheet'))
+        ref = attr(m[2], 'href')
+    }
+    if (!ref) continue
+    let u
+    try {
+      u = new URL(ref, base)
+    } catch {
+      continue
+    }
+    if (u.origin !== base.origin || !u.pathname.startsWith(prefix)) continue
+    if (!out.includes(u.href)) out.push(u.href)
+  }
+  return out
+}
+
+/** Path and query of a URL: what the output prints of our own host. */
+const pathOf = href => {
+  const u = new URL(href)
+  return u.pathname + u.search
+}
+
+/**
+ * The BROWSER page. Returns { rc, lines } in `probe`'s shape: each line
+ * { mark, road, code, text }, mark ok | FAIL | warn | ??.
+ */
+export async function probeBrowserPage(cfg, deps) {
+  const lines = []
+  const add = (mark, road, text, code) => lines.push({ mark, road, code, text })
+  let rc = 0
+  const bad = (road, text, code) => {
+    add('FAIL', road, text, code)
+    rc = 1
+  }
+  const notMeasured = (road, text) => {
+    add('??', road, text)
+    rc = rc > 0 ? rc : 2
+  }
+
+  /* One document: 200, HTML, no redirect. null when it is not usable. */
+  const doc = async (road, label, url, dest) => {
+    const r = await call(cfg, deps, url, {
+      headers: { accept: 'text/html', 'sec-fetch-dest': dest },
+      redirect: 'manual',
+    })
+    if (r.status === 0) {
+      notMeasured(
+        road,
+        `${label}: GET ${pathOf(url)} got no answer (${r.error}) -- NOT measured`
+      )
+      return null
+    }
+    if (r.status !== 200) {
+      bad(
+        road,
+        `${label}: GET ${pathOf(url)} -> ${r.status} (expected 200)`,
+        r.status
+      )
+      return null
+    }
+    if (!looksLikeHtml(r.text)) {
+      bad(
+        road,
+        `${label}: GET ${pathOf(url)} -> 200 but not an HTML document`,
+        200
+      )
+      return null
+    }
+    add(
+      'ok',
+      road,
+      `${label}: GET ${pathOf(url)} -> 200, HTML (${r.text.length} bytes)`,
+      200
+    )
+    return r.text
+  }
+
+  let pageUrl
+  try {
+    pageUrl = new URL(cfg.pageUrl).href
+  } catch {
+    notMeasured('page', `page: BROWSER_PAGE_URL is not a URL -- NOT measured`)
+    return { rc, lines }
+  }
+  const boardUrl = new URL('/queen/?lang=en', pageUrl).href
+
+  const page = await doc('page', 'page', pageUrl, 'document')
+  /* A host that did not answer the page will not answer the board either. */
+  if (rc === 2) return { rc, lines }
+  const board = await doc(
+    'board',
+    'board (as the frame asks)',
+    boardUrl,
+    'iframe'
+  )
+
+  const named = [
+    ...(page === null ? [] : assetsOf(page, pageUrl, '/assets/')),
+    ...(board === null ? [] : assetsOf(board, boardUrl, '/queen/assets/')),
+  ]
+  if (
+    board !== null &&
+    !named.some(u => new URL(u).pathname.startsWith('/queen/assets/'))
+  ) {
+    /* The frame would draw nothing; also what the APP's index served at
+     * /queen/ looks like (its assets are /assets/, not /queen/assets/). */
+    bad(
+      'board',
+      `board: the /queen/ index names no script or stylesheet under /queen/assets/`
+    )
+  }
+  if (!named.length) return { rc, lines }
+
+  const take = named.slice(0, PAGE_ASSETS_MAX)
+  const got = []
+  /* Eight at a time: a slow host costs minutes, not forty timeouts in a row.
+   * 30 s each, not call()'s 15: the app's index script is 833 KB, and on
+   * 2026-10-04 two of eight timed out at 15 s from a Mac at load 723 (one at
+   * a time, every one answered 200 in 5-8 s). */
+  for (let i = 0; i < take.length; i += 8) {
+    got.push(
+      ...(await Promise.all(
+        take.slice(i, i + 8).map(async url => {
+          const r = await call(
+            cfg,
+            deps,
+            url,
+            {
+              headers: {
+                'sec-fetch-dest': /\.css(\?|$)/.test(url) ? 'style' : 'script',
+              },
+              redirect: 'manual',
+            },
+            30000
+          )
+          return { url, ...r }
+        })
+      ))
+    )
+  }
+  let good = 0
+  const silent = []
+  const wrong = []
+  for (const r of got) {
+    if (r.status === 0) silent.push(r)
+    else if (r.status !== 200) wrong.push({ ...r, why: `${r.status}` })
+    else if (!r.text.length) wrong.push({ ...r, why: '200 with an empty body' })
+    else if (looksLikeHtml(r.text))
+      wrong.push({
+        ...r,
+        why: '200 but HTML (a fallback page answered for a missing file)',
+      })
+    else good++
+  }
+  /* Eight lines at most: the count below carries the rest. */
+  for (const w of wrong.slice(0, 8))
+    bad('asset', `asset: ${pathOf(w.url)} -> ${w.why}`, w.status)
+  for (const q of silent.slice(0, 8))
+    notMeasured(
+      'asset',
+      `asset: ${pathOf(q.url)} got no answer (${q.error}) -- NOT measured`
+    )
+  const fromApp = take.filter(
+    u => !new URL(u).pathname.startsWith('/queen/')
+  ).length
+  const tally = `(app ${fromApp}, board ${take.length - fromApp})`
+  if (wrong.length) {
+    bad(
+      'assets',
+      `assets: ${wrong.length} of ${take.length} broken, ${good} answer ${tally}`
+    )
+  } else if (silent.length) {
+    notMeasured(
+      'assets',
+      `assets: ${good} of ${take.length} answer, ${silent.length} got no answer -- NOT measured ${tally}`
+    )
+  } else {
+    add(
+      'ok',
+      'assets',
+      `assets: ${good} of ${take.length} answer 200 with a body that is not HTML ${tally}`
+    )
+  }
+  if (named.length > take.length) {
+    add(
+      'warn',
+      'assets',
+      `assets: ${named.length} named, ${take.length} fetched (PAGE_ASSETS_MAX) -- the other ${named.length - take.length} NOT measured`
+    )
+  }
+  return { rc, lines }
+}
+
 // --- state (the volume) -------------------------------------------------
 
 export async function loadState(dir) {
@@ -503,7 +832,11 @@ const NOTE = {
 
 // --- report: the Queen, the owner's DM, one GitHub issue ----------------
 
-export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
+export async function reportToQueen(
+  cfg,
+  deps,
+  { headline, body, needsYou, source = 'queen-watch' }
+) {
   if (!cfg.queenToken) return 'no TRIOS_API_TOKEN -- not sent'
   const clean = t => redact(String(t || ''), secretsOf(cfg))
   const r = await call(cfg, deps, `${cfg.queenUrl}/queen/report`, {
@@ -516,7 +849,7 @@ export async function reportToQueen(cfg, deps, { headline, body, needsYou }) {
      * stores the headline as "[source] headline" and the needs-you panel
      * shows 200 characters, so ours stays at 120. */
     body: JSON.stringify({
-      source: 'queen-watch',
+      source,
       headline: clean(headline).slice(0, 120),
       body: clean(body).slice(0, 8000),
       needs_you: needsYou === true,
@@ -602,6 +935,57 @@ export function issueSpec({ result, note, when }) {
   ].join('\n')
 }
 
+/**
+ * The page watch's issue, delegatable the same way. Its boundary spans two
+ * repositories: the board is built in gHashTag/trinity and pinned into this
+ * image, so a path there says so on its own line.
+ */
+export function pageIssueSpec({ result, note, when, url = BROWSER_PAGE }) {
+  return [
+    '## Context',
+    '',
+    `queen-watch (Railway cron, \`deployment/queen-watch/watch.mjs\`, \`probeBrowserPage\`) found the BROWSER page broken at ${when}:`,
+    `${url}`,
+    'A person who opens it sees a blank or half-drawn page: the app frames the Queen board at `/queen/` (built from gHashTag/trinity `apps/website` at the pinned `QUEEN_REF`), and a document or a file it names did not answer.',
+    '',
+    '```',
+    ...result.lines.map(l => `${l.mark.padEnd(4)}  ${l.text}`),
+    '```',
+    note ? `\nWhat the watch already did: ${note}` : '',
+    '',
+    '## Boundary',
+    '',
+    '- `apps/vibee-editor/Dockerfile` -- stage `queen`, `ARG QUEEN_REF` (which trinity build is served at /queen/)',
+    '- `apps/vibee-editor/nginx/default.conf.template` -- `location ^~ /queen/` and the asset rules',
+    '- `apps/vibee-editor/player/src/lib/hive.ts` -- `queenPage()`, the frame address',
+    '- `apps/vibee-editor/player/src/pages/Hive.tsx` -- the frame',
+    '- `deployment/queen-watch/watch.mjs` -- this watch',
+    '- `apps/website/vite.config.ts` -- in gHashTag/trinity: base `/queen/`, chunk names',
+    '- `apps/website/index.html` -- in gHashTag/trinity: the board index',
+    '- `apps/website/src/components/QueenBrowser.tsx` -- in gHashTag/trinity: the BROWSER view',
+    '- `apps/website/src/lib/queenBrowser.ts` -- in gHashTag/trinity',
+    '- `apps/website/package.json` -- in gHashTag/trinity: the build script',
+    '',
+    '## User Scenarios & Testing',
+    '',
+    `- **Given** a person opens ${url}, **When** the page loads, **Then** it answers 200 with HTML and every script and stylesheet it names answers 200.`,
+    '- **Given** the app frames the Queen board, **When** the frame asks for `/queen/?lang=en` with Sec-Fetch-Dest: iframe, **Then** it answers 200 with the board index (not a redirect to /game), and every `/queen/assets/` file it names answers 200 with a body that is not HTML.',
+    '',
+    '## Requirements',
+    '',
+    '- FR-001: The page MUST answer 200 with an HTML document, without a redirect.',
+    '- FR-002: `/queen/` asked as a frame MUST answer 200 with an index that names at least one script or stylesheet under `/queen/assets/`.',
+    '- FR-003: Every same-host script, modulepreload and stylesheet the two documents name MUST answer 200 with a non-empty body that is not HTML.',
+    '- FR-004: The fix MUST be a build or a deploy (a trinity change and a `QUEEN_REF` bump, or this image); the watch MUST NOT restart or change anything itself.',
+    '',
+    '## Success Criteria',
+    '',
+    '- `node deployment/queen-watch/watch.mjs` on Railway exits 0, and its log ends in "the page, the board and every asset answer".',
+    '- 0 FAIL lines from `probeBrowserPage` against the address above.',
+    '',
+  ].join('\n')
+}
+
 async function gh(cfg, deps, path, init = {}) {
   const r = await call(cfg, deps, `${GITHUB_API}${path}`, {
     ...init,
@@ -615,8 +999,15 @@ async function gh(cfg, deps, path, init = {}) {
   return { status: r.status, body: json(r.text) }
 }
 
-/** One open `queen-watch` issue at a time: comment on it, or open it. */
-export async function fileIssue(cfg, deps, { title, body, comment }) {
+/**
+ * One open `queen-watch` issue per watch: comment on it, or open it. `owns`
+ * tells this watch's issue from the other's (RELAYS_ISSUE_TITLE above).
+ */
+export async function fileIssue(
+  cfg,
+  deps,
+  { title, body, comment, owns = () => true }
+) {
   if (!cfg.ghToken) return { said: 'no GITHUB_TOKEN -- no issue' }
   const open = await gh(
     cfg,
@@ -628,7 +1019,7 @@ export async function fileIssue(cfg, deps, { title, body, comment }) {
       said: `could not list issues (HTTP ${open.status}) -- nothing filed`,
     }
   }
-  const mine = open.body.filter(i => !i.pull_request)
+  const mine = open.body.filter(i => !i.pull_request && owns(i))
   if (mine.length) {
     const n = mine[0].number
     const c = await gh(cfg, deps, `/repos/${cfg.ghRepo}/issues/${n}/comments`, {
@@ -648,33 +1039,42 @@ export async function fileIssue(cfg, deps, { title, body, comment }) {
     : { said: `opening the issue refused (HTTP ${made.status})` }
 }
 
+/**
+ * One report through every channel. A red event carries its watch's issue
+ * ({ title, body, owns }); `watch` names the watch in the log ('page'), and
+ * the relays watch, which came first, keeps its unnamed lines.
+ */
 async function report(cfg, deps, log, ev) {
+  const say = s => log(`queen-watch: ${ev.watch ? `${ev.watch}: ` : ''}${s}`)
   const queen = await reportToQueen(cfg, deps, {
     headline: ev.headline,
     body: ev.body,
     needsYou: ev.needsYou,
   })
-  log(`queen-watch: queen: ${queen}`)
+  say(`queen: ${queen}`)
   let issue = null
   if (ev.red) {
     issue = await fileIssue(cfg, deps, {
-      title: `queen-watch: a bot -> render road is broken`,
-      body: issueSpec({ result: ev.result, note: ev.noteEn, when: ev.when }),
+      ...ev.issue,
       comment: `Still broken at ${ev.when}.\n\n\`\`\`\n${ev.result.lines
         .map(l => `${l.mark.padEnd(4)}  ${l.text}`)
         .join('\n')}\n\`\`\`${ev.noteEn ? `\n\n${ev.noteEn}` : ''}`,
     })
-    log(`queen-watch: github: ${issue.said}`)
+    say(`github: ${issue.said}`)
   }
   const tg = await tellOwner(
     cfg,
     deps,
     ev.telegram + (issue?.url ? `\n${issue.url}` : '')
   )
-  log(`queen-watch: telegram: ${tg}`)
+  say(`telegram: ${tg}`)
 }
 
-// --- the watch (relays-watch.sh run) ------------------------------------
+// --- the run: two watches, one state file -------------------------------
+
+/** The worse of two exit codes: broken (1) over not measured (2) over ok (0). */
+export const worst = (a, b) =>
+  a === 1 || b === 1 ? 1 : a === 2 || b === 2 ? 2 : 0
 
 export async function run(cfg, deps) {
   const log = line => deps.write(redact(line, secretsOf(cfg)) + '\n')
@@ -696,6 +1096,25 @@ export async function run(cfg, deps) {
       return false
     }
   }
+  const ctx = { log, show, st, now, when, persist }
+  /* Kept apart: a watch that crashes is that watch's "not measured", and the
+   * other still runs and still reports. */
+  const apart = async (name, watch) => {
+    try {
+      return await watch(cfg, deps, ctx)
+    } catch (e) {
+      log(crashLine(`queen-watch: ${name}`, e, secretsOf(cfg)))
+      return 2
+    }
+  }
+  const relays = await apart('the relays watch', watchRelays)
+  if (!cfg.pageUrl) return relays
+  return worst(relays, await apart('the page watch', watchPage))
+}
+
+// --- the relays watch (relays-watch.sh run) -----------------------------
+
+async function watchRelays(cfg, deps, { log, show, st, now, when, persist }) {
   log(
     `queen-watch: bot -> render (${cfg.base}), previous: ${st.first ? 'none (first run)' : st.state}`
   )
@@ -823,6 +1242,11 @@ export async function run(cfg, deps) {
       result,
       when,
       noteEn: enTail,
+      issue: {
+        title: RELAYS_ISSUE_TITLE,
+        body: issueSpec({ result, note: enTail, when }),
+        owns: i => i.title !== PAGE_ISSUE_TITLE,
+      },
       headline: `a bot -> render road is broken (${result.lines.find(l => l.mark === 'FAIL')?.text.split(':')[0] || 'see body'})`,
       body: [...fails(result), enTail].filter(Boolean).join('\n'),
       telegram: [
@@ -842,6 +1266,126 @@ export async function run(cfg, deps) {
   await persist()
   log('queen-watch: broken -- a road does not answer (see FAIL)')
   return result.rc
+}
+
+// --- the page watch (probeBrowserPage) ----------------------------------
+
+/*
+ * The relays watch's rules, minus the heal: report on the first run, on a
+ * change, and again every REPEAT_S while broken; three not-measured runs in a
+ * row ask for a person, one does not. Its state is `st.page`, and nothing
+ * here reads or writes the relays' keys.
+ */
+async function watchPage(cfg, deps, { log, show, st, now, when, persist }) {
+  const say = s => log(`queen-watch: page: ${s}`)
+  const first = !st.page
+  const pg = (st.page = {
+    state: 'unknown',
+    unmeasured: 0,
+    told_at: 0,
+    ...st.page,
+  })
+  say(`${cfg.pageUrl}, previous: ${first ? 'none (first run)' : pg.state}`)
+
+  let result = await probeBrowserPage(cfg, deps)
+  if (result.rc === 2) {
+    show(result)
+    say(`not measured, one retry in ${cfg.retryWaitS}s`)
+    await deps.sleep(cfg.retryWaitS)
+    result = await probeBrowserPage(cfg, deps)
+  } else if (result.rc === 1) {
+    /* A deploy swaps the index and its files: one look in the middle of a
+     * swap can see an index naming files the answering container lacks. */
+    show(result)
+    say(`broken, one more look in ${cfg.swapWaitS}s (a deploy swap passes)`)
+    await deps.sleep(cfg.swapWaitS)
+    result = await probeBrowserPage(cfg, deps)
+  }
+  show(result)
+
+  if (result.rc === 2) {
+    pg.unmeasured += 1
+    say(`not measured (${pg.unmeasured} in a row)`)
+    const why = result.lines
+      .filter(l => l.mark === '??')
+      .map(l => `- ${l.text}`)
+    if (pg.unmeasured === 3 || first) {
+      await report(cfg, deps, log, {
+        watch: 'page',
+        red: false,
+        needsYou: true,
+        headline: `the BROWSER page could not be measured (${pg.unmeasured} run(s) in a row)`,
+        body: [cfg.pageUrl, ...why].join('\n'),
+        telegram: [
+          `⚠️ Сторож страницы BROWSER на Railway не может её измерить (${pg.unmeasured} раз подряд): ответа не было вовсе.`, // cyrillic-ok
+          'Это не значит, что она сломана; ничего не чинил.', // cyrillic-ok
+          ...why,
+        ].join('\n'),
+      })
+    }
+    if (first) pg.state = 'unmeasured'
+    await persist()
+    return 2
+  }
+  pg.unmeasured = 0
+
+  if (result.rc === 0) {
+    if (pg.state === 'broken' || first) {
+      await report(cfg, deps, log, {
+        watch: 'page',
+        red: false,
+        needsYou: false,
+        headline: first
+          ? 'live on Railway: the BROWSER page watch -- the page, the board and every asset answer'
+          : 'the BROWSER page works again',
+        body: [
+          cfg.pageUrl,
+          ...result.lines.map(l => `${l.mark}  ${l.text}`),
+        ].join('\n'),
+        telegram: first
+          ? '✅ Сторож страницы BROWSER теперь работает на Railway, каждый час. Сейчас страница, доска Королевы и все их файлы отвечают.' // cyrillic-ok
+          : '✅ Страница BROWSER снова открывается: страница, доска Королевы и все их файлы отвечают.', // cyrillic-ok
+      })
+    }
+    pg.state = 'ok'
+    await persist()
+    say('ok -- the page, the board and every asset answer')
+    return 0
+  }
+
+  const enTail =
+    'Not healed: a static page has nothing to restart. The fix is a build or a deploy -- the app image (apps/vibee-editor), or gHashTag/trinity apps/website and then QUEEN_REF.'
+  const ruTail =
+    'Сам не чиню: у статической страницы нечего перезапускать. Чинит сборка или деплой: образ apps/vibee-editor, либо trinity apps/website и затем QUEEN_REF. Задача для пчёл — в issue.' // cyrillic-ok
+  if (pg.state !== 'broken' || now - (pg.told_at || 0) >= cfg.repeatS) {
+    await report(cfg, deps, log, {
+      watch: 'page',
+      red: true,
+      needsYou: true,
+      result,
+      when,
+      noteEn: enTail,
+      issue: {
+        title: PAGE_ISSUE_TITLE,
+        body: pageIssueSpec({ result, note: enTail, when, url: cfg.pageUrl }),
+        owns: i => i.title === PAGE_ISSUE_TITLE,
+      },
+      headline: `the BROWSER page is broken (${result.lines.find(l => l.mark === 'FAIL')?.text.split(':')[0] || 'see body'})`,
+      body: [cfg.pageUrl, ...fails(result), enTail].join('\n'),
+      telegram: [
+        '🔴 Страница BROWSER на app.t27.ai открывается не целиком — человек видит пустую или недорисованную страницу.', // cyrillic-ok
+        ...fails(result),
+        ruTail,
+      ].join('\n'),
+    })
+    pg.told_at = now
+  } else {
+    say('still broken, already reported -- quiet until REPEAT_S')
+  }
+  pg.state = 'broken'
+  await persist()
+  say('broken -- the page or a file it names does not answer (see FAIL)')
+  return 1
 }
 
 export function realDeps() {
@@ -864,12 +1408,23 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
       'queen-watch: no volume mounted -- every run will look like a first run\n'
     )
   }
+  /* igla.mjs after both watches, whatever they said; its rc is logged only. */
+  const igla = async () => {
+    try {
+      const { runIgla } = await import('./igla.mjs')
+      process.stdout.write(`igla-loop: rc ${await runIgla(cfg, deps)}\n`)
+    } catch (e) {
+      process.stdout.write(crashLine('igla-loop:', e, secretsOf(cfg)) + '\n')
+    }
+  }
   run(cfg, deps).then(
-    rc => process.exit(rc),
-    e => {
-      process.stdout.write(
-        redact(`queen-watch: crashed: ${e && e.stack}`, secretsOf(cfg)) + '\n'
-      )
+    async rc => {
+      await igla()
+      process.exit(rc)
+    },
+    async e => {
+      process.stdout.write(crashLine('queen-watch:', e, secretsOf(cfg)) + '\n')
+      await igla()
       process.exit(2)
     }
   )

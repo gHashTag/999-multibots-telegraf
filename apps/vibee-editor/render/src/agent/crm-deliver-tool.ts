@@ -494,6 +494,8 @@ export function makeCrmDeliverTools(
   return [
     {
       name: 'crm_deliver_photo',
+      // Draws through the borrowed image tools (tool-charges.ts).
+      charges: ['image_generate', 'image_edit'],
       description:
         'ЛИД-МАГНИТ человеку из переписки: портрет 9:16 из ЕГО лица (img2img, GPT Image 2.5) — ' +
         'из присланного им фото или аватарки; чужое лицо не рисует, без фото сам готовит просьбу ' +
@@ -914,31 +916,13 @@ export function makeCrmDeliverTools(
               url?: string
               причина?: string // cyrillic-ok: public API field
               reason?: string
-              watermark?: string | null
             }
             /*
-             * A STAMPED PICTURE IS A DRAFT, NOT A DELIVERY (2026-10-03). With
-             * fal below cost and Replicate off, the free leg drew every
-             * image_generate that day, and it stamps "pollinations.ai" on the
-             * frame whatever `nologo` asks (image-chain.ts watermarkOf). This
-             * door hands the picture to a client -- maybe a paying one -- so a
-             * stamp stops here: the owner gets the URL as a draft (a gift was
-             * already paid for), the client gets nothing and is charged nothing.
+             * A stamped picture never arrives here: image_generate refuses it
+             * on every surface and returns no URL (#3657), so it takes the
+             * no-URL door below. The draft branch that lived here was dead
+             * code (#3663); dm-delivery.test.ts pins the refusal end to end.
              */
-            if (made?.url && made.watermark) {
-              await noteGift(ctx, made.watermark, 'watermark')
-              return {
-                delivered: false,
-                // cyrillic-ok: public API field
-                причина:
-                  `картинку нарисовал бесплатный провайдер со знаком ${made.watermark} — ` +
-                  'клиенту такое не отдаём; черновик только для тебя. Чистая — image_edit (Kie) от исходного фото',
-                draft_url: made.url,
-                watermark: made.watermark,
-                price,
-                source: 'без людей, по описанию',
-              }
-            }
             if (!made?.url) {
               noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
               await noteGift(ctx, made?.причина ?? made?.reason, 'generate') // cyrillic-ok: public API field

@@ -167,6 +167,41 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE TEMPLATE GALLERY of the story panel: the host's own templates, each
+   * priced on its card before the tap (PRICE_BEFORE_PRESS); the tap fills
+   * the fields and spends nothing.
+   */
+  'story-gallery': {
+    page: 'story-palette',
+    tool: 'crm_story_reel',
+    fixture: { templates: true, jobs: JOBS },
+    root: '[data-testid=story-reel-gallery]',
+    scope: '.crm-client',
+    within: 'section',
+    before: [
+      ['[data-testid=story-reel-gallery]', 'section .crm-client__duet-go'],
+    ],
+    // Every template card stands on its own: tall enough to read, never
+    // drawn over another (it once passed green while collapsed).
+    cards: { sel: '.story-reel__template', min: 40 },
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('[data-testid=story-reel-gallery]').waitFor(),
+      },
+      {
+        id: 'picked',
+        ready: async p => {
+          await p
+            .locator('[data-testid="story-reel-template-hook-studio:en"]')
+            .click()
+          await p.locator('.story-reel__lines textarea').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE WHOLE CLIENT CARD (/crm/:id): six panels and the story panel, as the
    * seller sees them on a phone. The story tool is the host's; the other six
    * answer with the shapes CrmClient.test.tsx holds against the page's
@@ -465,6 +500,120 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE BEE AT WORK ON A CARD (spec v7, S20): a running card opens on its
+   * bee -- each call a line, the CLI picked out, the outcome under it, the
+   * newest line in view. Rows are the shapes render's /api/card-work sends
+   * (agent/card-work.ts), masked and cut there, so the phone draws them as
+   * they come: long commands must wrap at 320 px, never scroll sideways.
+   */
+  'card-chat-bee': {
+    page: 'card-chat',
+    query: '?card=5673&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5673',
+            card: {
+              title: 'demos/hello_world.t27: say hello in every backend',
+              column: 'running',
+            },
+            messages: [],
+          },
+        }),
+      ],
+      [
+        '**/api/card-work**',
+        () => {
+          const at = s => `2026-10-03T10:${s}Z`
+          const rows = [
+            ['tool', 'bash', 'tri card 5673', '04:01'],
+            [
+              'result',
+              true,
+              'card #5673 running, branch queen/5673',
+              '04:02',
+              3,
+            ],
+            [
+              'thought',
+              null,
+              'The spec has no test block for the Zig backend; add one first.',
+              '04:05',
+            ],
+            ['tool', 'read', 'demos/hello_world.t27', '04:06'],
+            ['result', true, 'module hello_world', '04:06', 41],
+            ['tool', 'edit', 'demos/hello_world.t27', '04:09'],
+            ['result', true, 'edited 1 block', '04:09'],
+            [
+              'tool',
+              'bash',
+              't27c test-report demos/hello_world.t27 --backend zig --backend rust --backend ts',
+              '04:10',
+            ],
+            [
+              'result',
+              false,
+              'FAILED  zig: expected "hello" got "hello\\n"',
+              '04:14',
+              12,
+            ],
+            ['tool', 'bash', 'git diff --stat … | tail -3', '04:15'],
+            ['result', true, '1 file changed, 6 insertions(+)', '04:15'],
+            ['tool', 'bash', 'gh pr view 5701 --json state,checks', '04:16'],
+            ['result', true, '{"state":"OPEN"}', '04:16'],
+          ].map(([kind, x, text, t, lines], i) => ({
+            seq: i + 1,
+            at: at(t),
+            kind,
+            text,
+            ...(kind === 'tool' ? { tool: x } : {}),
+            ...(kind === 'result' ? { ok: x, lines: lines ?? 1 } : {}),
+          }))
+          return {
+            json: {
+              configured: true,
+              measured: true,
+              prose: true,
+              bee: {
+                conversation: '7d1c2e8a-4b5f-4c3d-9e2a-1f0b6c7d8e9f',
+                branch: 'queen/5673',
+                model: 'glm-5.3',
+                dispatchedAt: at('04:00'),
+                finishedAt: null,
+                outcome: null,
+                running: true,
+              },
+              rows,
+              next: rows.length,
+            },
+          }
+        },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.bee-log[data-state="running"]').waitFor()
+          await p.locator('.bee-log__row--failed').waitFor()
+        },
+      },
+      {
+        // The thumb turns to the chat: one tap, the bee keeps its dot.
+        id: 'chat',
+        ready: async p => {
+          await p.locator('#card-chat-tab-chat').click()
+          await p.locator('.card-chat__starter').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE MOVE ROW A KEEPER SEES (spec v5, S16): a backlog card, the Queen's
    * door on. `&door=1` is the stand's preview of the version that flips
    * MOVE_DOOR_EXISTS -- the app itself keeps the row dark until then. One
@@ -646,7 +795,7 @@ if (name === 'all') {
     const r = results[i]
     const verdict = r.stdout
       .split('\n')
-      .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
+      .filter(x => /^== shot|^\s+(small|cut|overlap|order|card|error) /.test(x))
     for (const x of verdict) console.log(x)
     if (!verdict.length)
       console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
@@ -685,7 +834,7 @@ const answer = (tool, args) => {
 }
 
 /* Measured in the page: the target is the page's own --touch-target. */
-function measure({ root, scope, within: area, before = [] }) {
+function measure({ root, scope, within: area, before = [], cards: deck }) {
   const target =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -804,7 +953,34 @@ function measure({ root, scope, within: area, before = [] }) {
         : `${first} is not above ${then}`
     })
     .filter(x => x !== null)
+  /*
+   * CARDS: a harness that names its cards gets each one held to a minimum
+   * height and to no overlap with any other card. No cards found is "not
+   * measured", which counts as a failure, never as a pass.
+   */
+  const card = []
+  if (deck) {
+    const els = [...document.querySelectorAll(deck.sel)]
+    if (!els.length) card.push(`${deck.sel}: not measured (no cards)`)
+    const rs = els.map(el => el.getBoundingClientRect())
+    rs.forEach((r, i) => {
+      if (r.height < deck.min)
+        card.push(
+          `${deck.sel}#${i} height ${Math.round(r.height)}px < ${deck.min}px`
+        )
+    })
+    for (let i = 0; i < rs.length; i++)
+      for (let j = i + 1; j < rs.length; j++) {
+        const a = rs[i]
+        const b = rs[j]
+        const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (x > 0 && y > 0 && x * y > 1)
+          card.push(`${deck.sel}#${i} ∩ #${j} (${Math.round(x * y)}px²)`)
+      }
+  }
   return {
+    card,
     order,
     target,
     controls: controls.length,
@@ -932,6 +1108,7 @@ try {
       scope: h.scope,
       within: h.within,
       before: h.before,
+      cards: h.cards,
     })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
@@ -958,16 +1135,20 @@ try {
       m.small.length +
       m.cut.length +
       m.overlap.length +
-      m.order.length
+      m.order.length +
+      m.card.length
     bad += wrong
     lines.push(
       `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
-        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length} · ${file}`
+        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length}` +
+        (h.cards ? `, card ${m.card.length}` : '') +
+        ` · ${file}`
     )
     for (const x of m.small) lines.push(`       small   ${x}`)
     for (const x of m.cut) lines.push(`       cut     ${x}`)
     for (const x of m.overlap) lines.push(`       overlap ${x}`)
     for (const x of m.order) lines.push(`       order   ${x}`)
+    for (const x of m.card) lines.push(`       card    ${x}`)
   }
   if (errors.length) {
     bad += errors.length

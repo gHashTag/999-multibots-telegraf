@@ -62,6 +62,10 @@ export const AVATAR_STYLES: Readonly<Record<string, string>> = {
     'Coding scientist at a terminal: monospaced code and program output ' +
     'glowing on a dark screen, a small brass triangle desk ornament, cool ' +
     'green-on-black light, calm and precise.',
+  t27b:
+    'Compiler engineer at a dark desk: columns of AArch64 assembly beside a ' +
+    'branching syntax tree on two monitors, an ARM-based laptop open, soft ' +
+    'violet and white light, focused and exact.',
 }
 
 /** The full prompt for one agent's avatar, or null for an unknown one. Pure. */
@@ -219,6 +223,8 @@ export async function makeAvatars(
 export const AVATAR_TOOLS: AgentTool[] = [
   {
     name: 'agent_avatars_make',
+    // Draws through the borrowed image_edit (tool-charges.ts).
+    charges: ['image_edit'],
     description:
       'Сделать аватарки агентов каталога из аватарки владельца (img2img GPT Image ' + // cyrillic-ok: tool description
       '2.5), каждому в своём стиле. Без agent — всем, у кого нет; redo — ' + // cyrillic-ok: tool description

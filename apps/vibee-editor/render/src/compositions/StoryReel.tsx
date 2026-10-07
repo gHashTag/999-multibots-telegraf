@@ -49,10 +49,11 @@ const { fontFamily: jost } = loadJost('normal', {
 })
 const font = `${outfitLatin}, ${jost}, sans-serif`
 
-// The t27.ai tokens NoirReel uses: black, white, gold only on the call.
+// The t27.ai tokens NoirReel uses: black and white. The call's colour is
+// not one of them: its caller decides it (split-reel v10), so a client's
+// reel never ends in the house's gold by default.
 const BG = '#000000'
 const TEXT = '#FFFFFF'
-const GOLDEN = '#FFD700'
 
 /** The longest story this template is meant for, seconds (the stories cap). */
 export const STORY_MAX_SECONDS = 15
@@ -212,7 +213,15 @@ export const HeldFrame: React.FC<{ src: string; at: number }> = ({
   </Freeze>
 )
 
-export const CallToAction: React.FC<{ text: string }> = ({ text }) => {
+/**
+ * The call in the closing pause. `color` has no default on purpose: the
+ * caller decides whose colour it is (split-reel v10 -- the order's, else
+ * hers, else neutral; the house's gold only on the house's own reel).
+ */
+export const CallToAction: React.FC<{ text: string; color: string }> = ({
+  text,
+  color,
+}) => {
   const frame = useCurrentFrame()
   // In at once (0.2 s) and held for the whole pause: the pause is for
   // reading the call, not for watching it arrive.
@@ -239,7 +248,7 @@ export const CallToAction: React.FC<{ text: string }> = ({ text }) => {
           fontFamily: font,
           fontWeight: 700,
           fontSize: 64,
-          color: GOLDEN,
+          color,
           textAlign: 'center',
           lineHeight: 1.15,
           padding: '0 80px',

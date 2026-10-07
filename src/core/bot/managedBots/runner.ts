@@ -17,6 +17,8 @@ import { logger } from '@/utils/logger'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
 import { launchWithConflictRetry } from '@/core/bot/launchWithConflictRetry'
 import type { ManagedBotAccess, ManagedBotRow } from './store'
+import { forgetAgentBot, registerAgentBot } from '@/core/bot/agentHive/answer'
+import { actionForTool, keepTyping } from '@/helpers/telegramLongAnswer'
 
 /** What the runner needs from the outside, injectable for tests. */
 export interface RunnerDeps {
@@ -27,12 +29,30 @@ export interface RunnerDeps {
     fallback: () => Promise<string>,
     seller: string,
     /** No media tools: the Manager Agent is a text model for the CRM. */
-    textOnly: boolean
+    textOnly: boolean,
+    /** The tool the agent is running now, null when it ends (#3683). */
+    onTool?: (name: string | null) => void
   ) => Promise<string>
   /** Tell the owner something, through the manager bot they started. */
   tellOwner: (ownerId: number, text: string) => Promise<void>
   /** Whether the bot is paid for, and whether its package makes media. */
   access: (botId: number) => Promise<ManagedBotAccess>
+  /**
+   * A bot that IS a catalogue agent (`row.agentId`, agentHive): its message
+   * goes here instead of the client path. Injected, not imported: agentHive
+   * relaunches bots through this file.
+   */
+  asAgent?: (ctx: any, row: ManagedBotRow) => Promise<unknown>
+  /**
+   * A bot just created: is it one of the catalogue agents (agentHive
+   * claims.ts)? The bound row, or null for an ordinary client bot.
+   */
+  claimAgent?: (
+    event: { botId: number; botUsername: string; ownerId: number },
+    managerUsername: string
+  ) => Promise<ManagedBotRow | null>
+  /** An agent's bot is up: give it the agent's name and tell the owner. */
+  agentBorn?: (row: ManagedBotRow) => Promise<void>
 }
 
 export interface IncomingText {
@@ -106,7 +126,8 @@ export async function replyToClient(
     manager: string
   },
   msg: IncomingText,
-  now = Date.now()
+  now = Date.now(),
+  onTool?: (name: string | null) => void
 ): Promise<string> {
   const copy = isRu(msg.language) ? COPY.ru : COPY.en
   const text = msg.text?.trim()
@@ -142,7 +163,8 @@ export async function replyToClient(
       return copy.busy
     },
     String(bot.ownerId),
-    !access.media
+    !access.media,
+    onTool
   )
 }
 
@@ -150,6 +172,22 @@ export async function replyToClient(
 const running = new Map<number, Telegraf>()
 
 export const isRunning = (botId: number): boolean => running.has(botId)
+
+/** The Telegram client of a running bot (agentHive sets an agent's profile). */
+export const runningTelegram = (botId: number) => running.get(botId)?.telegram
+
+/** Stop one bot (an agent paused from /agents). */
+export function stopManagedBot(botId: number, reason = 'paused'): void {
+  forgetAgentBot(botId)
+  const bot = running.get(botId)
+  if (!bot) return
+  running.delete(botId)
+  try {
+    bot.stop(reason)
+  } catch {
+    // already stopped
+  }
+}
 
 /** Stop every managed bot (graceful shutdown). */
 export function stopManagedBots(reason = 'SIGTERM'): void {
@@ -204,6 +242,18 @@ export async function launchManagedBot(
     telegram: telegramClientOptionsFor(token),
   })
   bot.on('message', async ctx => {
+    if (row.agentId && deps.asAgent) {
+      try {
+        await deps.asAgent(ctx, row)
+      } catch (error) {
+        logger.error('[managed-bots] an agent message went unanswered', {
+          bot: row.botUsername,
+          agent: row.agentId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      return
+    }
     const m = ctx.message as {
       text?: string
       caption?: string
@@ -215,8 +265,12 @@ export async function launchManagedBot(
       }
     }
     if (!m.from) return
+    // Repeated, and switched to "sending a photo…" while a picture is drawn:
+    // sent once it went dark five seconds into a 30-second turn (#3683).
+    const typing = keepTyping({
+      sendChatAction: async action => ctx.sendChatAction(action),
+    })
     try {
-      await ctx.sendChatAction('typing').catch(() => undefined)
       const reply = await replyToClient(
         deps,
         { ...row, manager: managerUsername },
@@ -226,14 +280,19 @@ export async function launchManagedBot(
           fromUsername: m.from.username,
           language: m.from.language_code,
           text: m.text ?? m.caption,
-        }
+        },
+        Date.now(),
+        name => typing.setAction(actionForTool(name))
       )
+      typing()
       if (reply) await ctx.reply(reply)
     } catch (error) {
       logger.error('[managed-bots] a client message went unanswered', {
         bot: row.botUsername,
         error: error instanceof Error ? error.message : String(error),
       })
+    } finally {
+      typing()
     }
   })
   bot.catch(error => {
@@ -244,6 +303,7 @@ export async function launchManagedBot(
   })
 
   running.set(row.botId, bot)
+  registerAgentBot(row)
   // Not awaited: launch() resolves only when polling stops. A redeploy
   // overlaps two instances polling the same token, so 409 is waited out as
   // it is for the farm bots -- unless this instance was replaced meanwhile.
@@ -259,5 +319,6 @@ export async function launchManagedBot(
   logger.info('[managed-bots] answering', {
     bot: row.botUsername,
     owner: row.ownerId,
+    ...(row.agentId ? { agent: row.agentId } : {}),
   })
 }

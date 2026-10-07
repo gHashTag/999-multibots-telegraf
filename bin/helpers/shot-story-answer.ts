@@ -32,6 +32,7 @@ import {
   storyPriceEstimate,
   storyPriceEstimateNotes,
 } from '../../apps/vibee-editor/render/src/agent/story-template'
+import { templatesForPanel } from '../../apps/vibee-editor/render/src/agent/story-reel-templates'
 import * as REEL from '../../apps/vibee-editor/render/src/spec/crm-story-reel.gen'
 
 const input = JSON.parse(process.argv[2] ?? '{}')
@@ -94,6 +95,27 @@ console.log(
     ...(fix ? { [REEL.SUGGEST_FIX_ARG]: fix } : {}),
     ...(fixPalette ? { [REEL.SUGGEST_PALETTE_ARG]: fixPalette } : {}),
     ...(fixBg ? { [REEL.SUGGEST_BG_ARG]: fixBg } : {}),
+    // The gallery (spec v20): the host's own list and the host's price of
+    // every count, so the cards' figures are the server's.
+    ...(input.templates
+      ? {
+          scenes: {
+            default: 3,
+            min: REEL.SCENES_MIN,
+            max: REEL.SCENES_MAX,
+            price_tokens: Object.fromEntries(
+              Array.from(
+                { length: REEL.SCENES_MAX - REEL.SCENES_MIN + 1 },
+                (_, i) => [
+                  REEL.SCENES_MIN + i,
+                  storyPriceEstimateNotes(REEL.SCENES_MIN + i),
+                ]
+              )
+            ),
+          },
+          templates: templatesForPanel(),
+        }
+      : {}),
     one_tap_link: 't.me/harness_bot?start=reel',
     jobs,
   })
