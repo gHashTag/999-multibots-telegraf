@@ -154,6 +154,7 @@ import { handleCardWork } from './src/agent/card-work'
 import { handleCardMove } from './src/agent/card-move'
 import { handleThreadLive } from './src/agent/thread-live'
 import { isMetaPath } from './src/agent/meta-routes'
+import { isConnectLinkPath } from './src/agent/connect-card'
 import { handleTriWallet } from './src/tri-wallet'
 import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
 import { podDriver, newSessionToken } from './src/browser/wire'
@@ -2968,6 +2969,22 @@ setInterval(() => {
         console.log(`[blog-share] ${said}`)
     } catch (e) {
       console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+    /* The desk's networks it cannot post to yet: the owner's connect card,
+     * once a week per network until connected (connect-card.t27). */
+    if (process.env.BLOG_SHARE_ENABLED !== '1') return
+    try {
+      const { runConnectCard } = await import('./src/agent/connect-card')
+      const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+      const said = await runConnectCard({
+        pool: (await getPool()) as any,
+        owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+        send: (id, text, markup) => sendToTelegram(id, text, markup),
+        now: Date.now,
+      })
+      if (said.startsWith('carded')) console.log(`[connect-card] ${said}`)
+    } catch (e) {
+      console.error('[connect-card] failed:', String(e).slice(0, 300))
     }
   })()
 }, BLOG_SHARE_TICK_MS)
@@ -9161,6 +9178,31 @@ const server = createServer(async (req, res) => {
         `<body style="font:16px/1.5 system-ui;padding:32px;background:#111;color:#eee">` +
         `<p>${said}</p></body>`
     )
+    return
+  }
+
+  /* A card's one-time link to a consent page (connect-card.t27): person only. */
+  if (isConnectLinkPath(req.url?.split('?')[0] || '')) {
+    const { handleConnectLink } = await import('./src/agent/connect-card')
+    const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+    const out = await handleConnectLink(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => personIdentity(r as any),
+      actor: r =>
+        identityWithSource(r as any, verifiedTelegramId(r as any))?.source ===
+        'agent-key'
+          ? 'agent'
+          : 'person',
+      owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+      now: Date.now,
+    })
+    if ('html' in out) {
+      res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(out.html)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.json))
+    }
     return
   }
 
