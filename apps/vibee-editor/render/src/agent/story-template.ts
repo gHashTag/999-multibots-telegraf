@@ -800,6 +800,8 @@ export async function startStory(
   )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
+  // A retry after a failed job of the same script keeps what it made (v28).
+  const carried = await carryFromFailed(deps.pool, lead, s.owner, given, asked)
   /*
    * THE DAY'S GENERATIONS, COUNTED FIRST (spec v6). A reel the payer's daily
    * cap cannot cover is refused here, in words, before a still is drawn --
@@ -816,7 +818,12 @@ export async function startStory(
     const clone =
       voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient) ===
       SPEC.VOICE_CLONE
-    const needed = slotsNeeded(given ? given.length : count, 0, 0, clone)
+    const needed = slotsNeeded(
+      given ? given.length : carried ? carried.scenes.length : count,
+      carried ? filled(carried.stills) : 0,
+      carried ? filled(carried.clips) : 0,
+      clone
+    )
     const left = await deps.generationsLeft(payer).catch(() => needed)
     if (!dayCovers(left, needed)) {
       return { started: false, why: capWhy(left, needed) }
@@ -837,8 +844,9 @@ export async function startStory(
   const deliverTo = deliveryOf(byClient, text(who.deliverTo, 40))
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
-                             scenes, style, cta, deliver_to, caption, end_card, scene_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+                             scenes, style, cta, deliver_to, caption, end_card, scene_count,
+                             stills, clips)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
     [
       lead,
       s.owner,
@@ -849,7 +857,11 @@ export async function startStory(
       // The seller's own words about her, for a client with no profile yet.
       String(who.about ?? '').slice(0, 400) || null,
       deps.me ?? ME,
-      given ? JSON.stringify(given) : null,
+      given
+        ? JSON.stringify(given)
+        : carried
+          ? JSON.stringify(carried.scenes)
+          : null,
       text(who.style, 600),
       text(who.cta, 120),
       // A client pressing for herself never sends into a group from here.
@@ -858,6 +870,8 @@ export async function startStory(
       // Only the seller's own card: her profile is read again at every run.
       sellerCard ? JSON.stringify(sellerCard) : null,
       count,
+      JSON.stringify(carried?.stills ?? []),
+      JSON.stringify(carried?.clips ?? []),
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -868,6 +882,50 @@ export async function startStory(
     job,
     ...(deliverTo ? { to_group: deliverTo } : {}),
   }
+}
+
+const filled = (v: string[]) => v.filter(Boolean).length
+
+/**
+ * WHAT A RETRY KEEPS (spec v28, RETRY_REUSES_DONE_SLOTS). A new job for the
+ * same client and the same script -- her given scenes, or the same asked
+ * topic with the scenes the failed job wrote -- starts from the stills and
+ * clips the latest failed job already made, so only the empty slots are
+ * rendered and paid again (slots_to_render).
+ */
+export async function carryFromFailed(
+  pool: StoryDeps['pool'],
+  lead: string,
+  seller: string,
+  given: StoryScene[] | null,
+  asked: string
+): Promise<{ scenes: StoryScene[]; stills: string[]; clips: string[] } | null> {
+  if (!given && !asked) return null
+  const rows: any[] = await pool
+    .query(
+      `SELECT scenes, stills, clips, topic FROM story_jobs
+        WHERE lead_id = $1 AND seller_id = $2 AND status = 'failed'
+        ORDER BY id DESC LIMIT 5`,
+      [lead, seller]
+    )
+    .then((x: any) => x?.rows ?? [])
+    .catch(() => [])
+  for (const row of rows) {
+    const scenes = row.scenes ? parse(row.scenes) : null
+    if (!Array.isArray(scenes) || !scenes.length) continue
+    const same = given
+      ? JSON.stringify(scenes) === JSON.stringify(given)
+      : String(row.topic ?? '') === asked
+    if (!same) continue
+    const n = scenes.length
+    const fit = (v: unknown) =>
+      Array.from({ length: n }, (_, i) => list(v)[i] ?? '')
+    const stills = fit(row.stills)
+    const clips = fit(row.clips)
+    if (!filled(stills) && !filled(clips)) return null
+    return { scenes, stills, clips }
+  }
+  return null
 }
 
 const list = (v: unknown): string[] => {
