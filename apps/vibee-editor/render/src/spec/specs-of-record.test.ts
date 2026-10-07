@@ -62,6 +62,30 @@ describe('each law fails when it should', () => {
     expect(laws(checkSpec({ ...real, gen }))).toEqual(['gen-values'])
   })
 
+  it('gen-values: an array const of the table drifts in the generated module', () => {
+    // bot-topic-tabs.t27 keeps its tab table in array consts (`: [6]u32`);
+    // the checker once read only scalars, and a drifted colour slipped by.
+    const ROOT_SPEC = join(HERE, '..', '..', '..', '..', '..', 'src', 'spec')
+    const tabs = {
+      file: 'src/spec/bot-topic-tabs.t27',
+      spec: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.t27'), 'utf8'),
+      gen: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.gen.ts'), 'utf8'),
+      test: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.test.ts'), 'utf8'),
+      hostFiles: [
+        {
+          path: 'src/navigation/topics/tabs.ts',
+          text: "import * as SPEC from '@/spec/bot-topic-tabs.gen'\n",
+        },
+      ],
+      ignore: 'src/spec/*.gen.ts\n',
+    }
+    expect(checkSpec(tabs)).toEqual([])
+    const gen = swap(tabs.gen, '[7322096, 16749490,', '[7322096, 9363846,')
+    expect(laws(checkSpec({ ...tabs, gen }))).toEqual(['gen-values'])
+    const spec = swap(tabs.spec, '"wallet", "hive"]', '"wallet", "bees"]')
+    expect(laws(checkSpec({ ...tabs, spec }))).toContain('gen-values')
+  })
+
   it('gen-extra: the generated module declares something the spec does not', () => {
     const gen = swap(real.gen, '"KIND", "ID"', '"KIND", "EXTRA", "ID"')
     expect(laws(checkSpec({ ...real, gen }))).toEqual(['gen-extra'])
