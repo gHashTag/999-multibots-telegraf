@@ -414,11 +414,21 @@ import.meta.url)), ...)` and `readFileSync`.
   the name "on the first screen" at 668 of 787 -- on the phone it was at the
   edge. P32 gave `fold` the insets from the spec; measure against the line
   the person actually has.
+- **A player test must not open bin/ (or anything above apps/vibee-editor).**
+  The player's image is built from apps/vibee-editor only; a test that reads
+  `bin/helpers/shot.mjs` passes in the hooks and dies with ENOENT in the
+  deploy's test gate, stopping every later player deploy (#3244 did it once).
+  `testGateExclude.test.ts` catches it in the full player run -- P32's
+  binding test tripped it on 07.10.2026. Checks of a tool live at the root
+  (`src/__tests__/tools/`), and their mutants in a root list
+  (`bin/helpers/shotFold.mutants.json`), not in the CRM loop's list, whose
+  marker runs player tests only.
 - **Numbers a tool reads come from the spec's gen, not from the tool.**
   `shot.mjs` imports `player/src/spec/crm-first-screen.gen.ts` directly
-  (Node 22 strips the types of a .ts import); the binding test greps the
-  tool for the import and for `foldInsets: TELEGRAM`, so a hand-typed 34
-  in the tool is a red test, not a quiet drift.
+  (Node 22 strips the types of a .ts import); a root test
+  (`src/__tests__/tools/shotFoldFromCrmSpec.test.ts`) greps the tool for
+  the import and for `foldInsets: TELEGRAM`, so a hand-typed 34 in the tool
+  is a red test, not a quiet drift.
 - **A width rule that saves a row at 390 can cost one at 320.** Side-by-side
   funnel pills: 126 -> 78 px at 390, but three rows at 320 (as tall as two
   stacked). Measure every width before scoping; scope the rule

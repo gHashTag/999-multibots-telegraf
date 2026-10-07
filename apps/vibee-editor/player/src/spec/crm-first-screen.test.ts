@@ -1,7 +1,11 @@
 /**
  * The tests of crm-first-screen.t27, run against the code that carries it:
- * src/lib/crmPhone.ts (the rules), the page's sheets (the widths a media
- * query cannot import) and `tri shot` (Telegram's insets on the fold line).
+ * src/lib/crmPhone.ts (the rules) and the page's sheets (the widths a media
+ * query cannot import). `tri shot` reading Telegram's insets from this
+ * spec is held by src/__tests__/tools/shotFoldFromCrmSpec.test.ts at the
+ * repository root: the player's image is built from apps/vibee-editor, and
+ * a test here that opened bin/ would die there with ENOENT
+ * (testGateExclude.test.ts caught exactly that, 07.10.2026).
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -91,19 +95,5 @@ describe('what cannot import the numbers says the same numbers', () => {
     expect(css('components/Crm/FunnelStrip.css')).toContain(
       `@media (min-width: ${SPEC.PILLS_MIN_PX}px) and (max-width: ${SPEC.PHONE_MAX_PX}px)`
     )
-  })
-
-  it('tri shot draws the fold line from this spec, not from its own numbers', () => {
-    const shot = readFileSync(
-      join(SRC, '..', '..', '..', '..', 'bin', 'helpers', 'shot.mjs'),
-      'utf8'
-    )
-    expect(shot).toContain("'src/spec/crm-first-screen.gen.ts'")
-    expect(shot).toMatch(/FIRST\.TG_DEVICE_TOP_PX \+ FIRST\.TG_BUTTONS_TOP_PX/)
-    expect(shot).toContain('FIRST.TG_HOME_BOTTOM_PX')
-    // The CRM's load state is held to Telegram's line, Prepare included.
-    expect(shot).toContain('foldInsets: TELEGRAM')
-    expect(shot).toContain("['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX]")
-    expect(shot).not.toMatch(/\b(105|59|46|34)\b.*foldInsets/)
   })
 })
