@@ -11,13 +11,17 @@
 // the key, the English title, the emoji as a code point, the icon colour and the app route.
 // v1 (2026-10-07): the six tabs, the topic-name bound, the icon colours Telegram accepts,
 // the idempotent make, the claim, the thread injection and the cached lookup.
+// v2 (2026-10-07): a slow maker settles only its own claim and deletes the topic it made
+// when the claim was taken; no topic is named while a tab is being made; /tabs probes the
+// topic itself (editForumTopic, no change); a person's tabs are set up remotely only by
+// that person or a keeper.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_topic_tabs {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-topic-tabs";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- the table, in the order of the tab column ----
 
@@ -88,6 +92,13 @@ module automation::bot_topic_tabs {
         return !stored || !alive;
     }
 
+    // /tabs asks Telegram about each stored tab with this method, naming only the chat and
+    // the thread: an edit that changes nothing, so it must find the topic. Telegram has no
+    // getForumTopic, and a chat action was accepted for threads that no longer existed.
+    // Known limit: the Bot API does not document the answer for a deleted topic; an answer
+    // other than "thread not found" keeps the tab.
+    pub const PROBE_METHOD : str = "editForumTopic";
+
     // A stored tab is forgotten only on Telegram's own word that the thread is missing.
     // A network error or a rate limit says nothing about the tab and forgets nothing.
     fn forget_row(probe_failed: bool, thread_missing: bool) -> bool {
@@ -101,6 +112,14 @@ module automation::bot_topic_tabs {
         return inserted_rows == 1;
     }
 
+    // Each attempt claims under an id of its own, and turns its claim into the tab only if
+    // that very row is still there (one row updated). A maker slower than CLAIM_STALE_MS
+    // whose claim was dropped and taken by another finds no row: it keeps nothing and
+    // deletes the topic it just made, so the person sees one tab, not two.
+    fn settle_won(updated_rows: u32) -> bool {
+        return updated_rows == 1;
+    }
+
     // A claim whose maker died (a crash between claim and create) blocks the tab forever
     // unless it expires; after this long it is dropped and the tab may be made again.
     pub const CLAIM_STALE_MS : u32 = 120000;
@@ -110,9 +129,20 @@ module automation::bot_topic_tabs {
 
     // The first message of a topic the PERSON opened names it. A topic any row knows (a
     // fixed tab, a claim, a topic already named) is never renamed, nor one opened by a
-    // command, nor one whose Telegram name is a fixed tab's.
-    fn may_rename(known: bool, fixed_name: bool, is_command: bool) -> bool {
-        return !known && !fixed_name && !is_command;
+    // command, nor one whose Telegram name is a fixed tab's. While a fresh claim of the
+    // person's is pending, an unknown thread may be the tab being made right now (its row
+    // does not name it yet), so nothing is named until the claim settles or goes stale.
+    fn may_rename(known: bool, fixed_name: bool, is_command: bool, claim_pending: bool) -> bool {
+        return !known && !fixed_name && !is_command && !claim_pending;
+    }
+
+    // ---- setting the tabs up from outside the chat ----
+
+    // An agent may read or make a person's tabs without that person pressing /start. Its
+    // own tabs any caller may; somebody else's only a keeper (the platform owner or a
+    // hive keeper), because making a tab writes into that person's chat.
+    fn may_set_up(own: bool, keeper: bool) -> bool {
+        return own || keeper;
     }
 
     // ---- answering into the tab ----
@@ -185,10 +215,28 @@ module automation::bot_topic_tabs {
     }
 
     test "only a person's own unknown topic is named from its first message" {
-        assert(may_rename(false, false, false));
-        assert(!may_rename(true, false, false));
-        assert(!may_rename(false, true, false));
-        assert(!may_rename(false, false, true));
+        assert(may_rename(false, false, false, false));
+        assert(!may_rename(true, false, false, false));
+        assert(!may_rename(false, true, false, false));
+        assert(!may_rename(false, false, true, false));
+    }
+
+    test "no topic is named while one of the person's tabs is being made" {
+        assert(!may_rename(false, false, false, true));
+        assert(!may_rename(true, false, false, true));
+    }
+
+    test "a slow maker whose claim was taken keeps nothing and deletes its topic" {
+        assert(settle_won(1));
+        assert(!settle_won(0));
+        assert(!settle_won(2));
+    }
+
+    test "a person's tabs are set up by that person or a keeper" {
+        assert(may_set_up(true, false));
+        assert(may_set_up(false, true));
+        assert(may_set_up(true, true));
+        assert(!may_set_up(false, false));
     }
 
     test "a send named its own thread, even null, keeps it" {
@@ -207,7 +255,7 @@ module automation::bot_topic_tabs {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
