@@ -164,3 +164,57 @@
   font-size: 12px;
   color: #f5c542;
 }
+
+/* v2: the agent's mark beside the title, and the confirm before closing. */
+.tab-strip__agent {
+  margin-right: 4px;
+  font-size: 12px;
+  color: #f5c542;
+}
+
+.tab-strip__agent.is-chat {
+  color: #7fd4ff;
+}
+
+.tab-strip__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 197, 66, 0.5);
+  border-radius: 10px;
+  background: rgba(245, 197, 66, 0.08);
+}
+
+.tab-strip__confirm-text {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.tab-strip__confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-strip__confirm-close,
+.tab-strip__confirm-keep {
+  flex: 1 1 0;
+  min-height: var(--touch-target, 44px);
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tab-strip__confirm-close {
+  border: 1px solid #f5c542;
+  background: rgba(245, 197, 66, 0.15);
+  color: #f5c542;
+}
+
+.tab-strip__confirm-keep {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+}

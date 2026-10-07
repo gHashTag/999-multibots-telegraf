@@ -150,13 +150,17 @@ const io = {
     pod.targets = pod.targets.filter(t => t.id !== id)
     if (pod.active === id)
       pod.active = (pod.targets[Math.max(0, i - 1)] ?? {}).id ?? null
+    // A closed tab is nobody's to work in any more.
+    pod.desk = (pod.desk ?? []).filter(d => d !== id)
   },
+  // The tabs a desk round holds (desk-page.ts); the host marks and guards them.
+  agents: () => ({ desk: new Set(pod.desk ?? []), chat: new Set() }),
 }
 const r = await handleStrip(pool, 'shot', raw, io)
 console.log(JSON.stringify({ r, pod }))
 `
-const stripPod = (targets, active) => {
-  let pod = { targets, active }
+const stripPod = (targets, active, desk = []) => {
+  let pod = { targets, active, desk }
   return req => {
     const raw = req.method() === 'POST' ? (req.postData() ?? '') : null
     const run = spawnSync(
@@ -246,6 +250,42 @@ const stripCompact = async (p, when) => {
   if (!m.active) throw new Error(`${when}: the chosen tab is off-screen`)
   if (!m.plus) throw new Error(`${when}: "+" is off-screen`)
   if (process.env.TRI_SHOT_DEBUG) console.error(`${when}: strip ${m.height}px`)
+}
+/*
+ * The confirm before closing an agent's tab (browser-tab-strip v2) opens
+ * under the strip, not inside its scroll: whole on screen, both buttons a
+ * finger wide, and the picture still starts inside the window.
+ */
+const confirmInView = async (p, when) => {
+  const m = await p.evaluate(() => {
+    const box = sel => document.querySelector(sel)?.getBoundingClientRect()
+    const c = box('.tab-strip__confirm')
+    const stage = box('.remote-browser__stage')
+    const btns = [...document.querySelectorAll('.tab-strip__confirm button')]
+    return {
+      confirm: c && {
+        top: c.top,
+        bottom: c.bottom,
+        left: c.left,
+        right: c.right,
+      },
+      stageTop: stage ? stage.top : null,
+      w: window.innerWidth,
+      h: window.innerHeight,
+      buttons: btns.map(b => Math.round(b.getBoundingClientRect().height)),
+    }
+  })
+  if (!m.confirm) throw new Error(`${when}: no confirm`)
+  const c = m.confirm
+  if (c.top < 0 || c.bottom > m.h || c.left < 0 || c.right > m.w)
+    throw new Error(`${when}: the confirm is cut by the window`)
+  if (m.buttons.length !== 2 || m.buttons.some(h => h < 44))
+    throw new Error(`${when}: confirm buttons ${m.buttons} (need two, >=44)`)
+  // The picture stays on screen: at least a finger of it under the confirm.
+  if (m.stageTop === null || m.stageTop > m.h - 44)
+    throw new Error(`${when}: the picture starts at ${m.stageTop} of ${m.h}`)
+  if (process.env.TRI_SHOT_DEBUG)
+    console.error(`${when}: confirm ${c.top}-${c.bottom}, stage ${m.stageTop}`)
 }
 const POD_TWELVE = Array.from({ length: 12 }, (_, i) => {
   const t = POD_FIVE[i % POD_FIVE.length]
@@ -822,14 +862,16 @@ const HARNESSES = {
   },
   /*
    * THE TABS OF THE PERSON'S OWN BROWSER (/browser on a phone, above the
-   * picture): five long titles, GitHub chosen. A thumb switches to another
-   * tab, then closes it; render's handleStrip answers every press.
+   * picture): five long titles, GitHub chosen, Reddit held by a desk round.
+   * A thumb switches to another tab, then closes it; then presses "x" on the
+   * desk's tab, which asks first, and closes it on "Close". render's
+   * handleStrip answers every press.
    */
   'tab-strip': {
     routes: [
       [
         '**/api/browser/strip',
-        stripPod([...POD_FIVE, ...POD_HIDDEN], 'github'),
+        stripPod([...POD_FIVE, ...POD_HIDDEN], 'github', ['reddit']),
       ],
     ],
     root: '.tab-strip',
@@ -845,6 +887,11 @@ const HARNESSES = {
           // The host drops the browser's own pages: five tabs, not six.
           if ((await p.locator('.tab-strip__tab').count()) !== 5)
             throw new Error('load: the strip does not show five tabs')
+          // The desk's tab carries the mark, and only it does.
+          const marked = await p.locator('.tab-strip__agent.is-desk').count()
+          const any = await p.locator('.tab-strip__agent').count()
+          if (marked !== 1 || any !== 1)
+            throw new Error(`load: ${marked} desk marks, ${any} in all`)
           await stripCompact(p, 'load')
         },
       },
@@ -867,6 +914,43 @@ const HARNESSES = {
             .waitFor({ state: 'detached' })
           if ((await p.locator('.tab-strip__tab').count()) !== 4)
             throw new Error('close: the strip does not show four tabs')
+        },
+      },
+      {
+        // "x" on the desk's tab asks, inline; nothing is closed yet.
+        id: 'confirm',
+        ready: async p => {
+          const desk = p.locator('.tab-strip__tab', {
+            has: p.locator('.tab-strip__agent.is-desk'),
+          })
+          await desk.locator('.tab-strip__close').click()
+          await p.locator('.tab-strip__confirm').waitFor()
+          if ((await p.locator('.tab-strip__tab').count()) !== 4)
+            throw new Error('confirm: a tab closed before the yes')
+          // Asked without the yes, the door refuses too.
+          const status = await p.evaluate(async () => {
+            const r = await fetch('/api/browser/strip', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'close', id: 'reddit' }),
+            })
+            return r.status
+          })
+          if (status !== 409)
+            throw new Error(`confirm: an unconfirmed close answered ${status}`)
+          await confirmInView(p, 'confirm')
+          await stripCompact(p, 'confirm')
+        },
+      },
+      {
+        id: 'confirmed',
+        ready: async p => {
+          await p.locator('.tab-strip__confirm-close').click()
+          await p
+            .locator('.tab-strip__agent.is-desk')
+            .waitFor({ state: 'detached' })
+          await p.locator('.tab-strip__confirm').waitFor({ state: 'detached' })
+          if ((await p.locator('.tab-strip__tab').count()) !== 3)
+            throw new Error('confirmed: the strip does not show three tabs')
         },
       },
     ],

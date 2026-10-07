@@ -53,7 +53,9 @@ export async function runRoundNow(
   const { waitForBrowser, cdpHealthIo } = await import('../browser/health')
 
   const { loginsOfPerson } = await import('../browser/logins')
-  const { deskMayGo } = await import('../browser/desk-page')
+  const { deskMayGo, holdDeskTab, releaseDeskTab } = await import(
+    '../browser/desk-page'
+  )
   const { siteRulesOf } = await import('../browser/site-rules')
   /*
    * THE PERSON'S SITE LIST, read before the walk (#3488, found by the bee):
@@ -92,7 +94,10 @@ export async function runRoundNow(
   const win = deskWindow({
     open: async url => {
       await deskMayGo(who, url)
-      return await openWindow(await endpoint(), url)
+      const id = await openWindow(await endpoint(), url)
+      /* Held like a desk tab: the sweep spares it, the tab strip marks it. */
+      holdDeskTab(id)
+      return id
     },
     tile: async targetId => {
       if (!desk) return
@@ -109,9 +114,25 @@ export async function runRoundNow(
     goTo: async (targetId, url) => {
       await deskMayGo(who, url)
       await goTo(await endpoint(), targetId, url)
+      /* Each step renews the hold: a round longer than DESK_HOLD_MS stays marked. */
+      holdDeskTab(targetId)
     },
-    alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
-    close: async targetId => await closeWindow(await endpoint(), targetId),
+    /*
+     * A window a restart took is let go here, not left to expire: the round
+     * opens a new one, and the old id must not stay marked as the desk's.
+     */
+    alive: async targetId => {
+      const ok = await pageUrl(await endpoint(), targetId).then(
+        u => !!u,
+        () => false
+      )
+      if (!ok) releaseDeskTab(targetId)
+      return ok
+    },
+    close: async targetId => {
+      releaseDeskTab(targetId)
+      await closeWindow(await endpoint(), targetId)
+    },
     /*
      * A round can start minutes after a deploy swap, when the port answers and
      * Chromium behind it does not (browser/health.ts). Waiting here is what
