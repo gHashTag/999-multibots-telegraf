@@ -2,7 +2,7 @@
  * crm_duet -- the seller<->buyer duet loop with doubles for the agent, the
  * buyer model and both sessions. Spec: t27 specs/automation/crm-duet.t27.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   runDuet,
   mediaOf,
@@ -23,7 +23,7 @@ import {
   claimsFamiliarity,
   claimsLivedExperience,
   LIVED_EXPERIENCE_REWRITE,
-  REWRITE_DENY_REASONS,
+  rewriteDenyReasons,
   DUET_DENY_REASONS,
   planNoteForSeller,
   PLAN_MEANING_RULE,
@@ -38,7 +38,7 @@ import {
   summaryOf,
   askBuyerModel,
   buyerRequestBody,
-  PAID_TOOLS,
+  paidTools,
   TURNS_MAX,
   type DuetRun,
   type DuetDeps,
@@ -296,7 +296,9 @@ describe('crm_duet helpers', () => {
       'Ты — @example_buyer, хранительница игры'
     )
     expect(buyerPersona('Я хозяйка стола.')).toContain('Я хозяйка стола.')
-    expect(PAID_TOOLS.size).toBe(6)
+    // crm-duet.t27 v5: priced, not listed -- at least the six of v4 and the
+    // four that charge and were on no list.
+    expect(paidTools().size).toBeGreaterThanOrEqual(10)
     expect(TURNS_MAX).toBe(8)
   })
 
@@ -646,9 +648,10 @@ describe('crm_duet: a rewrite round changes words, not work (review of #2709)', 
     for (const o of seen) expect(o?.denyTools?.has('feed_publish')).toBe(true)
     // The turn itself may render (discovery is over); its rewrite may not.
     expect(seen[2]?.denyTools?.has('reel_render')).toBe(false)
-    for (const t of PAID_TOOLS) expect(seen[3]?.denyTools?.has(t), t).toBe(true)
+    for (const t of paidTools())
+      expect(seen[3]?.denyTools?.has(t), t).toBe(true)
     expect(seen[3]?.denyReasons?.get('reel_render')).toBe(
-      REWRITE_DENY_REASONS.get('reel_render')
+      rewriteDenyReasons().get('reel_render')
     )
     // One reel paid for, one file sent -- the first attempt's.
     expect(run.paid_calls).toBe(1)
@@ -690,8 +693,8 @@ describe('crm_duet: a rewrite round changes words, not work (review of #2709)', 
     ])
     // Calls 1, 2, 3 (voice, familiarity, lived) and 5 (done work) are rewrites.
     for (const k of [1, 2, 3, 5]) {
-      expect(seen[k]?.denyReasons, `call ${k}`).toBe(REWRITE_DENY_REASONS)
-      for (const t of [...PAID_TOOLS, 'feed_publish'])
+      expect(seen[k]?.denyReasons, `call ${k}`).toBe(rewriteDenyReasons())
+      for (const t of [...paidTools(), 'feed_publish'])
         expect(seen[k]?.denyTools?.has(t), `call ${k}: ${t}`).toBe(true)
     }
   })
@@ -1410,6 +1413,127 @@ describe('crm_duet tools', () => {
   })
 
   /*
+   * A REAL RUN TAKES AN EXPLICIT dry_run:false. A real duet writes from the
+   * owner's account and a buyer's account; the owner's yes for THIS run was
+   * enforced only by the model. Missing dry_run is now a dry run, so a model
+   * that forgot to ask sends nothing.
+   */
+  describe('a real run needs dry_run:false', () => {
+    const R_OWNER = '900000080'
+    const R_BUYER = '900000081'
+    let sends: string[] = []
+    let clients = 0
+
+    async function loadStart() {
+      sends = []
+      clients = 0
+      vi.resetModules()
+      vi.doMock('./src/agent/telegram-tools', () => ({
+        requireOwner: (c?: ToolContext) => {
+          if (String(c?.telegramId) !== R_OWNER)
+            throw new Error('only the owner')
+        },
+        isSeller: async (c?: ToolContext) => String(c?.telegramId) === R_BUYER,
+        withClient: async (_c: unknown, fn: (c: unknown) => unknown) => {
+          clients++
+          return fn({})
+        },
+      }))
+      vi.doMock('./src/agent/tg-proposals', () => ({
+        sendWithAddressBook: async (_c: unknown, to: string, text: string) => {
+          sends.push(`${to}: ${text}`)
+        },
+        sendFileWithAddressBook: async (_c: unknown, to: string) => {
+          sends.push(`${to}: <file>`)
+        },
+      }))
+      vi.doMock('./src/agent/assistant-opt-out', () => ({
+        assistantMayReach: async () => ({ ok: true }),
+      }))
+      vi.doMock('./src/agent/chat', () => ({
+        runAgent: async function* () {
+          yield { ['тип']: 'текст', ['текст']: 'Здравствуйте.' } // cyrillic-ok: event envelope
+        },
+      }))
+      vi.doMock('./src/agent/provider', () => ({
+        allProviders: () => [],
+        diagnose: () => 'none',
+      }))
+      const mod = await import('./src/agent/crm-duet-tool')
+      return {
+        start: mod.CRM_DUET_TOOLS.find(t => t.name === 'crm_duet')!,
+        status: mod.CRM_DUET_TOOLS.find(t => t.name === 'crm_duet_status')!,
+      }
+    }
+    const rctx = { telegramId: R_OWNER, pool: {} } as unknown as ToolContext
+
+    afterEach(() => {
+      vi.doUnmock('./src/agent/chat')
+      vi.doUnmock('./src/agent/provider')
+      vi.doUnmock('./src/agent/assistant-opt-out')
+    })
+
+    it('no dry_run argument is a dry run: nothing reaches Telegram, and the answer says how to go real', async () => {
+      const { start, status } = await loadStart()
+      const r: any = await start.handler({ buyer: R_BUYER, turns: 1 }, rctx)
+      expect(r.started).toBe(true)
+      expect(r.dry_run).toBe(true)
+      expect(r.hint).toContain('dry_run=false')
+      expect(r.hint).toContain('«да»')
+      await vi.waitFor(async () =>
+        expect(((await status.handler({}, rctx)) as any).run.state).not.toBe(
+          'running'
+        )
+      )
+      expect(sends).toEqual([])
+      expect(clients).toBe(0)
+      expect((start.parameters as any).properties.dry_run.default).toBe(true)
+    })
+
+    /* Only the boolean false goes real. A model that writes null, the
+     * string "false", 0 or "no" has not said the owner's yes in the one
+     * form the tool accepts, so each is a dry run like a missing flag. */
+    it.each([
+      ['null', null],
+      ['the string "false"', 'false'],
+      ['0', 0],
+      ['"no"', 'no'],
+    ])(
+      'dry_run: %s is a dry run: no sends, no Telegram client',
+      async (_label, value) => {
+        const { start, status } = await loadStart()
+        const r: any = await start.handler(
+          { buyer: R_BUYER, turns: 1, dry_run: value },
+          rctx
+        )
+        expect(r.started).toBe(true)
+        expect(r.dry_run).toBe(true)
+        await vi.waitFor(async () =>
+          expect(((await status.handler({}, rctx)) as any).run.state).not.toBe(
+            'running'
+          )
+        )
+        expect(sends).toEqual([])
+        expect(clients).toBe(0)
+      }
+    )
+
+    it('dry_run:false takes the real path: the seller line is sent from a live client', async () => {
+      const { start } = await loadStart()
+      const r: any = await start.handler(
+        { buyer: R_BUYER, turns: 1, dry_run: false },
+        rctx
+      )
+      expect(r.started).toBe(true)
+      expect(r.dry_run).toBe(false)
+      await vi.waitFor(() =>
+        expect(sends).toContain(`${R_BUYER}: Здравствуйте.`)
+      )
+      expect(clients).toBeGreaterThan(0)
+    })
+  })
+
+  /*
    * Live run duet-mtzmbvu1 (2026-09-13) failed with "buyer model HTTP 404"
    * because the buyer asked only the first provider. The buyer must walk the
    * whole chain like the seller does: 404 on the first, answer from the next.
@@ -1739,8 +1863,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
   it('paid tools are denied on the first two seller turns and offered from the third; feed_publish never', () => {
     expect(DISCOVERY_SELLER_TURNS).toBe(2)
     const paidDenied = (turn: number) =>
-      [...PAID_TOOLS].filter(t => deniedToolsFor(turn).has(t)).length
-    const all = PAID_TOOLS.size
+      [...paidTools()].filter(t => deniedToolsFor(turn).has(t)).length
+    const all = paidTools().size
     expect([0, 1, 2, 7].map(paidDenied)).toEqual([all, all, 0, 0])
     for (const turn of [0, 1, 2, 7])
       expect(deniedToolsFor(turn).has('feed_publish')).toBe(true)
@@ -1762,8 +1886,8 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     const run = await runDuet(freshRun({ turns: 3 }), ctx, d)
     expect(run.state).toBe('done')
     const paid = (s?: ReadonlySet<string>) =>
-      [...PAID_TOOLS].filter(t => s?.has(t)).length
-    const all = PAID_TOOLS.size
+      [...paidTools()].filter(t => s?.has(t)).length
+    const all = paidTools().size
     expect(denies.map(paid)).toEqual([all, all, 0])
     expect(denies.map(s => s?.has('feed_publish'))).toEqual([true, true, true])
     expect(run.violations).toEqual([])

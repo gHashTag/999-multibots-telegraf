@@ -289,6 +289,13 @@ export interface AgentTool {
   /** JSON Schema аргументов — её же отдаём наружу по MCP tools/list. */
   parameters: Record<string, unknown>
   handler: (args: Record<string, any>, ctx: ToolContext) => Promise<unknown>
+  /**
+   * What this tool can spend through when its own name is not a priced op:
+   * a TOKEN_PRICES op under another name, or a priced tool it borrows from
+   * this registry. Its price is the highest of those (tool-charges.ts); a
+   * price > 0 makes it a paid tool, which a dry run never offers.
+   */
+  charges?: readonly string[]
 }
 
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
@@ -1245,6 +1252,7 @@ import { ценаТокенов } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
+import { registerChargingTools } from './tool-charges'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_AVATAR_TOOLS } from './crm-avatars'
@@ -4391,6 +4399,12 @@ for (let i = 0; i < TOOLS.length; i += 1) {
 TOOLS.push(...BROWSER_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
+/*
+ * The registry is complete here: tell the price derivation which tools it
+ * has (tool-charges.ts), so a dry run refuses every tool with a price > 0
+ * (crm-duet.t27 v5) and not a list somebody remembered to extend.
+ */
+registerChargingTools(TOOLS)
 
 /**
  * Count a tool call whose identity came from initData (ctx.initDataBot), per

@@ -316,6 +316,14 @@ export function makeSplitReelTool(
 ): AgentTool {
   return {
     name: 'split_reel',
+    // Borrowed from the registry, each charging for itself: the price that makes
+    // this a paid tool (tool-charges.ts, crm-duet.t27 v5).
+    charges: [
+      'image_edit',
+      'audio_generate',
+      'lipsync_generate',
+      'reel_render',
+    ],
     description:
       `СПЛИТ-РИЛС ОДНИМ ВЫЗОВОМ (шаблон ${SPEC.COMPOSITION}, спека split-reel.t27): кадр с лицом в студии ` +
       `(${SPEC.FACE_SPEC}) + текст → голос (рилс владельца — его клон; рилс клиента — голос клиента) → липсинк ` +

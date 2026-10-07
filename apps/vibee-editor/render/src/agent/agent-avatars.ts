@@ -223,6 +223,8 @@ export async function makeAvatars(
 export const AVATAR_TOOLS: AgentTool[] = [
   {
     name: 'agent_avatars_make',
+    // Draws through the borrowed image_edit (tool-charges.ts).
+    charges: ['image_edit'],
     description:
       'Сделать аватарки агентов каталога из аватарки владельца (img2img GPT Image ' + // cyrillic-ok: tool description
       '2.5), каждому в своём стиле. Без agent — всем, у кого нет; redo — ' + // cyrillic-ok: tool description
