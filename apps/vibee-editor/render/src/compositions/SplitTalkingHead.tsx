@@ -30,6 +30,7 @@ import {
 import { z } from 'zod'
 import { Captions, type Caption } from '../components/Captions'
 import { resolveMediaPath } from '../shared/mediaPath'
+import * as SPLIT from '../spec/split-reel.gen'
 // The end of a reel is the same in every template: StoryReel's held frame
 // and call (split-reel.t27 v5, CTA_PAUSE_SEC = crm-story-reel PAUSE_SEC).
 import { CallToAction, HeldFrame } from './StoryReel'
@@ -276,7 +277,14 @@ export const SplitTalkingHeadSchema = z.object({
   musicVolume: z.number().default(DEFAULT_MUSIC_VOLUME),
   videoVolume: z.number().default(1), // LipSync video volume (0-1)
   ctaText: z.string().optional(),
-  ctaHighlight: z.string().optional(),
+  /**
+   * The call's colour (split-reel.t27 v10), decided by the planner: the
+   * order's, else the client's, else neutral; the house's gold only on the
+   * house's own reel. Absent, the call is drawn neutral, never gold.
+   * It replaces `ctaHighlight`, which nothing drew: the colour is the one
+   * thing about the call a caller decides besides its words.
+   */
+  ctaColor: z.string().optional(),
   /**
    * The pause with the call at the end (split-reel.t27 v5): after the voice
    * the lipsync's last frame is held, silent, while `ctaText` stands on
@@ -874,6 +882,7 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   imageOverlays = [],
   // The call at the end
   ctaText = '',
+  ctaColor = SPLIT.NEUTRAL_CALL_COLOR,
   pauseSec = 0,
   lipFrames = 0,
 }) => {
@@ -954,7 +963,7 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
           name="Pause to decide"
         >
           <HeldFrame src={resolveMediaPath(lipSyncVideo)} at={lipFrames - 1} />
-          {ctaText ? <CallToAction text={ctaText} /> : null}
+          {ctaText ? <CallToAction text={ctaText} color={ctaColor} /> : null}
         </Sequence>
       </AbsoluteFill>
     )

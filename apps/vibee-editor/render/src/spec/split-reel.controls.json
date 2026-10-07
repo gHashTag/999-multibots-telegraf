@@ -1,0 +1,217 @@
+[
+  {
+    "name": "a seller who is not the house orders the house's own reel",
+    "from": "if !house_caller {",
+    "to": "if false {"
+  },
+  {
+    "name": "a client on the turn still makes the house's own reel",
+    "from": "        if client_turn {\n            return false;",
+    "to": "        if false {\n            return false;"
+  },
+  {
+    "name": "a named lead still makes the house's own reel",
+    "from": "        if for_lead {\n            return false;",
+    "to": "        if false {\n            return false;"
+  },
+  {
+    "name": "an unattended sweep makes the house's own reel",
+    "from": "return !seller_sweep;",
+    "to": "return true;"
+  },
+  {
+    "name": "the client's profile call is skipped",
+    "from": "return CTA_CLIENT;",
+    "to": "return CTA_NEUTRAL;"
+  },
+  {
+    "name": "a client's reel falls back to the owner bot",
+    "from": "return CTA_NEUTRAL;",
+    "to": "return CTA_OWNER;"
+  },
+  {
+    "name": "a given call naming the house stands on a client's reel",
+    "from": "if !given_names_house {",
+    "to": "if true {"
+  },
+  {
+    "name": "the house's own reel loses its bot",
+    "from": "        if house_own {\n            return CTA_OWNER;",
+    "to": "        if house_own {\n            return CTA_NEUTRAL;"
+  },
+  {
+    "name": "the owner's voice speaks a client's reel",
+    "from": "pub const OWNER_VOICE_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const OWNER_VOICE_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "a house name the agent put in stands on a client's reel",
+    "from": "pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = false;",
+    "to": "pub const AGENT_HOUSE_NAME_ON_CLIENT_REEL : bool = true;"
+  },
+  {
+    "name": "agent_supplied ignored: her own words are refused too",
+    "from": "if !agent_supplied {",
+    "to": "if false {"
+  },
+  {
+    "name": "the house's own reel may not name the house",
+    "from": "        if house_own {\n            return true;\n        }\n        if !agent_supplied {",
+    "to": "        if !agent_supplied {"
+  },
+  {
+    "name": "refusal after spend: a refused call is charged",
+    "from": "pub const REFUSED_BEFORE_SPEND : bool = true;",
+    "to": "pub const REFUSED_BEFORE_SPEND : bool = false;"
+  },
+  {
+    "name": "a call that goes ahead is not charged",
+    "from": "        if !refused {\n            return true;",
+    "to": "        if !refused {\n            return false;"
+  },
+  {
+    "name": "the house's bot changes",
+    "from": "pub const OWNER_CTA : str = \"@t27ai_bot\";",
+    "to": "pub const OWNER_CTA : str = \"@other_bot\";"
+  },
+  {
+    "name": "VERSION disagrees with the last dated note",
+    "from": "pub const VERSION : u8 = 10;",
+    "to": "pub const VERSION : u8 = 9;"
+  },
+  {
+    "name": "an ordinary caller with no voice is not refused",
+    "from": "return !STOCK_VOICE_FOR_ORDINARY;",
+    "to": "return false;"
+  },
+  {
+    "name": "a stock voice is kept for the ordinary caller",
+    "from": "pub const STOCK_VOICE_FOR_ORDINARY : bool = false;",
+    "to": "pub const STOCK_VOICE_FOR_ORDINARY : bool = true;"
+  },
+  {
+    "name": "the pace is one millisecond quicker than measured",
+    "from": "pub const MS_PER_CHAR : u32 = 56;",
+    "to": "pub const MS_PER_CHAR : u32 = 55;"
+  },
+  {
+    "name": "the ceiling is one character wide",
+    "from": "return speech_ms_estimate(units, slowest) <= SPEECH_MAX_SECONDS * 1000;",
+    "to": "return speech_ms_estimate(units, slowest) <= SPEECH_MAX_SECONDS * 1000 + 56;"
+  },
+  {
+    "name": "a voice refused after it is paid gives nothing back",
+    "from": "        return charged_now;",
+    "to": "        return 0;"
+  },
+  {
+    "name": "a voice from an earlier call is given back too",
+    "from": "        if !paid_here {\n            return 0;",
+    "to": "        if !paid_here {\n            return charged_now;"
+  },
+  {
+    "name": "a voice exactly at the ceiling is refused for its length",
+    "from": "return measured_ms > SPEECH_MAX_SECONDS * 1000;",
+    "to": "return measured_ms >= SPEECH_MAX_SECONDS * 1000;"
+  },
+  {
+    "name": "every voice is judged at MS_PER_CHAR, the owner's pace",
+    "from": "pub const PACE_PER_VOICE : bool = true;",
+    "to": "pub const PACE_PER_VOICE : bool = false;"
+  },
+  {
+    "name": "max to min: a voice is judged at the quicker of its pace and MS_PER_CHAR",
+    "from": "        if slowest > MS_PER_CHAR {\n            return slowest;",
+    "to": "        if slowest < MS_PER_CHAR {\n            return slowest;"
+  },
+  {
+    "name": "latest wins: a quicker reel later speeds the voice up",
+    "from": "        if measured > kept {\n            return measured;",
+    "to": "        if measured > 0 {\n            return measured;"
+  },
+  {
+    "name": "the measured pace is rounded down, so it errs short",
+    "from": "return (measured_ms + units - 1) / units;",
+    "to": "return measured_ms / units;"
+  },
+  {
+    "name": "a text too short to measure caps the voice",
+    "from": "        if units < MIN_PACE_UNITS {\n            return kept;",
+    "to": "        if false {\n            return kept;"
+  },
+  {
+    "name": "the shortest measured text moves off half the ceiling",
+    "from": "pub const MIN_PACE_UNITS : u32 = 107;",
+    "to": "pub const MIN_PACE_UNITS : u32 = 100;"
+  },
+  {
+    "name": "the weights dropped: every character weighs one",
+    "from": "return plain * PLAIN_CHAR_WEIGHT + digits * DIGIT_WEIGHT + wide * WIDE_CHAR_WEIGHT;",
+    "to": "return plain + digits + wide;"
+  },
+  {
+    "name": "a digit weighs as a letter",
+    "from": "pub const DIGIT_WEIGHT : u32 = 4;",
+    "to": "pub const DIGIT_WEIGHT : u32 = 1;"
+  },
+  {
+    "name": "a syllable character weighs as a letter",
+    "from": "pub const WIDE_CHAR_WEIGHT : u32 = 4;",
+    "to": "pub const WIDE_CHAR_WEIGHT : u32 = 1;"
+  },
+  {
+    "name": "one voice pace is written onto every other voice row",
+    "from": "pub const PACE_ON_OTHER_VOICES : bool = false;",
+    "to": "pub const PACE_ON_OTHER_VOICES : bool = true;"
+  },
+  {
+    "name": "a never-measured clone takes the pace of the voice measured",
+    "from": "            if !PACE_ON_OTHER_VOICES {\n                return kept;",
+    "to": "            if kept > 0 {\n                return kept;"
+  },
+  {
+    "name": "v10: a client's call is drawn in the house's gold",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return CTA_OWNER;"
+  },
+  {
+    "name": "v10: the house's own reel loses its gold",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(false, given, given_is_house, hers);"
+  },
+  {
+    "name": "v10: the house's gold the order gave stands on her reel",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(house_own, given, false, hers);"
+  },
+  {
+    "name": "v10: her palette is never asked, her call is drawn neutral",
+    "from": "        return cta_for(house_own, given, given_is_house, hers);",
+    "to": "        return cta_for(house_own, given, given_is_house, false);"
+  },
+  {
+    "name": "v10: contrast check skipped, every colour is drawn as it is",
+    "from": "        if readable {\n            return CALL_AS_IS;",
+    "to": "        if true {\n            return CALL_AS_IS;"
+  },
+  {
+    "name": "v10: a colour the order gave that does not read is drawn anyway",
+    "from": "pub const GIVEN_CALL_COLOR_UNREADABLE_REFUSED : bool = true;",
+    "to": "pub const GIVEN_CALL_COLOR_UNREADABLE_REFUSED : bool = false;"
+  },
+  {
+    "name": "v10: her colour that does not read stops the reel",
+    "from": "        return CALL_SHADE;",
+    "to": "        return CALL_REFUSED;"
+  },
+  {
+    "name": "v10: the neutral call colour is the house's gold",
+    "from": "pub const NEUTRAL_CALL_COLOR : str = \"#FFFFFF\";",
+    "to": "pub const NEUTRAL_CALL_COLOR : str = \"#FFD700\";"
+  },
+  {
+    "name": "v10: the house's gold changes",
+    "from": "pub const HOUSE_CALL_COLOR : str = \"#FFD700\";",
+    "to": "pub const HOUSE_CALL_COLOR : str = \"#FFD701\";"
+  }
+]

@@ -55,6 +55,8 @@ tri — оболочка Trinity S³AI
   tri card       как выглядит карточка владельца на живых данных
   tri ball [show|push [--dry] [owner/repo ...]]  доска «где мяч»: CRM + почта + открытые PR и баги по клиентам (specs/automation/ball-board.t27)
   tri growth                              следующий шаг к заработку от Королевы, только чтение (specs/automation/queen-growth.t27)
+  tri honesty [часы]                      врёт ли агент чата: head_note живого /api/agent/provider и флаги [agent:honesty] по видам, только счёт
+  tri vision-bench [--sizes 448,768] [--image URL --expect "11:30,500"]  читает ли зрение рендера текст на картинке и за сколько мс (своё зрение, слот занят?)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
@@ -142,6 +144,7 @@ tri — оболочка Trinity S³AI
   tri alive      дышит ли продавец: сколько прошло с последнего обхода
   tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
   tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
+  tri jam [--json]  review jam: each open PR's case and the Queen's next move (rc 1 = dispatch, 2 = unread)
   tri stale [N…]  не сделано ли то, что лежит в PR, уже на main
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri spelling   тесты, сторожащие написание исходника, а не свойство
@@ -166,6 +169,11 @@ tri — оболочка Trinity S³AI
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
   tri deps       вылечить node_modules: npm ci, а не install
+  tri wt-deps [tree]   a linked worktree's node_modules: root by symlink, render by APFS clone (#3674)
+  tri holders [branch] who already holds a branch: worktrees, dirty count, ALARM on a mass staged delete
+  tri guard-diff <claims|prices> <rows|-> [--base REF] [--head REF|PR|DIR]
+                 an honesty guard at base vs head over a rows file: lost claims,
+                 wrong confirms, needless notes; rc 1 on a regression (#3772)
   tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
   tri blind <файл> <было> <стало> <тест>
                  сломать код и посмотреть, покраснеет ли тест
@@ -223,6 +231,8 @@ tri — оболочка Trinity S³AI
   tri work-report <PR> [repo]  примет ли шлюз trinity отчёт о работе: head_sha и валидатор
   tri a2a "<задача>" [--surface s] [--fresh]  дать задачу агенту владельца и смотреть, как он справится
   tri remote-check [render|player|root] [-- файлы]  проверки в облаке (Railway), а не на Mac
+  tri remote-check [--repo DIR] website -- check:ИМЯ  проверки сайта trinity там же
+  tri remote-check mutants|spec -- x.mutants.json|x.t27  мутанты и контроли спеки там же (2 = не измерено)
   tri bench                    балл агента: находит ли он кнопки на страницах из боя
   tri lesson <скил> <текст>    записать урок в скил одной строкой, с датой
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
@@ -1184,6 +1194,14 @@ sys.stderr.write(str(len(ts)))
     # Does a bot button tap still reach the render? Key parity, guard, live
     # approve + meeting probes with junk tokens, relay failures in the log.
     bash "$ROOT/bin/helpers/relays.sh" "${2:-24}" ;;
+  honesty)
+    # Does the chat agent claim what it did not do? The deploy-time provider
+    # head_note from the live /api/agent/provider and [agent:honesty] flags by kind, counts only.
+    bash "$ROOT/bin/helpers/honesty.sh" "${2:-24}" ;;
+  vision-bench)
+    # Can the render's own vision read the text on a picture, how fast, and
+    # was its single slot busy? Synthetic posters or --image URL (#3660).
+    shift; bash "$ROOT/bin/helpers/vision-bench.sh" "$@" ;;
   relays-watch)
     # `tri relays` every hour from launchd: a dead render is redeployed once
     # per 6 h and reported with the result; a key or code break is reported
@@ -1999,6 +2017,18 @@ PYEOF
     rm -rf /tmp/dd
     [ "$built" = "1" ] || echo "СБОРКА НЕ ПРОШЛА — на симулятор ничего не ставил"
     df -k /System/Volumes/Data | awk '{if(NR==2) printf "убрано за сборкой, свободно %d МБ\n", $4/1024}' ;;
+  wt-deps)
+    # A linked worktree's node_modules, ready for the gates (#3674).
+    shift
+    exec bash "$ROOT/bin/helpers/wt-deps.sh" "$@" ;;
+  holders)
+    # Who already holds a branch, before an author is dispatched to it.
+    shift
+    exec bash "$ROOT/bin/helpers/holders.sh" "$@" ;;
+  guard-diff)
+    # The reviewer's base-vs-head probe of an honesty guard, kept (#3772).
+    shift
+    exec node "$ROOT/bin/helpers/guard-diff.mjs" "$@" ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
     #
@@ -2067,6 +2097,7 @@ PYEOF
 
   stale)  shift; bash "$ROOT/bin/helpers/stale.sh" "$ROOT" "$@" ;;
   queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
+  jam)    shift; bash "$ROOT/bin/helpers/jam.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;

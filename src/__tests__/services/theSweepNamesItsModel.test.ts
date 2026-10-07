@@ -114,3 +114,25 @@ describe('the answer carries its provider and the sweep asks for tools', () => {
     expect(sentBody.tools_only).toBeUndefined()
   })
 })
+
+describe('the sweep outcome carries the answering model', () => {
+  it('an idle turn returns the provider as `model`', async () => {
+    const r = await sweepOnce(
+      OWNER,
+      deps({
+        текст: 'тихо', // cyrillic-ok: field of ОтветАгента
+        инструменты: [{ name: 'crm_leads' }], // cyrillic-ok: field of ОтветАгента
+        provider: 'zai/glm-4.7-flash',
+      })
+    )
+    expect(r.model).toBe('zai/glm-4.7-flash')
+  })
+
+  it('no provider on the answer, no model on the outcome', async () => {
+    const r = await sweepOnce(
+      OWNER,
+      deps({ текст: 'тихо', инструменты: [{ name: 'crm_leads' }] }) // cyrillic-ok: fields of ОтветАгента
+    )
+    expect('model' in r).toBe(false)
+  })
+})

@@ -49,7 +49,7 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 
 ### Loop 6 (owner: "все три" -- the move door flip, the agent at work, a nightly look)
 
-- [ ] L6.1 flip `MOVE_DOOR_EXISTS` -- now spec **v7** (v6 went to L6.2). Waits on BrowserOS#519 merge + deploy; `tri card-check` says so in a `wait` line
+- [ ] L6.1 flip `MOVE_DOOR_EXISTS` -- now spec **v8** (v6 went to L6.2, v7 to L7.2). Waits on BrowserOS#519 merge + deploy; `tri card-check` says so in a `wait` line
 - [x] L6.2 spec v6 (t27#5389, a6626feb1): `event: work` on the live door -- WORK*THINKING / TOOL (by name) / WRITING / DONE, `work_send` dedupe, `work_shown` idle cut at 90 s; names only, never stored. Render: `announcingWork` wraps `runAgent` in the chat route AND A2A (DONE in `finally`), `workNow` answers a sheet opened mid-turn. Player: `workFrom` takes a valid kind and a `[A-Za-z0-9*.:-]{1,64}`name only; CardChat line`.card-chat\_\_doing` role=status. Tests: render thread-live 6/6, spec binding 30/30, player 15/15 (999 6a51c79e8)
 - [x] L6.3 `tri hive-nightly [--dry] [--shots]` (408279b5e): drift + live card-check + weekly `tri shot all`; a regression opens/updates ONE issue in the EPIC by title prefix; unmeasured (no agent key, 401) touches nothing
 
@@ -64,6 +64,14 @@ Started 2026-10-01. One line per step; tick only after the commit exists.
 7. `answerIdentityRequests` accepts only origin https://t27.ai, but the frame
    is same-origin now. Checked 2026-10-01: not a defect -- on app.t27.ai the
    board reads the app session directly (trinity `appSessionIdentity.ts`).
+
+### Loop 7 (owner 2026-10-03: "the title is not visible", "show the agent working online -- logs, tool calls, tri commands")
+
+- [x] L7.1 The tapped card opens with its title and column read from the board -- PR https://github.com/gHashTag/999-multibots-telegraf/pull/3506 (3b616b8fa)
+- [x] L7.2 spec v7 -- PR https://github.com/gHashTag/t27/pull/5680 (24/24; negative controls BEE_FACE_DETENT_RANK=1, BEE_POLL_S=30, BEE_TOKEN_TO_BROWSER=true each FAIL the bee test): BEE_DOOR, one attempt, token never to a browser, prose for keepers, two faces (running card -> bee at FULL, send -> chat)
+- [x] L7.3 render `/api/card-work` (`agent/card-work.ts`, 16 tests) + player `lib/cardWork.ts`, `hooks/useBeeWork.ts`, `Queen/BeeLog.tsx`, tabs in CardChat; `tri shot card-chat-bee` green at 390/320 -- branch `feat/card-bee-log` (c46679968)
+- [x] L7.4 `TRIOS_API_TOKEN` on vibee-render = a Railway reference to trios-agent-server (`${{trios-agent-server.TRIOS_API_TOKEN}}`, set with --skip-deploys, resolved length 40, the Queen answers it 200) -- the next render deploy picks it up
+- [ ] L7.5 live: card #5673 at 390 px after the deploy
 
 ## Anomalies
 

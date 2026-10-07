@@ -95,12 +95,11 @@ describe('проводка, а не только помощник', () => {
     )
   })
 
-  it('/api/voices не отвечает 500, когда озвучить всё равно есть кем', () => {
-    // Отказ ElevenLabs — не сбой, а постоянное состояние: ключ в переменной
-    // хранит идентификатор, а не ключ. 500 оставлял экран с тремя выдуманными
-    // именами вместо голосов того, кто действительно читает.
-    expect(СЕРВЕР).toContain('voices: ГОЛОСА_MINIMAX')
-    expect(СЕРВЕР).toContain("provider: 'replicate/minimax-speech-02-turbo'")
+  it('/api/voices answers with the voices of the TTS that speaks: Kie', () => {
+    // Was ElevenLabs directly, then MiniMax ids on its refusal -- neither of
+    // which the Kie leg could speak (src/agent/kie-speech.ts).
+    expect(СЕРВЕР).toContain('JSON.stringify(voicesAnswer())')
+    expect(СЕРВЕР).not.toContain('voices: ГОЛОСА_MINIMAX')
   })
 })
 
@@ -121,27 +120,18 @@ describe('имя голоса уходит тому, кто его узнает'
     expect(имяДляElevenLabs('Russian_ReliableMan')).toBeUndefined()
   })
 
-  it('нога KieAI берёт имя через отбор, а не как есть', () => {
-    expect(СЕРВЕР).toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
-    expect(СЕРВЕР).not.toMatch(/voice:\s*\n\s*typeof voice_name === 'string'/)
+  it('the Kie leg maps the choice through kieVoiceFor, not a fixed name', () => {
+    // The old leg sent every voice as 'Rachel' (kie-speech.test.ts).
+    expect(СЕРВЕР).not.toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
+    expect(СЕРВЕР).toMatch(
+      /speakOnKie\(\s*text,[\s\S]{0,300}?voiceId: voice_id,/
+    )
   })
 })
 
-describe('скорость доходит до КАЖДОЙ ноги, а не до одной', () => {
-  it('нога ElevenLabs кладёт скорость в voice_settings', () => {
-    /*
-     * Ползунок терялся на всех трёх ногах. Две починены; эта осталась бы
-     * мёртвой ровно до того дня, когда починят ключ ElevenLabs, — и слайдер
-     * снова перестал бы значить что-либо, без единой правки в коде.
-     */
-    expect(СЕРВЕР).toMatch(
-      /voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/
-    )
-  })
-
-  it('единица не шлётся ни одной ноге: это и есть значение по умолчанию', () => {
-    // Лишнее поле в теле — лишняя причина для отказа.
-    expect(СЕРВЕР).toMatch(/скоростьРечи\(speed\) !== 1/)
+describe('the speed reaches every leg that is left', () => {
+  it('the Kie leg passes the slider to speakOnKie (clamped there)', () => {
+    expect(СЕРВЕР).toMatch(/speakOnKie\([\s\S]{0,400}?speed,/)
   })
 })
 

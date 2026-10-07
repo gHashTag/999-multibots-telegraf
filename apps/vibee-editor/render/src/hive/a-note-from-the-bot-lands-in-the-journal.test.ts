@@ -64,6 +64,9 @@ describe('a note from the bot lands in the journal', () => {
       'sweep-idle',
       'sweep-card',
       'sweep-failed',
+      // A busy provider defers the client to the next tick (2026-10-05):
+      // neither a failure nor silence.
+      'sweep-deferred',
       'sweep-held',
       'card-pressed',
       /*

@@ -38,7 +38,11 @@ const NOW = Date.parse('2026-10-03T12:00:00Z')
 /** One person: their list, when they last said yes, until when they drive. */
 function person(
   rules: Array<{ site: string; rule: string }>,
-  session: { allowedAtMs?: number | null; wheelUntilMs?: number | null } = {}
+  session: {
+    allowedAtMs?: number | null
+    allowedHost?: string | null
+    wheelUntilMs?: number | null
+  } = {}
 ) {
   return {
     telegramId: '144',
@@ -61,6 +65,7 @@ function person(
                 state: 'live',
                 cdp_endpoint: 'cdp',
                 allowed_ms: session.allowedAtMs ?? null,
+                allowed_host: session.allowedHost ?? null,
                 wheel_ms: session.wheelUntilMs ?? null,
               },
             ],
@@ -94,18 +99,33 @@ describe('deskMayAct: the tools’ question, asked at the desk', () => {
     ).rejects.toThrow(/needs the person's fresh yes/)
   })
 
-  it('an "ask" site with a yes inside the window acts', async () => {
+  it('an "ask" site with a yes for it inside the window acts', async () => {
     const who = person([{ site: 'x.com', rule: 'ask' }], {
       allowedAtMs: NOW - PERMISSION_WINDOW_MS + 1_000,
+      allowedHost: 'x.com',
     })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)
     ).resolves.toBeUndefined()
   })
 
+  it('a fresh yes for another place (or for no place) does not open x.com', async () => {
+    for (const allowedHost of ['online.sberbank.ru', null]) {
+      const who = person([{ site: 'x.com', rule: 'ask' }], {
+        allowedAtMs: NOW - 1_000,
+        allowedHost,
+      })
+      await expect(
+        deskMayAct(who, 'https://x.com/compose/post', NOW),
+        String(allowedHost)
+      ).rejects.toThrow(/fresh yes/)
+    }
+  })
+
   it('a yes older than the window is no yes', async () => {
     const who = person([{ site: 'x.com', rule: 'ask' }], {
       allowedAtMs: NOW - PERMISSION_WINDOW_MS - 1_000,
+      allowedHost: 'x.com',
     })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)
@@ -123,7 +143,11 @@ describe('deskMayAct: the tools’ question, asked at the desk', () => {
   })
 
   it('while the person holds the wheel, nothing is pressed even with a yes', async () => {
-    const who = person([], { allowedAtMs: NOW, wheelUntilMs: NOW + 60_000 })
+    const who = person([], {
+      allowedAtMs: NOW,
+      allowedHost: 'x.com',
+      wheelUntilMs: NOW + 60_000,
+    })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)
     ).rejects.toThrow(DESK_WHEEL_TAKEN)
@@ -139,6 +163,7 @@ describe('deskMayAct: the tools’ question, asked at the desk', () => {
   it('a blocked site stays blocked, yes or no', async () => {
     const who = person([{ site: 'x.com', rule: 'block' }], {
       allowedAtMs: NOW,
+      allowedHost: 'x.com',
     })
     await expect(
       deskMayAct(who, 'https://x.com/compose/post', NOW)

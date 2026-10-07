@@ -45,3 +45,11 @@ for s in 999-multibots-telegraf vibee-render; do
     printf '  %-24s %s\n' "$s" "(railway did not answer -- unknown)"
   fi
 done
+
+echo
+echo "── review jam ──"
+# One line from `tri jam`: open PRs that need a bee THIS round. The Queen's
+# round is inflight, then jam -- see "The Queen's round" in
+# .claude/skills/continuous-improvement-loop/SKILL.md.
+JAM=$(python3 "$ROOT/bin/helpers/jam.py" --summary 2>/dev/null)
+echo "  ${JAM:-jam: UNMEASURED -- tri jam printed nothing}"

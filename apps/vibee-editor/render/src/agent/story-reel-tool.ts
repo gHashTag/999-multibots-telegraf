@@ -43,7 +43,15 @@ import type { LateOutcome } from './late-picture'
 import * as SPEC from '../spec/crm-story-reel.gen'
 import { cutShot, shotOfScene } from './studio-shots'
 import type { HeardVoice } from './split-reel-tool'
-import { languageOf } from './story-reel-templates'
+import {
+  cardForReel,
+  houseLineRefused,
+  houseReplacedNote,
+  languageOf,
+  reelCall,
+  takenWord,
+  voiceOf,
+} from './story-reel-templates'
 import { captionsFromWords, type SpokenWord } from '../split-reel-plan'
 
 /** Scenes a story holds: the owner's form is three. */
@@ -400,17 +408,20 @@ export async function keepEndCard(
       v => v !== undefined && v !== null && String(v).trim() !== ''
     )
   const card = given ? endCardOf(raw) : null
+  // Read as her reel will draw it (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN):
+  // a colour she keeps none of is ink there, never the house's gold.
+  const drawn = (c: StoryEndCard) =>
+    endCardForReel(mergeEndCard(c, null, profile), owner === lead, '')
   const why = given
     ? endCardProblem(raw) ||
-      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||
+      (card ? endCardUnreadable(drawn(card)) : '') ||
       (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
     : ''
   const action = keepAction(true, given, given && !why)
   if (action === SPEC.KEEP_REFUSED) {
     // A #hex card that does not read gets its options (v12, v13); "black"
     // does not.
-    const merged =
-      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null
+    const merged = card && !endCardProblem(raw) ? drawn(card) : null
     return {
       kept: null,
       action,
@@ -527,6 +538,102 @@ export function endCardUnreadable(card: StoryEndCard | null): string {
       return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1; читается ${readableShade(colour, bg)}`
   }
   return ''
+}
+
+/*
+ * A CLIENT'S CARD IS NEVER THE HOUSE'S (spec v25). StoryReel draws what a
+ * card leaves out in its defaults -- the house's gold call and green button --
+ * and draws a card whenever there is a call, even with no card at all. So a
+ * client with no palette, or half of one, ended her reel in the house's
+ * colours. Her card is now filled before the render: her colours where she
+ * has them, else white or black ink, whichever reads on her ground.
+ */
+
+/** The spec's card_filled. */
+export function cardFilled(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  return (
+    !ownReel &&
+    !SPEC.HOUSE_COLOURS_ON_CLIENT_REEL &&
+    // the spec's cta_card_shown, as StoryReel.tsx reads it
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's default_ink. */
+export function defaultInk(
+  ownReel: boolean,
+  whiteX10: number,
+  blackX10: number
+): number {
+  if (ownReel || SPEC.HOUSE_COLOURS_ON_CLIENT_REEL) return SPEC.INK_HOUSE
+  if (whiteX10 >= blackX10) return SPEC.INK_WHITE
+  return SPEC.INK_BLACK
+}
+
+/** The spec's card_complete (v26). */
+export function cardComplete(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  if (cardFilled(ownReel, hasEndCard, callChars)) return true
+  return (
+    ownReel &&
+    SPEC.OWN_CARD_FILLED &&
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's reel_is_own (v26). */
+export function reelIsOwn(houseOwn: boolean, leadIsCaller: boolean): boolean {
+  if (houseOwn) return true
+  return leadIsCaller && SPEC.CALLER_OWN_LEAD_IS_OWN_REEL
+}
+
+/**
+ * The card as the reel will draw it: whenever the pause shows the card, every
+ * colour is set before the render (spec v26, card_complete). The composition
+ * does not apply its defaults to a card passed with some fields, so a field
+ * left out was drawn as nothing: no ground, a dark call over the face. A
+ * client's card takes hers, else ink (v25); the own reel's takes the
+ * defaults. A reel with no card shown keeps the card as given.
+ */
+export function endCardForReel(
+  card: StoryEndCard | null,
+  ownReel: boolean,
+  call: string
+): StoryEndCard | null {
+  if (!cardComplete(ownReel, !!card, call.trim().length)) return card
+  if (!cardFilled(ownReel, !!card, call.trim().length))
+    return {
+      ...card,
+      bg: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,
+      title: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,
+      text: card?.text ?? SPEC.END_CARD_DEFAULT_TEXT,
+      accent: card?.accent ?? SPEC.END_CARD_DEFAULT_ACCENT,
+    }
+  const bg = card?.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const ink =
+    defaultInk(
+      ownReel,
+      contrastX10(SPEC.INK_WHITE_HEX, bg),
+      contrastX10(SPEC.INK_BLACK_HEX, bg)
+    ) === SPEC.INK_BLACK
+      ? SPEC.INK_BLACK_HEX
+      : SPEC.INK_WHITE_HEX
+  return {
+    ...card,
+    bg,
+    title: card?.title ?? ink,
+    text: card?.text ?? ink,
+    accent: card?.accent ?? ink,
+  }
 }
 
 /** The spec's shade_way. */
@@ -718,9 +825,11 @@ export function bgOffered(
   return unreadable && allReadAtSomeStep
 }
 
-/** One spelling for a colour: #rrggbb, lower case (a shade of step 0). */
-/** One spelling for a colour: #rrggbb, lower case. */
-function spelled(c: string): string {
+/**
+ * One spelling for a #hex colour: #rrggbb, lower case, its alpha dropped
+ * (a shade of step 0). split_reel compares and draws its call colours in it.
+ */
+export function spelled(c: string): string {
   return `#${rgbOf(c)
     .map(v => v.toString(16).padStart(2, '0'))
     .join('')}`
@@ -887,7 +996,10 @@ export type StoryHear = (
 ) => Promise<HeardVoice | string>
 
 /** Whether a scene's captions show its line as written (`caption_uses_line`). */
-export function captionUsesLine(lineWords: number, heardWords: number): boolean {
+export function captionUsesLine(
+  lineWords: number,
+  heardWords: number
+): boolean {
   return (
     SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords
   )
@@ -933,8 +1045,8 @@ export function makeStoryReelTool(
       `РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → ${STORY_SCENES_MIN}–${STORY_SCENES_MAX} сцен. ` +
       'Сцена 1 — САМО фото, общий план говорящей головы, её реплика — ХУК, не приветствие. ' +
       'По умолчанию из студии не выходим: сцена без setting — план того же фото (крупный, средний), ничего не рисуется; ' +
-      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; без него — ' +
-      'клон владельца) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
+      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; в разговоре за клиента — всегда его голос, его призыв и его кнопка; ' +
+      'клон владельца — только на своём рилсе) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
       `Реплика звучит до ${LINE_MAX_SEC_TEXT} с (длиннее — липсинк не делается, реплика названа: сократи), ` +
       `ролик из ${SPEC.SCENES_DEFAULT} сцен с паузой — до ${SPEC.STORY_DEFAULT_MAX_SEC} с. Кадр без лица перерисовывается один раз. ` +
       'Если вернулись stills/clips без видео — повтори с ними: ' +
@@ -975,7 +1087,11 @@ export function makeStoryReelTool(
           type: 'string',
           description: 'id клиента: говорить ЕГО голосом (crm_voice_clone)',
         },
-        cta: { type: 'string', description: 'надпись в паузе в конце' },
+        cta: {
+          type: 'string',
+          description:
+            'надпись в паузе в конце; у рилса клиента пусто — его призыв из профиля',
+        },
         [SPEC.END_CARD_ARG]: END_CARD_PARAM,
         pause_sec: {
           type: 'number',
@@ -1006,7 +1122,64 @@ export function makeStoryReelTool(
       const style = String(args.style ?? '')
       const n = scenes.length
       const pause = pauseOf(args.pause_sec)
-      const endCard = endCardOf(args.end_card)
+      /*
+       * WHOSE REEL THIS IS (spec v22, voice_of). In a turn for a client
+       * (ctx.faceOf) the reel speaks HER voice: for_lead defaults to her and
+       * another id is refused -- before v22 a reel without for_lead spoke the
+       * owner's clone. A reel for a client takes her call and her card, never
+       * the house's (call_from, button_from); the runner (surface 'story')
+       * has already read them from her profile.
+       */
+      const me = String(ctx.telegramId ?? '').trim()
+      const faceOf = String(ctx.faceOf ?? '').trim()
+      const clientTurn = !!faceOf && faceOf !== me
+      const named = String(args.for_lead ?? '').trim()
+      const voice = voiceOf(!!named, clientTurn, named === faceOf)
+      if (voice === SPEC.SPEAKS_REFUSED)
+        return {
+          done: false,
+          reason: `for_lead: в разговоре за клиента рилс говорит только его голосом — for_lead ${faceOf} или пусто`, // cyrillic-ok: tool result copy
+        }
+      const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''
+      let cta = String(args.cta ?? '')
+      let endCard = endCardOf(args.end_card)
+      let houseReplaced = ''
+      if (lead && lead !== me && ctx.surface !== 'story') {
+        // No line of her reel names the house unless she typed it this turn
+        // (spec v22, line_way): the agent's line is refused, before any cut.
+        const houseLine = houseLineRefused(scenes, false, ctx.ownerSaid)
+        if (houseLine) return { done: false, reason: houseLine }
+        const { storySettingsOf, STORY_DEFAULT_CTA } = await import(
+          './story-template'
+        )
+        const her = ctx.pool
+          ? await storySettingsOf(ctx.pool as never, lead, me).catch(() => null)
+          : null
+        const call = reelCall({
+          given: args.cta,
+          ownReel: false,
+          ownCall: her?.cta || STORY_DEFAULT_CTA,
+        })
+        cta = call.call
+        // The house's words the agent wrote are replaced, and the answer says
+        // so in one line (house_word_replaced), as the CRM press does.
+        const button = String(endCard?.button ?? '')
+        houseReplaced = houseReplacedNote(
+          [call.replaced, takenWord(button, false).replaced ? button : ''],
+          cta
+        )
+        // Every colour set before the render (spec v25, card_filled): what
+        // she has no colour for is ink, never the house's gold.
+        endCard = endCardForReel(
+          mergeEndCard(
+            cardForReel(endCard, false),
+            cardForReel(her?.keptCard, false),
+            cardForReel(her?.endCard, false)
+          ),
+          false,
+          cta
+        )
+      }
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
       // The opening scene is the talking head itself, wide (spec v19,
@@ -1239,9 +1412,7 @@ export function makeStoryReelTool(
                   .handler(
                     {
                       text: s.line,
-                      ...(args.for_lead
-                        ? { for_lead: String(args.for_lead) }
-                        : {}),
+                      ...(lead ? { for_lead: lead } : {}),
                     },
                     ctx
                   )
@@ -1302,6 +1473,9 @@ export function makeStoryReelTool(
       )
 
       // 5. The template: cuts, breaths, and the pause with the call to action.
+      // Every colour of the card shown is set here (spec v26, card_complete):
+      // the own reel's from the defaults, a client's already in hers or ink.
+      const drawnCard = endCardForReel(endCard, !lead || lead === me, cta)
       const r = outcome(
         await render
           .handler(
@@ -1314,8 +1488,8 @@ export function makeStoryReelTool(
                 })),
                 pauseSec: pause,
                 breathSec: STORY_BREATH_SEC,
-                cta: String(args.cta ?? ''),
-                ...(endCard ? { endCard } : {}),
+                cta,
+                ...(drawnCard ? { endCard: drawnCard } : {}),
               },
             },
             ctx
@@ -1347,6 +1521,7 @@ export function makeStoryReelTool(
                 10,
             }
           : {}),
+        ...(houseReplaced ? { house_replaced: houseReplaced } : {}),
         give_to_person: r.url,
       }
     },

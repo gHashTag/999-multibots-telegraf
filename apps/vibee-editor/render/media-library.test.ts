@@ -227,7 +227,18 @@ const zep = {
     0,
 }
 
+/*
+ * Provider keys come from the test, never from the shell. An OPENAI_API_KEY
+ * exported in the developer's shell switched the transcriber on, and the
+ * "route stores the rows" case then sent its video to the shelf through the
+ * S3 client -- real network that the fetch stub does not catch. Under load
+ * that took more than waitFor's 1 s and the case failed (#3720).
+ */
+const PROVIDER_KEYS = ['OPENAI_API_KEY', 'WHISPER_API_KEY', 'VISION_API_KEY']
+const shellKeys = new Map(PROVIDER_KEYS.map(k => [k, process.env[k]]))
+
 beforeEach(() => {
+  for (const k of PROVIDER_KEYS) delete process.env[k]
   zep.on = false
   zep.add = async () => 0
   vi.resetModules()
@@ -246,6 +257,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  for (const [k, v] of shellKeys) {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
 })
 
 describe('user_media table', () => {
@@ -1195,6 +1210,112 @@ describe('describeMedia with a vision endpoint', () => {
     expect(
       urls.filter(u => !u.includes('vision.railway') && u !== shelfPhoto)
     ).toEqual([])
+  })
+
+  it('giving way to a live request is logged as info (stdout), never on stderr, which Railway files as error', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (url: string, init?: { signal?: AbortSignal; body?: string }) => {
+          const u = String(url)
+          if (u === shelfPhoto)
+            return new Response(Buffer.from('JPEG bytes'), {
+              status: 200,
+              headers: { 'content-type': 'image/jpeg' },
+            })
+          if (!String(init?.body).includes('LIVE-SCREEN'))
+            return new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                reject(new Error('aborted'))
+              )
+            })
+          return new Response(
+            JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+            { status: 200 }
+          )
+        }
+      )
+    )
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { resetVisionForTests, askVision, visionConfig } = await import(
+        './src/agent/media-vision'
+      )
+      resetVisionForTests()
+      const { describeMedia, DescribeFailed } = await import(
+        './src/agent/media-library'
+      )
+      const sweep = describeMedia(
+        shelfPhoto,
+        'image',
+        'image/jpeg',
+        'photo.jpg'
+      ).catch(e => e)
+      await new Promise(r => setTimeout(r, 30))
+      await askVision(
+        visionConfig()!,
+        'LIVE-SCREEN',
+        ['x'],
+        5000,
+        undefined,
+        'live'
+      )
+      // Still pending: the row is retried, nothing is lost by the quieter line.
+      expect(await sweep).toBeInstanceOf(DescribeFailed)
+      const said = (spy: typeof log) =>
+        spy.mock.calls.map(c => c.map(String).join(' '))
+      expect(
+        said(log).some(l => l.includes('gave way to a live request'))
+      ).toBe(true)
+      expect(
+        [...said(warn), ...said(error)].some(l => l.includes('gave way'))
+      ).toBe(false)
+    } finally {
+      log.mockRestore()
+      warn.mockRestore()
+      error.mockRestore()
+    }
+  })
+
+  it('a real vision failure while describing is still a warning on stderr', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const shelfClip2 = SHELF.replace('voice.ogg', 'broken.mp4')
+    const { setFrameExecForTests, resetVisionForTests } = await import(
+      './src/agent/media-vision'
+    )
+    resetVisionForTests()
+    const prev = setFrameExecForTests(async () => {
+      throw new Error('ffprobe exploded')
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(Buffer.from('MP4 bytes'), {
+            status: 200,
+            headers: { 'content-type': 'video/mp4' },
+          })
+      )
+    )
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { describeMedia } = await import('./src/agent/media-library')
+      await describeMedia(shelfClip2, 'video', 'video/mp4', 'broken.mp4').catch(
+        e => e
+      )
+      const warned = warn.mock.calls.map(c => c.map(String).join(' '))
+      expect(
+        warned.some(l => l.includes('[media-library] could not describe video'))
+      ).toBe(true)
+    } finally {
+      setFrameExecForTests(prev)
+      log.mockRestore()
+      warn.mockRestore()
+    }
   })
 
   it('a refused vision key falls back to the chat provider for photos and is not asked again', async () => {

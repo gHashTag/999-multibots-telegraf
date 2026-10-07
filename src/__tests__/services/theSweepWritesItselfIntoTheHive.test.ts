@@ -190,3 +190,47 @@ describe('the journal says how long the sweep took', () => {
     expect(n!.what.endsWith(' [9s]'), n!.what.slice(-10)).toBe(true)
   })
 })
+
+/*
+ * THE JOURNAL NAMES THE MODEL. 2026-10-04 the sweep for one owner died with
+ * three providers out of funds, and afterwards nothing said which model had
+ * been answering the ticks that did pass. The tag goes before the duration:
+ * bin/helpers/turn-time.sh anchors `[Ns]` at the end of the line.
+ */
+describe('the journal says which model answered', () => {
+  const OWNER_T = '144022504'
+
+  it('puts the model before the duration', () => {
+    const n = noteForSweep(OWNER_T, {
+      did: 'idle',
+      why: 'тихо',
+      ms: 41_000,
+      model: 'zai/glm-4.7-flash',
+    })
+    expect(n?.what).toBe('тихо [zai/glm-4.7-flash] [41s]')
+    expect(/\[\d+s\]$/.test(n?.what ?? ''), n?.what).toBe(true)
+  })
+
+  it('without a duration the model still shows', () => {
+    const n = noteForSweep(OWNER_T, {
+      did: 'idle',
+      why: 'тихо',
+      model: 'nemotron/x',
+    })
+    expect(n?.what).toBe('тихо [nemotron/x]')
+  })
+
+  it('a long reason makes room for both tags', () => {
+    const n = noteForSweep(OWNER_T, {
+      did: 'failed',
+      why: 'я'.repeat(400),
+      ms: 9_000,
+      model: 'zai/glm-4.7-flash',
+    })
+    expect(n!.what.length).toBeLessThanOrEqual(300)
+    expect(
+      n!.what.endsWith(' [zai/glm-4.7-flash] [9s]'),
+      n!.what.slice(-30)
+    ).toBe(true)
+  })
+})

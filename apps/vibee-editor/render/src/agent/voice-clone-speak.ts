@@ -34,6 +34,7 @@ import { proxyShelfUrl, shelfKeyOf } from './lipsync-voice'
 import { withShelfFile } from './media-extract'
 import { resolveFinalUrl } from './web-guard'
 import { downloadBoundedMediaToFile } from '../lib/remoteMediaDuration'
+import { houseOwnTurn, ownerVoiceAllowed } from '../split-reel-plan'
 
 /** The service refuses longer text (server.py MAX_CHARS). */
 export const VOICE_CLONE_MAX_CHARS = 600
@@ -52,6 +53,13 @@ export const VOICE_CLONE_LOCKED_REASON =
 /** Shown to anyone but the owner who brings the owner's sample. */
 export const OWNER_VOICE_REFUSED_REASON =
   'Голос владельца -- только для самого владельца: пришлите образец своего голоса.' // cyrillic-ok: refusal text
+
+/**
+ * Shown to the owner on a turn for a client: a client's reel never speaks in
+ * the owner's voice (split-reel v7, OWNER_VOICE_ON_CLIENT_REEL).
+ */
+export const OWNER_VOICE_NOT_FOR_CLIENT_REASON =
+  "on a turn for a client the owner's voice is not spoken -- pass the client's own sample as ref_url"
 
 /** Seconds to wait when a busy answer names no Retry-After. */
 export const VOICE_CLONE_DEFAULT_RETRY_AFTER_S = 15
@@ -213,6 +221,21 @@ export function makeVoiceCloneSpeakTool(deps: VoiceCloneSpeakDeps): AgentTool {
       if (!who || !deps.mayClone(who))
         return { done: false, reason: VOICE_CLONE_LOCKED_REASON }
       const owner = deps.isOwner(who)
+      /*
+       * The owner's voice is his own reel's alone (split-reel v7): on a turn
+       * for a client or a sweep for leads, even he speaks no sample of his.
+       */
+      const ownerVoice =
+        owner &&
+        ownerVoiceAllowed(
+          houseOwnTurn(
+            { house: true, faceOf: ctx?.faceOf, sellerSweep: ctx?.sellerSweep },
+            ''
+          )
+        )
+      const ownerRefused = owner
+        ? OWNER_VOICE_NOT_FOR_CLIENT_REASON
+        : OWNER_VOICE_REFUSED_REASON
 
       const text = String(args?.text ?? '').trim()
       if (!text) return { done: false, reason: 'text is empty' }
@@ -241,10 +264,12 @@ export function makeVoiceCloneSpeakTool(deps: VoiceCloneSpeakDeps): AgentTool {
        * hand is refused here, cheaply, before anything is fetched; other
        * spellings of it are caught by content after the download below.
        */
-      if (given && env.ownerRef && sameRef(given, env.ownerRef) && !owner)
-        return { done: false, reason: OWNER_VOICE_REFUSED_REASON }
+      if (given && env.ownerRef && sameRef(given, env.ownerRef) && !ownerVoice)
+        return { done: false, reason: ownerRefused }
       let ref = given
       if (!ref) {
+        if (owner && !ownerVoice)
+          return { done: false, reason: OWNER_VOICE_NOT_FOR_CLIENT_REASON }
         if (!owner)
           return {
             done: false,
@@ -279,7 +304,7 @@ export function makeVoiceCloneSpeakTool(deps: VoiceCloneSpeakDeps): AgentTool {
        * out of the owner's published reels and bring that as a new sample;
        * those bytes hash differently, and no hash comparison can stop it.
        */
-      if (!owner && env.ownerRef) {
+      if (!ownerVoice && env.ownerRef) {
         const ownerHash = await ownerSampleHash(env.ownerRef)
         if (!ownerHash)
           return {
@@ -288,7 +313,7 @@ export function makeVoiceCloneSpeakTool(deps: VoiceCloneSpeakDeps): AgentTool {
               "could not check the sample against the owner's voice -- try again later",
           }
         if (sha256(sample.bytes) === ownerHash)
-          return { done: false, reason: OWNER_VOICE_REFUSED_REASON }
+          return { done: false, reason: ownerRefused }
       }
 
       let res: Response
