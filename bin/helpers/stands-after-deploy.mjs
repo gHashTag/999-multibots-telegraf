@@ -25,7 +25,8 @@
  *      second run never files it twice; a stand that already has an OPEN issue
  *      gets a comment for the new deploy instead of a second issue.
  *   5. one ledger line (ledger.jsonl), then last-deploy = this deploy.
- * A run where nothing could be measured (the dev server did not start) is
+ * A run where nothing could be measured (the dev server did not start, or
+ * every stand said NOT MEASURED and none green or RED) is
  * retried on the next tick, at most MAX_ATTEMPTS times per deploy, and files
  * nothing: "the Mac was busy" is not a stand defect.
  *
@@ -94,6 +95,12 @@ export function failingStands(text) {
   let shots = []
   let down = ''
   let measured = 0
+  // Only a green or RED verdict is a measurement. A matrix where every run
+  // said NOT MEASURED (Chromium missing, a starved Mac timing out each child)
+  // is the Mac being down, not every stand failing at once: it must not file
+  // one issue per stand.
+  let decided = 0
+  let why = ''
   for (const raw of String(text).split('\n')) {
     const line = raw.replace(/\s+$/, '')
     const all = ALL_DOWN.exec(line)
@@ -110,6 +117,7 @@ export function failingStands(text) {
       continue
     }
     if (ASSERT.test(line) || line.startsWith('could not measure: ')) {
+      if (!why && line.startsWith('could not measure: ')) why = line.trim()
       lines.push(line.trim())
       continue
     }
@@ -120,6 +128,7 @@ export function failingStands(text) {
       ? [v[1], v[2], v[3], v[4]]
       : ['NOT MEASURED', s[1], s[2], s[3]]
     measured++
+    if (verdict !== 'NOT MEASURED') decided++
     if (verdict !== 'green') {
       if (!byName.has(name)) byName.set(name, { name, runs: [] })
       byName.get(name).runs.push({ width, lang, verdict, lines, shots })
@@ -127,11 +136,15 @@ export function failingStands(text) {
     lines = []
     shots = []
   }
-  return {
-    down: measured ? '' : down || 'no verdict line',
-    measured,
-    stands: [...byName.values()],
-  }
+  if (!decided)
+    return {
+      down: measured
+        ? `no stand could be measured (${measured} runs)${why ? `: ${why}` : ''}`
+        : down || 'no verdict line',
+      measured: 0,
+      stands: [],
+    }
+  return { down: '', measured: decided, stands: [...byName.values()] }
 }
 
 export const marker = (stand, deployId) =>
@@ -270,24 +283,19 @@ function ensureTree(main, tree, sha) {
   const git = (...a) => sh('git', ['-C', main, ...a])
   if (git('cat-file', '-e', `${sha}^{commit}`).status !== 0)
     git('fetch', '-q', 'origin', 'main')
-  if (!existsSync(join(tree, '.git'))) {
+  // A tree whose registration was pruned (`tri worktrees --apply`, a manual
+  // `git worktree prune`) keeps its .git file but no longer checks out:
+  // rebuild it instead of reporting "not measured" on every deploy.
+  const reused =
+    existsSync(join(tree, '.git')) &&
+    sh('git', ['-C', tree, 'checkout', '-q', '--detach', '--force', sha])
+      .status === 0
+  if (!reused) {
     rmSync(tree, { recursive: true, force: true })
     git('worktree', 'prune')
     const add = git('worktree', 'add', '-q', '--detach', tree, sha)
     if (add.status !== 0)
       return `worktree add failed: ${add.stderr.trim().slice(0, 200)}`
-  } else {
-    const co = sh('git', [
-      '-C',
-      tree,
-      'checkout',
-      '-q',
-      '--detach',
-      '--force',
-      sha,
-    ])
-    if (co.status !== 0)
-      return `checkout failed: ${co.stderr.trim().slice(0, 200)}`
   }
   sh('bash', [join(tree, 'bin/helpers/wt-deps.sh'), tree], {
     env: { ...process.env, TRI_WT_MAIN: main },
@@ -308,11 +316,17 @@ function lock(dir) {
     mkdirSync(l)
     return () => rmSync(l, { recursive: true, force: true })
   } catch {
-    const age = (Date.now() - statSync(l).mtimeMs) / 1000
-    if (age < LOCK_STALE_S) return null
-    rmSync(l, { recursive: true, force: true })
-    mkdirSync(l)
-    return () => rmSync(l, { recursive: true, force: true })
+    // The lock may vanish between the two calls, and two runs may both find
+    // it stale: either way one of them loses quietly, never crashes.
+    try {
+      const age = (Date.now() - statSync(l).mtimeMs) / 1000
+      if (age < LOCK_STALE_S) return null
+      rmSync(l, { recursive: true, force: true })
+      mkdirSync(l)
+      return () => rmSync(l, { recursive: true, force: true })
+    } catch {
+      return null
+    }
   }
 }
 
@@ -352,7 +366,10 @@ async function runLocked(opt, dir) {
     console.log(`== stands steady -- deploy ${deploy.id} already checked`)
     return 0
   }
+  // --dry reads and measures but changes no state: no ledger line, no
+  // attempt count, no last-deploy (a dry run must not use up a real try).
   const ledger = entry =>
+    opt.dry ||
     appendFileSync(
       join(dir, 'ledger.jsonl'),
       JSON.stringify({
@@ -399,7 +416,8 @@ async function runLocked(opt, dir) {
   const { down, measured, stands } = failingStands(text)
   if (down) {
     const tries = Number(get(dir, `attempts-${deploy.id}`, '0')) + 1
-    writeFileSync(join(dir, `attempts-${deploy.id}`), String(tries))
+    if (!opt.dry)
+      writeFileSync(join(dir, `attempts-${deploy.id}`), String(tries))
     const done = tries >= MAX_ATTEMPTS
     ledger({
       verdict: 'not measured',
@@ -409,7 +427,7 @@ async function runLocked(opt, dir) {
       doctor: doctor.status ?? 2,
       anomalies,
     })
-    if (done) writeFileSync(join(dir, 'last-deploy'), deploy.id)
+    if (done && !opt.dry) writeFileSync(join(dir, 'last-deploy'), deploy.id)
     console.log(
       `== stands NOT MEASURED -- deploy ${deploy.id}: ${down.slice(0, 200)} (try ${tries}/${MAX_ATTEMPTS}${done ? ', giving up on this deploy' : ''}); ${doctorSaid}`
     )

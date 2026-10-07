@@ -96,6 +96,22 @@ describe('failingStands', () => {
     expect(r.down).toContain('dev server')
     expect(r.stands).toEqual([])
   })
+
+  it('every stand NOT MEASURED and none green or RED is "down" too', () => {
+    // Vite answered, but each child failed (Chromium missing, starved Mac):
+    // that is not five stand defects, and must file nothing.
+    const r = failingStands(
+      [
+        'could not measure: browserType.launch: Executable does not exist',
+        '== shot NOT MEASURED -- crm at 390px (ru)',
+        '== shot NOT MEASURED -- my-story 390 en',
+        '== shot NOT MEASURED -- story-palette 320 ru',
+      ].join('\n')
+    )
+    expect(r.down).toContain('no stand could be measured (3 runs)')
+    expect(r.down).toContain('Executable does not exist')
+    expect(r.stands).toEqual([])
+  })
 })
 
 describe('planIssues', () => {
@@ -250,6 +266,29 @@ writeFileSync(dir + '/issues.json', JSON.stringify(db))
       expect(run(dir).stdout).toContain('giving up')
       expect(readFileSync(join(dir, 'state/last-deploy'), 'utf8')).toBe('dep-2')
       expect(calls(dir, 'issue create')).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('--dry files nothing and changes no state, even when nothing measured', () => {
+    const dir = setup()
+    try {
+      const red = run(dir, ['--dry'])
+      expect(red.status).toBe(1)
+      expect(red.stdout).toContain('would create')
+      expect(calls(dir, 'issue create')).toBe(0)
+      writeFileSync(
+        join(dir, 'shots.txt'),
+        '== shot NOT MEASURED -- all: vite died'
+      )
+      for (const _ of [1, 2, 3, 4]) {
+        const r = run(dir, ['--dry'])
+        expect(r.stdout).toContain('try 1/3')
+      }
+      expect(existsSync(join(dir, 'state/last-deploy'))).toBe(false)
+      expect(existsSync(join(dir, 'state/ledger.jsonl'))).toBe(false)
+      expect(existsSync(join(dir, 'state/attempts-dep-2'))).toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
