@@ -268,6 +268,15 @@ bench (#3701). The self-check of #3660 (merged 1cfe53604, false-missing fix
 on the picture. Exact dates, times and prices need the facts overlay drawn
 by code, spec first (#3701); never promise them from the image model.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `mcp-owner-access` — ключ агента и `/mcp`

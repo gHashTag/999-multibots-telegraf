@@ -10,6 +10,7 @@ description: Comprehensive knowledge base of this Telegram bot project architect
 ## 🏗️ Project Architecture
 
 ### High-Level Structure
+
 ```
 999-agents-telegraf/
 ├── src/                       # Main application code
@@ -37,6 +38,7 @@ description: Comprehensive knowledge base of this Telegram bot project architect
 ## 📋 Core Systems
 
 ### 1. Telegram Bot (Telegraf 4.16.3)
+
 ```typescript
 Location: src/bot.ts, src/index.ts
 
@@ -59,6 +61,7 @@ Admin IDs:
 ```
 
 ### 2. Telegram Scenes System
+
 ```typescript
 Location: src/scenes/*
 
@@ -86,6 +89,7 @@ Patterns:
 ```
 
 ### 3. Database (Supabase PostgreSQL)
+
 ```typescript
 Location: src/core/supabase/
 
@@ -112,6 +116,7 @@ Connection:
 ```
 
 ### 4. AI Pipeline (Multi-Provider)
+
 ```typescript
 Location: src/core/pipeline/, src/core/providers/
 
@@ -137,6 +142,7 @@ Key Files:
 ```
 
 ### 5. Background Jobs (Inngest)
+
 ```typescript
 Location: src/inngest_app/
 
@@ -163,6 +169,7 @@ Environment Variables:
 ```
 
 ### 6. Secret Management (Infisical)
+
 ```typescript
 Location: src/services/infisical.service.ts
 
@@ -184,6 +191,7 @@ All other secrets (50+) loaded from Infisical cloud:
 ## 🎯 Key Patterns & Rules
 
 ### Centralized Language Detection
+
 ```typescript
 // ✅ CORRECT - Only way
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -195,9 +203,10 @@ const lang = ctx.session.language
 ```
 
 ### Session Management in Wizards
+
 ```typescript
 // ✅ CORRECT - Initialize in step 1
-async (ctx) => {
+async ctx => {
   ctx.session.wizardData = {
     step: 1,
     startTime: Date.now(),
@@ -206,12 +215,13 @@ async (ctx) => {
 }
 
 // ❌ WRONG - Uninitialized session
-async (ctx) => {
-  ctx.session.wizardData.field = 'value'  // Error!
+async ctx => {
+  ctx.session.wizardData.field = 'value' // Error!
 }
 ```
 
 ### Balance Checks
+
 ```typescript
 // ✅ CORRECT - Check before operation
 const balance = await getUserBalance(telegramId)
@@ -225,6 +235,7 @@ await updateUserBalance(telegramId, -COST)
 ```
 
 ### Error Handling
+
 ```typescript
 // ✅ CORRECT - Always notify user
 try {
@@ -240,13 +251,14 @@ try {
 try {
   await riskyOperation()
 } catch (error) {
-  console.error(error)  // User не знает!
+  console.error(error) // User не знает!
 }
 ```
 
 ## 📂 Critical File Locations
 
 ### Configuration Files
+
 ```
 Root Level:
 ├── package.json                 - Dependencies
@@ -269,6 +281,7 @@ Documentation:
 ```
 
 ### Core Code Files
+
 ```
 Entry Points:
 ├── src/index.ts                 - Main entry (634 lines)
@@ -296,6 +309,7 @@ Utilities:
 ## 🚀 Development Workflows
 
 ### Local Development
+
 ```bash
 # Install dependencies
 npm install
@@ -311,6 +325,7 @@ npm run build
 ```
 
 ### Production Deployment
+
 ```bash
 # Server: 188.137.250.69
 # User: root
@@ -335,6 +350,7 @@ npm run build
 ```
 
 ### Docker Commands
+
 ```bash
 # Check container status
 docker ps | grep 999-multibots
@@ -357,6 +373,7 @@ docker rm 999-multibots
 ### "Где найти...?"
 
 **Bot Configuration**
+
 ```
 Question: "Где конфигурация бота?"
 Files:
@@ -366,6 +383,7 @@ Files:
 ```
 
 **Scene Implementation**
+
 ```
 Question: "Где сцена X?"
 Location: src/scenes/[sceneName]/
@@ -378,6 +396,7 @@ Examples:
 ```
 
 **Database Operations**
+
 ```
 Question: "Как работать с БД?"
 Location: src/core/supabase/
@@ -390,6 +409,7 @@ Schema: supabase/migrations/
 ```
 
 **AI Provider Integration**
+
 ```
 Question: "Как интегрировать нового AI провайдера?"
 Location: src/core/providers/
@@ -402,6 +422,7 @@ Example: src/core/providers/adapters/replicate/
 ```
 
 **Background Jobs**
+
 ```
 Question: "Как создать Inngest функцию?"
 Location: src/inngest_app/functions/
@@ -410,6 +431,7 @@ Register: src/inngest_app/registerFunctions.ts
 ```
 
 **Language Detection**
+
 ```
 Question: "Как определить язык?"
 File: src/helpers/centralizedLanguage.ts
@@ -418,6 +440,7 @@ Rule: ALWAYS use this, never ctx.from.language_code
 ```
 
 **Balance Management**
+
 ```
 Question: "Как проверить/обновить баланс?"
 Files:
@@ -433,6 +456,7 @@ Usage:
 ### Categories (43+ Scenes)
 
 **Generation (15+)**
+
 ```
 - neuroPhotoWizard        - Image generation
 - textToVideoWizard       - T2V generation
@@ -445,6 +469,7 @@ Usage:
 ```
 
 **Management (10+)**
+
 ```
 - menuScene               - Main menu
 - balanceScene            - Balance display
@@ -454,6 +479,7 @@ Usage:
 ```
 
 **Training & Data (8+)**
+
 ```
 - trainFluxModelWizard    - Model training
 - uploadTrainFluxModelScene - Upload training data
@@ -463,6 +489,7 @@ Usage:
 ```
 
 **Utility (10+)**
+
 ```
 - improvePromptWizard     - Prompt improvement
 - uploadVideoScene        - Video upload
@@ -474,6 +501,7 @@ Usage:
 ## 🔐 Security & Permissions
 
 ### Admin-Only Features
+
 ```typescript
 Files with Admin Checks:
   - src/middleware/adminOnly.ts         - Admin middleware
@@ -486,6 +514,7 @@ Admin IDs:
 ```
 
 ### Secret Management
+
 ```typescript
 Critical Rule: NEVER add secrets to .env!
 
@@ -503,6 +532,7 @@ Infisical Service:
 ## 📊 Monitoring & Logging
 
 ### Production Monitoring
+
 ```bash
 Commands:
   /check              - Full health check
@@ -521,6 +551,7 @@ Key Metrics:
 ```
 
 ### Error Handling
+
 ```typescript
 Logger: src/utils/logger.ts
 
@@ -538,6 +569,7 @@ Best Practices:
 ## 🎯 Quick Reference Cards
 
 ### New Scene Checklist
+
 ```
 ✅ Use telegram-scene-builder agent
 ✅ Copy structure from similar scene
@@ -552,6 +584,7 @@ Best Practices:
 ```
 
 ### New AI Provider Checklist
+
 ```
 ✅ Study ai-pipeline-orchestration skill
 ✅ Create adapter in src/core/providers/adapters/
@@ -565,6 +598,7 @@ Best Practices:
 ```
 
 ### Deployment Checklist
+
 ```
 ✅ Run npm run typecheck locally
 ✅ Run npm run build locally
@@ -580,6 +614,7 @@ Best Practices:
 ## 📚 Related Documentation
 
 ### Internal Docs
+
 ```
 .claude/skills/
   ├── telegram-scenes-ULTIMATE/    - All scene patterns
@@ -598,6 +633,7 @@ docs/
 ```
 
 ### External Resources
+
 ```
 Frameworks:
   - Telegraf: https://telegraf.js.org/
@@ -613,6 +649,7 @@ Services:
 ## 🎯 When to Use This Skill
 
 ### ✅ Use Project Knowledge Base when:
+
 1. Starting ANY task in this project
 2. Need to find specific file location
 3. Understanding system architecture
@@ -622,6 +659,7 @@ Services:
 7. Finding documentation location
 
 ### 🎼 Use with Master Orchestrator:
+
 ```
 Orchestrator asks: "What Skills needed?"
 Knowledge Base answers: "Here's the project structure"
@@ -639,3 +677,12 @@ Knowledge Base answers: "Pattern documented in section Z"
 **Version**: 1.0
 **Status**: Production-ready ✅
 **Updates**: Should be updated when major architecture changes occur
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

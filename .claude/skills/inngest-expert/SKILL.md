@@ -12,6 +12,7 @@ Specialized knowledge for Inngest event-driven background job processing in this
 **Inngest** is a durable execution engine for running background jobs, workflows, and event-driven functions.
 
 **Key Features:**
+
 - ⏱️ Long-running async operations (hours/days)
 - 🔄 Automatic retries with exponential backoff
 - 🎯 Event-driven architecture
@@ -22,6 +23,7 @@ Specialized knowledge for Inngest event-driven background job processing in this
 ## Project Integration
 
 ### Configuration Files
+
 ```
 src/inngest_app/
 ├── client.ts                    # Inngest client setup
@@ -36,6 +38,7 @@ src/inngest_app/
 ```
 
 ### Environment Variables (from Infisical)
+
 ```
 INNGEST_EVENT_KEY           # Inngest cloud event key
 INNGEST_SIGNING_KEY         # Webhook signature verification
@@ -61,6 +64,7 @@ export const inngest = new Inngest({
 ### 2. Event-Driven Pattern
 
 **Events trigger functions:**
+
 ```typescript
 // Send event
 await inngest.send({
@@ -68,8 +72,8 @@ await inngest.send({
   data: {
     telegram_id: '123456',
     modelName: 'my-model',
-    filePath: '/path/to/training-data.zip'
-  }
+    filePath: '/path/to/training-data.zip',
+  },
 })
 
 // Function listens
@@ -85,12 +89,12 @@ inngest.createFunction(
 ### 3. Step-Based Execution
 
 **Steps create checkpoints:**
+
 ```typescript
 inngest.createFunction(
   { id: 'long-process' },
   { event: 'process.start' },
   async ({ event, step }) => {
-
     // Step 1: Start training (checkpoint)
     const training = await step.run('start-training', async () => {
       return await startReplicate(event.data)
@@ -110,6 +114,7 @@ inngest.createFunction(
 ```
 
 **If function fails at Step 2:**
+
 - Steps 1 is NOT re-executed (already checkpointed)
 - Only Step 2 and beyond retry
 - Saves API calls and time
@@ -119,6 +124,7 @@ inngest.createFunction(
 ### Rule 1: ALWAYS Find Similar Function First
 
 **Before creating new function:**
+
 ```bash
 # Find existing functions
 grep -r "inngest.createFunction" ./src --include="*.ts"
@@ -171,7 +177,7 @@ export function createMyFunction(inngestClient: any) {
 
       try {
         logger.info('🚀 [MyFunction] Starting', {
-          telegram_id: eventData.telegram_id
+          telegram_id: eventData.telegram_id,
         })
 
         // Step 1
@@ -189,19 +195,18 @@ export function createMyFunction(inngestClient: any) {
         const duration = Date.now() - startTime
         logger.info('✅ [MyFunction] Completed', {
           duration,
-          telegram_id: eventData.telegram_id
+          telegram_id: eventData.telegram_id,
         })
 
         return {
           success: true,
           duration,
-          result: step2Result
+          result: step2Result,
         }
-
       } catch (error) {
         logger.error('❌ [MyFunction] Error', {
           error: error instanceof Error ? error.message : String(error),
-          telegram_id: eventData.telegram_id
+          telegram_id: eventData.telegram_id,
         })
         throw error
       }
@@ -236,7 +241,7 @@ try {
   logger.error('❌ [Function] Operation failed', {
     error: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
-    context: eventData
+    context: eventData,
   })
   throw error // Re-throw for Inngest retry logic
 }
@@ -260,7 +265,7 @@ inngestClient.createFunction(
         limit: 2, // Only 2 model trainings at once (expensive)
       },
     ],
-  },
+  }
   // ...
 )
 
@@ -287,7 +292,7 @@ await inngest.send({
     triggerWord: 'VIBEE_STYLE',
     filePath: '/tmp/training-images.zip',
     steps: 1000,
-  }
+  },
 })
 
 // Inngest function handles:
@@ -310,8 +315,8 @@ await inngest.send({
   name: 'webhook/monitor.check',
   data: {
     webhook_url: 'https://api.example.com/webhook',
-    check_interval: 60000 // 1 minute
-  }
+    check_interval: 60000, // 1 minute
+  },
 })
 ```
 
@@ -327,8 +332,8 @@ await inngest.send({
     telegram_id,
     prompt: 'Beautiful sunset',
     model: 'veo-31',
-    duration: 10
-  }
+    duration: 10,
+  },
 })
 
 // Inngest function:
@@ -336,18 +341,17 @@ inngest.createFunction(
   { id: 'video-generation' },
   { event: 'video/generate.start' },
   async ({ event, step }) => {
-
     // Start generation
     const prediction = await step.run('start-generation', async () => {
       return await fal.queue.submit('fal-ai/veo-31', {
-        prompt: event.data.prompt
+        prompt: event.data.prompt,
       })
     })
 
     // Wait for result (5-10 minutes)
     const result = await step.run('wait-result', async () => {
       return await fal.queue.result('fal-ai/veo-31', {
-        requestId: prediction.request_id
+        requestId: prediction.request_id,
       })
     })
 
@@ -356,17 +360,15 @@ inngest.createFunction(
       await supabase.from('assets').insert({
         telegram_id: event.data.telegram_id,
         video_url: result.video.url,
-        status: 'completed'
+        status: 'completed',
       })
     })
 
     // Notify user
     await step.run('notify-user', async () => {
-      await bot.telegram.sendVideo(
-        event.data.telegram_id,
-        result.video.url,
-        { caption: '✅ Your video is ready!' }
-      )
+      await bot.telegram.sendVideo(event.data.telegram_id, result.video.url, {
+        caption: '✅ Your video is ready!',
+      })
     })
   }
 )
@@ -391,11 +393,12 @@ export function registerInngestFunctions(inngestClient: any) {
 ## Sending Events
 
 ### From Telegram Bot
+
 ```typescript
 import { inngest } from '@/inngest_app/client'
 
 // In scene handler
-myScene.action('start-training', async (ctx) => {
+myScene.action('start-training', async ctx => {
   await ctx.reply('⏳ Starting training...')
 
   await inngest.send({
@@ -403,8 +406,8 @@ myScene.action('start-training', async (ctx) => {
     data: {
       telegram_id: ctx.from.id.toString(),
       modelName: ctx.session.modelName,
-      filePath: ctx.session.zipPath
-    }
+      filePath: ctx.session.zipPath,
+    },
   })
 
   await ctx.reply('✅ Training started! You will be notified when complete.')
@@ -412,6 +415,7 @@ myScene.action('start-training', async (ctx) => {
 ```
 
 ### From Webhook
+
 ```typescript
 // Replicate webhook endpoint
 app.post('/api/webhooks/replicate', async (req, res) => {
@@ -423,8 +427,8 @@ app.post('/api/webhooks/replicate', async (req, res) => {
       data: {
         prediction_id: id,
         model_url: output.model,
-        status: 'completed'
-      }
+        status: 'completed',
+      },
     })
   }
 
@@ -435,6 +439,7 @@ app.post('/api/webhooks/replicate', async (req, res) => {
 ## Retry Configuration
 
 ### Automatic Retries
+
 ```typescript
 inngest.createFunction(
   {
@@ -449,6 +454,7 @@ inngest.createFunction(
 ```
 
 ### Custom Retry Logic
+
 ```typescript
 await step.run('operation-with-custom-retry', async () => {
   let attempts = 0
@@ -470,12 +476,14 @@ await step.run('operation-with-custom-retry', async () => {
 ## Monitoring & Debugging
 
 ### Inngest Dashboard
+
 - View function executions
 - See step-by-step progress
 - Debug failed runs
 - Replay failed functions
 
 ### Local Development
+
 ```bash
 # Run Inngest dev server
 npx inngest-cli dev
@@ -485,19 +493,21 @@ npx inngest-cli dev
 ```
 
 ### Production Monitoring
+
 ```typescript
 // Add context to all logs
 logger.info('Step completed', {
   step: 'upload-files',
   telegram_id,
   file_count: files.length,
-  duration: Date.now() - stepStart
+  duration: Date.now() - stepStart,
 })
 ```
 
 ## Best Practices
 
 ### 1. Idempotency
+
 ```typescript
 // ✅ Check if already processed
 const { data: existing } = await supabase
@@ -513,6 +523,7 @@ if (existing?.status === 'completed') {
 ```
 
 ### 2. Timeouts
+
 ```typescript
 // ✅ Set reasonable timeouts
 const result = await step.run('api-call', async () => {
@@ -528,6 +539,7 @@ const result = await step.run('api-call', async () => {
 ```
 
 ### 3. Progress Updates
+
 ```typescript
 // ✅ Update user on progress
 await step.run('notify-progress', async () => {
@@ -539,6 +551,7 @@ await step.run('notify-progress', async () => {
 ```
 
 ### 4. Resource Cleanup
+
 ```typescript
 // ✅ Clean up temp files
 await step.run('cleanup', async () => {
@@ -550,6 +563,7 @@ await step.run('cleanup', async () => {
 ## Common Patterns
 
 ### Pattern 1: Poll for Completion
+
 ```typescript
 const result = await step.run('poll-status', async () => {
   let attempts = 0
@@ -570,6 +584,7 @@ const result = await step.run('poll-status', async () => {
 ```
 
 ### Pattern 2: Batch Processing
+
 ```typescript
 const results = await step.run('process-batch', async () => {
   const items = event.data.items
@@ -578,9 +593,7 @@ const results = await step.run('process-batch', async () => {
 
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize)
-    const batchResults = await Promise.all(
-      batch.map(item => processItem(item))
-    )
+    const batchResults = await Promise.all(batch.map(item => processItem(item)))
     results.push(...batchResults)
   }
 
@@ -589,6 +602,7 @@ const results = await step.run('process-batch', async () => {
 ```
 
 ### Pattern 3: Fan-Out
+
 ```typescript
 // Trigger multiple child functions
 await step.run('fan-out', async () => {
@@ -598,7 +612,7 @@ await step.run('fan-out', async () => {
     tasks.map(task =>
       inngest.send({
         name: 'task/process',
-        data: { task }
+        data: { task },
       })
     )
   )
@@ -619,3 +633,12 @@ await step.run('fan-out', async () => {
 10. ✅ **NEVER** silent catch without logging
 
 This is the foundation for reliable, maintainable async background processing in this project!
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
