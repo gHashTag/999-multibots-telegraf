@@ -76,7 +76,9 @@ is how `scripts/shot-watch.test.ts` drives it without a browser);
   scroller counts. A visually hidden (sr-only) word does NOT: it is hidden on
   purpose (`clip-path: inset(50%)`, `clip: rect(0…)`, or a 1px absolute box).
   Teach the checker only a false positive like that one; a real cut is fixed
-  in the page.
+  in the page. A button whose wrapped words spill out of its fixed height
+  (`scrollHeight > clientHeight`, painted over the next row, not clipped)
+  counts too: `cut button «…» spills 60>44 down`.
 - **overlap** — две цели наложились.
 - **order** — пары `before` стенда: первое стоит ВЫШЕ второго на экране.
   Цена над кнопкой (спека v16): «до нажатия» — это место, а не слово.
