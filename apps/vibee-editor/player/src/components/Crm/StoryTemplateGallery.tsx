@@ -1,6 +1,7 @@
 import { useLanguage } from '@/hooks/useLanguage'
 import { templateKey, type StoryTemplate } from '@/lib/crm'
 import type { StoryEndCard } from '@/lib/storyPalette'
+import * as SPEC from '@/spec/crm-story-reel.gen'
 
 /**
  * THE TEMPLATE GALLERY of the story-reel panel (crm-story-reel v20,
@@ -11,6 +12,10 @@ import type { StoryEndCard } from '@/lib/storyPalette'
  * The price of each script stands on its card BEFORE the tap
  * (PRICE_BEFORE_PRESS): the server's figure for that many scenes, or none --
  * never a figure computed here.
+ *
+ * A field the panel has no card for is drawn in the render's own defaults
+ * (v27 gallery_preview_field, v29 brand_kit_field): the preview promises what
+ * the render delivers, never a colour of this app's theme.
  */
 export function StoryTemplateGallery({
   templates,
@@ -73,19 +78,24 @@ export function StoryTemplateGallery({
                   className="story-reel__template-card"
                   aria-hidden
                   style={{
-                    background: card?.bg ?? '#000000',
-                    color: card?.text ?? '#ffffff',
+                    background: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,
+                    color: card?.text ?? SPEC.END_CARD_DEFAULT_TEXT,
                   }}
                 >
-                  <span style={{ color: card?.title ?? '#ffd700' }}>
+                  <span
+                    style={{
+                      color: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,
+                    }}
+                  >
                     {tpl.call || '—'}
                   </span>
                   {tpl.button ? (
                     <span
                       className="story-reel__template-btn"
                       style={{
-                        background: card?.accent ?? '#00ff88',
-                        color: card?.bg ?? '#000000',
+                        background:
+                          card?.accent ?? SPEC.END_CARD_DEFAULT_ACCENT,
+                        color: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,
                       }}
                     >
                       {tpl.button}

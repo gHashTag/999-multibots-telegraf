@@ -58,6 +58,7 @@ import {
   type StillTask,
   type StoryEndCard,
   type StoryScene,
+  slotsToRender,
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
 import {
@@ -1231,8 +1232,8 @@ export function slotsNeeded(
   clipsHave: number,
   clone: boolean
 ): number {
-  const stills = Math.max(0, scenes - stillsHave)
-  const clips = Math.max(0, scenes - clipsHave)
+  const stills = slotsToRender(scenes, stillsHave)
+  const clips = slotsToRender(scenes, clipsHave)
   return stills + (clone ? clips : 0) + clips + SPEC.CAP_SLOT_PER_RENDER
 }
 

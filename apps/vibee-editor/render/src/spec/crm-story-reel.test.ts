@@ -18,6 +18,7 @@ import {
   missingFor,
   parseStory,
   settingDrawn,
+  slotsNeeded,
   storyPriceEstimateNotes,
   storyPayer,
   storyPriceEstimate,
@@ -30,7 +31,13 @@ import {
   STORY_SCENES_MAX,
   STORY_SCENES_MIN,
   STORY_STILL_WAIT_MS,
+  brandKitField,
+  endCardField,
+  galleryPreviewField,
   makeStoryReelTool,
+  retryPrice,
+  slotRenders,
+  slotsToRender,
   pauseOf,
   scenesOf,
   stillResume,
@@ -1270,7 +1277,7 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(26)
+    expect(SPEC.VERSION).toBe(29)
   })
 
   it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {
@@ -2277,5 +2284,80 @@ describe("the spec's tests hold against the host", () => {
       'S3AI',
     ]
     for (const mark of stay) expect(namesHouse(mark)).toBe(true)
+  })
+})
+
+describe('v27-v29: gallery preview, retry slots, brand kit (host)', () => {
+  it("a gallery preview with no card yet is drawn in the render's defaults, not the theme's green", () => {
+    expect(SPEC.GALLERY_PREVIEW_FROM_CARD_DEFAULTS).toBe(true)
+    expect(galleryPreviewField(false)).toBe(SPEC.FIELD_FROM_DEFAULT)
+    expect(galleryPreviewField(true)).toBe(SPEC.FIELD_FROM_SELLER)
+    expect(galleryPreviewField(false)).toBe(endCardField(false, false, false))
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).toBe(SPEC.END_CARD_DEFAULT_TITLE)
+    expect(SPEC.END_CARD_DEFAULT_ACCENT.toUpperCase()).not.toBe('#00FF88')
+    expect(SPEC.END_CARD_DEFAULT_BG).not.toBe('#000000')
+    // The player's gallery draws a missing field from the same defaults.
+    const gallery = readFileSync(
+      join(
+        __dirname,
+        '../../../player/src/components/Crm/StoryTemplateGallery.tsx'
+      ),
+      'utf8'
+    )
+    expect(gallery.toLowerCase()).not.toContain('#00ff88')
+    expect(gallery.toLowerCase()).not.toContain('#000000')
+    for (const f of ['BG', 'TEXT', 'TITLE', 'ACCENT'])
+      expect(gallery).toContain(`SPEC.END_CARD_DEFAULT_${f}`)
+  })
+
+  it('brand kit: no palette -> defaults on preview and render', () => {
+    expect(SPEC.BRAND_KIT_ON_EVERY_SURFACE).toBe(true)
+    expect(brandKitField(false, SPEC.SURFACE_PREVIEW)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(false, SPEC.SURFACE_RENDER)).toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(false, SPEC.SURFACE_PREVIEW)).toBe(
+      endCardField(false, false, false)
+    )
+    expect(SPEC.END_CARD_DEFAULT_ACCENT).not.toBe(SPEC.HOST_THEME_ACCENT)
+  })
+
+  it('brand kit: palette present -> client colours on every surface, never theme green', () => {
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(brandKitField(true, SPEC.SURFACE_RENDER)).toBe(SPEC.FIELD_FROM_KEPT)
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).toBe(
+      brandKitField(true, SPEC.SURFACE_RENDER)
+    )
+    expect(brandKitField(true, SPEC.SURFACE_RENDER)).toBe(
+      endCardField(false, true, false)
+    )
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).not.toBe(
+      SPEC.FIELD_FROM_DEFAULT
+    )
+    expect(brandKitField(true, SPEC.SURFACE_PREVIEW)).not.toBe(
+      SPEC.FIELD_FROM_TEMPLATE
+    )
+  })
+
+  it('a retry renders only the empty slots and charges only for them', () => {
+    expect(SPEC.RETRY_REUSES_DONE_SLOTS).toBe(true)
+    expect(slotsToRender(3, 0)).toBe(3)
+    expect(retryPrice(3, 0, SPEC.TOKENS_PER_STILL)).toBe(
+      3 * SPEC.TOKENS_PER_STILL
+    )
+    expect(slotsToRender(3, 2)).toBe(1)
+    expect(retryPrice(3, 2, SPEC.TOKENS_PER_LINE)).toBe(SPEC.TOKENS_PER_LINE)
+    expect(slotsToRender(5, 1)).toBe(4)
+    expect(slotsToRender(3, 3)).toBe(0)
+    expect(retryPrice(3, 3, SPEC.TOKENS_PER_LINE)).toBe(0)
+    expect(slotsToRender(0, 0)).toBe(0)
+    expect(slotsToRender(2, 5)).toBe(0)
+    expect(slotRenders(true)).toBe(false)
+    expect(slotRenders(false)).toBe(true)
+    // The day's-cap count of a retry is the same rule: two stills done of
+    // three leaves one still, three clips and the cut.
+    expect(slotsNeeded(3, 2, 0, false)).toBe(1 + 3 + SPEC.CAP_SLOT_PER_RENDER)
   })
 })
