@@ -1257,5 +1257,47 @@
     "file": "src/agent/story-template.ts",
     "from": "  const stills = slotsToRender(scenes, stillsHave)",
     "to": "  const stills = scenes"
+  },
+  {
+    "name": "a retry starts empty: the failed job's stills are not carried",
+    "file": "src/agent/story-template.ts",
+    "from": "      JSON.stringify(carried?.stills ?? []),",
+    "to": "      JSON.stringify([]),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a retry starts empty: the failed job's clips are not carried",
+    "file": "src/agent/story-template.ts",
+    "from": "      JSON.stringify(carried?.clips ?? []),",
+    "to": "      JSON.stringify([]),",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the day cap of a retry counts carried slots as missing",
+    "file": "src/agent/story-template.ts",
+    "from": "      carried ? filled(carried.stills) : 0,",
+    "to": "      0,",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a retry carries another script's slots",
+    "file": "src/agent/story-template.ts",
+    "from": "      ? JSON.stringify(scenes) === JSON.stringify(given)",
+    "to": "      ? true",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a retry carries a done job's slots",
+    "file": "src/agent/story-template.ts",
+    "from": "        WHERE lead_id = $1 AND seller_id = $2 AND status = 'failed'",
+    "to": "        WHERE lead_id = $1 AND seller_id = $2",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a retry of an asked topic writes new scenes",
+    "file": "src/agent/story-template.ts",
+    "from": "          ? JSON.stringify(carried.scenes)",
+    "to": "          ? null",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]
