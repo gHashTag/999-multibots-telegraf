@@ -19,6 +19,8 @@ not merge it.
      (Bearer `TRIOS_API_TOKEN`, read from Railway, never printed).
    - Open issues labelled `queen-watch`:
      `gh issue list --repo gHashTag/999-multibots-telegraf --label queen-watch --state open`.
+   - Open issues labelled `stands-after-deploy` (a phone stand that failed
+     after a mini-app deploy, `tri stands-after-deploy`), same delegatable shape.
    - The last queen-watch runs: `railway logs --service queen-watch` with
      `--project 564d9ebd-7aa8-44fe-93ec-e0b03c87158d --environment e4d200ad-b8a9-4edf-9b25-190a32613b32`
      (always all three ids: `railway link` flaps between projects).
