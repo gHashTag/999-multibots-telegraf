@@ -5,13 +5,14 @@ description: Current task tracking system analog to current_task.mdc from Cursor
 
 # 📋 Task Tracker - Единая Точка Истины о Плане
 
-**Sanskrit Wisdom**: 🕉️ *"योगः कर्मसु कौशलम्"* (Yogah Karmasu Kaushalam) - "Йога есть искусство в действиях" - Бхагавад-гита 2.50
+**Sanskrit Wisdom**: 🕉️ _"योगः कर्मसु कौशलम्"_ (Yogah Karmasu Kaushalam) - "Йога есть искусство в действиях" - Бхагавад-гита 2.50
 
 **Философия**: "current_task - это наша карта. Без карты мы блуждаем в темноте."
 
 ## 🎯 Core Knowledge
 
 Этот Skill является аналогом `current_task.mdc` из Cursor Rules и предоставляет:
+
 - 📝 Единую точку истины о текущем плане (Single Source of Truth)
 - ✅/✏️/❌ Статусная система для отслеживания прогресса
 - 🔄 Автоматическое обновление после каждого действия
@@ -24,10 +25,9 @@ description: Current task tracking system analog to current_task.mdc from Cursor
 ### Principle 1: Read Before Action
 
 ```yaml
-Правило: "Перед Началом Действия (Чтение Плана)"
+Правило: 'Перед Началом Действия (Чтение Плана)'
 
-Обязательно:
-  1. ПРОЧИТАТЬ current_task.mdc
+Обязательно: 1. ПРОЧИТАТЬ current_task.mdc
   2. ПОНЯТЬ текущую задачу
   3. ПРОВЕРИТЬ статус предыдущих шагов
   4. ОПРЕДЕЛИТЬ следующее действие
@@ -38,10 +38,9 @@ description: Current task tracking system analog to current_task.mdc from Cursor
 ### Principle 2: Update After Action
 
 ```yaml
-Правило: "После Завершения Действия (Обновление Плана)"
+Правило: 'После Завершения Действия (Обновление Плана)'
 
-Обязательно:
-  1. НЕМЕДЛЕННО обновить current_task.mdc
+Обязательно: 1. НЕМЕДЛЕННО обновить current_task.mdc
   2. ИЗМЕНИТЬ статус завершенного шага на ✅
   3. ИЗМЕНИТЬ статус следующего шага на ✏️
   4. ДОБАВИТЬ новые подзадачи если обнаружены
@@ -52,7 +51,7 @@ description: Current task tracking system analog to current_task.mdc from Cursor
 ### Principle 3: Single Source of Truth
 
 ```yaml
-Правило: "Единая Точка Истины"
+Правило: 'Единая Точка Истины'
 
 current_task.mdc:
   - ВСЕГДА является актуальным планом
@@ -98,7 +97,7 @@ current_task.mdc:
 
 ## 🕉️ Sanskrit Guidance
 
-*"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"*
+_"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"_
 "Твое право - на действие, но никогда - на его плоды" - Бхагавад-гита 2.47
 
 Сосредоточься на процессе, не на результате. Каждый шаг важен.
@@ -108,9 +107,11 @@ current_task.mdc:
 ## 📋 План Задачи: Создать HeyGen Avatar Wizard
 
 ### Общая Цель
+
 Реализовать полнофункциональный wizard для создания видео с говорящими аватарами через HeyGen API.
 
 ### Требования
+
 - Использовать существующие паттерны из neuroPhotoWizard
 - Интеграция с Supabase для сохранения результатов
 - Inngest для async обработки (генерация может занимать 2-5 минут)
@@ -122,6 +123,7 @@ current_task.mdc:
 ## 📝 Шаги Выполнения
 
 ### 1. ✅ Анализ Существующих Паттернов
+
 - ✅ Прочитать neuroPhotoWizard для понимания структуры
 - ✅ Изучить Inngest integration patterns
 - ✅ Проверить Supabase schema для assets
@@ -129,17 +131,20 @@ current_task.mdc:
 **Commit**: `abc123` - Analyze existing wizard patterns
 
 ### 2. ✏️ Создание Структуры Wizard (СЕЙЧАС)
+
 - ✅ Создать файл `src/scenes/heygenWizard/heygen-avatar-wizard.ts`
 - ✏️ Определить интерфейсы WizardState
 - ⏸️ Реализовать шаги wizard (selectAvatar, enterText, selectVoice)
 - ⏸️ Добавить валидацию на каждом шаге
 
 **TDD Цикл**:
+
 - 🔴 RED: Написать тесты для WizardState interface
 - 🟢 GREEN: (следующий шаг)
 - 🔵 REFACTOR: (следующий шаг)
 
 ### 3. ⏸️ Интеграция с HeyGen API
+
 - ⏸️ Создать `src/services/heygen/client.ts`
 - ⏸️ Реализовать `createAvatar()` функцию
 - ⏸️ Добавить error handling
@@ -148,12 +153,14 @@ current_task.mdc:
 **TDD Цикл**: 🔴 RED (ожидание)
 
 ### 4. ⏸️ Inngest Function для Async Processing
+
 - ⏸️ Создать `src/inngest/functions/heygen-generate-avatar.ts`
 - ⏸️ Реализовать polling для проверки статуса
 - ⏸️ Обработка webhook от HeyGen
 - ⏸️ Сохранение результата в Supabase
 
 ### 5. ⏸️ Финализация и Testing
+
 - ⏸️ E2E тесты в Docker test environment
 - ⏸️ Проверка всех error scenarios
 - ⏸️ Code review
@@ -164,17 +171,20 @@ current_task.mdc:
 ## 🔄 История Изменений
 
 ### [16:30] Создал структуру wizard файла
+
 - Определил WizardState interface
 - Начал работу над шагом 2
 - Статус: ✏️ В процессе
 
 ### [16:00] Завершил анализ паттернов
+
 - Изучил neuroPhotoWizard
 - Понял структуру Inngest integration
 - Проверил Supabase schema
 - Статус: ✅ Выполнено
 
 ### [15:45] Начало задачи
+
 - Создан current_task.mdc
 - Определен общий план
 - Ветка: feat/heygen-wizard
@@ -184,14 +194,17 @@ current_task.mdc:
 ## 📌 Важные Заметки
 
 ### Известные Проблемы
+
 - HeyGen API имеет лимит 100 запросов/день (нужно учитывать)
 - Webhook может приходить с задержкой до 10 минут
 
 ### Зависимости
+
 - Требуется HEYGEN_API_KEY в Infisical
 - Требуется обновление Supabase schema (добавить heygen_avatar_id)
 
 ### Следующее Действие
+
 **СЕЙЧАС**: Определить WizardState interface и написать для него тесты (TDD RED)
 ```
 
@@ -203,16 +216,16 @@ current_task.mdc:
 // Pseudo-code workflow
 async function beforeStartingWork() {
   // 1. Read current task
-  const currentTask = await readFile('current_task.mdc');
+  const currentTask = await readFile('current_task.mdc')
 
   // 2. Check status of previous steps
-  const lastStep = findLastCompletedStep(currentTask);
+  const lastStep = findLastCompletedStep(currentTask)
 
   // 3. Determine next action
-  const nextStep = findStepWithStatus(currentTask, '✏️');
+  const nextStep = findStepWithStatus(currentTask, '✏️')
 
   // 4. Proceed with next action
-  console.log(`Continuing from: ${nextStep.name}`);
+  console.log(`Continuing from: ${nextStep.name}`)
 }
 ```
 
@@ -222,21 +235,21 @@ async function beforeStartingWork() {
 // Pseudo-code workflow
 async function afterCompletingAction(stepName: string) {
   // 1. Mark current step as completed
-  await updateTaskStatus(stepName, '✅');
+  await updateTaskStatus(stepName, '✅')
 
   // 2. Add git commit reference
-  const commitHash = await getCurrentGitCommit();
-  await addCommitToTask(stepName, commitHash);
+  const commitHash = await getCurrentGitCommit()
+  await addCommitToTask(stepName, commitHash)
 
   // 3. Mark next step as in progress
-  const nextStep = getNextStep(stepName);
-  await updateTaskStatus(nextStep, '✏️');
+  const nextStep = getNextStep(stepName)
+  await updateTaskStatus(nextStep, '✏️')
 
   // 4. Add timestamp
-  await updateTimestamp();
+  await updateTimestamp()
 
   // 5. Save changes
-  await saveFile('current_task.mdc');
+  await saveFile('current_task.mdc')
 }
 ```
 
@@ -248,6 +261,7 @@ async function afterCompletingAction(stepName: string) {
 ### 2. ✏️ Создание Структуры Wizard (СЕЙЧАС)
 
 **TDD Цикл**:
+
 - 🔴 RED: Написать failing test для WizardState
   - Status: ✏️ В процессе
   - Test file: `__tests__/heygen-wizard.test.ts`
@@ -263,6 +277,7 @@ async function afterCompletingAction(stepName: string) {
 ### TDD Status Updates
 
 After each TDD phase:
+
 ```bash
 # After RED phase
 - 🔴 RED: ✅ Test написан и падает (expected)
@@ -285,11 +300,13 @@ After each TDD phase:
 
 ```markdown
 ### 2. ✅ Создание Структуры Wizard
+
 - ✅ Создать файл heygen-avatar-wizard.ts
 - ✅ Определить интерфейсы WizardState
 - ✅ Реализовать шаги wizard
 
 **Commits**:
+
 - `5fe4a1f0` - Create wizard file structure
 - `7a2b8c3d` - Define WizardState interface
 - `9e4f5g6h` - Implement wizard steps
@@ -301,6 +318,7 @@ After each TDD phase:
 ### Rollback Reference
 
 If something goes wrong:
+
 ```bash
 # Last known good commit for this task
 git checkout 5fe4a1f0
@@ -314,8 +332,7 @@ git reset --hard 7a2b8c3d
 ### Pattern: Master Orchestrator Creates Task
 
 ```yaml
-Master Orchestrator:
-  1. Receives complex task from user
+Master Orchestrator: 1. Receives complex task from user
   2. Creates execution plan
   3. Writes plan to current_task.mdc
   4. Delegates to specialized Skills/Agents
@@ -343,6 +360,7 @@ Agent B (ai-pipeline-orchestration):
 ## 📊 Best Practices
 
 ### DO:
+
 ✅ Read current_task.mdc before EVERY action
 ✅ Update current_task.mdc after EVERY completed step
 ✅ Keep single task file (no duplicates)
@@ -352,6 +370,7 @@ Agent B (ai-pipeline-orchestration):
 ✅ Use clear status emojis (✅/✏️/❌)
 
 ### DON'T:
+
 ❌ Skip reading current_task.mdc
 ❌ Create multiple task tracking files
 ❌ Leave status outdated
@@ -432,6 +451,7 @@ Next Action: Complete polling logic implementation"
 **Primary File**: `current_task.mdc` (в корне проекта)
 
 **Convention**:
+
 - ONE file for current active task
 - Archive completed tasks to `docs/tasks/completed/`
 - Never have multiple active current_task files
@@ -464,7 +484,16 @@ graph TD
 
 ## 🕉️ Final Sanskrit Wisdom
 
-*"श्रेयान्स्वधर्मो विगुणः परधर्मात्स्वनुष्ठितात्"*
+_"श्रेयान्स्वधर्मो विगुणः परधर्मात्स्वनुष्ठितात्"_
 "Лучше исполнять свой долг несовершенно, чем чужой - в совершенстве" - Бхагавад-гита 3.35
 
 Каждый агент должен обновлять current_task.mdc - это его долг. Не пропускай этот шаг.
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

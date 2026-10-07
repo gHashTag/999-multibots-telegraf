@@ -151,6 +151,15 @@ After restoration, verify:
 - [ ] All bots started without errors
 - [ ] No "api_key is empty" errors in logs
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - **Script**: `scripts/infisical/restore-env-from-infisical.sh`

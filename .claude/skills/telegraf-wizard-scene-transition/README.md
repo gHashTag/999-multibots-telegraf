@@ -5,11 +5,13 @@
 Кнопка "🎥 Фото в видео" требовала **два нажатия** вместо одного для запуска wizard.
 
 ### Симптомы:
+
 - Первое нажатие: wizard входит, но пользователь не получает сообщение
 - Второе нажатие: wizard работает нормально
 - Logs показывают: wizard entered successfully, но Step 0 не выполняется
 
 ### Код с ошибкой:
+
 ```typescript
 // CheckBalanceScene.ts - НЕПРАВИЛЬНО
 if (mode === ModeEnum.ImageToVideo) {
@@ -68,11 +70,12 @@ if (mode === ModeEnum.ImageToVideo) {
 ### Файлы для исправления:
 
 **CheckBalanceScene.ts** (строки 919-924):
+
 ```typescript
 try {
   // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ
   console.log('🎯 [DEBUG] Leaving current scene before entering wizard')
-  await ctx.scene.leave()  // ✅ ОБЯЗАТЕЛЬНО!
+  await ctx.scene.leave() // ✅ ОБЯЗАТЕЛЬНО!
   console.log('🎯 [DEBUG] Left current scene, now entering image_to_video')
   await ctx.scene.enter('image_to_video')
   console.log('🎯 [DEBUG] Successfully entered image_to_video scene')
@@ -86,16 +89,19 @@ try {
 ### Что делать ПЕРЕД исправлением:
 
 1. **Изучить git history** за последние 3 дня:
+
    ```bash
    git log --oneline --since="3 days ago" -- src/scenes/
    ```
 
 2. **Найти рабочую реализацию** (TextToVideo) и сравнить:
+
    ```bash
    git diff HEAD~5..HEAD src/scenes/textToVideoWizard/index.ts
    ```
 
 3. **Проанализировать паттерн** через Task agent:
+
    ```
    Запусти telegram-scene-builder agent для глобального анализа
    ```
@@ -122,14 +128,14 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   'image_to_video',
 
   // ========== ШАГ 1 (ПЕРВЫЙ ШАГ) ==========
-  async (ctx) => {
+  async ctx => {
     // Этот код выполняется на СЛЕДУЮЩЕМ update после ctx.scene.enter()
     // НЕ на том же update, который вызвал enter()!
 
     await ctx.reply('🖼️ Отправьте изображение')
     ctx.wizard.next()
     return
-  },
+  }
   // ... остальные шаги
 )
 
@@ -142,16 +148,17 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
 ```typescript
 // ПРАВИЛЬНЫЙ паттерн для всех wizard:
-await ctx.scene.leave()  // 1. Выходим из текущей сцены
-await ctx.scene.enter('wizard_name')  // 2. Входим в wizard
+await ctx.scene.leave() // 1. Выходим из текущей сцены
+await ctx.scene.enter('wizard_name') // 2. Входим в wizard
 
 // НЕПРАВИЛЬНЫЙ паттерн:
-await ctx.scene.enter('wizard_name')  // ❌ Update consumed!
+await ctx.scene.enter('wizard_name') // ❌ Update consumed!
 ```
 
 ### 3. Unified Navigation System
 
 Все кнопки меню управляются из одного файла:
+
 - `src/navigation/unified-navigation.config.ts`
 - Все wizard входят через `CheckBalanceScene.ts`
 - CheckBalanceScene проверяет доступ и балансы
@@ -178,11 +185,13 @@ await ctx.scene.enter('wizard_name')  // ❌ Update consumed!
 ## Git History
 
 ### Проблемный commit:
+
 ```
 b8c9e26c5 - Удалил ctx.scene.leave() для ImageToVideo
 ```
 
 ### Исправляющий commit:
+
 ```
 ebb2a751 - 🐛 FIX: Restore ctx.scene.leave() for ImageToVideo wizard
 ```
@@ -205,6 +214,7 @@ ssh prod999 "cd /root/bot-farm && docker compose restart app"
 ## Проверка решения
 
 После деплоя проверить:
+
 1. Открыть бота в Telegram
 2. Нажать "🎥 Фото в видео" ОДИН РАЗ
 3. Должно сразу прийти сообщение: "🖼️ Отправьте изображение для создания видео"
@@ -226,6 +236,7 @@ ssh prod999 "cd /root/bot-farm && docker compose restart app"
 ### Проблема дублирования кода
 
 **До исправления** (в ImageToVideo wizard):
+
 ```typescript
 // ❌ НЕПРАВИЛЬНО: Хардкод моделей и цен
 function createImageToVideoButton(modelId: string, aspectRatio: string, isRu: boolean): string {
@@ -252,9 +263,14 @@ const supportedModels = ['veo3_fast', 'veo3', 'kling-v1.6-pro', ...]
 ```
 
 **После исправления** (используем unified config):
+
 ```typescript
 // ✅ ПРАВИЛЬНО: Импортируем из единого источника правды
-import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
+import {
+  generateModelButton,
+  parseModelButton,
+  generateModelKeyboard,
+} from '@/config/unified-video-models.config'
 
 // ✅ ПРАВИЛЬНО: Автоматически берёт все активные модели с правильными ценами
 const keyboardRows = generateModelKeyboard('image', isRu)
@@ -293,13 +309,14 @@ const parsedModel = parseModelButton(selectedText)
 ### Примеры использования
 
 #### TextToVideo (правильный паттерн):
+
 ```typescript
 // Шаг 1: Показ клавиатуры моделей
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
   // ШАГ 1: ВЫБОР МОДЕЛИ
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ
@@ -313,7 +330,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     // Добавляем кнопки навигации
     keyboardRows.push([
       isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-      isRu ? '❌ Отмена' : '❌ Cancel'
+      isRu ? '❌ Отмена' : '❌ Cancel',
     ])
 
     await ctx.reply(
@@ -327,7 +344,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 2: ОБРАБОТКА ВЫБОРА МОДЕЛИ И ПРОМПТА
-  async (ctx) => {
+  async ctx => {
     const message = ctx.message
     if (!message || !('text' in message)) return
 
@@ -348,18 +365,19 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 ```
 
 #### ImageToVideo (исправленный паттерн):
+
 ```typescript
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   'image_to_video',
 
   // ШАГ 1: ЗАГРУЗКА ИЗОБРАЖЕНИЯ
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('🖼️ Отправьте изображение для создания видео:')
     ctx.wizard.next()
   },
 
   // ШАГ 2: ПОКАЗ КЛАВИАТУРЫ МОДЕЛЕЙ
-  async (ctx) => {
+  async ctx => {
     // Получаем изображение
     const photo = ctx.message.photo[ctx.message.photo.length - 1]
     const fileLink = await ctx.telegram.getFileLink(photo.file_id)
@@ -375,7 +393,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 
     keyboardRows.push([
       isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-      isRu ? '❌ Отмена' : '❌ Cancel'
+      isRu ? '❌ Отмена' : '❌ Cancel',
     ])
 
     await ctx.reply(
@@ -389,7 +407,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 3: ОБРАБОТКА ВЫБОРА МОДЕЛИ
-  async (ctx) => {
+  async ctx => {
     const selectedText = ctx.message.text
 
     // ✅ ИСПОЛЬЗУЕМ ЦЕНТРАЛИЗОВАННУЮ ФУНКЦИЮ ПАРСИНГА
@@ -405,7 +423,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // ШАГ 4: ГЕНЕРАЦИЯ ВИДЕО
-  async (ctx) => {
+  async ctx => {
     const prompt = ctx.message.text
     // ... генерация видео
   }
@@ -415,6 +433,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 ### Правила использования
 
 ❌ **НИКОГДА НЕ ДЕЛАЙ:**
+
 1. Хардкод цен моделей в wizard файлах
 2. Дублирование логики создания кнопок
 3. Дублирование логики парсинга кнопок
@@ -422,6 +441,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 5. Использование своих функций вместо unified config
 
 ✅ **ВСЕГДА ДЕЛАЙ:**
+
 1. Импортируй из `unified-video-models.config.ts`
 2. Используй `generateModelKeyboard()` для создания клавиатуры
 3. Используй `parseModelButton()` для парсинга выбора
@@ -442,7 +462,17 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 **Created:** 2025-11-12
 **Updated:** 2025-11-12
 **Commits:**
+
 - ebb2a751 - 🐛 FIX: Restore ctx.scene.leave() for ImageToVideo wizard
 - [новый] - ♻️ REFACTOR: Replace hardcoded models with unified-video-models.config
 
 **Status:** ✅ Fixed and deployed
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

@@ -111,6 +111,15 @@ starved Mac no longer means a silent watch. It reports only on change -- to the 
 place: the header of `deployment/queen-watch/watch.mjs`. The steward that acts on it:
 `.claude/agents/queen-steward.md`.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `src/navigation/helpers/actionButtons.ts`, `src/navigation/registerCommands.ts` (ответ агента, запасной путь, `act:*`)

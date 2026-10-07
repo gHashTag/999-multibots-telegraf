@@ -797,3 +797,12 @@ _"नाम रूपे व्यवस्थिते"_ (Nama Rupe Vyavasthite
 **Status**: Production-ready ✅
 **Philosophy**: "Complex code = technical debt. Simple code = maintainability."
 **Integration**: Works with continuous-optimizer, tdd-automation, git-workflow, code-reviewer agent
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

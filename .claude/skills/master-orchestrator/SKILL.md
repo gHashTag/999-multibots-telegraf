@@ -10,6 +10,7 @@ description: Master Orchestrator - Central conductor for coordinating all Claude
 ## 🎯 Цель
 
 Master Orchestrator - это **центральная координационная система**, которая:
+
 - 🎼 Определяет какие Skills и Agents нужны для задачи
 - 🎵 Координирует их работу в правильном порядке
 - 🎶 Обеспечивает согласованность между всеми компонентами
@@ -18,6 +19,7 @@ Master Orchestrator - это **центральная координационн
 ## 📊 Когда Использовать
 
 ### ✅ ВСЕГДА использовать для:
+
 1. **Multi-Area Tasks** - Задачи затрагивающие несколько областей
    - Новая Telegram сцена + деплой + тестирование
    - Интеграция нового AI provider + документация
@@ -36,6 +38,7 @@ Master Orchestrator - это **центральная координационн
 ## 🎼 Архитектура Оркестрации
 
 ### Layer 1: Skills (Специализированные Знания)
+
 ```
 📚 Existing Skills (7):
 ├── telegram-scenes-ULTIMATE  - Все паттерны Telegram сцен
@@ -48,6 +51,7 @@ Master Orchestrator - это **центральная координационн
 ```
 
 ### Layer 2: Agents (Специализированные Действия)
+
 ```
 🤖 Existing Agents (13):
 Production & Deployment (3):
@@ -75,6 +79,7 @@ Coordination (3):
 ```
 
 ### Layer 3: Commands (Быстрые Действия)
+
 ```
 ⚡ Slash Commands (10):
 ├── /check            - Server health
@@ -88,124 +93,128 @@ Coordination (3):
 ## 🎯 Workflow Patterns
 
 ### Pattern 1: Feature Development (Full Cycle)
+
 ```yaml
-Trigger: "Создай новую сцену для генерации видео с Sora"
+Trigger: 'Создай новую сцену для генерации видео с Sora'
 
 Orchestration Flow:
   1. Analyze Request:
-     - Use: master-orchestrator
-     - Determine: Scope, complexity, risks
-     - Output: Implementation plan
+    - Use: master-orchestrator
+    - Determine: Scope, complexity, risks
+    - Output: Implementation plan
 
   2. Research & Design:
-     - Use: best-practices-researcher
-     - Research: Latest video generation patterns
-     - Use: telegram-scenes-ULTIMATE
-     - Design: Scene structure with proper patterns
+    - Use: best-practices-researcher
+    - Research: Latest video generation patterns
+    - Use: telegram-scenes-ULTIMATE
+    - Design: Scene structure with proper patterns
 
   3. Implementation:
-     - Use: telegram-scene-builder
-     - Create: Scene file with all patterns
-     - Use: business-logic-guardian
-     - Ensure: Proper separation of concerns
+    - Use: telegram-scene-builder
+    - Create: Scene file with all patterns
+    - Use: business-logic-guardian
+    - Ensure: Proper separation of concerns
 
   4. Integration:
-     - Use: ai-pipeline-orchestration
-     - Integrate: Sora provider
-     - Use: supabase-database
-     - Add: Database schema if needed
+    - Use: ai-pipeline-orchestration
+    - Integrate: Sora provider
+    - Use: supabase-database
+    - Add: Database schema if needed
 
   5. Testing:
-     - Use: tdd-test-engineer
-     - Write: Tests following TDD
-     - Use: code-reviewer
-     - Review: Code quality
+    - Use: tdd-test-engineer
+    - Write: Tests following TDD
+    - Use: code-reviewer
+    - Review: Code quality
 
   6. Deployment:
-     - Use: production-deployment skill
-     - Check: All deployment requirements
-     - Use: deployment-manager agent
-     - Execute: /deploy command
+    - Use: production-deployment skill
+    - Check: All deployment requirements
+    - Use: deployment-manager agent
+    - Execute: /deploy command
 
   7. Validation:
-     - Use: server-health-checker agent
-     - Execute: /check command
-     - Monitor: Production logs
+    - Use: server-health-checker agent
+    - Execute: /check command
+    - Monitor: Production logs
 ```
 
 ### Pattern 2: Bug Fix (Rapid Response)
+
 ```yaml
-Trigger: "Пользователь 8190001592 не может использовать нейросеть"
+Trigger: 'Пользователь 8190001592 не может использовать нейросеть'
 
 Orchestration Flow:
   1. User Diagnostics:
-     - Auto-trigger: telegram-user-manager
-     - Execute: /user-check 8190001592
-     - Analyze: Balance, subscription, access
+    - Auto-trigger: telegram-user-manager
+    - Execute: /user-check 8190001592
+    - Analyze: Balance, subscription, access
 
   2. System Check:
-     - Use: server-health-checker
-     - Execute: /check
-     - Verify: Server health, errors
+    - Use: server-health-checker
+    - Execute: /check
+    - Verify: Server health, errors
 
   3. Code Investigation:
-     - Use: telegram-scenes-ULTIMATE
-     - Review: Scene implementation
-     - Use: anti-duplication-guardian
-     - Check: For similar issues
+    - Use: telegram-scenes-ULTIMATE
+    - Review: Scene implementation
+    - Use: anti-duplication-guardian
+    - Check: For similar issues
 
   4. Fix:
-     - Use: telegram-scene-builder
-     - Apply: Fix with proper patterns
-     - Use: js-error-fixer (if needed)
-     - Auto-fix: Common errors
+    - Use: telegram-scene-builder
+    - Apply: Fix with proper patterns
+    - Use: js-error-fixer (if needed)
+    - Auto-fix: Common errors
 
   5. Validation:
-     - Test: Fix locally
-     - Deploy: With deployment-manager
-     - Monitor: With autonomous-monitor
+    - Test: Fix locally
+    - Deploy: With deployment-manager
+    - Monitor: With autonomous-monitor
 ```
 
 ### Pattern 3: Architecture Refactoring
+
 ```yaml
-Trigger: "Рефакторинг AI pipeline для лучшей производительности"
+Trigger: 'Рефакторинг AI pipeline для лучшей производительности'
 
 Orchestration Flow:
   1. Analysis:
-     - Use: ai-pipeline-orchestration skill
-     - Analyze: Current architecture
-     - Use: best-practices-researcher
-     - Research: Performance optimization patterns
+    - Use: ai-pipeline-orchestration skill
+    - Analyze: Current architecture
+    - Use: best-practices-researcher
+    - Research: Performance optimization patterns
 
   2. Planning:
-     - Use: master-orchestrator
-     - Create: Detailed refactoring plan
-     - Use: rules-guardian
-     - Ensure: Compliance with project rules
+    - Use: master-orchestrator
+    - Create: Detailed refactoring plan
+    - Use: rules-guardian
+    - Ensure: Compliance with project rules
 
   3. Implementation:
-     - Use: anti-duplication-guardian
-     - Prevent: Code duplication during refactor
-     - Use: business-logic-guardian
-     - Maintain: Clean Architecture principles
+    - Use: anti-duplication-guardian
+    - Prevent: Code duplication during refactor
+    - Use: business-logic-guardian
+    - Maintain: Clean Architecture principles
 
   4. Testing:
-     - Use: tdd-test-engineer
-     - Write: Comprehensive tests
-     - Use: code-reviewer
-     - Strict: Quality control
+    - Use: tdd-test-engineer
+    - Write: Comprehensive tests
+    - Use: code-reviewer
+    - Strict: Quality control
 
   5. Documentation:
-     - Use: docs-sync
-     - Update: All related documentation
+    - Use: docs-sync
+    - Update: All related documentation
 
   6. Deployment:
-     - Staged rollout with monitoring
+    - Staged rollout with monitoring
 ```
 
 ## 🎼 Coordination Rules
 
 ### Rule 1: Always Start with Context
+
 ```
 Before ANY orchestration:
 1. Identify: What areas are affected? (Telegram, Database, AI, Deployment)
@@ -215,6 +224,7 @@ Before ANY orchestration:
 ```
 
 ### Rule 2: Layer-Appropriate Delegation
+
 ```
 Skills Layer:
   - When: Need specialized knowledge
@@ -230,6 +240,7 @@ Commands Layer:
 ```
 
 ### Rule 3: Workflow Tracking
+
 ```
 For EVERY orchestrated task:
 1. TODO List: Create with clear steps
@@ -239,6 +250,7 @@ For EVERY orchestrated task:
 ```
 
 ### Rule 4: Error Recovery
+
 ```
 If ANY step fails:
 1. STOP: Don't proceed to next step
@@ -251,44 +263,46 @@ If ANY step fails:
 ## 🎯 Decision Matrix
 
 ### Which Skill to Use?
+
 ```yaml
 Telegram Scenes:
-  Question: "Нужно создать/исправить сцену?"
+  Question: 'Нужно создать/исправить сцену?'
   Use: telegram-scenes-ULTIMATE
   Why: 67 production scenes analyzed, zero-error guarantee
 
 Database:
-  Question: "Нужна работа с БД?"
+  Question: 'Нужна работа с БД?'
   Use: supabase-database
   Why: Все таблицы, query patterns, helpers
 
 Background Jobs:
-  Question: "Async операция > 1 минуты?"
+  Question: 'Async операция > 1 минуты?'
   Use: inngest-expert
   Why: Event-driven patterns, step-based execution
 
 AI Integration:
-  Question: "Новый AI provider или pipeline?"
+  Question: 'Новый AI provider или pipeline?'
   Use: ai-pipeline-orchestration
   Why: Provider patterns, functional programming, failover
 
 Deployment:
-  Question: "Деплой на production?"
+  Question: 'Деплой на production?'
   Use: production-deployment + deployment-manager
   Why: Docker workflow, health checks, rollback
 
 Secrets:
-  Question: "Новые secrets или .env?"
+  Question: 'Новые secrets или .env?'
   Use: infisical-secrets
   Why: Cloud-first, правило "только 5 переменных"
 
 Architecture:
-  Question: "Архитектурное решение?"
+  Question: 'Архитектурное решение?'
   Use: telegram-bot-expert
   Why: Общая архитектура проекта
 ```
 
 ### Which Agent to Use?
+
 ```yaml
 Production Issues:
   - Server problems → server-health-checker
@@ -318,6 +332,7 @@ Coordination:
 ## 🎼 Example Orchestrations
 
 ### Example 1: Complete Feature (Real Workflow)
+
 ```
 USER: "Добавь интеграцию с ChatGPT для улучшения промптов"
 
@@ -357,6 +372,7 @@ ORCHESTRATOR:
 ```
 
 ### Example 2: Critical Bug Fix
+
 ```
 USER: "В production ошибка: users can't generate images"
 
@@ -391,6 +407,7 @@ ORCHESTRATOR:
 ## 🎯 Orchestrator Commands
 
 ### Command: /orchestrate
+
 ```
 Description: Plan and execute complex multi-step task
 Usage: /orchestrate "Create payment scene with Stripe"
@@ -403,6 +420,7 @@ What it does:
 ```
 
 ### Command: /workflow
+
 ```
 Description: Show current workflow status
 Usage: /workflow
@@ -414,6 +432,7 @@ What it shows:
 ```
 
 ### Command: /skills
+
 ```
 Description: List all available Skills with descriptions
 Usage: /skills
@@ -421,6 +440,7 @@ Output: Matrix of Skills with use cases
 ```
 
 ### Command: /agents
+
 ```
 Description: List all available Agents with capabilities
 Usage: /agents
@@ -430,6 +450,7 @@ Output: Matrix of Agents with triggers
 ## 📚 Best Practices для Orchestrator
 
 ### 1. Progressive Disclosure
+
 ```
 Start Simple → Add Complexity:
   1. Understand request
@@ -440,6 +461,7 @@ Start Simple → Add Complexity:
 ```
 
 ### 2. Clear Communication
+
 ```
 ALWAYS:
   - Explain the plan before execution
@@ -450,6 +472,7 @@ ALWAYS:
 ```
 
 ### 3. Error Handling
+
 ```
 When things fail:
   1. STOP: Don't cascade failures
@@ -460,6 +483,7 @@ When things fail:
 ```
 
 ### 4. Skill Composition
+
 ```
 Skills are composable:
   - telegram-scenes-ULTIMATE + supabase-database = Scene with DB
@@ -470,6 +494,7 @@ Skills are composable:
 ## 🎼 Integration with Existing Ecosystem
 
 ### With Skills
+
 ```
 Master Orchestrator USES Skills for:
   - Domain Knowledge (patterns, best practices)
@@ -479,6 +504,7 @@ Master Orchestrator USES Skills for:
 ```
 
 ### With Agents
+
 ```
 Master Orchestrator DELEGATES to Agents for:
   - Specific Actions (create scene, deploy, check)
@@ -488,6 +514,7 @@ Master Orchestrator DELEGATES to Agents for:
 ```
 
 ### With Commands
+
 ```
 Master Orchestrator INVOKES Commands for:
   - Quick Operations (/check, /deploy)
@@ -498,6 +525,7 @@ Master Orchestrator INVOKES Commands for:
 ## 🎯 Success Metrics
 
 ### Orchestration Quality
+
 ```
 ✅ Good Orchestration:
   - Clear plan communicated upfront
@@ -515,6 +543,7 @@ Master Orchestrator INVOKES Commands for:
 ```
 
 ### Efficiency Metrics
+
 ```
 Measure:
   - Time to completion
@@ -527,12 +556,14 @@ Measure:
 ## 🎭 Final Notes
 
 **Master Orchestrator is the CONDUCTOR**:
+
 - 🎼 Not a player, but coordinates all players
 - 🎵 Knows when each instrument (Skill/Agent) plays
 - 🎶 Maintains tempo and rhythm (workflow)
 - 🎻 Ensures harmony (coherence)
 
 **WHEN IN DOUBT**:
+
 - Start with Orchestrator for complex tasks
 - Let Orchestrator decide which Skills/Agents to use
 - Trust the coordination layer
@@ -543,3 +574,12 @@ Measure:
 **Created**: 2025-01-11
 **Version**: 1.0
 **Status**: Production-ready ✅
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

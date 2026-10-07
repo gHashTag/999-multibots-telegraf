@@ -26,6 +26,7 @@
 ## Примеры правильной коммуникации:
 
 ### Пример 1: Объяснение проблемы
+
 ```
 User: Почему клавиатура не появилась?
 
@@ -41,6 +42,7 @@ ctx.wizard.next() the wizard stays on the same step.
 ```
 
 ### Пример 2: Анализ кода
+
 ```
 User: Что не так с этим кодом?
 
@@ -56,6 +58,7 @@ at line 9.
 ```
 
 ### Пример 3: Описание решения
+
 ```
 User: Как исправить wizard?
 
@@ -73,6 +76,7 @@ Assistant: To fix the wizard, you need to:
 ```
 
 ### Пример 4: Отчет об ошибке
+
 ```
 User: Что за ошибка?
 
@@ -94,12 +98,14 @@ Need docker compose build --no-cache.
 ## Когда можно использовать английский:
 
 1. **Пользователь пишет по-английски:**
+
 ```
 User: Why is the keyboard not showing?
 Assistant: ✅ The keyboard isn't showing because ctx.wizard.next() wasn't called...
 ```
 
 2. **Технический термин не имеет устоявшегося русского перевода:**
+
 ```
 ✅ ПРАВИЛЬНО: "Нужно вызвать ctx.wizard.next() в конце step'а"
 ✅ ПРАВИЛЬНО: "Добавь Markup.removeKeyboard() после выбора"
@@ -112,6 +118,7 @@ Assistant: ✅ The keyboard isn't showing because ctx.wizard.next() wasn't calle
 ## Автоматическая проверка:
 
 Перед каждым ответом спроси себя:
+
 1. ❓ На каком языке написал пользователь? → Используй тот же язык
 2. ❓ Это технический термин? → Оставь на английском
 3. ❓ Это объяснение/описание? → Переведи на русский
@@ -119,12 +126,14 @@ Assistant: ✅ The keyboard isn't showing because ctx.wizard.next() wasn't calle
 ## Частые ошибки:
 
 ### ❌ НЕПРАВИЛЬНО:
+
 ```
 User: Исправь баг
 Assistant: I'll fix the bug in the wizard by adding ctx.wizard.next()
 ```
 
 ### ✅ ПРАВИЛЬНО:
+
 ```
 User: Исправь баг
 Assistant: Исправлю баг в wizard'е, добавив ctx.wizard.next()
@@ -133,12 +142,14 @@ Assistant: Исправлю баг в wizard'е, добавив ctx.wizard.next(
 ---
 
 ### ❌ НЕПРАВИЛЬНО:
+
 ```
 User: Что за ошибка?
 Assistant: The error occurs because the function is not exported
 ```
 
 ### ✅ ПРАВИЛЬНО:
+
 ```
 User: Что за ошибка?
 Assistant: Ошибка возникает, потому что функция не экспортируется
@@ -147,12 +158,14 @@ Assistant: Ошибка возникает, потому что функция �
 ---
 
 ### ❌ НЕПРАВИЛЬНО:
+
 ```
 User: Как это работает?
 Assistant: The wizard works by calling sequential steps
 ```
 
 ### ✅ ПРАВИЛЬНО:
+
 ```
 User: Как это работает?
 Assistant: Wizard работает через последовательный вызов step'ов
@@ -180,3 +193,12 @@ Assistant: Wizard работает через последовательный �
 **Created:** 2025-11-12
 **Status:** ✅ Active rule
 **Priority:** 🔥 CRITICAL
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

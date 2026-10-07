@@ -64,6 +64,15 @@ This is a TypeScript port of `gHashTag/agent-mail-mcp` (`zmail.py`) inside the r
 
 The Job agent stays `training` until one real end-to-end run: a real dialog through `job_hunters`, a real group, a real letter through the card. After that run it goes live on the owner's word. `packages/vibee-atoms/src/__tests__/agent-marketplace.test.ts` enforces this.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - https://github.com/gHashTag/agent-mail-mcp
@@ -310,8 +319,7 @@ no X-Api-Key and no Telegram initData`. The verdict endpoint (market card
   task ($fopen, $readmem*, $dump*, $system, plusargs...), `include only of
   its own files, our commands only, EMPTY env (PATH, HOME) so /proc cannot
   leak secrets, deadlines, 30 runs/hour/person. Mind `$finish`: a first
-  regex `$f[a-z]*` banned it. The render image installs the three tools.
-  `tri hdl sim --top tb fifo.v tb.v` runs the same runner locally.
+regex `$f[a-z]\*`banned it. The render image installs the three tools.`tri hdl sim --top tb fifo.v tb.v` runs the same runner locally.
 - **A specialist's clients**: a client + agent turn leaves one row in
   `agent_client_work` (no words); `agent_clients` reads the caller's own;
   the dashboard lists them as links `/crm/<id>/chat?helper=<agent>` which
