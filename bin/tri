@@ -136,6 +136,7 @@ tri — оболочка Trinity S³AI
   tri main-drift [база] [--no-fetch]            main сдвинулся, пока шли ворота: задел ли он рендер/плеер/пакеты/lock-файлы (код 1 — прогнать ворота снова после слияния)
   tri shot [story-palette|my-story|crm-client|all] [--width 390] [--lang ru|en]  экран на ТЕЛЕФОНЕ, а не в jsdom: Chromium с пальцем, ответы — функциями хоста; снимки + замер (цель — --touch-target страницы, сдвиг вбок, обрезка, наложения); код 1 — красно, 2 — не измерено
   tri shot watch [--state FILE] [--from FILE]  all + сравнение с прошлым прогоном (~/.cache/tri/shot-watch.json): печатает только что стало хуже/лучше; код 1 — хуже, 2 — ничего не измерено (состояние не трогает)
+  tri stands-after-deploy run|install|status [--dry] [--force]  after each SUCCESS deploy of vibee-editor: shot all on the deployed commit + browser doctor; a failing stand gets ONE issue per stand+deploy (label stands-after-deploy); launchd every 15 min
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -1204,6 +1205,10 @@ sys.stderr.write(str(len(ts)))
     # Can the render's own vision read the text on a picture, how fast, and
     # was its single slot busy? Synthetic posters or --image URL (#3660).
     shift; bash "$ROOT/bin/helpers/vision-bench.sh" "$@" ;;
+  stands-after-deploy)
+    # The phone stands re-run by themselves after every mini-app deploy, and
+    # a failing stand files one delegatable issue. run | install | status.
+    shift; node "$ROOT/bin/helpers/stands-after-deploy.mjs" "${@:-status}" ;;
   relays-watch)
     # `tri relays` every hour from launchd: a dead render is redeployed once
     # per 6 h and reported with the result; a key or code break is reported
