@@ -18,6 +18,7 @@ set -u
 # edited file after the group (measured on a copy, same day).
 {
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/bin/helpers/rail.sh"  # rvars: Railway by explicit ids
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
 # Память автономного цикла по CRM. Отдельно от $LOOP: там скрипты смены,
@@ -45,17 +46,43 @@ usage() {
 tri — оболочка Trinity S³AI
 
   tri doctor     всё перед началом смены: копия, диск, конвейер, влито = выехало
+  tri disk-floor свободно меньше 15 ГиБ? тогда код 1 и команда, что освободит (tri worktrees --apply)
   tri fresh      сверить рабочую копию с origin/main (частая причина ложных диагнозов)
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
   tri prices     таблица цен: модель, токены, единица
   tri margin     маржа каждой картинки и видео: себестоимость, токены, выручка по курсу клуба
   tri card       как выглядит карточка владельца на живых данных
+  tri ball [show|push [--dry] [owner/repo ...]]  доска «где мяч»: CRM + почта + открытые PR и баги по клиентам (specs/automation/ball-board.t27)
+  tri growth                              следующий шаг к заработку от Королевы, только чтение (specs/automation/queen-growth.t27)
+  tri honesty [часы]                      врёт ли агент чата: head_note живого /api/agent/provider и флаги [agent:honesty] по видам, только счёт
+  tri vision-bench [--sizes 448,768] [--image URL --expect "11:30,500"]  читает ли зрение рендера текст на картинке и за сколько мс (своё зрение, слот занят?)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
+  tri red [owner/repo] [ref]  what is red on main: failing checks of the head, each with its log tail (0 green, 1 red, 2 cannot tell, 3 still running)
+  tri canfail [owner/repo] [ref]  can a repo's gates still fail? its gates-can-fail verdicts, tested count, floor (default gHashTag/trinity-fpga; 0 pass, 1 fail, 2 cannot tell, 3 still running)
+  tri blog-share [N]  судьба последних статей блога в соцсетях: спрошено, закрыто через сколько минут, что сделала каждая сеть; в конце -- следующий шаг стола (о какой статье и когда спросит)
+  tri starved [--reap]  голодает ли Mac (нагрузка на ядро, своп), кто ест, сироты гейтов; код 1 — голод: гейт без находок = не код
+  tri meta [card SLUG]  Threads/Instagram/Facebook/LinkedIn/X через API: заданы ли приложения, чьи токены, дни; в конце — готова ли каждая сеть и чей ход (без значений)
+  tri engage [N]  стол комментариев: что предложено под чужими постами, что ответил владелец, квитанции и ответы людей (сигналы лидов)
+  tri runner [deploy]  облачный check-runner: здоров ли и не старше ли кода в main (код 1 — устарел; deploy — выкатить из origin/main)
+  tri online [--wait N] [--json]  can the Mac reach GitHub (dns, git ssh, API), App Store Connect, render; when not -- network (1, wait) or refusal (3, look); --wait N polls GitHub before a retried push
+  tri push [branch]              push through the pre-push gate with ssh keepalive, then PROVE the ref landed (ls-remote == HEAD); one retry; never forces
+  tri no-verify-debt [base]  шлюзы, пропущенные коммитами с --no-verify, по всей ветке (кириллица, секреты, prettier, eslint)
+  tri browser [--json]  состояние браузера: отвечает ли (pod), что в нём открыто (tabs), куда вошёл (logins)
+  tri browser <случай>  каждый инструмент агента руками, той же дверью (tri browser help):
+                 status front focus open time wait read shot desk find layers click xy type
+                 composer eval blank reload close logins sign-in ask ask-input call cover doctor
+  tri browser doctor  в начале КАЖДОГО тика: все вкладки только чтением — пустая, старая сборка, неотправленный текст X, потолок вкладок, cover; у каждой аномалии готовая команда (код 1)
+  tri browser find СЛОВА [ID]  куда лёг бы клик по словам — БЕЗ клика, пробой этой рабочей копии
+  tri browser blank [ID]  почему страница пустая: ловит ошибку, уронившую её (t27.ai: WebGL); staleTab = старая сборка, reload ID
+  tri browser layers [ID]  кнопка видна, но «не найдена»: тени и фреймы страницы (Reddit: 370 теней)
+  tri browser composer [ID]  что СЕЙЧАС лежит в полях X, по полю, и какие кнопки есть (без нажатий)
+  tri blog-share detail [slug]  что ответила КАЖДАЯ сеть, целиком
+  tri rail            вызовы Railway без явного проекта (rc 1) -- ids живут в bin/helpers/rail.sh
   tri pod        отвечает ли удалённый браузер И С КАКИХ ПОР (код 1 — не отвечает)
   tri tabs [--json]  сколько вкладок открыто в поде и близко ли до потолка PID (ничего не закрывает)
   tri heal [--json]  перезапустить браузер, НО только если он действительно молчит (отказ — нормальный ответ)
@@ -64,6 +91,7 @@ tri — оболочка Trinity S³AI
   tri traffic [дни]  откуда приходят люди, по каналам (utm_source), по умолчанию 30 дней
   tri reach /путь [метод]  пропустит ли замок рендера вызов без подписи (isPublic)
   tri bare-fetch  вызовы приложения без подписи, которые упрутся в замок рендера (401 до обработчика)
+  tri git-leak [--heal]  did a test under a hook's GIT_DIR write into this repo: core.bare=true (--heal), fixture-author refs, GIT_DIR in this shell
   tri tag URL канал [кампания]  ссылка с меткой канала: utm на наших страницах, __канал в /start нашего бота
   tri agent [id]  агент из каталога без сети: статус, навыки, префикс правил, ежедневная проверка, контракт
   tri hdl lint|sim|synth [--top имя] файлы  Verilog через тот же hdl_run, что у RTL/FPGA-агентов (песочница та же)
@@ -71,6 +99,8 @@ tri — оболочка Trinity S³AI
   tri spec check <файл.md>|new "<заголовок>"  возьмёт ли Королева issue из беклога: та же проверка спека (## Boundary + разделы), что у неё; new печатает готовый делегируемый шаблон
   tri spec-bind <kind/id> [t27]  начать привязку спеки t27: копия+gen-ts, тест с дословными заголовками (падающие заглушки), снять с храповика
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri loop-guard [start|end] [--tests "<cmd>"]  (tests default: the journal's <!-- loop-tests: --> marker) may this cron tick touch the branch: lock against overlapping ticks, uncommitted files, behind origin, PR merged/closed, main touched the same files, baseline run BEFORE edits, past mutations (.claude/loop-state/<name>-mutants.json) still killed, stale anchor = stop; `end` keeps the lock while anchors are stale or the tree is dirty; exit 1 = stop
+  tri precommit [gate ...]                     run the commit's lefthook gates (all, or the named ones) without committing, in the loop's stripped env; e.g. tri precommit player-types -- the player's tsconfig.json checks nothing, the gate uses tsconfig.app.json
   tri stop [id]  прервать идущие ходы человека (дуэт и a2a — у них нет сокета)
   tri faces [id]  очередь продавца в том порядке, в каком её увидит обход: у кого есть лицо
   tri writers <колонка>  кто ПИШЕТ то, что читает код: может ли писатель не сработать ни разу
@@ -88,8 +118,11 @@ tri — оболочка Trinity S³AI
   tri types  типы плеера ПО-НАСТОЯЩЕМУ: доказывает, что проверка не слепа (форма 196)
   tri gates  как проверить сами шлюзы заведомым нарушением (формы 196-197)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
+  tri bite <rev> <file>... -- <tests>  do the new tests go red on <rev>'s version of the files: a throwaway copy, working tree untouched (0 bites, 1 does not, 2 cannot tell)
   tri mutants <list.json> -- <команда>          пакет мутаций против одного прогона: таблица убитых и выживших; у мутанта "tests" — его файлы тестов
   tri mutants --check <list.json>...            только якоря: все мутанты, чей `from` не ровно один раз в файле (после рефакторинга), ничего не запуская
+  tri mutants --adopt <proven.json> <guards.json>  keep a killed batch in a loop's guard list: paths re-rooted from where the batch ran, duplicates skipped, anchors checked before writing
+  tri mutants --reanchor <list.json>  follow an indent-only move (code wrapped in one more element): re-anchors `from`/`to` found once with only leading whitespace shifted; a changed token stays stale
   tri mutants --heal                            вернуть файл, в котором убитый прогон (перезапуск контейнера) оставил мутанта; сам зовётся в начале каждого прогона и в tri loop
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
   tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate
@@ -102,6 +135,8 @@ tri — оболочка Trinity S³AI
   tri tail [N] -- <команда>                     последние N строк И код САМОЙ команды (не tail); одна строка в кавычках — bash с pipefail; весь вывод — .git/tri-tail.log
   tri main-drift [база] [--no-fetch]            main сдвинулся, пока шли ворота: задел ли он рендер/плеер/пакеты/lock-файлы (код 1 — прогнать ворота снова после слияния)
   tri shot [story-palette|my-story|crm-client|all] [--width 390] [--lang ru|en]  экран на ТЕЛЕФОНЕ, а не в jsdom: Chromium с пальцем, ответы — функциями хоста; снимки + замер (цель — --touch-target страницы, сдвиг вбок, обрезка, наложения); код 1 — красно, 2 — не измерено
+  tri shot watch [--state FILE] [--from FILE]  all + сравнение с прошлым прогоном (~/.cache/tri/shot-watch.json): печатает только что стало хуже/лучше; код 1 — хуже, 2 — ничего не измерено (состояние не трогает)
+  tri stands-after-deploy run|install|status [--dry] [--force]  after each SUCCESS deploy of vibee-editor: shot all on the deployed commit + browser doctor; a failing stand gets ONE issue per stand+deploy (label stands-after-deploy); launchd every 15 min
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
@@ -110,6 +145,7 @@ tri — оболочка Trinity S³AI
   tri alive      дышит ли продавец: сколько прошло с последнего обхода
   tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
   tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
+  tri jam [--json]  review jam: each open PR's case and the Queen's next move (rc 1 = dispatch, 2 = unread)
   tri stale [N…]  не сделано ли то, что лежит в PR, уже на main
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri spelling   тесты, сторожащие написание исходника, а не свойство
@@ -134,6 +170,11 @@ tri — оболочка Trinity S³AI
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
   tri deps       вылечить node_modules: npm ci, а не install
+  tri wt-deps [tree]   a linked worktree's node_modules: root by symlink, render by APFS clone (#3674)
+  tri holders [branch] who already holds a branch: worktrees, dirty count, ALARM on a mass staged delete
+  tri guard-diff <claims|prices> <rows|-> [--base REF] [--head REF|PR|DIR]
+                 an honesty guard at base vs head over a rows file: lost claims,
+                 wrong confirms, needless notes; rc 1 on a regression (#3772)
   tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
   tri blind <файл> <было> <стало> <тест>
                  сломать код и посмотреть, покраснеет ли тест
@@ -179,6 +220,7 @@ tri — оболочка Trinity S³AI
 
   Состояние проекта
   tri schema     таблицы, которые код считает существующими, против настоящих
+  tri schema-drift [--baseline]  unique indexes, defaults, NOT NULL of the live DB vs deployment/queen-watch/schema-baseline.json (read-only)
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
   tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
@@ -191,6 +233,8 @@ tri — оболочка Trinity S³AI
   tri work-report <PR> [repo]  примет ли шлюз trinity отчёт о работе: head_sha и валидатор
   tri a2a "<задача>" [--surface s] [--fresh]  дать задачу агенту владельца и смотреть, как он справится
   tri remote-check [render|player|root] [-- файлы]  проверки в облаке (Railway), а не на Mac
+  tri remote-check [--repo DIR] website -- check:ИМЯ  проверки сайта trinity там же
+  tri remote-check mutants|spec -- x.mutants.json|x.t27  мутанты и контроли спеки там же (2 = не измерено)
   tri bench                    балл агента: находит ли он кнопки на страницах из боя
   tri lesson <скил> <текст>    записать урок в скил одной строкой, с датой
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
@@ -648,6 +692,8 @@ case "${1:-}" in
   disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
   card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
+  ball)   shift; bash "$ROOT/bin/helpers/ball.sh" "$ROOT" "$@" ;;
+  growth) shift; bash "$ROOT/bin/helpers/growth.sh" "$ROOT" ;;
   prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
   # The margin of every image and video the code can sell, from the code's
   # own tables: no network, no tokens. Exit 1 when any sale is below cost.
@@ -655,7 +701,7 @@ case "${1:-}" in
   feed)
     # В ЛЕНТЕ НЕТ ССЫЛОК НА ПОСТЫ — ни в вебе, ни в приложении. Сослаться на
     # конкретный ролик из интерфейса нечем, поэтому id достаём отсюда.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     curl -s -m 30 "https://vibee-render-production.up.railway.app/api/feed?limit=100" \
@@ -772,13 +818,11 @@ case "${1:-}" in
     # позапрошлую выручку как сегодняшнюю.
     #
     # Код возврата 1, если CRM читает НЕ самую свежую копию.
-    railway service postgres-nfrq >/dev/null 2>&1 || {
-      echo "нет доступа к сервису базы"; exit 2; }
-    DB=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
-    railway service vibee-render >/dev/null 2>&1 || {
-      echo "нет доступа к vibee-render"; exit 2; }
-    SU=$(railway variables --kv 2>/dev/null | grep '^SUPABASE_URL=' | head -1 | cut -d= -f2-)
-    SK=$(railway variables --kv 2>/dev/null | grep '^SUPABASE_SERVICE_KEY=' | head -1 | cut -d= -f2-)
+    DB=$(rvars postgres-nfrq | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+    RV=$(rvars vibee-render)
+    SU=$(printf '%s\n' "$RV" | grep '^SUPABASE_URL=' | head -1 | cut -d= -f2-)
+    SK=$(printf '%s\n' "$RV" | grep '^SUPABASE_SERVICE_KEY=' | head -1 | cut -d= -f2-)
+    unset RV
     if [ -z "$DB" ] || [ -z "$SU" ] || [ -z "$SK" ]; then
       echo "не прочитались доступы -- проверка НЕ выполнена"; exit 2; fi
     (cd "$RENDER" && DB="$DB" SU="$SU" SK="$SK" node "$ROOT/bin/helpers/crm-source.mjs")
@@ -791,9 +835,7 @@ case "${1:-}" in
     # объявление и прод расходятся молча и живут так годами. Вылезает это в
     # день пересоздания базы -- на новом окружении, на стенде, при
     # восстановлении, -- то есть в худший день из возможных.
-    railway service postgres-nfrq >/dev/null 2>&1 || {
-      echo "нет доступа к сервису базы"; exit 1; }
-    URL=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+    URL=$(rvars postgres-nfrq | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
     if [ -z "$URL" ]; then echo "нет DATABASE_PUBLIC_URL -- проверка НЕ выполнена"; exit 1; fi
     echo "— вход (session-store.ts) —"
     (cd "$RENDER" && DB="$URL" node "$ROOT/bin/helpers/schema-drift.mjs" session-store.ts)
@@ -873,10 +915,13 @@ case "${1:-}" in
   in-bundle) shift; bash "$ROOT/bin/helpers/in-bundle.sh" "$ROOT" "$@" ;;
   work-report) shift; bash "$ROOT/bin/helpers/work-report.sh" "$@" ;;
   a2a) shift; bash "$ROOT/bin/helpers/a2a.sh" "$ROOT" "$@" ;;
+  schema-drift) shift; bash "$ROOT/bin/helpers/schema-baseline.sh" "$ROOT" "$@" ;;
   remote-check) shift; bash "$ROOT/bin/helpers/remote-check.sh" "$ROOT" "$@" ;;
   bench) shift; bash "$ROOT/bin/helpers/bench.sh" "$ROOT" "$@" ;;
   lesson) shift; bash "$ROOT/bin/helpers/lesson.sh" "$ROOT" "$@" ;;
   deployed) shift; bash "$ROOT/bin/helpers/deployed.sh" "$ROOT" "$@" ;;
+  red)    shift; bash "$ROOT/bin/helpers/red.sh" "$ROOT" "$@" ;;
+  canfail) shift; bash "$ROOT/bin/helpers/canfail.sh" "$ROOT" "$@" ;;
   journal) shift; bash "$ROOT/bin/helpers/journal.sh" "$ROOT" "$@" ;;
   flaky)  shift; bash "$ROOT/bin/helpers/flaky.sh" "$ROOT" "$@" ;;
   main-guard) shift; bash "$ROOT/bin/helpers/main-guard.sh" "$ROOT" "$@" ;;
@@ -989,8 +1034,7 @@ case "${1:-}" in
     # и команда доложила, что смотрителя нет, хотя на vibee-render он задан.
     # Я поверил своему же инструменту и полез чинить то, что не сломано.
     # Вывод, который называет место, обязан это место и прочитать.
-    railway service vibee-render >/dev/null 2>&1
-    V=$(railway variables --kv 2>/dev/null | grep '^HIVE_KEEPERS=' | cut -d= -f2-)
+    V=$(rvars vibee-render | grep '^HIVE_KEEPERS=' | cut -d= -f2-)
     if [ -z "$V" ]; then
       echo "  HIVE_KEEPERS НЕ ЗАДАН на vibee-render -- смотрителя нет,"
       echo "  отчёты выключены, супер-админ видит только свои события."
@@ -1008,19 +1052,12 @@ case "${1:-}" in
     ;;
 
   worktrees)
-    # БРОШЕННЫЕ КОПИИ РЕПОЗИТОРИЯ. Обнаружено 07.09.2026: `find` по имени
-    # файла вывел копию из `.claude/worktrees/`, и я едва не измерил не тот
-    # файл. Плюс 286 МБ на диске, который этот цикл уже забивал до нуля.
-    #
-    # Команда НЕ УДАЛЯЕТ: в брошенной копии может лежать несохранённая работа.
-    # Она показывает, что есть, и оставляет решение человеку.
-    echo "— копии репозитория —"
-    git worktree list | sed "s|^|  |"
-    if [ -d "$ROOT/.claude/worktrees" ]; then
-      echo "— вес —"
-      du -sh "$ROOT/.claude/worktrees" 2>/dev/null | sed "s|^|  |"
-      echo "  удалять: git worktree remove <путь>  (сначала посмотрите git -C <путь> status)"
-    fi
+    # ONE JUDGE. The root tri judges finished trees by commit and its --apply
+    # removes only provably safe ones (#3474/#3497). The list that lived here
+    # ignored --apply, returned 0 and advised removing trees by hand --
+    # the advice disk-floor stopped giving. Hand the word over instead.
+    shift
+    exec "$ROOT/tri" worktrees "$@"
     ;;
 
   guards)
@@ -1084,7 +1121,7 @@ case "${1:-}" in
     if [ -z "$KEEP" ]; then
       echo "нужен id поста, который остаётся: tri feed-hide <id>"; exit 1
     fi
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     BASE="https://vibee-render-production.up.railway.app"
@@ -1156,11 +1193,32 @@ sys.stderr.write(str(len(ts)))
     bash "$ROOT/bin/helpers/turn-time.sh" "$ROOT" "${2:-200}" ;;
   deadlines)
     bash "$ROOT/bin/helpers/deadlines.sh" "$ROOT" "${2:-}" ;;
+  relays)
+    # Does a bot button tap still reach the render? Key parity, guard, live
+    # approve + meeting probes with junk tokens, relay failures in the log.
+    bash "$ROOT/bin/helpers/relays.sh" "${2:-24}" ;;
+  honesty)
+    # Does the chat agent claim what it did not do? The deploy-time provider
+    # head_note from the live /api/agent/provider and [agent:honesty] flags by kind, counts only.
+    bash "$ROOT/bin/helpers/honesty.sh" "${2:-24}" ;;
+  vision-bench)
+    # Can the render's own vision read the text on a picture, how fast, and
+    # was its single slot busy? Synthetic posters or --image URL (#3660).
+    shift; bash "$ROOT/bin/helpers/vision-bench.sh" "$@" ;;
+  stands-after-deploy)
+    # The phone stands re-run by themselves after every mini-app deploy, and
+    # a failing stand files one delegatable issue. run | install | status.
+    shift; node "$ROOT/bin/helpers/stands-after-deploy.mjs" "${@:-status}" ;;
+  relays-watch)
+    # `tri relays` every hour from launchd: a dead render is redeployed once
+    # per 6 h and reported with the result; a key or code break is reported
+    # with the next step. run | install | status.
+    bash "$ROOT/bin/helpers/relays-watch.sh" "${2:-status}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
     # Who is waiting for an answer, from production, as the owner. Read-only.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     # The answer travels in an env var, not on stdin: `python3 -` takes its
@@ -1214,7 +1272,7 @@ PYEOF
     # shared by every session in this checkout (see `commands` below).
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/bridge.cjs" "$@"
     ;;
 
@@ -1226,7 +1284,7 @@ PYEOF
     # days after the package was installed.
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/client-pack.cjs" "$@"
     ;;
 
@@ -1245,7 +1303,7 @@ PYEOF
     if [ "${1:-}" = "--dry" ]; then
       node "$ROOT/scripts/agents-acceptance.cjs" --dry; exit $?
     fi
-    railway run --service vibee-render -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service vibee-render -- \
       node "$ROOT/scripts/agents-acceptance.cjs" "$@"
     ;;
 
@@ -1264,7 +1322,7 @@ PYEOF
     # the link out from under a session deploying the browser pod.
     shift
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
-    railway run --service 999-multibots-telegraf -- \
+    railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
     ;;
 
@@ -1298,9 +1356,9 @@ PYEOF
     # about the next turn, by design: one press must not silence the seller.
     shift
     ID="${1:-144022504}"
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
-    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway login (ids: bin/helpers/rail.sh)"; exit 69; }
     OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
       "https://vibee-render-production.up.railway.app/api/agent/stop?telegram_id=$ID" \
       -H "X-Api-Key: $KEY")
@@ -1325,9 +1383,9 @@ PYEOF
     # screen (crm_client_avatars), not a verdict about those people.
     shift
     ID="${1:-144022504}"
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
-    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway link в корне копии"; exit 69; }
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY недоступен: railway login (ids: bin/helpers/rail.sh)"; exit 69; }
     curl -s "https://vibee-render-production.up.railway.app/mcp" \
       -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
       -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"crm_leads\",\"arguments\":{\"limit\":15},\"telegram_id\":\"$ID\"}}" \
@@ -1860,7 +1918,7 @@ RECIPE
       tg_dialogs|tg_unanswered|tg_contacts) ;;
       *) echo "only reading tools here: tg_dialogs, tg_unanswered, tg_contacts"; exit 64 ;;
     esac
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     ANSWER=$(curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=$ID" \
@@ -1887,7 +1945,7 @@ PYEOF
     # crm-ingest [dialogs] [depth]: the owner's DMs into the CRM memory.
     # crm-leads [n]: who to write to next, scored, from that memory. Both
     # read-only on Telegram; both as the owner, on production.
-    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+    KEY=$(rvars vibee-render \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
     if [ "${1:-}" = "crm-ingest" ]; then
@@ -1960,12 +2018,24 @@ PYEOF
     if [ "$built" = "1" ] && [ -d "$APP" ]; then
       xcrun simctl install "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" "$APP" \
         >/dev/null 2>&1 && echo "установлено на симулятор"
-      xcrun simctl terminate "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
-      xcrun simctl launch "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
+      xcrun simctl terminate "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.trinity >/dev/null 2>&1
+      xcrun simctl launch "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.trinity >/dev/null 2>&1
     fi
     rm -rf /tmp/dd
     [ "$built" = "1" ] || echo "СБОРКА НЕ ПРОШЛА — на симулятор ничего не ставил"
     df -k /System/Volumes/Data | awk '{if(NR==2) printf "убрано за сборкой, свободно %d МБ\n", $4/1024}' ;;
+  wt-deps)
+    # A linked worktree's node_modules, ready for the gates (#3674).
+    shift
+    exec bash "$ROOT/bin/helpers/wt-deps.sh" "$@" ;;
+  holders)
+    # Who already holds a branch, before an author is dispatched to it.
+    shift
+    exec bash "$ROOT/bin/helpers/holders.sh" "$@" ;;
+  guard-diff)
+    # The reviewer's base-vs-head probe of an honesty guard, kept (#3772).
+    shift
+    exec node "$ROOT/bin/helpers/guard-diff.mjs" "$@" ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
     #
@@ -2015,6 +2085,7 @@ PYEOF
     ;;
 
   mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
+  bite)   shift; bash "$ROOT/bin/helpers/bite.sh" "$@" ;;
   mutants) shift; python3 "$ROOT/bin/helpers/mutants.py" "$@" ;;
   spec-controls) shift; node "$ROOT/bin/helpers/spec-controls.mjs" "$@" ;;
   stale-route) shift; node "$ROOT/bin/helpers/stale-route.mjs" "$@" ;;
@@ -2027,17 +2098,43 @@ PYEOF
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
   spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;
   main-drift) shift; node "$ROOT/bin/helpers/main-drift.mjs" "$@" ;;
-  shot) shift; node "$ROOT/bin/helpers/shot.mjs" "$@" ;;
+  shot) shift; if [ "${1:-}" = watch ]; then shift; node "$ROOT/bin/helpers/shot-watch.mjs" "$@"; else node "$ROOT/bin/helpers/shot.mjs" "$@"; fi ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
   stale)  shift; bash "$ROOT/bin/helpers/stale.sh" "$ROOT" "$@" ;;
   queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
+  jam)    shift; bash "$ROOT/bin/helpers/jam.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
   logins) shift; bash "$ROOT/bin/helpers/logins.sh" "$ROOT" "$@" ;;
   pod) shift; bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@" ;;
+  # `tri browser` had no case and fell through to usage. It is the one door
+  # for "how is the browser": answers (watch record, pod.sh) then reachable
+  # tabs (tabs.sh) -- the split #3152 made. Exit code is pod.sh's.
+  # `tri browser <case>`: every agent browser tool by hand, same door as the
+  # agent (bin/helpers/b.sh). No case, or --json: the health view below.
+  browser|b) shift
+    case "${1:-}" in
+      ""|--json) ;;
+      *) bash "$ROOT/bin/helpers/b.sh" "$ROOT" "$@"; exit $? ;;
+    esac
+    bash "$ROOT/bin/helpers/pod.sh" "$ROOT" "$@"; rc=$?
+    [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/tabs.sh" "$ROOT"
+    # Which networks it is signed into (#2962): the blog desk opens only
+    # those, so "not posted to Threads" is answered here, not in the logs.
+    [ "${1:-}" = "--json" ] || bash "$ROOT/bin/helpers/logins.sh" "$ROOT"
+    exit $rc ;;
+  blog-share) shift; bash "$ROOT/bin/helpers/blog-share.sh" "$ROOT" "$@" ;;
+  rail) shift; bash "$ROOT/bin/helpers/rail-check.sh" "$ROOT" "$@" ;;
+  meta) shift; bash "$ROOT/bin/helpers/meta.sh" "$ROOT" "$@" ;;
+  starved) shift; node "$ROOT/bin/helpers/starved.mjs" "$@" ;;
+  engage) shift; bash "$ROOT/bin/helpers/engage.sh" "$ROOT" "$@" ;;
+  runner) shift; bash "$ROOT/bin/helpers/runner.sh" "$ROOT" "$@" ;;
+  online) shift; (cd "$ROOT" && node "$ROOT/bin/helpers/online.mjs" "$@") ;;
+  push) shift; bash "$ROOT/bin/helpers/push.sh" "$ROOT" "$@" ;;
+  no-verify-debt) shift; bash "$ROOT/bin/helpers/no-verify-debt.sh" "$ROOT" "$@" ;;
   tabs) shift; bash "$ROOT/bin/helpers/tabs.sh" "$ROOT" "$@" ;;
   heal) shift; bash "$ROOT/bin/helpers/heal.sh" "$ROOT" "$@" ;;
   verdicts) shift; bash "$ROOT/bin/helpers/verdicts.sh" "$ROOT" "$@" ;;
@@ -2045,6 +2142,7 @@ PYEOF
   traffic) shift; bash "$ROOT/bin/helpers/traffic.sh" "$ROOT" "$@" ;;
   reach) shift; bash "$ROOT/bin/helpers/reach.sh" "$ROOT" "$@" ;;
   bare-fetch) shift; bash "$ROOT/bin/helpers/bare-fetch.sh" "$ROOT" "$@" ;;
+  git-leak) shift; bash "$ROOT/bin/helpers/git-leak.sh" "$ROOT" "$@" ;;
   tag) shift; bash "$ROOT/bin/helpers/tag.sh" "$ROOT" "$@" ;;
   agent) shift; bash "$ROOT/bin/helpers/agent.sh" "$ROOT" "$@" ;;
   hdl) shift; bash "$ROOT/bin/helpers/hdl.sh" "$ROOT" "$@" ;;
@@ -2066,14 +2164,20 @@ PYEOF
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
   inflight) shift; bash "$ROOT/bin/helpers/inflight.sh" "$ROOT" ;;
+  loop-guard) shift; bash "$ROOT/bin/helpers/loop-guard.sh" "$ROOT" "$@" ;;
+  precommit) shift; bash "$ROOT/bin/helpers/precommit.sh" "$ROOT" "$@" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
   headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
+  disk-floor) shift; bash "$ROOT/bin/helpers/disk-floor.sh" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
   binary) shift; bash "$ROOT/bin/helpers/binary.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
+    # The floor speaks while there is still room to clean up (15 GiB, not the
+    # 2 GiB of one build): 8.7 GiB free on 2026-10-03 and nothing said a word.
+    bash "$ROOT/bin/helpers/disk-floor.sh"
     echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
     echo; echo "── влито = выехало ──"; node "$ROOT/scripts/railway-drift.mjs" || true
     # ПОЛ ПРИБОРОВ. Смысл держать его здесь: проверяют его ровно тогда, когда

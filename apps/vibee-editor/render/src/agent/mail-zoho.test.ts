@@ -209,6 +209,22 @@ describe('mail_send', () => {
     expect(sent).toHaveLength(1)
   })
 
+  it('two calls waiting on one card send once, not twice', async () => {
+    // The tool's own note says "call again with the same approval id", so a
+    // retried call can overlap one still waiting for the tap.
+    const sent: unknown[] = []
+    setMailboxForTests(fakeBox(sent))
+    setMailDepsForTests(deps(['allowed', 'allowed']))
+    await send.handler(letter, ctx())
+    const [a, b]: any[] = await Promise.all([
+      send.handler({ approval: 'card-1' }, ctx()),
+      send.handler({ approval: 'card-1' }, ctx()),
+    ])
+    expect([a.sent, b.sent].sort()).toEqual([false, true])
+    expect([a, b].find(r => !r.sent).refused).toMatch(/already used/)
+    expect(sent).toHaveLength(1)
+  })
+
   it('a denied or unanswered card sends nothing', async () => {
     const sent: unknown[] = []
     setMailboxForTests(fakeBox(sent))

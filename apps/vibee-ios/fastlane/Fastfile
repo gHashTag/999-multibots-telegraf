@@ -1,314 +1,523 @@
-# Сборка и выкладка в TestFlight.
+# Getting Trinity S³AI (project Vibee) to TestFlight and the App Store, repeatably.
 #
-#   fastlane preflight     проверить готовность, ничего не отправляя
-#   fastlane build_only    собрать .ipa для App Store, без отправки
-#   fastlane beta          собрать релиз и подготовить к отправке
+#   fastlane preflight   every blocker at once, in seconds, offline
+#   fastlane state       what App Store Connect holds right now (read-only)
+#   fastlane certs       make sure an Apple Distribution certificate exists
+#   fastlane build_only  a signed App Store .ipa in build/ipa, nothing sent
+#   fastlane beta        build and upload to TestFlight (internal testers)
+#   fastlane testers     the internal group new builds reach, holder in it
+#   fastlane processed   has Apple finished with the newest upload (read-only)
+#   fastlane metadata    the App Store page texts from fastlane/metadata
 #
-# ОТПРАВКА ЗДЕСЬ ВЫКЛЮЧЕНА НАМЕРЕННО. Вызов `upload_to_testflight` в lane
-# `beta` закомментирован, и снять комментарий должен владелец — потому что
-# отправка публикует сборку от его имени и требует его учётных данных
-# App Store Connect, которых у автора этого файла нет и не должно быть.
-# Подробности — рядом с самим вызовом.
+# `tri iphone store` runs preflight + state; `tri iphone testflight --yes`
+# runs beta (which ends with testers); `tri iphone testers --yes` runs testers
+# alone. The upload publishes a build under the owner's account, so it is
+# never run by a loop or an agent without the owner's "yes".
 #
-# ЧЕГО ЗДЕСЬ НЕТ. Ни одного пароля, ключа или сертификата. Аутентификация
-# идёт ключом App Store Connect API, который лежит ВНЕ репозитория и
-# передаётся тремя переменными окружения (см. README). Ключ .p8 нельзя
-# скачать повторно — потерял значит выпускай новый.
+# The release engineering is the one the Leela app shipped with (gHashTag/
+# leela, fastlane/Fastfile): an App Store Connect API key instead of an Apple
+# ID password, the same key authenticating provisioning during export, macOS's
+# own rsync during export, no symbol upload from the export. Each of those was
+# a failure there first; the comments below name it.
+#
+# NO SECRETS HERE. The key lives outside the repository:
+#
+#   ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8   the .p8 itself
+#   ~/.appstoreconnect/fastlane-key.json                 key_id + issuer_id
+#
+# (`tri iphone` signs device builds with the same pair.) ASC_KEY_ID and
+# ASC_ISSUER_ID override the JSON; ASC_KEY_P8 (the .p8 contents) replaces the
+# file on a machine that has none, e.g. CI. A .p8 cannot be downloaded twice:
+# lose it and a new key has to be issued.
 
-# String#shellescape для путей, которые уходят в sips.
+require "fileutils"
+require "json"
 require "shellwords"
+require_relative "store_metadata"
+require_relative "test_notes"
+require_relative "team_group"
+require_relative "build_wait"
 
 default_platform(:ios)
 
-# Проект генерируется из project.yml, а .xcodeproj в .gitignore. Значит на
-# чистой машине его сначала надо создать — иначе gym упадёт на «project not
-# found», и причина будет неочевидна.
+# The project is generated from project.yml and Vibee.xcodeproj is ignored by
+# git, so a clean machine has to generate it before gym can find it.
 XCODEPROJ = "Vibee.xcodeproj"
 SCHEME    = "Vibee"
-BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee"
+BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.trinity"
 
-# Номер сборки — количество коммитов, а не счётчик в файле.
+# Lanes run with the working directory set to fastlane/, while `sh` runs from
+# the project root. Every backtick below therefore goes through IOS_DIR: a
+# relative `-project Vibee.xcodeproj` from fastlane/ finds nothing, and the
+# destination check used to report "no iOS platform installed" on a machine
+# that had it (measured 2026-10-03: -showdestinations listed Any iOS Device).
+IOS_DIR = File.expand_path("..", __dir__)
+
+METADATA_DIR = File.join(__dir__, "metadata")
+
+KEY_DIR  = File.expand_path("~/.appstoreconnect/private_keys")
+KEY_JSON = File.expand_path("~/.appstoreconnect/fastlane-key.json")
+
+# The build number is the commit count, not a counter in a file.
 #
-# ПОЧЕМУ НЕ increment_build_number. Он зовёт agvtool, тот правит
-# Vibee/Info.plist — файл, который отслеживается git и который
-# ПЕРЕГЕНЕРИРУЕТ xcodegen из project.yml. То есть номер, во-первых, остаётся
-# незакоммиченной правкой в рабочем дереве, во-вторых, молча возвращается
-# назад при следующем `xcodegen generate` (а `run.sh` зовёт его безусловно).
-# Проверено: agvtool пишет «Updated CFBundleVersion … to 42», после чего
-# xcodegen возвращает 1, и выкладка уходит со старым номером.
+# WHY NOT increment_build_number. It calls agvtool, which edits
+# Vibee/Info.plist - a tracked file that xcodegen REGENERATES from project.yml.
+# The number stays an uncommitted edit and silently goes back to 1 on the next
+# `xcodegen generate` (run.sh calls it unconditionally). Measured: agvtool
+# printed "Updated CFBundleVersion ... to 42", xcodegen put back 1, and the
+# upload went out with the old number.
 #
-# Счёт коммитов монотонен, одинаков на любой машине и не требует ни файла,
-# ни обращения к Apple. Перекрыть можно переменной VIBEE_BUILD.
+# The count is monotonic and identical on every machine. Leela asks App Store
+# Connect for its latest build instead; here `beta` asks too, but only to
+# refuse a number that is not above it (Apple rejects a reused number AFTER
+# the upload). VIBEE_BUILD overrides.
 def build_number
   return ENV["VIBEE_BUILD"] if ENV["VIBEE_BUILD"].to_s.strip != ""
-  Dir.chdir("..") { `git rev-list --count HEAD`.strip }
+  Dir.chdir(IOS_DIR) { `git rev-list --count HEAD`.strip }
 end
 
-# Есть ли сертификат, которым вообще можно подписать сборку для App Store.
-# Development-сертификат для этого НЕ годится: с ним `gym` соберёт .app, но
-# экспорт с export_method «app-store» упадёт — и упадёт в конце, после
-# нескольких минут компиляции.
+# A development certificate is NOT enough: gym archives with it and then the
+# app-store export fails - after minutes of compiling.
 def distribution_identity?
   `security find-identity -v -p codesigning 2>/dev/null`.include?("Apple Distribution")
 end
 
-# Установлена ли поддержка платформы iOS для текущего SDK.
-#
-# Спрашиваем не про SDK и не про рантаймы по отдельности, а про то, что
-# реально нужно: есть ли у схемы хоть одно ПРИГОДНОЕ назначение. Без него
-# `xcodebuild archive` — а значит и gym — отказывается работать вовсе:
-#
-#   xcodebuild: error: Found no destinations for the scheme 'Vibee'
-#               and action archive.
-#
-# Тот же пробел валит и сборку иконки в actool. Причина одна: платформа
-# iOS 26.5 не установлена, хотя SDK на месте и обычный `xcodebuild build
-# -sdk iphoneos` проходит. Именно поэтому проверка смотрит на назначения,
-# а не на наличие SDK: наличие SDK ничего не доказывает.
+# Does the scheme have any usable destination at all? Without one
+# `xcodebuild archive` - and so gym - refuses outright ("Found no destinations
+# for the scheme 'Vibee' and action archive"). The SDK being present proves
+# nothing; the destination list is what archive consults.
 def archive_destination_available?
-  out = `xcodebuild -project #{XCODEPROJ} -scheme #{SCHEME} -showdestinations 2>&1`
+  project = File.join(IOS_DIR, XCODEPROJ).shellescape
+  out = `xcodebuild -project #{project} -scheme #{SCHEME} -showdestinations 2>&1`
   out.include?("Available destinations for the \"#{SCHEME}\" scheme:")
+end
+
+# Where the App Store Connect key comes from, or why it cannot be found.
+# Returns [params, nil] or [nil, reason]. Reads names and paths only; the .p8
+# contents are touched only when ASC_KEY_P8 supplies them instead of a file.
+def asc_key
+  json = File.exist?(KEY_JSON) ? (JSON.parse(File.read(KEY_JSON)) rescue {}) : {}
+  key_id = ENV["ASC_KEY_ID"].to_s.strip
+  key_id = json["key_id"].to_s if key_id.empty?
+  issuer = ENV["ASC_ISSUER_ID"].to_s.strip
+  issuer = json["issuer_id"].to_s if issuer.empty?
+  return [nil, "no key id: set ASC_KEY_ID or write key_id into #{KEY_JSON}"] if key_id.empty?
+  return [nil, "no issuer id: set ASC_ISSUER_ID or write issuer_id into #{KEY_JSON}"] if issuer.empty?
+
+  path = File.join(KEY_DIR, "AuthKey_#{key_id}.p8")
+  if File.exist?(path)
+    [{ key_id: key_id, issuer_id: issuer, key_filepath: path }, nil]
+  elsif ENV["ASC_KEY_P8"].to_s.strip != ""
+    [{ key_id: key_id, issuer_id: issuer, key_content: ENV["ASC_KEY_P8"] }, nil]
+  else
+    [nil, "no key file #{path} (and no ASC_KEY_P8)"]
+  end
 end
 
 platform :ios do
   before_all do
-    # Генерируем ВСЕГДА, а не только когда проекта нет.
-    #
-    # `unless File.exist?` защищал лишь от чистой машины, а вредил на любой
-    # рабочей: .xcodeproj остаётся от прошлых запусков, и правка project.yml
-    # до сборки не доезжает. Проверено — в project.yml вписан
-    # MARKETING_VERSION 9.9, а `xcodebuild -showBuildSettings` на несвежем
-    # проекте по-прежнему отдаёт 1.0. То есть `fastlane build_only` собрал бы
-    # и подписал СТАРУЮ версию, зелено и молча.
-    #
-    # Генерация занимает доли секунды, так что экономить тут нечего.
-    Dir.chdir("..") { sh("xcodegen generate") }
+    # Generate ALWAYS, not only when the project is missing: a stale
+    # .xcodeproj from an earlier run ignores project.yml edits. Measured -
+    # MARKETING_VERSION 9.9 in project.yml, 1.0 in -showBuildSettings, and
+    # `build_only` would have signed the OLD version, green and silent.
+    Dir.chdir(IOS_DIR) { sh("xcodegen generate --quiet") }
   end
 
-  desc "Ключ App Store Connect API из окружения"
+  desc "App Store Connect API key (from ~/.appstoreconnect or the environment)"
   private_lane :api_key do
-    unless ENV["ASC_KEY_ID"] && ENV["ASC_ISSUER_ID"] && ENV["ASC_KEY_P8"]
-      UI.user_error!(
-        "Нет ключа App Store Connect API.\n" \
-        "Задайте ASC_KEY_ID, ASC_ISSUER_ID и ASC_KEY_P8 (содержимое .p8).\n" \
-        "Как их получить — в apps/vibee-ios/README.md."
-      )
-    end
-    app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_P8"],
-      # Ключ живёт только в памяти процесса: writing to disk оставил бы .p8
-      # в рабочем каталоге, откуда он рано или поздно уедет в git.
-      in_house: false
-    )
+    params, why = asc_key
+    UI.user_error!("No App Store Connect API key: #{why}.\nSee apps/vibee-ios/README.md.") unless params
+    app_store_connect_api_key(**params, in_house: false)
   end
 
-  desc "Проверить готовность к TestFlight, ничего не отправляя и не требуя учётной записи"
+  desc "Every blocker to a TestFlight upload at once, offline"
   lane :preflight do
-    # Смысл этого lane: назвать ВСЕ препятствия сразу, за секунды, а не по
-    # одному в конце каждой десятиминутной сборки. Он ничего не чинит и
-    # никуда не ходит с учётными данными — только смотрит.
-    #
-    # Проект генерировать здесь не нужно: before_all делает это перед любым
-    # lane.
-
+    # Names ALL blockers in seconds instead of one per ten-minute build. It
+    # fixes nothing and talks to nobody.
     blockers = []
     notes    = []
 
-    scheme_path = "../#{XCODEPROJ}/xcshareddata/xcschemes/#{SCHEME}.xcscheme"
+    scheme_path = File.join(IOS_DIR, XCODEPROJ, "xcshareddata/xcschemes/#{SCHEME}.xcscheme")
     if File.exist?(scheme_path)
-      notes << "схема #{SCHEME} общая (shared) — gym её найдёт"
+      notes << "scheme #{SCHEME} is shared - gym will find it"
     else
-      blockers << "схема #{SCHEME} не расшарена: gym упадёт на «scheme not found»"
+      blockers << "scheme #{SCHEME} is not shared: gym fails with 'scheme not found'"
     end
 
-    icon = "../AppIcon.xcassets/AppIcon.appiconset/AppIcon-1024.png"
+    icon = File.join(IOS_DIR, "AppIcon.xcassets/AppIcon.appiconset/AppIcon-1024.png")
     if File.exist?(icon)
-      # СМОТРИМ В ФАЙЛ, а не в его имя.
-      #
-      # «иконка 1024×1024» по одному лишь File.exist? — утверждение, а не
-      # проверка: имя файла ничего не гарантирует. Проверено подстановкой —
-      # PNG 8×8 с прозрачностью проходил как годная иконка, хотя Apple
-      # отвергает его дважды: и за размер, и за альфа-канал (ITMS-90717).
-      # Сегодняшняя картинка в порядке, но её заменят, а экспорт из
-      # большинства редакторов даёт альфу по умолчанию.
-      свойства = `sips -g pixelWidth -g pixelHeight -g hasAlpha #{icon.shellescape} 2>/dev/null`
-      ширина = свойства[/pixelWidth: (\d+)/, 1].to_i
-      высота = свойства[/pixelHeight: (\d+)/, 1].to_i
-      альфа = свойства.include?("hasAlpha: yes")
-      размер_верный = (ширина == 1024 && высота == 1024)
-
-      unless размер_верный
-        blockers << "иконка #{File.basename(icon)} — #{ширина}×#{высота}, а App Store " \
-                    "требует ровно 1024×1024"
-      end
-      if альфа
-        blockers << "у иконки #{File.basename(icon)} есть альфа-канал — App Store " \
-                    "отклоняет прозрачность в иконке (ITMS-90717). Пересохраните " \
-                    "поверх непрозрачного фона"
-      end
-      notes << "иконка 1024×1024 без альфа-канала лежит в AppIcon.xcassets" if размер_верный && !альфа
+      # LOOK INTO THE FILE, not at its name: an 8x8 PNG with alpha passed an
+      # existence check, and Apple rejects it twice - size and alpha
+      # (ITMS-90717). Most editors export alpha by default.
+      props  = `sips -g pixelWidth -g pixelHeight -g hasAlpha #{icon.shellescape} 2>/dev/null`
+      width  = props[/pixelWidth: (\d+)/, 1].to_i
+      height = props[/pixelHeight: (\d+)/, 1].to_i
+      alpha  = props.include?("hasAlpha: yes")
+      size_ok = (width == 1024 && height == 1024)
+      blockers << "icon is #{width}x#{height}; the App Store wants exactly 1024x1024" unless size_ok
+      blockers << "icon has an alpha channel; the App Store rejects it (ITMS-90717)" if alpha
+      notes << "1024x1024 icon without alpha in AppIcon.xcassets" if size_ok && !alpha
     else
-      blockers << "нет файла #{icon}: App Store Connect отклонит загрузку без иконки"
+      blockers << "no #{icon}: App Store Connect rejects an upload without an icon"
     end
 
-    # Каталог иконок подключается к цели ОТДЕЛЬНОЙ строкой в project.yml.
-    # Пока она закомментирована, .app собирается без Assets.car — и это
-    # ровно та поломка, которую видно только на этапе загрузки.
-    # encoding указано ЯВНО. Без него File.read берёт кодировку из локали:
-    # у fastlane она сплошь и рядом US-ASCII (он сам об этом предупреждает),
-    # и первое же обращение к строке с кириллицей падает с
-    # «invalid byte sequence in US-ASCII» — прямо на этой строке, проверено.
-    spec = File.read("../project.yml", encoding: "UTF-8")
+    # The catalog joins the target by its own line in project.yml. Without it
+    # the .app has no Assets.car - a break that shows only at upload. UTF-8
+    # explicitly: fastlane's locale is often US-ASCII, and File.read of a file
+    # with Cyrillic comments then dies with "invalid byte sequence".
+    spec = File.read(File.join(IOS_DIR, "project.yml"), encoding: "UTF-8")
     if spec.match?(/^\s*-\s*AppIcon\.xcassets\s*$/)
-      notes << "AppIcon.xcassets подключён к цели"
+      notes << "AppIcon.xcassets is part of the target"
     else
-      blockers << "AppIcon.xcassets НЕ подключён к цели: раскомментируйте строку " \
-                  "«- AppIcon.xcassets» в project.yml (там же написано, почему она выключена)"
+      blockers << "AppIcon.xcassets is NOT part of the target: add '- AppIcon.xcassets' " \
+                  "to the Vibee target's sources in project.yml"
     end
 
     if archive_destination_available?
-      notes << "поддержка платформы iOS установлена — архив собирается, иконка компилируется"
+      notes << "the scheme has archive destinations (iOS platform installed)"
     else
-      blockers << "платформа iOS для текущего SDK не установлена. Из-за этого НЕВОЗМОЖЕН " \
-                  "сам архив («Found no destinations for the scheme»), и отдельно не " \
-                  "собирается иконка («No simulator runtime version …»). " \
-                  "Лечится командой `xcodebuild -downloadPlatform iOS`"
+      blockers << "no destination for the scheme ('Found no destinations'): " \
+                  "install the platform with `xcodebuild -downloadPlatform iOS`"
     end
 
     if distribution_identity?
-      notes << "сертификат Apple Distribution найден"
+      notes << "Apple Distribution certificate in the keychain"
     else
-      blockers << "нет сертификата Apple Distribution: экспорт с export_method «app-store» " \
-                  "нечем подписать (development-сертификат для этого не годится)"
+      blockers << "no Apple Distribution certificate: run `fastlane certs` " \
+                  "(a development certificate cannot sign an App Store export)"
     end
 
-    missing_env = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8].reject { |k| ENV[k] }
-    if missing_env.empty?
-      notes << "ключ App Store Connect API задан в окружении"
+    params, why = asc_key
+    if params
+      notes << "App Store Connect key #{params[:key_id]} " \
+               "(#{params[:key_filepath] ? 'file' : 'ASC_KEY_P8'})"
     else
-      blockers << "не заданы переменные ключа ASC: #{missing_env.join(', ')}"
+      blockers << "App Store Connect key: #{why}"
     end
 
-    notes << "номер сборки будет #{build_number} (счёт коммитов)"
-    notes << "идентификатор приложения #{BUNDLE_ID}"
+    # The store page is checked here too, so a text over its limit is named
+    # with the other blockers instead of by App Store Connect at upload.
+    page = StoreMetadata.problems(METADATA_DIR)
+    if page.empty?
+      notes << "store page texts within limits (#{StoreMetadata::LOCALES.join(', ')})"
+    else
+      page.each { |p| blockers << "store page: #{p}" }
+    end
+
+    notes << "build number will be #{build_number} (commit count)"
+    notes << "bundle id #{BUNDLE_ID}"
 
     notes.each { |n| UI.success("  ✓ #{n}") }
     blockers.each { |b| UI.error("  ✗ #{b}") }
 
     if blockers.empty?
-      UI.success("Готово к `fastlane beta`.")
+      UI.success("Ready for `fastlane beta`. Next: `fastlane state` asks App Store Connect.")
       next
     end
 
-    # ПАДАЕМ, А НЕ ПРЕДУПРЕЖДАЕМ.
-    #
-    # Раньше здесь стоял UI.important, и lane завершался кодом 0. Проверено:
-    # четыре препятствия на экране, `echo $?` — ноль. То есть
-    # `fastlane preflight && что-нибудь-дальше` ехало дальше, а любой шаг CI
-    # считался пройденным. Это ровно тот вид гейта, который lefthook.yml
-    # этого репозитория называет худшим: он создаёт ощущение проверки, ничего
-    # не проверив.
-    #
-    # Список выше при этом никуда не делся: сначала печатаются ВСЕ
-    # препятствия, и только потом lane падает. Узнать их по одному за
-    # прогон — то, ради чего этот lane и написан.
-    UI.user_error!(
-      "Препятствий: #{blockers.count}. Каждое требует действия человека " \
-      "с доступом к учётной записи Apple или к этой машине."
-    )
+    # FAIL, do not warn. This used to be UI.important with exit 0: four
+    # blockers on screen and `echo $?` printed 0, so `preflight && next-step`
+    # went on. All blockers are printed first, then the lane fails.
+    UI.user_error!("#{blockers.count} blocker(s); each needs a person with the Apple account or this machine.")
   end
 
-  desc "Собрать .ipa для App Store, без отправки"
-  lane :build_only do
-    unless archive_destination_available?
+  desc "What App Store Connect holds for this app (read-only)"
+  lane :state do
+    # Leela carried four beliefs about its TestFlight and store state for
+    # weeks and measured none (scripts/asc-state.mjs, 2026-08-23). This asks.
+    # It submits nothing and changes nothing.
+    api_key
+
+    # Two records, and an upload needs both. The App ID was registered through
+    # this key on 2026-10-03 (BundleId.create works with an API key); the app
+    # record cannot be - Apple's API has no call for it. So the advice lists
+    # only what is still missing: a step that is already done, printed as a
+    # step, sent the reader to repeat it.
+    bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    if bundle
+      UI.success("app id    #{bundle.identifier} registered (#{bundle.platform})")
+    else
+      UI.error("app id    #{BUNDLE_ID} is NOT registered in Certificates, Identifiers & Profiles")
+    end
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    unless app
+      steps = []
+      steps << "the App ID - developer.apple.com -> Identifiers -> + (explicit, #{BUNDLE_ID})" unless bundle
+      steps << "the app record - App Store Connect -> Apps -> + -> New App, platform iOS, " \
+               "name Trinity S³AI, bundle id #{BUNDLE_ID}, SKU trinity-s3ai " \
+               "(an API key cannot create one; Apple's API has no such call)"
       UI.user_error!(
-        "У схемы #{SCHEME} нет ни одного пригодного назначения — gym не сможет " \
-        "собрать архив («Found no destinations for the scheme»).\n" \
-        "Установите поддержку платформы: xcodebuild -downloadPlatform iOS\n" \
-        "Обычная сборка `-sdk iphoneos build` при этом проходит, поэтому зелёная " \
-        "сборка ничего про архив не доказывает."
+        "App Store Connect has no app with bundle id #{BUNDLE_ID}.\n" \
+        "Created once, by the account holder; an upload to a missing record is refused:\n" +
+        steps.each_with_index.map { |s, i| "  #{i + 1}. #{s}" }.join("\n")
       )
+    end
+    UI.success("app       #{app.name} (#{app.bundle_id}, id #{app.id})")
+
+    builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, sort: "-uploadedDate", limit: 5)
+    if builds.empty?
+      UI.important("testflight  no builds yet")
+    else
+      builds.each do |b|
+        UI.message("testflight  #{b.app_version} (#{b.version})  #{b.processing_state}" \
+                   "#{b.expired ? ' expired' : ''}  uploaded #{b.uploaded_date}")
+      end
     end
 
-    unless distribution_identity?
-      UI.user_error!(
-        "Нет сертификата Apple Distribution — подписать сборку для App Store нечем.\n" \
-        "Проверка сделана ДО сборки намеренно: иначе отказ пришёл бы на экспорте, " \
-        "через несколько минут компиляции.\n" \
-        "Что делать — `fastlane preflight` и раздел «Подпись» в README."
-      )
+    app.get_app_store_versions.first(3).each do |v|
+      UI.message("store       #{v.version_string}  #{v.app_store_state}")
     end
+
+    latest = builds.map { |b| b.version.to_i }.max.to_i
+    number = build_number.to_i
+    if number > latest
+      UI.success("next build #{number} is above the latest #{latest}")
+    else
+      UI.user_error!("next build #{number} is NOT above the latest #{latest}: " \
+                     "set VIBEE_BUILD to something larger")
+    end
+  end
+
+  desc "Has Apple finished processing the newest upload (read-only)"
+  lane :processed do
+    # Read-only like `state`: no consent needed. PROCESSED_WAIT_MIN polls once
+    # a minute while the build is still PROCESSING; PROCESSED_BUILD picks a
+    # build number instead of the newest. The last line is the verdict
+    # (build_wait.rb), which `tri iphone processed` turns into its exit code.
+    api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("App Store Connect has no app with bundle id #{BUNDLE_ID}: `tri iphone state` says what is missing") unless app
+
+    want = ENV["PROCESSED_BUILD"].to_s.strip
+    if want.empty?
+      want = BuildWait.recorded(File.join(IOS_DIR, "build/last-upload")).to_s
+      UI.message("watching  build #{want}, the last upload from this checkout") unless want.empty?
+    end
+    deadline = Time.now + ENV["PROCESSED_WAIT_MIN"].to_i * 60
+    loop do
+      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, sort: "-uploadedDate", limit: 10).map do |b|
+        { version: b.version, app_version: b.app_version, state: b.processing_state, expired: b.expired }
+      end
+      build = BuildWait.pick(builds, want)
+      verdict = build ? BuildWait.verdict(build[:state], build[:expired]) : :none
+      if BuildWait.keep_waiting?(verdict, want) && Time.now < deadline
+        UI.message(build ? "waiting   build #{build[:version]} still PROCESSING, next look in 60 s" :
+                           "waiting   build #{want} is not listed yet, next look in 60 s")
+        sleep 60
+        next
+      end
+      UI.message(BuildWait.line(build, verdict, want))
+      break
+    end
+  end
+
+  desc "Make sure an Apple Distribution certificate exists in this keychain"
+  lane :certs do
+    # Xcode on this machine has no Apple ID. The API key can fetch - or, if
+    # the team has none, create - a distribution certificate without anyone
+    # typing a password. Creating one is an account change: ask the owner
+    # before running this where `preflight` does not already show the cert.
+    get_certificates(api_key: api_key, output_path: "build/certs")
+  end
+
+  desc "A signed App Store .ipa in build/ipa, nothing sent"
+  lane :build_only do
+    preflight
+    key = asc_key.first
 
     number = build_number
-    UI.message("Номер сборки: #{number}")
+    UI.message("build number #{number}")
 
-    gym(
-      project: XCODEPROJ,
-      scheme: SCHEME,
-      configuration: "Release",
-      export_method: "app-store",
-      clean: true,
-      output_directory: "build/ipa",
-      # Номер сборки задаётся ПЕРЕМЕННОЙ СБОРКИ, а не правкой файла: см.
-      # комментарий к build_number. Info.plist ссылается на
-      # $(CURRENT_PROJECT_VERSION), поэтому значение доезжает до бандла.
-      xcargs: "CURRENT_PROJECT_VERSION=#{number}",
-      # Логи gym по умолчанию тонут в шуме xcodebuild; при падении важна
-      # именно последняя ошибка, а не вся простыня.
-      buildlog_path: "build/logs"
-    )
+    # The same key authenticates provisioning. Automatic signing makes the
+    # export ask App Store Connect for an app-store profile; with no Xcode
+    # account Leela's first attempt died on "No Accounts" exactly here.
+    auth = if key[:key_filepath]
+             "-allowProvisioningUpdates" \
+               " -authenticationKeyPath #{key[:key_filepath].shellescape}" \
+               " -authenticationKeyID #{key[:key_id]}" \
+               " -authenticationKeyIssuerID #{key[:issuer_id]}"
+           else
+             UI.important("ASC_KEY_P8 without a key file: provisioning updates need the " \
+                          "file, so the export relies on profiles already on this machine")
+             ""
+           end
+
+    # Homebrew out of the way while the archive is exported.
+    #
+    # `xcodebuild -exportArchive` runs `/usr/bin/rsync -8aPhhE`; -E is
+    # Apple's flag. Homebrew's rsync 3.x, if earlier on PATH, becomes the far
+    # end and rejects --extended-attributes. The export then fails with
+    # "exportArchive Copy failed" naming neither rsync nor the flag - Leela
+    # found it only in Xcode's distribution logs. Restored afterwards.
+    original_path = ENV["PATH"]
+    ENV["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+    begin
+      build_app(
+        project: File.join(IOS_DIR, XCODEPROJ),
+        scheme: SCHEME,
+        configuration: "Release",
+        export_method: "app-store",
+        clean: true,
+        # The number is a BUILD SETTING, not a file edit (see build_number);
+        # Info.plist reads $(CURRENT_PROJECT_VERSION).
+        # The auth flags go ONCE, here: gym appends `xcargs` to the export
+        # command as well (package_command_generator_xcode7.rb, after
+        # export_xcargs), so passing them as export_xcargs too gave the
+        # export each flag twice and xcodebuild refused with "option
+        # '-authenticationKeyPath' may only be provided once" - after a full
+        # archive. Found on the first real run, 2026-10-03.
+        xcargs: "CURRENT_PROJECT_VERSION=#{number} #{auth}".strip,
+        export_options: {
+          # With symbols on, the export looks for an Apple ID to send them
+          # with, finds none in a non-interactive shell and dies with "Could
+          # not connect to the server". upload_to_testflight carries dSYMs.
+          uploadSymbols: false,
+          manageAppVersionAndBuildNumber: false
+        },
+        output_directory: File.join(IOS_DIR, "build/ipa"),
+        buildlog_path: File.join(IOS_DIR, "build/logs"),
+        # Raw xcodebuild output: the stripped PATH also hides Homebrew's
+        # xcpretty, and a missing formatter killed Leela's pipe with exit 127
+        # AFTER a successful archive.
+        xcodebuild_formatter: ""
+      )
+    ensure
+      ENV["PATH"] = original_path
+    end
+    UI.success("built #{lane_context[SharedValues::IPA_OUTPUT_PATH]}")
   end
 
-  desc "Собрать релиз и подготовить к отправке в TestFlight (сама отправка выключена)"
+  desc "Build and upload to TestFlight (internal testers; nothing goes to review)"
   lane :beta do
-    preflight
+    # The upload publishes under the owner's account, so a bare `fastlane
+    # beta` typed by habit refuses: the consent is VIBEE_UPLOAD_YES=1, which
+    # `tri iphone testflight --yes` sets and nothing else does. Leela kept the
+    # upload commented out for the same reason ("a flag can be set by
+    # accident, a comment cannot"); a refusal that names the door is the same
+    # guard without editing the file before every release.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("uploading publishes a build under the owner's account: run `tri iphone testflight --yes` (or VIBEE_UPLOAD_YES=1 fastlane beta)")
+    end
+    # `state` first: it refuses a missing app record and a build number that
+    # is not above the latest - both of which Apple reports only after the
+    # upload, i.e. after the whole build.
+    state
     build_only
 
-    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
-    UI.success("Собрано: #{ipa}")
-    UI.important(
-      "Отправка НЕ выполнена — вызов upload_to_testflight закомментирован ниже.\n" \
-      "Снять комментарий должен владелец учётной записи: отправка публикует сборку " \
-      "в App Store Connect от его имени и требует его ключа ASC."
+    # A hand-written CHANGELOG is held to the same limit: App Store Connect
+    # would refuse an overrun only after the archive and the upload.
+    changelog = TestNotes.cap(ENV["CHANGELOG"].to_s.strip)
+    changelog = TestNotes.collect(IOS_DIR) if changelog.empty?
+    changelog = "Trinity S³AI build #{build_number}" if changelog.empty?
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      ipa: lane_context[SharedValues::IPA_OUTPUT_PATH],
+      # Processing takes minutes to an hour; `fastlane state` shows it.
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      # Testers should know what they are testing: the subjects of the
+      # recent commits to THIS app (test_notes.rb says why not the last
+      # commit), unless CHANGELOG says otherwise.
+      changelog: changelog
     )
+    # `tri iphone processed` watches THIS number: right after an upload the
+    # newest build App Store Connect lists is still the previous one.
+    FileUtils.mkdir_p(File.join(IOS_DIR, "build"))
+    File.write(File.join(IOS_DIR, "build/last-upload"), "#{build_number}\n")
+    UI.success("uploaded build #{build_number}; `tri iphone processed --wait 60` says when it reaches the phone")
+    # Internal testers see a build only through a group. The first upload has
+    # none, and "uploaded" alone left the owner looking at an empty TestFlight
+    # app on the phone. The build is already in App Store Connect here, so a
+    # failure to set the group is reported, not turned into a failed upload
+    # that a retry would build and send a second time.
+    begin
+      testers
+    rescue => e
+      UI.important("the build is uploaded, but the internal group was not set: #{TeamGroup.scrub(e.message)}")
+      UI.important("by hand: App Store Connect -> TestFlight -> Internal Testing -> + group, add yourself; " \
+                   "or `tri iphone testers --yes` again")
+    end
+  end
 
-    # ------------------------------------------------------------------
-    # ОТПРАВКА В TESTFLIGHT — ЗАКОММЕНТИРОВАНА НАМЕРЕННО.
-    #
-    # ПОЧЕМУ ИМЕННО КОММЕНТАРИЙ, А НЕ ФЛАГ ИЛИ ПЕРЕМЕННАЯ. Флаг можно
-    # выставить случайно — переменной окружения из чужого шелла, забытым
-    # аргументом в CI. Здесь нужно осознанное действие человека: открыть
-    # файл, прочитать этот текст, убрать решётки, закоммитить. Отправка
-    # необратима — сборка уходит в App Store Connect, получает номер,
-    # рассылается тестерам; отозвать её можно, но «как не было» уже не
-    # будет.
-    #
-    # ЧТО ТРЕБУЕТСЯ ОТ ВЛАДЕЛЬЦА, прежде чем это включать:
-    #   1. Ключ App Store Connect API (ASC_KEY_ID / ASC_ISSUER_ID /
-    #      ASC_KEY_P8). Выпускается под ролью Admin или Account Holder;
-    #      .p8 скачивается один раз.
-    #   2. Запись приложения в App Store Connect с идентификатором
-    #      ai.t27.vibee (или тем, что задан в VIBEE_BUNDLE_ID).
-    #   3. Сертификат Apple Distribution и профиль App Store.
-    #   4. Ответ на вопрос об экспортном соответствии — либо в ASC руками,
-    #      либо строкой ITSAppUsesNonExemptEncryption в project.yml.
-    # `fastlane preflight` проверяет пункты 1 и 3 и называет недостающее.
-    #
-    # key = api_key
-    # upload_to_testflight(
-    #   api_key: key,
-    #   app_identifier: BUNDLE_ID,
-    #   # Ждать обработки НЕ будем: Apple обрабатывает сборку от минут до
-    #   # часа, и держать процесс всё это время значит вешать CI на пустом
-    #   # месте. Готовность видно в App Store Connect и по письму.
-    #   skip_waiting_for_build_processing: true,
-    #   # Заметки о сборке — из последнего коммита: человек в TestFlight
-    #   # должен понимать, что именно он тестирует.
-    #   changelog: last_git_commit[:message].to_s[0, 4000]
-    # )
-    # UI.success("Отправлено. Обработка у Apple занимает от нескольких минут.")
-    # ------------------------------------------------------------------
+  desc "The internal TestFlight group new builds reach, with the account holder in it"
+  lane :testers do
+    # Adding a person sends them Apple's invitation e-mail, so this takes the
+    # same consent as the upload it completes.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("adding testers e-mails them from the owner's account: run `tri iphone testers --yes` (or VIBEE_UPLOAD_YES=1 fastlane testers)")
+    end
+    api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("App Store Connect has no app with bundle id #{BUNDLE_ID}: `tri iphone state` says what is missing") unless app
+
+    groups = app.get_beta_groups.map do |g|
+      { id: g.id, name: g.name, internal: g.is_internal_group, all_builds: g.has_access_to_all_builds }
+    end
+    users = Spaceship::ConnectAPI::User.all.map do |u|
+      { email: u.email || u.username, first: u.first_name, last: u.last_name, roles: u.roles }
+    end
+    target = TeamGroup.target(groups)
+    testers = target ? app.get_beta_testers(filter: { betaGroups: target[:id] }).map(&:email) : []
+    plan = TeamGroup.plan(groups: groups, users: users, testers: testers)
+    plan[:notes].each { |n| UI.important(n) }
+
+    group_id = plan[:target] && plan[:target][:id]
+    if plan[:create]
+      # Not app.create_beta_group: it sends public-link fields Apple refuses on
+      # an internal group (team_group.rb, create_body).
+      made = Spaceship::ConnectAPI.client.test_flight_request_client
+        .post("v1/betaGroups", TeamGroup.create_body(app.id))
+      group_id = made.to_models.first.id
+      UI.success("group     #{TeamGroup::NAME} created (internal, every new build)")
+    else
+      UI.success("group     #{plan[:target][:name]} (internal, every new build)")
+    end
+
+    plan[:add].each do |u|
+      Spaceship::ConnectAPI.post_beta_tester_assignment(
+        beta_group_ids: [group_id],
+        attributes: { email: u[:email], firstName: u[:first].to_s, lastName: u[:last].to_s }
+      )
+      UI.success("tester    #{TeamGroup.mask(u[:email])} added (#{Array(u[:roles]).join(', ')})")
+    end
+    UI.success("testers   nobody to add: the account holder is in the group") if plan[:add].empty?
+    if plan[:left] > 0
+      UI.message("testers   #{plan[:left]} other team member(s) not added - App Store Connect -> TestFlight -> the group -> +, if the owner wants them")
+    end
+    UI.success("testers ready; the TestFlight app on the phone shows a build once processing ends")
+  end
+
+  desc "The App Store page texts from fastlane/metadata (nothing is submitted)"
+  lane :metadata do
+    # Changing the store page is publishing under the owner's account, so it
+    # takes the same consent as an upload: `tri iphone metadata --yes`.
+    unless ENV["VIBEE_UPLOAD_YES"] == "1"
+      UI.user_error!("the store page is published under the owner's account: run `tri iphone metadata --yes` (or VIBEE_UPLOAD_YES=1 fastlane metadata)")
+    end
+    page = StoreMetadata.problems(METADATA_DIR)
+    UI.user_error!("store page:\n  " + page.join("\n  ")) unless page.empty?
+    # The app record has to exist first; `state` says so in plain words
+    # instead of deliver's "Could not find app".
+    state
+
+    deliver(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      metadata_path: METADATA_DIR,
+      skip_binary_upload: true,
+      # Screenshots are not in the repository yet; deliver leaves the ones in
+      # App Store Connect alone when this is set.
+      skip_screenshots: true,
+      # The name is chosen when the record is created (no name.txt here), and
+      # what's-new cannot be set on a first version - so neither is sent.
+      submit_for_review: false,
+      automatic_release: false,
+      # No HTML preview to confirm: a loop has nobody to press "y", and the
+      # texts were reviewed as files in the pull request that changed them.
+      force: true,
+      run_precheck_before_submit: false
+    )
+    UI.success("store page updated from #{METADATA_DIR}; review submission stays a click in App Store Connect")
   end
 end

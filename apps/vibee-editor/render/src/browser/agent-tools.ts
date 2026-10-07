@@ -35,7 +35,7 @@ import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
  */
 
 import type { AgentTool, ToolContext } from '../agent/tools'
-import { playbookFor } from './sign-in'
+import { DOORS, playbookFor } from './sign-in'
 import {
   ensureApprovals,
   askFor,
@@ -47,9 +47,33 @@ import {
   readSession,
   markAllowed,
   personHasTheWheel,
+  type BrowserSession,
   type Queryable,
 } from './sessions'
-import { agentMayOpen, mayAct } from './guard'
+import { agentMayOpen, mayAct, placeOf } from './guard'
+import {
+  FRAMES_PROBE,
+  addressesOfAct,
+  blockedEmbed,
+  embeddedUrls,
+  focused,
+  frameTargetsOf,
+  framesOf,
+  framesOfTarget,
+  isWeb,
+  landing,
+  under,
+  type SeenFrame,
+} from './embedded'
+import {
+  UNREADABLE_LIST,
+  blockedError,
+  ruleFor,
+  setSiteRule,
+  siteRulesOf,
+  veilTab,
+  type SiteRuleRow,
+} from './site-rules'
 import { desktopShot } from './screen'
 import { recordStep, stepOf } from './journal'
 import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
@@ -61,20 +85,42 @@ import {
   activatePage,
   listTargets,
   evaluateOn,
+  frameAtPoint,
   clickAt,
   typeText,
   screenshot,
   pageUrl,
 } from './cdp'
+import type { CdpTarget } from './cdp'
 import { overBudget } from './tab-budget'
+import { NOT_PAINTED_NOTE, PAINT_PROBE, waitForPaint } from './paint-wait'
+import { shapeOfTabs } from './tab-shape'
+import {
+  claimTidyAsk,
+  planClose,
+  rememberTidyAsk,
+  tidyCandidates,
+  tidyQuestion,
+  TIDY_TTL_MS,
+  openTidyAsk,
+} from './tab-tidy'
 import { learnedLabel, rememberPress, worthTrying } from './recipes'
 import { LOGINS_NOTE, NETWORKS, loginsOfPerson } from './logins'
 import {
+  MAIN_LANE,
   chosenFront,
+  chosenFrontsOf,
+  chosenLaneFront,
   forgetFront,
   pickFront,
   rememberFront,
+  rememberLaneFront,
 } from './front-page'
+import { claimLane, openInLane, pickLaneFront } from './lanes'
+import { closeWindow, goTo, openWindow, type DeskWindowDeps } from './windows'
+
+/** The chat lane this call runs in (lanes.ts); no lane is the main one. */
+const laneOf = (ctx: ToolContext): string => ctx.lane ?? MAIN_LANE
 
 /**
  * THE GUARD AN AGENT CANNOT DRIVE PAST.
@@ -92,25 +138,334 @@ async function mustBeAllowedToAct(
   cdp: string,
   targetId: string
 ): Promise<void> {
-  const targets = await listTargets(cdp).catch(() => [])
-  const page = targets.find(t => t.id === targetId)
+  const url = await urlOfTab(cdp, targetId)
   const session = await readSession(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
+  /*
+   * The person's own list (site-rules.ts): block is final, ask is a bank.
+   * An unreadable list refuses every act, a yes included: browser_evaluate
+   * reads the page as well as acting on it, and we do not know where they
+   * said never.
+   */
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  mustNotBeOn(url, rules)
   const verdict = mayAct({
     /* No page found means we cannot see where we are, and guard.ts refuses. */
-    url: page?.url ?? '',
+    url: url ?? '',
     allowedAtMs: session?.allowedAtMs ?? null,
+    allowedHost: session?.allowedHost ?? null,
     nowMs: Date.now(),
+    alsoSensitive: url !== null && ruleFor(url, rules) === 'ask',
   })
   if (verdict.allowed) return
-  throw new Error(
-    `acting on ${verdict.where} needs the person's permission first. ` +
+  throw needsPermission(verdict.where)
+}
+
+function needsPermission(where: string, inFrame = false): Error {
+  return new Error(
+    `acting on ${where}${inFrame ? ' (a frame embedded in this page)' : ''} ` +
+      "needs the person's permission first. " +
       'Call browser_ask_permission with one sentence saying exactly what ' +
       'you are about to do, wait for "allowed", then try again. Reading ' +
       '(browser_read, browser_screenshot) works without it.'
   )
+}
+
+/*
+ * Chromium's own list is the only witness of a cross-origin frame the page
+ * hides from its script. Read as "no frames" when it failed, it let a press
+ * or a shot through on a page embedding a blocked site.
+ */
+const UNLISTED_FRAMES =
+  "this page's frames could not be listed, so where the act lands is " +
+  'unknown; nothing was done. Try again in a moment.'
+
+async function framesListed(cdp: string): Promise<CdpTarget[]> {
+  return await listTargets(cdp).catch(() => {
+    throw new Error(UNLISTED_FRAMES)
+  })
+}
+
+/**
+ * The frames of a page, both ways (embedded.ts). `probed` is false when the
+ * page did not answer the probe: then only Chromium's own list is known.
+ * An unreadable list throws: it never reads as "no frames".
+ */
+async function framesNow(
+  cdp: string,
+  targetId: string,
+  targets?: CdpTarget[]
+): Promise<{ frames: SeenFrame[]; oopif: string[]; probed: boolean }> {
+  const listed = targets ?? (await framesListed(cdp))
+  const oopif = framesOfTarget(listed, targetId)
+  const raw = await evaluateOn(cdp, targetId, FRAMES_PROBE).then(
+    r => ({ r }),
+    () => null
+  )
+  return { frames: raw ? framesOf(raw.r) : [], oopif, probed: raw !== null }
+}
+
+/**
+ * WHERE A PRESS AT x,y REACHES. Chromium's own hit-test first (cdp.ts
+ * frameAtPoint): the top page reaches nothing extra; a frame reaches its
+ * current address, and a cross-origin frame also every frame inside it (the
+ * hit-test stops at its door). A frame whose address nobody can name, or a
+ * hit-test that failed, falls back to the probe -- closed: every frame
+ * Chromium lists that the probe cannot account for is in reach.
+ */
+async function reachOfPress(
+  cdp: string,
+  targetId: string,
+  x: number,
+  y: number,
+  targets: CdpTarget[]
+): Promise<string[]> {
+  const hit = await frameAtPoint(cdp, targetId, x, y).catch(() => null)
+  if (hit?.frameId === targetId) return []
+  if (hit) {
+    const listed = targets.find(t => t.id === hit.frameId)
+    const own = listed?.url ?? hit.url
+    if (own) {
+      const inner = listed ? framesOfTarget(targets, hit.frameId) : []
+      return [...new Set([own, ...inner])].filter(isWeb)
+    }
+  }
+  const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+  return probed
+    ? addressesOfAct(frames, oopif, under(x, y))
+    : oopif.filter(isWeb)
+}
+
+/** Does focus sit in this frame? Asked in the frame's OWN world; unknown = yes. */
+async function focusIsIn(cdp: string, frameTargetId: string): Promise<boolean> {
+  return await evaluateOn(cdp, frameTargetId, 'document.hasFocus()').then(
+    v => v !== false,
+    () => true
+  )
+}
+
+/**
+ * AN ACT INSIDE A FRAME IS JUDGED WHERE THE FRAME IS (embedded.ts): the
+ * Stripe frame on a shop is stripe.com, and the shop's address said nothing
+ * about it. Called after mustBeAllowedToAct, which judged the tab. `at` is
+ * the point of a press, or 'focus' for typing.
+ *
+ * Typing has no hit-test, so its reach is the probe's focused frame plus
+ * every frame the probe cannot account for, and then every cross-origin
+ * frame that would need a yes (or is blocked) is asked in its own world
+ * whether focus is in it: the embedding page can hide focus from its own
+ * script (a closed shadow root retargets activeElement to the host), not
+ * from the frame. Only risky frames are asked, so a page of harmless ad
+ * frames costs no extra calls.
+ */
+async function mustBeAllowedInFrame(
+  ctx: ToolContext,
+  cdp: string,
+  targetId: string,
+  at: { x: number; y: number } | 'focus'
+): Promise<void> {
+  const targets = await framesListed(cdp)
+  const kids = frameTargetsOf(targets, targetId).filter(t => isWeb(t.url))
+  let reach: string[]
+  if (at === 'focus') {
+    const { frames, oopif, probed } = await framesNow(cdp, targetId, targets)
+    reach = probed
+      ? addressesOfAct(frames, oopif, focused)
+      : oopif.filter(isWeb)
+  } else {
+    reach = await reachOfPress(cdp, targetId, at.x, at.y, targets)
+  }
+  if (!reach.length && (at !== 'focus' || !kids.length)) return
+  const pool = ctx.pool as unknown as Queryable
+  const rules = await siteRulesOf(pool, ctx.telegramId)
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  const session = await readSession(pool, ctx.telegramId)
+  /* A yes given on this tab covers the frames the person saw on it. */
+  const tabUrl = targets.find(t => t.id === targetId)?.url ?? null
+  const verdictOf = (url: string) =>
+    mayAct({
+      url,
+      allowedAtMs: session?.allowedAtMs ?? null,
+      allowedHost: session?.allowedHost ?? null,
+      tabUrl,
+      nowMs: Date.now(),
+      alsoSensitive: ruleFor(url, rules) === 'ask',
+    })
+  if (at === 'focus') {
+    for (const k of kids) {
+      if (reach.includes(k.url)) continue
+      const risky =
+        ruleFor(k.url, rules) === 'block' || !verdictOf(k.url).allowed
+      if (risky && (await focusIsIn(cdp, k.id))) reach.push(k.url)
+    }
+  }
+  const blocked = blockedEmbed(reach, rules)
+  if (blocked) throw embeddedBlocked(blocked)
+  for (const url of reach) {
+    const verdict = verdictOf(url)
+    if (!verdict.allowed) throw needsPermission(verdict.where, true)
+  }
+}
+
+function embeddedBlocked(url: string): Error {
+  const e = blockedError(url)
+  e.message +=
+    ' It is embedded in this page as a frame, so the page is not shot and ' +
+    'nothing is pressed or typed into that frame; browser_read reads the ' +
+    "page's own text."
+  return e
+}
+
+/**
+ * NOT EVEN A LOOK, FRAMES INCLUDED. A page shot shows what its frames show,
+ * so a page embedding a blocked site is not shot. Only when the list blocks
+ * something: with no block there is nothing to find, and no extra call.
+ */
+async function mustNotEmbedBlocked(
+  ctx: ToolContext,
+  cdp: string,
+  targetId: string
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (!rules.some(r => r.rule === 'block')) return
+  const { frames, oopif } = await framesNow(cdp, targetId)
+  const blocked = blockedEmbed(embeddedUrls(frames, oopif), rules)
+  if (blocked) throw embeddedBlocked(blocked)
+}
+
+/*
+ * The tab's address; null when the tab list could not be read or the tab is
+ * not in it. Never '' for "unknown": ruleFor('') is null, and an unknown
+ * place read as "no rule" let a read through on a blocked tab.
+ */
+async function urlOfTab(cdp: string, targetId: string): Promise<string | null> {
+  const targets = await listTargets(cdp).catch(() => null)
+  return targets?.find(t => t.id === targetId)?.url ?? null
+}
+
+/*
+ * A place we cannot name is blocked as soon as the list blocks anything: we
+ * cannot tell it is not the site they said never to.
+ */
+function mustNotBeOn(url: string | null, rules: SiteRuleRow[]): void {
+  if (url === null) {
+    if (rules.some(r => r.rule === 'block')) throw new Error(UNKNOWN_TAB)
+    return
+  }
+  if (ruleFor(url, rules) === 'block') throw blockedError(url)
+}
+
+const UNKNOWN_TAB =
+  "could not tell which site this tab is on, and the person's list blocks " +
+  'some sites, so it is not read or touched. Try again shortly, or ' +
+  'browser_status to see the tabs.'
+
+/**
+ * NOT EVEN A LOOK WHERE THE PERSON SAID NEVER (site-rules.ts). Opening,
+ * reading and a page shot ask this; acting asks mustBeAllowedToAct, which
+ * refuses a blocked site too. An unreadable list refuses: we do not know
+ * where they said no.
+ */
+async function mustNotBeBlocked(
+  ctx: ToolContext,
+  url: string | null
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  mustNotBeOn(url, rules)
+}
+
+/** The pause between two looks at a new tab's address; tests shorten it. */
+let landingStepMs = 400
+export function setLandingStepForTests(ms: number): void {
+  landingStepMs = ms
+}
+
+/**
+ * WHERE browser_open REALLY WENT (embedded.ts landing). The address given
+ * was judged before the open; a 302 or a link shortener can land on a
+ * blocked site, and the tool used to answer with that site's address. Only
+ * when the list blocks something: otherwise there is nothing to find and no
+ * reason to wait. A blocked landing closes the tab this call opened.
+ */
+async function mustNotHaveLandedBlocked(
+  ctx: ToolContext,
+  cdp: string,
+  pageId: string,
+  asked: string
+): Promise<string | null> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) {
+    /* Unjudged is not kept: the tab this call opened goes (bee on #3507). */
+    await closePage(cdp, pageId).catch(() => {})
+    forgetFront(ctx.telegramId, pageId)
+    throw new Error(UNREADABLE_LIST)
+  }
+  if (!rules.some(r => r.rule === 'block')) return null
+  const { landed, seen } = await landing(
+    () => urlOfTab(cdp, pageId),
+    undefined,
+    6,
+    landingStepMs,
+    asked
+  )
+  const blocked = seen.find(u => ruleFor(u, rules) === 'block')
+  if (!blocked) return landed
+  await closePage(cdp, pageId).catch(() => {})
+  forgetFront(ctx.telegramId, pageId)
+  const e = blockedError(blocked)
+  e.message +=
+    ' The address you opened went there (a redirect), so the tab was closed.'
+  throw e
+}
+
+/*
+ * The whole screen shows whichever tab is in front, and the person may front
+ * any of them between our check and the shot. So a desktop shot is refused
+ * while ANY open tab is on a blocked site, or while the tabs cannot be read
+ * and the list blocks something. A page shot of another tab still works.
+ */
+async function mustShowNoBlockedTab(
+  ctx: ToolContext,
+  cdp: string | null | undefined
+): Promise<void> {
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (rules === null) throw new Error(UNREADABLE_LIST)
+  if (!rules.some(r => r.rule === 'block')) return
+  const targets = cdp ? await listTargets(cdp).catch(() => null) : null
+  if (!targets) throw new Error(UNKNOWN_TAB)
+  /* A frame is shown as much as its page is (embedded.ts). */
+  const blocked = targets.find(
+    t =>
+      (t.type === 'page' || t.type === 'iframe') &&
+      ruleFor(t.url, rules) === 'block'
+  )
+  if (blocked) {
+    const e = blockedError(blocked.url)
+    e.message +=
+      ' The whole screen can show any open tab, so it is not shot while ' +
+      'that one is open; browser_screenshot without desktop shoots one page.'
+    throw e
+  }
 }
 
 /*
@@ -143,7 +498,7 @@ export async function liveSession(ctx: ToolContext) {
  *
  * Measured 2026-09-27, on myself: `browser_status` answered `running: false`,
  * I read that as a wedged Chromium and restarted the pod -- while
- * `/api/browser/watch` had it "answering for 16m" and `tri tabs` counted
+ * `/api/browser/watch` had it "answering for 16m" and `tri browser` counted
  * eleven live pages on it. The browser was well. The row had died. Cost: one
  * restart of a healthy browser, which is exactly the harm the watch was
  * written to prevent, caused by the one health answer it does not feed.
@@ -217,22 +572,37 @@ async function makeRoom(
   forUrl?: string
 ): Promise<void> {
   try {
-    const { roomForOne } = await import('./tab-sweep')
-    const chosen = chosenFront(telegramId)
+    const { roomForOne, namesOfClosed, whereItWas } = await import(
+      './tab-sweep'
+    )
+    /*
+     * A desk's working tab is spared here too (desk-page.ts): without it,
+     * `browser_open` at the ceiling could close the X composer a share run
+     * is typing in -- the reviewer's note on #3469.
+     */
+    const { deskTabsHeld } = await import('./desk-page')
+    /* Every lane's chosen tab (lanes.ts), not only main's. */
+    const chosen = chosenFrontsOf(telegramId)
     const pages = (await io.list(cdp)).map(t => ({
       id: t.id,
       url: t.url ?? '',
       type: t.type ?? 'page',
     }))
-    for (const doomed of roomForOne(
+    const doomed = roomForOne(
       pages,
-      chosen ? [chosen] : [],
+      [...chosen, ...deskTabsHeld()],
       undefined,
       forUrl
-    )) {
-      await io.close(cdp, doomed.id).catch(() => {})
-      forgetFront(telegramId, doomed.id)
+    )
+    for (const d of doomed) {
+      await io.close(cdp, d.id).catch(() => {})
+      forgetFront(telegramId, d.id)
     }
+    if (doomed.length)
+      console.log(
+        `🧹 [tabs] room for ${forUrl ? whereItWas(forUrl) : 'a tab'}: ` +
+          namesOfClosed(doomed)
+      )
   } catch {
     /* A pod that cannot be listed still gets the open it was asked for. */
   }
@@ -270,17 +640,80 @@ export async function openAndChoose(
   return page
 }
 
+/**
+ * THE CALLS BEHIND A LANE'S WINDOW (lanes.ts openInLane) -- the ones the
+ * rounds already make for a desk's window (rounds-wiring.ts). Room is made
+ * before a window is OPENED, because a window is one more tab against the
+ * pod's ceiling, and not before it is merely walked. Not tiled: the person's
+ * own window is not ours to move, so a lane's window opens where Chromium
+ * puts it.
+ */
+export function laneWindowDeps(
+  telegramId: string,
+  endpoint: string,
+  io: TabIo = { list: listTargets, close: closePage }
+): DeskWindowDeps {
+  return {
+    open: async url => {
+      await makeRoom(telegramId, endpoint, io, url)
+      return await openWindow(endpoint, url)
+    },
+    tile: async () => {},
+    goTo: async (id, url) => await goTo(endpoint, id, url),
+    alive: async id => !!(await pageUrl(endpoint, id)),
+    close: async id => await closeWindow(endpoint, id),
+  }
+}
+
+/**
+ * THE REFUSAL WHEN THERE IS NO VISIT, TRUE FOR A PROBE TOO.
+ *
+ * A probe never starts a browser (liveSession). But the reaper deletes the
+ * visit row after ten quiet minutes while the pod goes on running, so "no
+ * browser is running" was false for a probe: on 2026-10-03 browser_status
+ * listed nine tabs one second before browser_evaluate, sent as a probe, said
+ * there was no browser at all. The probe is told what is true and which door
+ * starts a visit.
+ */
+async function noBrowserError(ctx: ToolContext): Promise<Error> {
+  if (ctx.probe === true && (await podToLookAt(ctx))?.visitOnRecord === false)
+    return new Error(
+      'the browser is running, but no visit is on record, and a probe starts ' +
+        'none. Call without _meta.probe to start one (the person is told in ' +
+        'Telegram), or list its tabs with browser_status.'
+    )
+  return new Error(
+    'no browser is running for this person. They open one in the mini app, ' +
+      'on the Browser tab — it is theirs, signed in as them, and they watch ' +
+      'you work in it.'
+  )
+}
+
 /** What every tool here needs, and the one refusal they all share. */
 async function podOf(
   ctx: ToolContext
 ): Promise<{ cdp: string; targetId: string }> {
   const session = await liveSession(ctx)
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
-    throw new Error(
-      'no browser is running for this person. They open one in the mini app, ' +
-        'on the Browser tab — it is theirs, signed in as them, and they watch ' +
-        'you work in it.'
+    throw await noBrowserError(ctx)
+  }
+  /*
+   * A LANE ACTS IN ITS OWN TAB OR NOWHERE (lanes.ts). Falling back to the
+   * first page, as main does, would put this lane's click into another
+   * chat's page -- the very collision lanes exist to end.
+   */
+  const lane = laneOf(ctx)
+  if (lane !== MAIN_LANE) {
+    const listed = await listTargetsForFront(session.cdpEndpoint).catch(
+      () => null
     )
+    const id = pickLaneFront(listed, chosenLaneFront(ctx.telegramId, lane))
+    if (!id)
+      throw new Error(
+        `lane ${lane} has no page of its own yet, or it was closed: call ` +
+          "browser_open first -- in a lane it opens the lane's own window"
+      )
+    return { cdp: session.cdpEndpoint, targetId: id }
   }
   /* The tab the agent chose with browser_status front, while it is open. */
   const targets = await listTargetsForFront(session.cdpEndpoint).catch(() => [])
@@ -288,6 +721,24 @@ async function podOf(
     pickFront(targets, chosenFront(ctx.telegramId)) ??
     (await frontPage(session.cdpEndpoint))
   return { cdp: session.cdpEndpoint, targetId: page.id }
+}
+
+/**
+ * The address of the tab the agent acts on, WITHOUT starting a browser
+ * (podOf would): asking a question must stay a question. Null when there is
+ * no live browser or the tab cannot be read.
+ */
+async function whereTheAgentIs(ctx: ToolContext): Promise<string | null> {
+  const session = await readSession(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  if (session?.state !== 'live' || !session.cdpEndpoint) return null
+  const targets = await listTargetsForFront(session.cdpEndpoint)
+  const page =
+    pickFront(targets, chosenFront(ctx.telegramId)) ??
+    (await frontPage(session.cdpEndpoint))
+  return page.url || null
 }
 
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
@@ -404,16 +855,23 @@ export async function describeShot(
   return { seen: got }
 }
 
+/* Every open tab by title and address; blocked ones by host only (veilTab). */
 async function tabsOf(
+  ctx: ToolContext,
   cdp: string,
   frontId?: string
-): Promise<Array<{ title: string; url: string; front?: true }>> {
+): Promise<
+  Array<{ title: string; url: string; front?: true; veiled?: string }>
+> {
   const targets = await listTargets(cdp).catch(() => [])
+  const rules = await siteRulesOf(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
   return targets
     .filter(t => t.type === 'page')
     .map(t => ({
-      title: t.title,
-      url: t.url,
+      ...veilTab({ title: t.title, url: t.url }, rules),
       ...(t.id === frontId ? { front: true as const } : {}),
     }))
 }
@@ -455,10 +913,8 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        what: {
-          type: 'string',
-          description: 'что именно произойдёт, одним предложением', // cyrillic-ok
-        },
+        /* "One sentence" is said once, in the description (compact kit). */
+        what: { type: 'string' },
         waitSeconds: {
           type: 'number',
           description:
@@ -472,7 +928,18 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       const pool = ctx.pool as unknown as Queryable
       const what = String(args.what || '').trim()
       if (!what) throw new Error('say what exactly will happen')
-      const id = await requestPermission(pool, ctx.telegramId, what)
+      /*
+       * A YES IS FOR ONE PLACE: the host the agent is on now. No browser or
+       * an unreadable tab = null, and that yes opens nothing (fail closed).
+       */
+      const here = await whereTheAgentIs(ctx).catch(() => null)
+      const id = await requestPermission(
+        pool,
+        ctx.telegramId,
+        what,
+        undefined,
+        placeOf(here) || null
+      )
 
       /*
        * ASKING IS INSTANT; WAITING IS A CHOICE.
@@ -493,7 +960,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         if (answer && answer.state !== 'pending') {
           /* A yes opens the guarded door for a few minutes; see guard.ts. */
           if (answer.state === 'allowed')
-            await markAllowed(pool, ctx.telegramId)
+            await markAllowed(pool, ctx.telegramId, answer.actHost)
           return { decision: answer.state, what }
         }
       }
@@ -551,6 +1018,12 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       /* password, email, code, text are typed; choice and action are pressed. */
       const typing = kind !== 'choice' && kind !== 'action'
       const { cdp, targetId } = await podOf(ctx)
+      /*
+       * Asking scrolls the page and reads which field has focus, and the
+       * question names the site to the person: nothing of that on a site
+       * they said never to.
+       */
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
       const session = await readSession(
         ctx.pool as unknown as Queryable,
         ctx.telegramId
@@ -569,6 +1042,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       ) {
         try {
           await mustBeAllowedToAct(ctx, cdp, targetId)
+          /*
+           * The press that puts the cursor in the field is a press like any
+           * other: inside a payment frame it needs the same yes (#3507).
+           */
+          await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
           await clickAt(cdp, targetId, a.x, a.y)
           pointed = true
         } catch {
@@ -644,11 +1122,11 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_status',
     description:
-      'Запущен ли браузер и его вкладки (id). front=id — вывести вкладку вперёд ' + // cyrillic-ok: tool description
-      '(окно входа Google открывается отдельной вкладкой).', // cyrillic-ok
+      'Браузер и вкладки (id). front=id — вперёд (вход Google — своя вкладка); ' + // cyrillic-ok: tool description
+      'shape — счётчики всех вкладок, ничего не трогая.', // cyrillic-ok
     parameters: {
       type: 'object',
-      properties: { front: { type: 'string' } },
+      properties: { front: { type: 'string' }, shape: { type: 'boolean' } },
       additionalProperties: false,
     },
     async handler(args, ctx) {
@@ -669,23 +1147,59 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (typeof front === 'string' && front) {
         await activatePage(found.cdp, front).catch(() => {})
         /* Activating does not reorder /json/list: remember the choice. */
-        rememberFront(ctx.telegramId, front)
+        rememberLaneFront(ctx.telegramId, laneOf(ctx), front)
       }
       const targets = await listTargets(found.cdp).catch(() => [])
+      const pages = targets.filter(t => t.type === 'page')
+      const rules = await siteRulesOf(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      /*
+       * Every tab read where it lies (tab-shape.ts): counts only, nothing
+       * fronted, and no visit started -- this door is podToLookAt.
+       */
+      const shapes =
+        (args as { shape?: unknown }).shape === true
+          ? new Map(
+              (
+                await shapeOfTabs(
+                  found.cdp,
+                  pages.map(t => ({ id: t.id, url: t.url ?? '' })),
+                  { evaluate: evaluateOn },
+                  undefined,
+                  rules
+                )
+              ).map(s => [s.id, s] as const)
+            )
+          : null
       return {
         running: true,
         /* No endpoints, no tokens: an agent needs neither to use the tools. */
-        pages: targets
-          .filter(t => t.type === 'page')
-          .map(t => ({
+        pages: pages.map(t => {
+          const shape = shapes?.get(t.id)
+          return {
             id: t.id,
-            title: t.title,
-            url: t.url,
+            /* A blocked tab is named by host only (site-rules.ts veilTab). */
+            ...veilTab({ title: t.title, url: t.url }, rules),
             /* Where the tools act now (front-page.ts). */
-            ...(t.id === chosenFront(ctx.telegramId)
+            ...(t.id === chosenLaneFront(ctx.telegramId, laneOf(ctx))
               ? { actingHere: true as const }
               : {}),
-          })),
+            ...(shape
+              ? {
+                  shape: {
+                    unread: shape.unread,
+                    nodes: shape.nodes,
+                    text: shape.text,
+                    draft: shape.draft,
+                    stale: shape.stale,
+                    anomalies: shape.anomalies,
+                  },
+                }
+              : {}),
+          }
+        }),
         watchedByThePerson: found.visitOnRecord,
         /*
          * The browser outlived the visit. Said out loud, because it changes
@@ -715,7 +1229,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     name: 'browser_logins',
     description:
       "Which of the person's networks their browser is signed into (X, LinkedIn, TikTok, " +
-      'Instagram, YouTube, Google, GitHub, VK...): signed_in / expired / signed_out / unknown. ' +
+      'Instagram, YouTube, Google, GitHub, VK...): signed_in / refused (site asked to sign in again) / expired / signed_out / unknown. ' +
       'Opens no page. Call it before "connect my networks" and after each sign-in.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler(_args, ctx) {
@@ -742,7 +1256,65 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         signedIn: networks
           .filter(n => n.state === 'signed_in')
           .map(n => n.name),
+        /*
+         * SIGN IN AGAIN, ONE STEP AWAY (login-use.ts). A login the site
+         * refused comes with its own door, so the next call is browser_open
+         * on it and the person types -- not a search for the sign-in link.
+         */
+        ...(networks.some(n => n.state === 'refused')
+          ? {
+              signInAgain: networks
+                .filter(n => n.state === 'refused')
+                .map(n => ({
+                  name: n.name,
+                  refusedAt: n.refusedAt,
+                  door: DOORS[n.id] ?? null,
+                })),
+            }
+          : {}),
         note: LOGINS_NOTE,
+      }
+    },
+  },
+  {
+    /*
+     * THE PERSON'S OWN SITE LIST (site-rules.ts). Not in the compact kit:
+     * it is asked for when the person says "never open my bank", not on
+     * every turn, and the guard enforces the list whether or not this tool
+     * is ever called.
+     */
+    name: 'browser_sites',
+    description:
+      "The person's own site list: 'ask' = acting there needs their fresh yes, " +
+      "'block' = never open, read or act there. action list reads it; action add " +
+      '(site, rule) when the person asks in chat. Only tightens: unblocking is theirs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['list', 'add'] },
+        site: { type: 'string', description: 'bank.com or yandex.ru/mail' },
+        rule: { type: 'string', enum: ['ask', 'block'] },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const q = ctx.pool as unknown as Queryable
+      if (args.action === 'add') {
+        const r = await setSiteRule(
+          q,
+          ctx.telegramId,
+          args.site,
+          args.rule,
+          'agent'
+        )
+        if (!r.ok) throw new Error(r.error)
+        return { site: r.site, rule: r.rule, was: r.was }
+      }
+      const rules = await siteRulesOf(q, ctx.telegramId)
+      if (rules === null) throw new Error(UNREADABLE_LIST)
+      return {
+        sites: rules.map(r => ({ site: r.site, rule: r.rule, by: r.by })),
       }
     },
   },
@@ -792,6 +1364,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           known: NETWORKS.map(n => n.id),
         }
       }
+      if (plan.state === 'refused') {
+        return {
+          ok: true,
+          ...plan,
+          note: 'the browser holds a login cookie, but the site sent a desk to its sign-in page with it: sign in again through the door; the person types.',
+        }
+      }
       if (plan.state === 'signed_in') {
         return {
           ok: true,
@@ -822,16 +1401,34 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             "manager -- are the person's to open, not an agent's."
         )
       }
+      await mustNotBeBlocked(ctx, String(args.url))
       const session = await liveSession(ctx)
       if (!session?.cdpEndpoint || session.state !== 'live') {
-        throw new Error('no browser is running for this person')
+        throw await noBrowserError(ctx)
       }
-      const page = await openAndChoose(
-        ctx.telegramId,
+      /* Main opens a tab, as ever; any other lane walks its own window. */
+      const lane = laneOf(ctx)
+      const page =
+        lane === MAIN_LANE
+          ? await openAndChoose(
+              ctx.telegramId,
+              session.cdpEndpoint,
+              String(args.url)
+            )
+          : await openInLane(
+              ctx.telegramId,
+              lane,
+              session.cdpEndpoint,
+              String(args.url),
+              endpoint => laneWindowDeps(ctx.telegramId, endpoint)
+            )
+      const landed = await mustNotHaveLandedBlocked(
+        ctx,
         session.cdpEndpoint,
+        page.id,
         String(args.url)
       )
-      return { opened: page.url || String(args.url), id: page.id }
+      return { opened: landed || page.url || String(args.url), id: page.id }
     },
   },
   {
@@ -848,6 +1445,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     },
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
       const limit = Math.min(Number(args.maxChars) || 8000, 40_000)
       const text = await evaluateOn(
         cdp,
@@ -888,6 +1486,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         if (!session || session.state !== 'live' || !session.endpoint) {
           await podOf(ctx) /* throws the same sentence as every other tool */
         }
+        await mustShowNoBlockedTab(ctx, session!.cdpEndpoint)
         const base64 = await desktopShot(
           session!.endpoint!,
           session!.adminToken
@@ -895,16 +1494,25 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         return {
           format: 'jpeg',
           base64,
-          tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
+          tabs: session!.cdpEndpoint
+            ? await tabsOf(ctx, session!.cdpEndpoint)
+            : [],
           ...(await describeShot(base64)),
         }
       }
       const { cdp, targetId } = await podOf(ctx)
+      await mustNotBeBlocked(ctx, await urlOfTab(cdp, targetId))
+      await mustNotEmbedBlocked(ctx, cdp, targetId)
+      /* A dark SPA shot before it rendered reads as "black screen" (paint-wait.ts). */
+      const paint = await waitForPaint(() =>
+        evaluateOn(cdp, targetId, PAINT_PROBE)
+      )
       const base64 = await screenshot(cdp, targetId)
       return {
         format: 'jpeg',
         base64,
-        tabs: await tabsOf(cdp, targetId),
+        tabs: await tabsOf(ctx, cdp, targetId),
+        ...(paint.painted ? {} : { painted: false, note: NOT_PAINTED_NOTE }),
         ...(await describeShot(base64)),
       }
     },
@@ -959,6 +1567,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
               '. Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
           )
         }
+        await mustBeAllowedInFrame(ctx, cdp, targetId, {
+          x: found.x,
+          y: found.y,
+        })
         await clickAt(cdp, targetId, found.x, found.y)
         /* The press that worked is the lesson; never blocks the answer. */
         void rememberPress(pool, {
@@ -977,6 +1589,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (typeof a.x !== 'number' || typeof a.y !== 'number') {
         throw new Error('give text (the button label) or x and y')
       }
+      await mustBeAllowedInFrame(ctx, cdp, targetId, { x: a.x, y: a.y })
       await clickAt(cdp, targetId, a.x, a.y)
       return { clicked: { x: a.x, y: a.y } }
     },
@@ -996,6 +1609,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
       await mustBeAllowedToAct(ctx, cdp, targetId)
+      await mustBeAllowedInFrame(ctx, cdp, targetId, 'focus')
       await typeText(cdp, targetId, String(args.text))
       return { typed: String(args.text).length }
     },
@@ -1036,14 +1650,120 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
        */
       if (typeof args.id !== 'string' || !args.id.trim())
         throw new Error('id is required: take it from browser_status pages')
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
+      /*
+       * THE SAME DOOR AS browser_status AND browser_focus_tab (podToLookAt).
+       * Measured 2026-10-04 on the owner's Blogger agent: status listed a
+       * LinkedIn compose tab, and two closes on its id answered "no browser
+       * is running" -- this asked the visit row alone, which the reaper had
+       * deleted. The draft stayed open. Closing starts no visit, so a probe
+       * may close too, as it may focus.
+       */
+      const found = await podToLookAt(ctx)
+      if (!found) throw new Error('no browser is running')
+      const id = String(args.id)
+      /* An unknown id closes nothing and must not answer {closed}. */
+      const pages = await listTargets(found.cdp)
+      if (!pages.some(t => t.id === id))
+        throw new Error(
+          'no tab with that id: call browser_status again, it may have closed'
+        )
+      await closePage(found.cdp, id)
+      forgetFront(ctx.telegramId, id)
+      return { closed: id }
+    },
+  },
+  {
+    /*
+     * LIST, ASK, APPLY (tab-tidy.ts). Listing and asking start no visit;
+     * closing happens only after the person's yes, and only to the tabs the
+     * question named. Not in the compact kit (COMPACT_HIDDEN).
+     */
+    name: 'browser_tidy',
+    description:
+      'Лишние вкладки: без аргументов — список; ask — карточка человеку (ждёт сутки); ' + // cyrillic-ok: tool description
+      'apply=id вопроса — закрыть после «Разрешить».', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        ask: { type: 'boolean' },
+        ids: { type: 'array', items: { type: 'string' } },
+        apply: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const a = args as { ask?: unknown; ids?: unknown; apply?: unknown }
+      const q = ctx.pool as unknown as Queryable
+      const found = await podToLookAt(ctx)
+      if (!found) return { running: false }
+      if (typeof a.apply === 'string' && a.apply) {
+        const answer = await readApproval(q, a.apply)
+        if (!answer || answer.telegramId !== ctx.telegramId)
+          throw new Error('no such question: take the id from browser_tidy ask')
+        if (answer.state !== 'allowed')
+          return { applied: false, decision: answer.state }
+        const session = await readSession(q, ctx.telegramId)
+        if (personHasTheWheel(session, Date.now())) throw new Error(WHEEL_TAKEN)
+        /* Listed BEFORE the claim: a pod that does not answer must not spend the yes. */
+        const now = (await listTargets(found.cdp)).filter(
+          t => t.type === 'page'
+        )
+        const asked = await claimTidyAsk(q, a.apply, ctx.telegramId)
+        if (!asked) return { applied: false, note: 'already applied' }
+        const { close, skipped } = planClose(asked, now)
+        const closed: string[] = []
+        for (const t of close) {
+          try {
+            await closePage(found.cdp, t.id)
+            forgetFront(ctx.telegramId, t.id)
+            closed.push(t.id)
+          } catch (e) {
+            skipped.push({
+              id: t.id,
+              why: `close failed: ${String(e).slice(0, 80)}`,
+            })
+          }
+        }
+        return { applied: true, closed, skipped }
+      }
+      const pages = (await listTargets(found.cdp))
+        .filter(t => t.type === 'page')
+        .map(t => ({ id: t.id, url: t.url ?? '' }))
+      const named = Array.isArray(a.ids) ? a.ids.map(String) : []
+      const tabs = tidyCandidates(pages, named)
+      /*
+       * The agent sees a blocked tab by host only (site-rules.ts veilTab);
+       * the question stores and the card shows the real address, because
+       * apply compares it and the card is the person's own phone.
+       */
+      const rules = await siteRulesOf(q, ctx.telegramId)
+      const shown = tabs.map(t => veilTab(t, rules))
+      /* A card already on his phone is the answer to "ask" too: one at a time. */
+      const open = await openTidyAsk(q, ctx.telegramId)
+      if (open)
+        return {
+          tabs: shown,
+          asked: false,
+          open,
+          note:
+            open.state === 'allowed'
+              ? 'he already allowed it: call apply with this id'
+              : 'a question is already waiting for him; no second card',
+        }
+      if (a.ask !== true || !tabs.length) return { tabs: shown, asked: false }
+      const id = await requestPermission(
+        q,
+        ctx.telegramId,
+        tidyQuestion(tabs),
+        TIDY_TTL_MS
       )
-      if (!session?.cdpEndpoint) throw new Error('no browser is running')
-      await closePage(session.cdpEndpoint, String(args.id))
-      forgetFront(ctx.telegramId, String(args.id))
-      return { closed: String(args.id) }
+      await rememberTidyAsk(q, id, ctx.telegramId, tabs)
+      return {
+        tabs: shown,
+        asked: true,
+        question: id,
+        note: 'nothing closes until the person allows it; then call apply with this id',
+      }
     },
   },
   {
@@ -1087,8 +1807,18 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           'no tab with that id: call browser_status again, it may have closed'
         )
       await activatePage(found.cdp, id)
-      rememberFront(ctx.telegramId, id)
-      return { focused: id, url: page.url ?? '' }
+      rememberLaneFront(ctx.telegramId, laneOf(ctx), id)
+      /*
+       * The id came from browser_status, which names a blocked tab by host
+       * only; answering with page.url would hand the path straight back
+       * (found by the bee on #3487).
+       */
+      const rules = await siteRulesOf(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      const { url } = veilTab({ url: page.url ?? '' }, rules)
+      return { focused: id, url }
     },
   },
 ]
@@ -1154,8 +1884,13 @@ async function filmStep(
       typeof a.x === 'number' &&
       typeof a.y === 'number'
     ) {
-      const page = await frontPage(session.cdpEndpoint)
-      const jpeg = await screenshot(session.cdpEndpoint, page.id)
+      /* A lane's click happened in the lane's tab, not in the first page. */
+      const laneTab =
+        laneOf(ctx) === MAIN_LANE
+          ? null
+          : chosenLaneFront(ctx.telegramId, laneOf(ctx))
+      const pageId = laneTab ?? (await frontPage(session.cdpEndpoint)).id
+      const jpeg = await screenshot(session.cdpEndpoint, pageId)
       addFrame(ctx.telegramId, {
         at,
         tool,
@@ -1181,10 +1916,45 @@ async function filmStep(
  * the agent works, a whole-screen frame is taken every two seconds; it stops
  * by itself once no step has come for TICK_IDLE_MS. One ticker per person.
  */
+/*
+ * THE PERSON'S OWN DRIVING IS NOT FILMED. The ticker runs for TICK_IDLE_MS
+ * after the agent's last step; a person who takes the wheel inside that
+ * window -- to sign in, to open their mail -- was filmed every two seconds
+ * and the frames went into the agent's report. ChatGPT agent takes no
+ * screenshots while the person controls the browser; neither does this. The
+ * ticker stops: the agent stands still under the person's hands, and its next
+ * step starts a new one.
+ */
+export function tickMayFilm(
+  session: Pick<
+    BrowserSession,
+    'state' | 'endpoint' | 'personWheelUntilMs'
+  > | null,
+  nowMs: number
+): 'film' | 'skip' | 'stop' {
+  if (personHasTheWheel(session, nowMs)) return 'stop'
+  if (!session || session.state !== 'live' || !session.endpoint) return 'skip'
+  return 'film'
+}
+
 const tickers = new Map<
   string,
   { last: number; timer: ReturnType<typeof setInterval> }
 >()
+
+/*
+ * A tick that was in flight when its ticker idled out can resolve after a
+ * new step has started a NEW ticker for the same person; deleting by id
+ * alone would orphan that one (its timer running, unreachable). Only the
+ * ticker that is stopping leaves the map.
+ */
+function stopTicker(
+  id: string,
+  state: { timer: ReturnType<typeof setInterval> }
+): void {
+  clearInterval(state.timer)
+  if (tickers.get(id) === state) tickers.delete(id)
+}
 
 function keepTicking(ctx: ToolContext): void {
   const id = ctx.telegramId
@@ -1201,8 +1971,7 @@ function keepTicking(ctx: ToolContext): void {
   let busy = false
   state.timer = setInterval(() => {
     if (Date.now() - state.last > TICK_IDLE_MS) {
-      clearInterval(state.timer)
-      tickers.delete(id)
+      stopTicker(id, state)
       return
     }
     if (busy) return
@@ -1210,7 +1979,9 @@ function keepTicking(ctx: ToolContext): void {
     void (async () => {
       try {
         const session = await readSession(ctx.pool as unknown as Queryable, id)
-        if (!session || session.state !== 'live' || !session.endpoint) return
+        const may = tickMayFilm(session, Date.now())
+        if (may === 'stop') stopTicker(id, state)
+        if (may !== 'film' || !session?.endpoint) return
         const jpeg = await desktopShot(session.endpoint, session.adminToken)
         addFrame(id, { at: Date.now(), tool: 'tick', jpeg })
       } catch {
@@ -1284,7 +2055,7 @@ function journaled(tool: AgentTool): AgentTool {
             outcome,
             Date.now() - t0
           ),
-          { probe: ctx.probe === true }
+          { probe: ctx.probe === true, lane: ctx.lane }
         )
       try {
         const result = await tool.handler(args, ctx)
@@ -1338,8 +2109,28 @@ function respectsTheWheel(tool: AgentTool): AgentTool {
   }
 }
 
-export const BROWSER_TOOLS: AgentTool[] =
-  TOOLS_UNJOURNALED.map(respectsTheWheel).map(journaled)
+/*
+ * A LANE IS HELD WHILE IT WORKS (lanes.ts): every tool call in it keeps it,
+ * and a lane let go while the cap filled up is refused, not squeezed in. Inside
+ * the wheel, so the person driving stops every lane before any lane is touched.
+ */
+function inItsLane(tool: AgentTool): AgentTool {
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const lane = laneOf(ctx)
+      if (lane !== MAIN_LANE) {
+        const claim = claimLane(ctx.telegramId, lane)
+        if (!claim.ok) throw new Error(claim.error)
+      }
+      return tool.handler(args, ctx)
+    },
+  }
+}
+
+export const BROWSER_TOOLS: AgentTool[] = TOOLS_UNJOURNALED.map(inItsLane)
+  .map(respectsTheWheel)
+  .map(journaled)
 
 /**
  * The message with the two buttons.
@@ -1409,12 +2200,21 @@ async function askForInputInTelegram(
 export async function requestPermission(
   pool: Queryable,
   telegramId: string,
-  what: string
+  what: string,
+  /** A desk that waits a day passes a day; a click keeps the ten minutes. */
+  ttlMs?: number,
+  /**
+   * The page host a yes lets the agent act on (browser_ask_permission only).
+   * Left out, the yes answers this question and opens no guarded page.
+   */
+  actHost?: string | null
 ): Promise<string> {
   await ensureApprovals(pool)
   const { id, allowToken, denyToken } = await askFor(pool, {
     telegramId,
     what,
+    ttlMs,
+    actHost,
     newId: newApprovalToken,
     newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
   })

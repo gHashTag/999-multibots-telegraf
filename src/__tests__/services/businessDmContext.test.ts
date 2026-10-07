@@ -213,7 +213,7 @@ describe('the fallback prompt does not push payment either', () => {
     )
     const sys = String(buildBusinessMessages('привет', 'Гость', BOT)[0].content)
     expect(sys).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
-    expect(sys).toContain('Тарифов и подписок НЕТ')
+    expect(sys).toContain('тарифов и подписок НЕТ')
   })
 })
 

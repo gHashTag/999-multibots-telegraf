@@ -18,6 +18,12 @@ COPY package-lock.json* ./
 # сразу после установки, а prepare зовёт этот файл. Без него сборка падает
 # с 'Cannot find module'. Сам скрипт видит, что .git нет, и молча выходит.
 COPY scripts/install-hooks.cjs ./scripts/
+# Lock ставится БЕЗ --legacy-peer-deps с 2026-09-28 (PR de-peer): корень на
+# @types/node ^22 (vitest@5 требует "^22 || >=24"), а единственный источник
+# react-пиров — мёртвый импорт x402-express — удалён; из lock ушло 466
+# пакетов кошелька. Флаг НЕ возвращать: он сутки маскировал ERESOLVE, деплой
+# 8919e33f молча упал, а три следующих были SKIPPED (docs-only) — скип не
+# виден, пока не смотришь список деплоев.
 RUN npm install --omit=dev
 
 # Stage 2: Builder с esbuild

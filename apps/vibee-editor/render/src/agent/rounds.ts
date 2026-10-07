@@ -83,7 +83,8 @@ export function isNotConnected(
   const net = networkOfUrl(url)
   if (!net) return false
   const state = logins.find(l => l.id === net.id)?.state
-  return state === 'signed_out' || state === 'expired'
+  /* refused: the cookie is there, the site sent a desk to sign in (login-use.ts). */
+  return state === 'signed_out' || state === 'expired' || state === 'refused'
 }
 
 /**

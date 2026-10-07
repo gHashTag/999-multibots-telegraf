@@ -135,9 +135,9 @@ export function minutesBetween(fromMs: number, toMs: number): number {
 }
 
 /**
- * One line for a log: the sentence that did not exist for three days. The
- * person reads it in their own language in `tri pod`, which formats the state
- * itself -- this stays English, like every other line in the render's log.
+ * One line for a log: the sentence that did not exist for three days. It is
+ * also what `tri pod` prints (English, like every sibling reader `tri saw` /
+ * `tri logins` / `tri browser`, and like every other line in the render's log).
  */
 export function describeWatch(s: WatchState | null, nowMs: number): string {
   if (!s || !s.at) return 'never probed'

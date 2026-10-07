@@ -1,0 +1,927 @@
+/**
+ * THREADS, INSTAGRAM AND A FACEBOOK PAGE THROUGH META'S OWN API.
+ *
+ * Spec of record: gHashTag/t27 specs/automation/meta-connect.t27, vendored as
+ * src/spec/meta-connect.t27; every number below comes from its generated
+ * module, and src/spec/meta-connect.test.ts runs each of its tests here.
+ *
+ * Why: on 2026-10-02 the owner's browser was signed out of all three, so the
+ * blog desk skipped them every day. A Graph API publish returns the post's own
+ * id -- a receipt the browser could only guess at from a page leaving its form.
+ *
+ * Two logins, not three. A Facebook Login Page token also publishes to the
+ * Instagram professional account linked to that Page, and it never expires.
+ * Threads has its own app and its own 60-day token, refreshed on the desk's
+ * tick (a date in the table, not a timer: a deploy resets a timer).
+ *
+ * What never happens here: a token in a reply, a log line or an error (they
+ * are sealed with AES-256-GCM at rest and stripped from every message), and a
+ * post without the desk's own yes -- this module only answers publishEverywhere,
+ * which runs after the owner said "yes".
+ */
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from 'crypto'
+import type { Queryable } from '../browser/sessions'
+import { clip } from './blog-share'
+import {
+  CARD_H,
+  CARD_W,
+  IG_CAPTION_MAX,
+  IG_RELINK_EVERY_MS,
+  POLL_EVERY_MS,
+  POLLS,
+  REFRESH_DAYS_LEFT,
+  REFRESH_MIN_AGE_H,
+  STATE_TTL_MS,
+  THREADS_LINKS_MAX,
+  THREADS_TEXT_MAX,
+} from '../spec/meta-connect.gen'
+import { THREADS_SCOPES } from '../spec/connect-card.gen'
+
+export { CARD_H, CARD_W }
+
+/* ---------------------------------------------------------------------------
+ * The spec's rules, one function each (meta-connect.t27).
+ * ------------------------------------------------------------------------- */
+
+export type Road = 'api' | 'browser' | 'skip'
+
+export function route(hasToken: boolean, signedIn: boolean): Road {
+  if (hasToken) return 'api'
+  return signedIn ? 'browser' : 'skip'
+}
+
+export function shouldRefresh(daysLeft: number, ageH: number): boolean {
+  return (
+    daysLeft > 0 && daysLeft <= REFRESH_DAYS_LEFT && ageH >= REFRESH_MIN_AGE_H
+  )
+}
+
+export function usable(expires: boolean, daysLeft: number): boolean {
+  return !expires || daysLeft > 0
+}
+
+export function fitsThreads(chars: number, links: number): boolean {
+  return chars <= THREADS_TEXT_MAX && links <= THREADS_LINKS_MAX
+}
+
+export function ready(status: string): boolean {
+  return status === 'FINISHED'
+}
+
+export function givenUp(status: string): boolean {
+  return status === 'ERROR' || status === 'EXPIRED'
+}
+
+export function posted(publishedId: string): boolean {
+  return publishedId !== ''
+}
+
+export function stateOk(ageMs: number, used: boolean): boolean {
+  return !used && ageMs < STATE_TTL_MS
+}
+
+export function lastPollMs(): number {
+  return (POLLS - 1) * POLL_EVERY_MS
+}
+
+export function shouldRelink(
+  igKnown: boolean,
+  publishFailed: boolean,
+  sinceLastMs: number
+): boolean {
+  return (!igKnown || publishFailed) && sinceLastMs >= IG_RELINK_EVERY_MS
+}
+
+export function retryAfterRelink(oldId: string, newId: string): boolean {
+  return newId !== '' && newId !== oldId
+}
+
+/* ---------------------------------------------------------------------------
+ * Configuration: which apps, which callback.
+ * ------------------------------------------------------------------------- */
+
+/* LinkedIn and X share the table, the sealing and the state (social-api.ts). */
+export type Network = 'threads' | 'facebook' | 'linkedin' | 'x'
+export const META_NETWORKS: readonly Network[] = ['threads', 'facebook']
+type Env = Record<string, string | undefined>
+
+export function graphVersion(env: Env = process.env): string {
+  return env.META_GRAPH_VERSION || 'v23.0'
+}
+
+export function redirectUri(env: Env = process.env): string {
+  const base = (
+    env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app'
+  ).replace(/\/+$/, '')
+  return `${base}/api/social/meta/callback`
+}
+
+/** The app of a network, or null when its variables are not set. */
+export function appOf(
+  network: Network,
+  env: Env = process.env
+): { id: string; secret: string } | null {
+  const names: Record<Network, [string, string]> = {
+    threads: ['THREADS_APP_ID', 'THREADS_APP_SECRET'],
+    facebook: ['META_APP_ID', 'META_APP_SECRET'],
+    linkedin: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
+    x: ['X_CLIENT_ID', 'X_CLIENT_SECRET'],
+  }
+  const [idName, secretName] = names[network]
+  const id = env[idName]
+  const secret = env[secretName]
+  return id && secret ? { id, secret } : null
+}
+
+/* What the consent asks for is the spec's (connect-card.t27). */
+export { THREADS_SCOPES }
+export const FACEBOOK_SCOPES = [
+  'pages_show_list',
+  'pages_manage_posts',
+  'pages_read_engagement',
+  'instagram_basic',
+  'instagram_content_publish',
+  'business_management',
+].join(',')
+
+/**
+ * Where the owner is sent to say yes to the app. Pure.
+ *
+ * A business app with "Facebook Login for Business" asks for permissions
+ * through a saved configuration, not a scope list: when
+ * META_LOGIN_CONFIG_ID is set, Facebook gets `config_id` and no `scope`.
+ * Threads has no such thing and always sends its scopes.
+ */
+export function authorizeUrl(
+  network: Network,
+  appId: string,
+  state: string,
+  env: Env = process.env
+): string {
+  const q = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: redirectUri(env),
+    response_type: 'code',
+    state,
+  })
+  const configId = env.META_LOGIN_CONFIG_ID?.trim()
+  if (network === 'threads') q.set('scope', THREADS_SCOPES)
+  else if (configId) {
+    q.set('config_id', configId)
+    q.set('override_default_response_type', 'true')
+  } else q.set('scope', FACEBOOK_SCOPES)
+  return network === 'threads'
+    ? `https://threads.net/oauth/authorize?${q}`
+    : `https://www.facebook.com/${graphVersion(env)}/dialog/oauth?${q}`
+}
+
+/* ---------------------------------------------------------------------------
+ * Sealing: a token at rest is ciphertext, and a message never carries one.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The sealing key is META_TOKEN_KEY and nothing else. It used to fall back to
+ * whichever app secret was set, so regenerating that secret on a portal (X's
+ * "Regenerate" is one click) or setting META_TOKEN_KEY later silently turned
+ * every token at rest into ciphertext nobody could open.
+ */
+function keyOf(env: Env): Buffer {
+  const raw = env.META_TOKEN_KEY || ''
+  if (!raw) throw new Error('no key to seal a token with')
+  return createHash('sha256').update(`meta-connect:${raw}`).digest()
+}
+
+/** Said before the owner is sent to a network, not after it says yes. */
+export const NO_SEAL_KEY =
+  'не задан META_TOKEN_KEY: токен сети нечем запечатать' // cyrillic-ok: told to the owner
+
+export function canSeal(env: Env = process.env): boolean {
+  return Boolean(env.META_TOKEN_KEY)
+}
+
+export function seal(token: string, env: Env = process.env): string {
+  const iv = randomBytes(12)
+  const c = createCipheriv('aes-256-gcm', keyOf(env), iv)
+  const body = Buffer.concat([c.update(token, 'utf8'), c.final()])
+  return [iv, c.getAuthTag(), body].map(b => b.toString('base64')).join('.')
+}
+
+export function unseal(sealed: string, env: Env = process.env): string {
+  const [iv, tag, body] = sealed.split('.').map(s => Buffer.from(s, 'base64'))
+  const d = createDecipheriv('aes-256-gcm', keyOf(env), iv)
+  d.setAuthTag(tag)
+  return Buffer.concat([d.update(body), d.final()]).toString('utf8')
+}
+
+/** Anything that may hold a token, made safe to show or to log. Pure. */
+export function scrub(text: string): string {
+  return (
+    text
+      .replace(/access_token=[^&\s"']+/gi, 'access_token=…')
+      .replace(/(refresh_token|code_verifier)=[^&\s"']+/gi, '$1=…')
+      .replace(/Bearer\s+\S+/gi, 'Bearer …')
+      .replace(/\b(EAA|THQ|TH)[A-Za-z0-9_-]{20,}/g, '…')
+      /* LinkedIn and X tokens carry no prefix: any long opaque run goes. */
+      .replace(/[A-Za-z0-9_\-.~+/=]{48,}/g, '…')
+      .slice(0, 300)
+  )
+}
+
+/* ---------------------------------------------------------------------------
+ * The two tables.
+ * ------------------------------------------------------------------------- */
+
+let tablesReady = false
+export async function ensureSocialTables(q: Queryable): Promise<void> {
+  if (tablesReady) return
+  await q.query(`CREATE TABLE IF NOT EXISTS social_tokens (
+    owner text NOT NULL,
+    network text NOT NULL,
+    account_id text NOT NULL,
+    token_sealed text NOT NULL,
+    expires_at timestamptz,
+    refreshed_at timestamptz NOT NULL DEFAULT now(),
+    meta jsonb NOT NULL DEFAULT '{}'::jsonb,
+    PRIMARY KEY (owner, network)
+  )`)
+  await q.query(`CREATE TABLE IF NOT EXISTS social_oauth_states (
+    nonce text PRIMARY KEY,
+    owner text NOT NULL,
+    network text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    used boolean NOT NULL DEFAULT false
+  )`)
+  /* The PKCE verifier of an X connect (social-api.t27); null for the others. */
+  await q.query(
+    `ALTER TABLE social_oauth_states ADD COLUMN IF NOT EXISTS verifier text`
+  )
+  tablesReady = true
+}
+export function resetSocialTablesForTests(): void {
+  tablesReady = false
+}
+
+export interface HeldToken {
+  network: Network
+  accountId: string
+  token: string
+  expiresAt: Date | null
+  refreshedAt: Date
+  meta: Record<string, unknown>
+}
+
+export async function readTokens(
+  q: Queryable,
+  owner: string,
+  env: Env = process.env
+): Promise<HeldToken[]> {
+  await ensureSocialTables(q)
+  const { rows } = await q.query(
+    `SELECT network, account_id, token_sealed, expires_at, refreshed_at, meta
+       FROM social_tokens WHERE owner = $1`,
+    [owner]
+  )
+  const out: HeldToken[] = []
+  for (const r of rows) {
+    try {
+      out.push({
+        network: String(r.network) as Network,
+        accountId: String(r.account_id),
+        token: unseal(String(r.token_sealed), env),
+        expiresAt: r.expires_at ? new Date(String(r.expires_at)) : null,
+        refreshedAt: new Date(String(r.refreshed_at)),
+        meta: (r.meta as Record<string, unknown>) || {},
+      })
+    } catch {
+      /* A row sealed with another key is not a token; it is reconnected. */
+    }
+  }
+  return out
+}
+
+export async function writeToken(
+  q: Queryable,
+  owner: string,
+  t: Omit<HeldToken, 'refreshedAt'>,
+  env: Env
+): Promise<void> {
+  await ensureSocialTables(q)
+  await q.query(
+    `INSERT INTO social_tokens (owner, network, account_id, token_sealed, expires_at, refreshed_at, meta)
+     VALUES ($1, $2, $3, $4, $5, now(), $6)
+     ON CONFLICT (owner, network) DO UPDATE SET account_id = $3, token_sealed = $4,
+       expires_at = $5, refreshed_at = now(), meta = $6`,
+    [
+      owner,
+      t.network,
+      t.accountId,
+      seal(t.token, env),
+      t.expiresAt ? t.expiresAt.toISOString() : null,
+      JSON.stringify(t.meta),
+    ]
+  )
+}
+
+const DAY_MS = 86_400_000
+
+/** Whole days a token has left; a Page token has no end. Pure. */
+export function daysLeftOf(
+  t: { expiresAt: Date | null },
+  nowMs: number
+): number {
+  if (!t.expiresAt) return Infinity
+  return Math.max(0, Math.floor((t.expiresAt.getTime() - nowMs) / DAY_MS))
+}
+
+/** What may be told about a held token: never the token. Pure. */
+export function statusView(
+  tokens: HeldToken[],
+  nowMs: number
+): Array<Record<string, unknown>> {
+  return tokens.map(t => {
+    const days = daysLeftOf(t, nowMs)
+    return {
+      network: t.network,
+      account: t.meta.username || t.meta.page_name || t.accountId,
+      instagram: t.meta.ig_username || null,
+      daysLeft: Number.isFinite(days) ? days : null,
+      /* An X token lives two hours; a held refresh token keeps it usable. */
+      usable:
+        !!t.meta.refresh_sealed ||
+        usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1),
+    }
+  })
+}
+
+/* ---------------------------------------------------------------------------
+ * HTTP with Meta, injected so tests never leave the process.
+ * ------------------------------------------------------------------------- */
+
+export type Fetch = (
+  url: string,
+  init?: {
+    method?: string
+    body?: URLSearchParams | string
+    headers?: Record<string, string>
+  }
+) => Promise<{
+  ok: boolean
+  status: number
+  json: () => Promise<any>
+  headers?: { get: (name: string) => string | null }
+}>
+
+async function call(
+  f: Fetch,
+  url: string,
+  params: Record<string, string>,
+  method: 'GET' | 'POST' = 'GET'
+): Promise<any> {
+  const body = new URLSearchParams(params)
+  const r =
+    method === 'GET'
+      ? await f(`${url}${url.includes('?') ? '&' : '?'}${body}`)
+      : await f(url, { method: 'POST', body })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || j?.error) {
+    const m = j?.error?.message || j?.error_message || `HTTP ${r.status}`
+    throw new Error(scrub(String(m)))
+  }
+  return j
+}
+
+const THREADS = 'https://graph.threads.net'
+const graph = (env: Env) => `https://graph.facebook.com/${graphVersion(env)}`
+
+/* ---------------------------------------------------------------------------
+ * Connecting: a single-use state, then the code exchanged for a long token.
+ * ------------------------------------------------------------------------- */
+
+export async function startConnect(
+  q: Queryable,
+  owner: string,
+  network: Network,
+  env: Env = process.env
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const app = appOf(network, env)
+  if (!app)
+    return {
+      ok: false,
+      error:
+        network === 'threads'
+          ? 'не заданы THREADS_APP_ID и THREADS_APP_SECRET' // cyrillic-ok: told to the owner
+          : 'не заданы META_APP_ID и META_APP_SECRET', // cyrillic-ok: told to the owner
+    }
+  if (!canSeal(env)) return { ok: false, error: NO_SEAL_KEY }
+  const nonce = await mintState(q, owner, network)
+  return { ok: true, url: authorizeUrl(network, app.id, nonce, env) }
+}
+
+/** A single-use state for one connect; X also keeps its PKCE verifier here. */
+export async function mintState(
+  q: Queryable,
+  owner: string,
+  network: Network,
+  verifier: string | null = null
+): Promise<string> {
+  await ensureSocialTables(q)
+  const nonce = randomBytes(24).toString('base64url')
+  await q.query(
+    `INSERT INTO social_oauth_states (nonce, owner, network, verifier) VALUES ($1, $2, $3, $4)`,
+    [nonce, owner, network, verifier]
+  )
+  return nonce
+}
+
+/** Takes the state once: the owner and network it was minted for, or null. */
+export async function takeState(
+  q: Queryable,
+  nonce: string,
+  nowMs: number
+): Promise<{
+  owner: string
+  network: Network
+  verifier: string | null
+} | null> {
+  if (!nonce) return null
+  await ensureSocialTables(q)
+  const { rows } = await q.query(
+    `UPDATE social_oauth_states SET used = true
+      WHERE nonce = $1 AND used = false
+      RETURNING owner, network, created_at, verifier`,
+    [nonce]
+  )
+  const r = rows[0]
+  if (!r) return null
+  const age = nowMs - new Date(String(r.created_at)).getTime()
+  if (!stateOk(age, false)) return null
+  return {
+    owner: String(r.owner),
+    network: String(r.network) as Network,
+    verifier: r.verifier ? String(r.verifier) : null,
+  }
+}
+
+export async function finishConnect(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  network: Network,
+  code: string,
+  nowMs: number,
+  env: Env = process.env
+): Promise<string> {
+  const app = appOf(network, env)
+  if (!app) throw new Error('app is not configured')
+  if (network === 'threads') {
+    const short = await call(
+      f,
+      `${THREADS}/oauth/access_token`,
+      {
+        client_id: app.id,
+        client_secret: app.secret,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri(env),
+        code,
+      },
+      'POST'
+    )
+    const long = await call(f, `${THREADS}/access_token`, {
+      grant_type: 'th_exchange_token',
+      client_secret: app.secret,
+      access_token: String(short.access_token),
+    })
+    const me = await call(f, `${THREADS}/v1.0/me`, {
+      fields: 'id,username',
+      access_token: String(long.access_token),
+    })
+    await writeToken(
+      q,
+      owner,
+      {
+        network,
+        accountId: String(me.id || short.user_id),
+        token: String(long.access_token),
+        expiresAt: new Date(nowMs + Number(long.expires_in || 0) * 1000),
+        meta: { username: me.username || null },
+      },
+      env
+    )
+    return `Threads @${me.username || me.id}`
+  }
+  const short = await call(f, `${graph(env)}/oauth/access_token`, {
+    client_id: app.id,
+    client_secret: app.secret,
+    redirect_uri: redirectUri(env),
+    code,
+  })
+  const long = await call(f, `${graph(env)}/oauth/access_token`, {
+    grant_type: 'fb_exchange_token',
+    client_id: app.id,
+    client_secret: app.secret,
+    fb_exchange_token: String(short.access_token),
+  })
+  const pages = await call(f, `${graph(env)}/me/accounts`, {
+    fields: 'id,name,access_token,instagram_business_account{id,username}',
+    access_token: String(long.access_token),
+  })
+  const list: any[] = Array.isArray(pages.data) ? pages.data : []
+  const page =
+    list.find(p => env.META_PAGE_ID && p.id === env.META_PAGE_ID) || list[0]
+  if (!page?.access_token) throw new Error('no Facebook Page was granted')
+  const ig = page.instagram_business_account
+  await writeToken(
+    q,
+    owner,
+    {
+      network,
+      accountId: String(page.id),
+      token: String(page.access_token),
+      expiresAt: null,
+      meta: {
+        page_name: page.name || null,
+        ig_id: ig?.id || null,
+        ig_username: ig?.username || null,
+      },
+    },
+    env
+  )
+  return ig?.username
+    ? `Facebook «${page.name}» + Instagram @${ig.username}` // cyrillic-ok: told to the owner
+    : `Facebook «${page.name}» (Instagram к странице не привязан)` // cyrillic-ok: told to the owner
+}
+
+/** Refreshes a Threads token near its end, once Meta allows it. */
+export async function refreshIfDue(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  t: HeldToken,
+  nowMs: number,
+  env: Env = process.env
+): Promise<HeldToken> {
+  if (t.network !== 'threads') return t
+  const ageH = Math.floor((nowMs - t.refreshedAt.getTime()) / 3_600_000)
+  if (!shouldRefresh(daysLeftOf(t, nowMs), ageH)) return t
+  const r = await call(f, `${THREADS}/refresh_access_token`, {
+    grant_type: 'th_refresh_token',
+    access_token: t.token,
+  })
+  const next = {
+    ...t,
+    token: String(r.access_token),
+    expiresAt: new Date(nowMs + Number(r.expires_in || 0) * 1000),
+  }
+  await writeToken(q, owner, next, env)
+  return { ...next, refreshedAt: new Date(nowMs) }
+}
+
+/**
+ * AN INSTAGRAM LINKED AFTER CONNECT IS FOUND AGAIN (meta-connect.t27 v2).
+ *
+ * The Page's Instagram account used to be read only by finishConnect. On
+ * 2026-10-06 the owner linked t27_dev to the Page afterwards, the row kept an
+ * empty ig_id, and every approved post skipped Instagram until he pressed
+ * Connect again. Here the Page is asked again with the Page token already
+ * held -- no new consent -- when the row does not know the account or a
+ * publish just failed, and never twice inside IG_RELINK_EVERY_MS: the moment
+ * of the last look is kept in the row itself (meta.ig_checked_at), so a
+ * redeploy or a second replica does not ask again.
+ *
+ * Only the facebook row's meta is touched -- the sealed token and its
+ * refreshed_at stay as they are. A Graph error leaves the account as it was;
+ * a Page that answers with no Instagram clears it. Never throws.
+ */
+export async function relinkInstagram(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  t: HeldToken,
+  nowMs: number,
+  publishFailed = false,
+  env: Env = process.env
+): Promise<HeldToken> {
+  if (t.network !== 'facebook') return t
+  const last = Number(t.meta.ig_checked_at || 0)
+  const since = last > 0 ? nowMs - last : Infinity
+  if (!shouldRelink(Boolean(t.meta.ig_id), publishFailed, since)) return t
+  const patch: Record<string, unknown> = { ig_checked_at: nowMs }
+  try {
+    const j = await call(f, `${graph(env)}/${t.accountId}`, {
+      fields: 'instagram_business_account{id,username}',
+      access_token: t.token,
+    })
+    const ig = j.instagram_business_account
+    patch.ig_id = ig?.id ? String(ig.id) : null
+    patch.ig_username = ig?.id ? ig.username || null : null
+  } catch {
+    /* Graph did not answer: the account stays as it was until the next window. */
+  }
+  try {
+    await ensureSocialTables(q)
+    await q.query(
+      `UPDATE social_tokens SET meta = meta || $3::jsonb
+        WHERE owner = $1 AND network = $2`,
+      [owner, t.network, JSON.stringify(patch)]
+    )
+  } catch {
+    /* Not written: the next look comes sooner, nothing else is lost. */
+  }
+  return { ...t, meta: { ...t.meta, ...patch } }
+}
+
+/** Every held token, a Facebook Page's Instagram looked up again when due. */
+export async function readTokensRelinked(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  nowMs: number,
+  env: Env = process.env
+): Promise<HeldToken[]> {
+  const held = await readTokens(q, owner, env)
+  return Promise.all(
+    held.map(t => relinkInstagram(q, f, owner, t, nowMs, false, env))
+  )
+}
+
+/** Said when the Page has no Instagram account, instead of a silent skip. */
+export const IG_NOT_LINKED =
+  'Instagram не привязан к странице Facebook — привяжите его в настройках страницы, агент найдёт сам' // cyrillic-ok: told to the owner
+
+/* ---------------------------------------------------------------------------
+ * Publishing: the receipt is the id Meta returns.
+ * ------------------------------------------------------------------------- */
+
+export const VIA_API = 'опубликовано через API' // cyrillic-ok: told to the owner; blog-share.ts reads it
+
+export interface Post {
+  title: string
+  link: string
+  summary: string
+  /** A public JPEG of CARD_W x CARD_H, for Instagram. */
+  cardUrl: string
+}
+
+/** The Threads post: title, then the whole link, within the spec's limit. Pure. */
+export function threadsPost(p: Post): string {
+  const room = THREADS_TEXT_MAX - p.link.length - 2
+  return `${clip(p.title, room)}\n\n${p.link}`
+}
+
+/** The Instagram caption: links there are not clickable, so it says where. Pure. */
+export function igCaption(p: Post): string {
+  const tail = '\n\nСсылка на статью — в профиле. t27.ai' // cyrillic-ok: the caption the reader sees
+  const room = IG_CAPTION_MAX - tail.length
+  const body = `${p.title}\n\n${p.summary}`.trim()
+  return clip(body, room) + tail
+}
+
+/** Waits for a container until it is finished, failed, or the spec's patience ends. */
+async function waitFor(
+  read: () => Promise<string>,
+  sleep: (ms: number) => Promise<void>
+): Promise<void> {
+  for (let i = 0; i < POLLS; i++) {
+    if (i > 0) await sleep(POLL_EVERY_MS)
+    const s = await read()
+    if (ready(s)) return
+    if (givenUp(s)) throw new Error(`container ${s}`)
+  }
+  throw new Error('container not finished in time')
+}
+
+export interface PublishDeps {
+  fetch: Fetch
+  sleep: (ms: number) => Promise<void>
+  env?: Env
+}
+
+export async function publishThreads(
+  t: HeldToken,
+  p: Post,
+  d: PublishDeps
+): Promise<string> {
+  const text = threadsPost(p)
+  if (!fitsThreads(text.length, 1)) throw new Error('post does not fit')
+  const base = `${THREADS}/v1.0/${t.accountId}`
+  const c = await call(
+    d.fetch,
+    `${base}/threads`,
+    {
+      media_type: 'TEXT',
+      text,
+      link_attachment: p.link,
+      access_token: t.token,
+    },
+    'POST'
+  )
+  await waitFor(
+    async () =>
+      String(
+        (
+          await call(d.fetch, `${THREADS}/v1.0/${c.id}`, {
+            fields: 'status',
+            access_token: t.token,
+          })
+        ).status || 'FINISHED'
+      ),
+    d.sleep
+  )
+  const done = await call(
+    d.fetch,
+    `${base}/threads_publish`,
+    { creation_id: String(c.id), access_token: t.token },
+    'POST'
+  )
+  return await permalinkOr(
+    d.fetch,
+    `${THREADS}/v1.0/${done.id}`,
+    'permalink',
+    t.token,
+    String(done.id || '')
+  )
+}
+
+export async function publishFacebook(
+  t: HeldToken,
+  p: Post,
+  d: PublishDeps
+): Promise<string> {
+  const g = graph(d.env || process.env)
+  const done = await call(
+    d.fetch,
+    `${g}/${t.accountId}/feed`,
+    {
+      message: `${p.title}\n\n${p.summary}`.trim(),
+      link: p.link,
+      access_token: t.token,
+    },
+    'POST'
+  )
+  return await permalinkOr(
+    d.fetch,
+    `${g}/${done.id}`,
+    'permalink_url',
+    t.token,
+    String(done.id || '')
+  )
+}
+
+export async function publishInstagram(
+  t: HeldToken,
+  p: Post,
+  d: PublishDeps
+): Promise<string> {
+  const ig = String(t.meta.ig_id || '')
+  if (!ig) throw new Error('no Instagram account is linked to the Page')
+  const g = graph(d.env || process.env)
+  const c = await call(
+    d.fetch,
+    `${g}/${ig}/media`,
+    { image_url: p.cardUrl, caption: igCaption(p), access_token: t.token },
+    'POST'
+  )
+  await waitFor(
+    async () =>
+      String(
+        (
+          await call(d.fetch, `${g}/${c.id}`, {
+            fields: 'status_code',
+            access_token: t.token,
+          })
+        ).status_code || ''
+      ),
+    d.sleep
+  )
+  /* From here on the post may exist even when the call fails (a timeout, an
+     answer with no id): such a failure is marked and never retried. */
+  try {
+    const done = await call(
+      d.fetch,
+      `${g}/${ig}/media_publish`,
+      { creation_id: String(c.id), access_token: t.token },
+      'POST'
+    )
+    return await permalinkOr(
+      d.fetch,
+      `${g}/${done.id}`,
+      'permalink',
+      t.token,
+      String(done.id || '')
+    )
+  } catch (e) {
+    throw new MaybePosted(e instanceof Error ? e.message : String(e))
+  }
+}
+
+/** A failure after media_publish was sent: the post may already be up. */
+class MaybePosted extends Error {}
+
+async function permalinkOr(
+  f: Fetch,
+  url: string,
+  field: string,
+  token: string,
+  id: string
+): Promise<string> {
+  if (!posted(id)) throw new Error('no id came back')
+  try {
+    const j = await call(f, url, { fields: field, access_token: token })
+    return String(j[field] || id)
+  } catch {
+    return id
+  }
+}
+
+/**
+ * Every network the owner holds a token of, posted through its API. A network
+ * without a token is absent from the answer -- publishEverywhere then gives it
+ * to the browser, as before. Never throws.
+ */
+export async function postByApi(
+  q: Queryable,
+  owner: string,
+  p: Post,
+  d: PublishDeps & { now?: () => number; only?: readonly Network[] }
+): Promise<Record<string, string>> {
+  const env = d.env || process.env
+  const now = d.now || Date.now
+  const out: Record<string, string> = {}
+  let held: HeldToken[] = []
+  try {
+    held = await readTokens(q, owner, env)
+  } catch {
+    return out
+  }
+  const say = (r: string) => `${VIA_API} · ${r}`
+  for (let t of held) {
+    /* LinkedIn and X rows live in the same table; social-api.ts posts them. */
+    if (!META_NETWORKS.includes(t.network)) continue
+    /* The agent's social_post names its networks; the blog desk posts to all. */
+    if (d.only && !d.only.includes(t.network)) continue
+    const days = daysLeftOf(t, now())
+    const label = t.network === 'threads' ? 'Threads' : 'Facebook'
+    if (!usable(t.expiresAt !== null, Number.isFinite(days) ? days : 1)) {
+      out[label] = 'токен истёк — подключите заново: tri meta connect' // cyrillic-ok: told to the owner
+      continue
+    }
+    try {
+      t = await refreshIfDue(q, d.fetch, owner, t, now(), env)
+    } catch {
+      /* A failed refresh still leaves a working token for today. */
+    }
+    if (t.network === 'threads') {
+      out.Threads = await publishThreads(t, p, d)
+        .then(say)
+        .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
+      continue
+    }
+    out.Facebook = await publishFacebook(t, p, d)
+      .then(say)
+      .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
+    /* Instagram takes a picture or nothing: a post without a card skips it. */
+    if (p.cardUrl)
+      out.Instagram = await postInstagram(q, owner, t, p, d, now, env)
+  }
+  return out
+}
+
+/**
+ * Instagram through the Page, healing a stale row first (relinkInstagram):
+ * an account linked after Connect is found and used in the same post, a
+ * failed publish looks once more, and is retried once only when a different
+ * account came back (retry_after_relink, IG_PUBLISH_RETRIES) and the failure
+ * came before media_publish was sent -- a post that may exist is never sent
+ * again. Never throws.
+ */
+async function postInstagram(
+  q: Queryable,
+  owner: string,
+  held: HeldToken,
+  p: Post,
+  d: PublishDeps,
+  now: () => number,
+  env: Env
+): Promise<string> {
+  const say = (r: string) => `${VIA_API} · ${r}`
+  const fail = (e: unknown) => `ошибка API: ${scrub(String(e))}` // cyrillic-ok: told to the owner
+  let t = await relinkInstagram(q, d.fetch, owner, held, now(), false, env)
+  if (!t.meta.ig_id) return IG_NOT_LINKED
+  try {
+    return say(await publishInstagram(t, p, d))
+  } catch (e) {
+    /* Maybe already posted: a second publish could post it twice. */
+    if (e instanceof MaybePosted) return fail(e)
+    const before = String(t.meta.ig_id || '')
+    t = await relinkInstagram(q, d.fetch, owner, t, now(), true, env)
+    const after = String(t.meta.ig_id || '')
+    if (!after) return IG_NOT_LINKED
+    if (!retryAfterRelink(before, after)) return fail(e)
+    return publishInstagram(t, p, d).then(say).catch(fail)
+  }
+}

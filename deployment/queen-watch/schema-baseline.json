@@ -1,0 +1,3248 @@
+{
+  "about": "Tool-written by deployment/queen-watch/schema.mjs (tri schema-drift --baseline) from Postgres-NFrq. Do not edit by hand.",
+  "generated_at": "2026-10-07T09:55:54Z",
+  "exempt_note": "not compared: payments_v2 and /(_backup|_pre_cutover|_stubs)(_\\d{8})?$/ (schema.mjs)",
+  "tables": {
+    "academy_users": {
+      "pk": true,
+      "unique": {
+        "btree (email)": "academy_users_email_key",
+        "btree (id)": "academy_users_pkey"
+      },
+      "columns": {
+        "avatar_url": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "email": { "default": null, "not_null": true },
+        "full_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "level": { "default": "1", "not_null": false },
+        "role": { "default": "'student'::text", "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false },
+        "xp": { "default": "0", "not_null": false }
+      }
+    },
+    "achievements": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "achievements_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "criteria": { "default": null, "not_null": true },
+        "description": { "default": null, "not_null": true },
+        "icon": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "title": { "default": null, "not_null": true },
+        "type": { "default": null, "not_null": true },
+        "xp_reward": { "default": "0", "not_null": false }
+      }
+    },
+    "agent_acceptance": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_acceptance_pkey"
+      },
+      "columns": {
+        "agent": { "default": null, "not_null": true },
+        "at": { "default": "now()", "not_null": true },
+        "by_id": { "default": null, "not_null": true },
+        "canaries": { "default": "''::text", "not_null": true },
+        "codes": { "default": "'{}'::text[]", "not_null": true },
+        "id": { "default": "nextval('agent_acceptance_id_seq'::regclass)", "not_null": true },
+        "pass": { "default": null, "not_null": true },
+        "tools": { "default": "'{}'::text[]", "not_null": true }
+      }
+    },
+    "agent_avatars": {
+      "pk": true,
+      "unique": {
+        "btree (agent_id)": "agent_avatars_pkey"
+      },
+      "columns": {
+        "agent_id": { "default": null, "not_null": true },
+        "made_at": { "default": "now()", "not_null": true },
+        "url": { "default": null, "not_null": true }
+      }
+    },
+    "agent_client_work": {
+      "pk": true,
+      "unique": {
+        "btree (owner, agent_id, client_id)": "agent_client_work_pkey"
+      },
+      "columns": {
+        "agent_id": { "default": null, "not_null": true },
+        "client_id": { "default": null, "not_null": true },
+        "last_at": { "default": "now()", "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "turns": { "default": "1", "not_null": true }
+      }
+    },
+    "agent_conversation_titles": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id, thread)": "agent_conversation_titles_pkey"
+      },
+      "columns": {
+        "telegram_id": { "default": null, "not_null": true },
+        "thread": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": true }
+      }
+    },
+    "agent_hive": {
+      "pk": true,
+      "unique": {
+        "btree (chat_id)": "agent_hive_pkey"
+      },
+      "columns": {
+        "chat_id": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "manager_bot": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true }
+      }
+    },
+    "agent_keys": {
+      "pk": true,
+      "unique": {
+        "btree (key_hash)": "agent_keys_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "key_hash": { "default": null, "not_null": true },
+        "key_prefix": { "default": null, "not_null": true },
+        "label": { "default": null, "not_null": false },
+        "revoked": { "default": "false", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "agent_meeting_reminders": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_meeting_reminders_pkey"
+      },
+      "columns": {
+        "fire_at": { "default": null, "not_null": true },
+        "id": { "default": "nextval('agent_meeting_reminders_id_seq'::regclass)", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "meeting_id": { "default": null, "not_null": true },
+        "offset_min": { "default": null, "not_null": false },
+        "outcome": { "default": null, "not_null": false },
+        "sent_at": { "default": null, "not_null": false }
+      }
+    },
+    "agent_meetings": {
+      "pk": true,
+      "unique": {
+        "btree (ics_token)": "agent_meetings_ics_token_key",
+        "btree (id)": "agent_meetings_pkey",
+        "btree (tap_token)": "agent_meetings_tap_token_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "ends_at": { "default": null, "not_null": true },
+        "ics_token": { "default": null, "not_null": true },
+        "id": { "default": "nextval('agent_meetings_id_seq'::regclass)", "not_null": true },
+        "lang": { "default": "'ru'::text", "not_null": true },
+        "mode": { "default": "'online'::text", "not_null": true },
+        "notes": { "default": null, "not_null": false },
+        "place": { "default": null, "not_null": false },
+        "starts_at": { "default": null, "not_null": true },
+        "status": { "default": "'planned'::text", "not_null": true },
+        "tap_token": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "agent_messages": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_messages_pkey"
+      },
+      "columns": {
+        "content": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('agent_messages_id_seq'::regclass)", "not_null": true },
+        "role": { "default": null, "not_null": true },
+        "surface": { "default": "'unknown'::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "thread": { "default": "'self'::text", "not_null": true }
+      }
+    },
+    "agent_metrics": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_metrics_pkey"
+      },
+      "columns": {
+        "id": { "default": "uuid_generate_v4()", "not_null": true },
+        "metric_type": { "default": null, "not_null": true },
+        "timestamp": { "default": "now()", "not_null": false },
+        "value": { "default": null, "not_null": true }
+      }
+    },
+    "agent_package_period": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_package_period_pkey",
+        "btree (star_tx_id)": "agent_package_period_star_tx_id_key"
+      },
+      "columns": {
+        "charge": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('agent_package_period_id_seq'::regclass)", "not_null": true },
+        "package_id": { "default": null, "not_null": true },
+        "paid_at": { "default": null, "not_null": true },
+        "star_tx_id": { "default": null, "not_null": true },
+        "stars": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "until": { "default": null, "not_null": true }
+      }
+    },
+    "agent_proposals": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_proposals_pkey"
+      },
+      "columns": {
+        "created_at": { "default": null, "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "issued": { "default": "false", "not_null": true },
+        "payload": { "default": null, "not_null": true },
+        "secret_digest": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "agent_renders": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_renders_pkey",
+        "btree (render_id)": "agent_renders_render_id_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "fingerprint": { "default": null, "not_null": false },
+        "id": { "default": "nextval('agent_renders_id_seq'::regclass)", "not_null": true },
+        "output_url": { "default": null, "not_null": false },
+        "owed_tokens": { "default": "0", "not_null": true },
+        "render_id": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": false }
+      }
+    },
+    "agent_settings": {
+      "pk": true,
+      "unique": {
+        "btree (key)": "agent_settings_pkey"
+      },
+      "columns": {
+        "key": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "value": { "default": null, "not_null": true }
+      }
+    },
+    "agent_stops": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id)": "agent_stops_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "owner_id": { "default": null, "not_null": true }
+      }
+    },
+    "agent_strategies": {
+      "pk": true,
+      "unique": {
+        "btree (key)": "agent_strategies_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "key": { "default": null, "not_null": true },
+        "value": { "default": null, "not_null": true }
+      }
+    },
+    "agent_tasks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "agent_tasks_pkey"
+      },
+      "columns": {
+        "assigned_agent_id": { "default": null, "not_null": false },
+        "bot_name": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "dependencies": { "default": "'[]'::jsonb", "not_null": false },
+        "description": { "default": null, "not_null": true },
+        "external_id": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_subtask": { "default": "false", "not_null": false },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "priority": { "default": "1", "not_null": true },
+        "result": { "default": null, "not_null": false },
+        "status": { "default": "'PENDING'::character varying", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "type": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "ai_reels_sessions": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "ai_reels_sessions_pkey",
+        "btree (session_id)": "ai_reels_sessions_session_id_key"
+      },
+      "columns": {
+        "aspect_ratio": { "default": "'9:16'::character varying", "not_null": false },
+        "bot_name": { "default": null, "not_null": true },
+        "completed_at": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "error_message": { "default": null, "not_null": false },
+        "final_video": { "default": null, "not_null": false },
+        "id": { "default": "nextval('ai_reels_sessions_id_seq'::regclass)", "not_null": true },
+        "images": { "default": null, "not_null": false },
+        "prompts": { "default": null, "not_null": false },
+        "prompts_count": { "default": "6", "not_null": false },
+        "session_id": { "default": null, "not_null": true },
+        "status": { "default": "'created'::character varying", "not_null": true },
+        "style": { "default": "'cinematic'::character varying", "not_null": false },
+        "task_description": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "videos": { "default": null, "not_null": false }
+      }
+    },
+    "ambassadors": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "ambassadors_pkey"
+      },
+      "columns": {
+        "commission_rate": { "default": "0.1", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "full_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "status": { "default": "'active'::text", "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "app_initdata_bot_daily": {
+      "pk": true,
+      "unique": {
+        "btree (day, bot_id, path)": "app_initdata_bot_daily_pkey"
+      },
+      "columns": {
+        "bot_id": { "default": null, "not_null": true },
+        "day": { "default": null, "not_null": true },
+        "n": { "default": null, "not_null": true },
+        "path": { "default": null, "not_null": true }
+      }
+    },
+    "app_launch_families": {
+      "pk": true,
+      "unique": {
+        "btree (assertion_hash)": "app_launch_families_pkey"
+      },
+      "columns": {
+        "assertion_hash": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "family_id": { "default": null, "not_null": true },
+        "session_id": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "app_pairing_codes": {
+      "pk": true,
+      "unique": {
+        "btree (code_hash)": "app_pairing_codes_pkey",
+        "btree (telegram_id) WHERE (consumed_at IS NULL)": "app_pairing_one_live_owner"
+      },
+      "columns": {
+        "attempts": { "default": "0", "not_null": true },
+        "code_hash": { "default": null, "not_null": true },
+        "consumed_at": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "app_refresh_tokens": {
+      "pk": true,
+      "unique": {
+        "btree (token_hash)": "app_refresh_tokens_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "family_id": { "default": null, "not_null": true },
+        "replaced_by": { "default": null, "not_null": false },
+        "revoked_at": { "default": null, "not_null": false },
+        "session_id": { "default": null, "not_null": true },
+        "to_jar": { "default": "false", "not_null": true },
+        "token_hash": { "default": null, "not_null": true },
+        "used_at": { "default": null, "not_null": false }
+      }
+    },
+    "app_render_quota": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id, period_start)": "app_render_quota_pkey"
+      },
+      "columns": {
+        "period_start": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "used_count": { "default": "0", "not_null": true }
+      }
+    },
+    "app_sessions": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "app_sessions_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "device_name": { "default": null, "not_null": false },
+        "device_pubkey": { "default": null, "not_null": true },
+        "family_id": { "default": null, "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "kind": { "default": "'legacy'::text", "not_null": true },
+        "last_seen_at": { "default": null, "not_null": false },
+        "revoked_at": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "app_stream_tickets": {
+      "pk": true,
+      "unique": {
+        "btree (ticket_hash)": "app_stream_tickets_pkey"
+      },
+      "columns": {
+        "consumed_at": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "scope": { "default": null, "not_null": true },
+        "session_id": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "ticket_hash": { "default": null, "not_null": true }
+      }
+    },
+    "app_user_game_not_before": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "app_user_game_not_before_pkey"
+      },
+      "columns": {
+        "not_before": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "app_user_not_before": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "app_user_not_before_pkey"
+      },
+      "columns": {
+        "not_before": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "app_widget_assertions": {
+      "pk": true,
+      "unique": {
+        "btree (assertion_hash)": "app_widget_assertions_pkey"
+      },
+      "columns": {
+        "assertion_hash": { "default": null, "not_null": true },
+        "consumed_at": { "default": "now()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "archon_code_examples": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_code_examples_pkey"
+      },
+      "columns": {
+        "chunk_number": { "default": null, "not_null": true },
+        "content": { "default": null, "not_null": true },
+        "content_search_vector": { "default": null, "not_null": false },
+        "created_at": { "default": "timezone('utc'::text, now())", "not_null": true },
+        "embedding_1024": { "default": null, "not_null": false },
+        "embedding_1536": { "default": null, "not_null": false },
+        "embedding_3072": { "default": null, "not_null": false },
+        "embedding_384": { "default": null, "not_null": false },
+        "embedding_768": { "default": null, "not_null": false },
+        "embedding_dimension": { "default": null, "not_null": false },
+        "embedding_model": { "default": null, "not_null": false },
+        "id": { "default": "nextval('archon_code_examples_id_seq'::regclass)", "not_null": true },
+        "llm_chat_model": { "default": null, "not_null": false },
+        "metadata": { "default": "'{}'::jsonb", "not_null": true },
+        "source_id": { "default": null, "not_null": true },
+        "summary": { "default": null, "not_null": true },
+        "url": { "default": null, "not_null": true }
+      }
+    },
+    "archon_crawled_pages": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_crawled_pages_pkey"
+      },
+      "columns": {
+        "chunk_number": { "default": null, "not_null": true },
+        "content": { "default": null, "not_null": true },
+        "content_search_vector": { "default": null, "not_null": false },
+        "created_at": { "default": "timezone('utc'::text, now())", "not_null": true },
+        "embedding_1024": { "default": null, "not_null": false },
+        "embedding_1536": { "default": null, "not_null": false },
+        "embedding_3072": { "default": null, "not_null": false },
+        "embedding_384": { "default": null, "not_null": false },
+        "embedding_768": { "default": null, "not_null": false },
+        "embedding_dimension": { "default": null, "not_null": false },
+        "embedding_model": { "default": null, "not_null": false },
+        "id": { "default": "nextval('archon_crawled_pages_id_seq'::regclass)", "not_null": true },
+        "llm_chat_model": { "default": null, "not_null": false },
+        "metadata": { "default": "'{}'::jsonb", "not_null": true },
+        "page_id": { "default": null, "not_null": false },
+        "source_id": { "default": null, "not_null": true },
+        "url": { "default": null, "not_null": true }
+      }
+    },
+    "archon_document_versions": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_document_versions_pkey"
+      },
+      "columns": {
+        "change_summary": { "default": null, "not_null": false },
+        "change_type": { "default": "'update'::text", "not_null": false },
+        "content": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": false },
+        "created_by": { "default": "'system'::text", "not_null": false },
+        "document_id": { "default": null, "not_null": false },
+        "field_name": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "project_id": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "version_number": { "default": null, "not_null": true }
+      }
+    },
+    "archon_migrations": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_migrations_pkey"
+      },
+      "columns": {
+        "applied_at": { "default": "now()", "not_null": false },
+        "checksum": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "migration_name": { "default": null, "not_null": true },
+        "version": { "default": null, "not_null": true }
+      }
+    },
+    "archon_page_metadata": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_page_metadata_pkey"
+      },
+      "columns": {
+        "char_count": { "default": null, "not_null": true },
+        "chunk_count": { "default": "0", "not_null": true },
+        "created_at": { "default": "now()", "not_null": false },
+        "full_content": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "section_order": { "default": "0", "not_null": false },
+        "section_title": { "default": null, "not_null": false },
+        "source_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "url": { "default": null, "not_null": true },
+        "word_count": { "default": null, "not_null": true }
+      }
+    },
+    "archon_project_sources": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_project_sources_pkey"
+      },
+      "columns": {
+        "created_by": { "default": "'system'::text", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "linked_at": { "default": "now()", "not_null": false },
+        "notes": { "default": null, "not_null": false },
+        "project_id": { "default": null, "not_null": false },
+        "source_id": { "default": null, "not_null": true }
+      }
+    },
+    "archon_projects": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_projects_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "data": { "default": "'[]'::jsonb", "not_null": false },
+        "description": { "default": "''::text", "not_null": false },
+        "docs": { "default": "'[]'::jsonb", "not_null": false },
+        "features": { "default": "'[]'::jsonb", "not_null": false },
+        "github_repo": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "pinned": { "default": "false", "not_null": false },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "archon_prompts": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_prompts_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "prompt": { "default": null, "not_null": true },
+        "prompt_name": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "archon_settings": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_settings_pkey"
+      },
+      "columns": {
+        "category": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "encrypted_value": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_encrypted": { "default": "false", "not_null": false },
+        "key": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "value": { "default": null, "not_null": false }
+      }
+    },
+    "archon_sources": {
+      "pk": true,
+      "unique": {
+        "btree (source_id)": "archon_sources_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "timezone('utc'::text, now())", "not_null": true },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "source_display_name": { "default": null, "not_null": false },
+        "source_id": { "default": null, "not_null": true },
+        "source_url": { "default": null, "not_null": false },
+        "summary": { "default": null, "not_null": false },
+        "title": { "default": null, "not_null": false },
+        "total_word_count": { "default": "0", "not_null": false },
+        "updated_at": { "default": "timezone('utc'::text, now())", "not_null": true }
+      }
+    },
+    "archon_tasks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "archon_tasks_pkey"
+      },
+      "columns": {
+        "archived": { "default": "false", "not_null": false },
+        "archived_at": { "default": null, "not_null": false },
+        "archived_by": { "default": null, "not_null": false },
+        "assignee": { "default": "'User'::text", "not_null": false },
+        "code_examples": { "default": "'[]'::jsonb", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": "''::text", "not_null": false },
+        "feature": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "parent_task_id": { "default": null, "not_null": false },
+        "priority": { "default": "'medium'::task_priority", "not_null": true },
+        "project_id": { "default": null, "not_null": false },
+        "sources": { "default": "'[]'::jsonb", "not_null": false },
+        "status": { "default": "'todo'::task_status", "not_null": false },
+        "task_order": { "default": "0", "not_null": false },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "assets": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "assets_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "public_url": { "default": null, "not_null": true },
+        "storage_path": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "text": { "default": null, "not_null": false },
+        "trigger_word": { "default": null, "not_null": true },
+        "type": { "default": null, "not_null": true }
+      }
+    },
+    "assistant_opt_outs": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, client_id)": "assistant_opt_outs_pkey"
+      },
+      "columns": {
+        "active": { "default": "true", "not_null": true },
+        "client_id": { "default": null, "not_null": true },
+        "client_told_at": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": true },
+        "owner_told_at": { "default": null, "not_null": false },
+        "resumed_at": { "default": null, "not_null": false },
+        "since": { "default": "now()", "not_null": true },
+        "source": { "default": "'client'::text", "not_null": true }
+      }
+    },
+    "attachments": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "attachments_pkey",
+        "btree (object_key)": "attachments_object_key_key"
+      },
+      "columns": {
+        "content_type": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "duration": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "meta_data": { "default": null, "not_null": false },
+        "name": { "default": null, "not_null": false },
+        "object_key": { "default": null, "not_null": true },
+        "size": { "default": null, "not_null": false },
+        "tags": { "default": null, "not_null": false },
+        "user_id": { "default": null, "not_null": true }
+      }
+    },
+    "autonomous_tasks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "autonomous_tasks_pkey"
+      },
+      "columns": {
+        "assigned_agent_id": { "default": null, "not_null": false },
+        "bot_name": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "dependencies": { "default": "'[]'::jsonb", "not_null": false },
+        "description": { "default": null, "not_null": true },
+        "external_id": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_subtask": { "default": "false", "not_null": false },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "parent_task_id": { "default": null, "not_null": false },
+        "priority": { "default": "1", "not_null": true },
+        "result": { "default": null, "not_null": false },
+        "service_type": { "default": "'AUTONOMOUS'::text", "not_null": false },
+        "status": { "default": "'PENDING'::character varying", "not_null": true },
+        "subtask_results": { "default": "'{}'::jsonb", "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "type": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "autopilot_spend": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "autopilot_spend_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "credits": { "default": "0", "not_null": true },
+        "day": { "default": null, "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "reason": { "default": null, "not_null": false },
+        "seconds": { "default": null, "not_null": false },
+        "state": { "default": null, "not_null": true },
+        "task_id": { "default": null, "not_null": false }
+      }
+    },
+    "autopilot_state": {
+      "pk": true,
+      "unique": {
+        "btree (owner)": "autopilot_state_pkey"
+      },
+      "columns": {
+        "day": { "default": null, "not_null": true },
+        "last_post_at": { "default": null, "not_null": false },
+        "last_topic": { "default": null, "not_null": false },
+        "next_topic": { "default": "0", "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "posts_today": { "default": "0", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "avatars": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id, bot_name)": "avatars_pkey"
+      },
+      "columns": {
+        "avatar_url": { "default": null, "not_null": true },
+        "bot_name": { "default": "'neuro_blogger_bot'::text", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "group": { "default": null, "not_null": true },
+        "support": { "default": "'neuro_sage'::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "ball_client_links": {
+      "pk": true,
+      "unique": {
+        "btree (owner, client, kind, value)": "ball_client_links_pkey"
+      },
+      "columns": {
+        "client": { "default": null, "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "value": { "default": null, "not_null": true }
+      }
+    },
+    "ball_viewer_grants": {
+      "pk": true,
+      "unique": {
+        "btree (owner, viewer, client)": "ball_viewer_grants_pkey"
+      },
+      "columns": {
+        "client": { "default": null, "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "granted_at": { "default": "now()", "not_null": true },
+        "last_read_at": { "default": null, "not_null": false },
+        "owner": { "default": null, "not_null": true },
+        "viewer": { "default": null, "not_null": true }
+      }
+    },
+    "ball_work_digest": {
+      "pk": true,
+      "unique": {
+        "btree (ref)": "ball_work_digest_pkey"
+      },
+      "columns": {
+        "author": { "default": null, "not_null": false },
+        "draft": { "default": "false", "not_null": true },
+        "exported_at": { "default": "now()", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "labels": { "default": "'{}'::text[]", "not_null": true },
+        "number": { "default": null, "not_null": true },
+        "ref": { "default": null, "not_null": true },
+        "repo": { "default": null, "not_null": true },
+        "review_asked_of_others": { "default": "false", "not_null": true },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "blog_reach": {
+      "pk": true,
+      "unique": {
+        "btree (slug)": "blog_reach_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "reach": { "default": null, "not_null": false },
+        "shape": { "default": null, "not_null": true },
+        "slug": { "default": null, "not_null": true }
+      }
+    },
+    "blog_shares": {
+      "pk": true,
+      "unique": {
+        "btree (slug)": "blog_shares_pkey"
+      },
+      "columns": {
+        "approval_id": { "default": null, "not_null": false },
+        "asked_at": { "default": "now()", "not_null": true },
+        "detail": { "default": null, "not_null": false },
+        "done_at": { "default": null, "not_null": false },
+        "slug": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true }
+      }
+    },
+    "bot_silence": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, bot)": "bot_silence_pkey"
+      },
+      "columns": {
+        "alarmed": { "default": "false", "not_null": true },
+        "bot": { "default": null, "not_null": true },
+        "misses": { "default": "0", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "seen_at": { "default": "now()", "not_null": true },
+        "since": { "default": null, "not_null": false }
+      }
+    },
+    "broadcast_messages": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "broadcast_messages_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "id": { "default": "nextval('broadcast_messages_id_seq'::regclass)", "not_null": true },
+        "message_id": { "default": null, "not_null": true },
+        "status": { "default": null, "not_null": true },
+        "text": { "default": null, "not_null": false },
+        "updated_at": { "default": "CURRENT_TIMESTAMP", "not_null": false }
+      }
+    },
+    "browser_approvals": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "browser_approvals_pkey"
+      },
+      "columns": {
+        "act_host": { "default": null, "not_null": false },
+        "allow_token": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "decided_at": { "default": null, "not_null": false },
+        "deny_token": { "default": null, "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "ttl_ms": { "default": null, "not_null": false },
+        "what": { "default": null, "not_null": true }
+      }
+    },
+    "browser_journal": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "browser_journal_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "detail": { "default": null, "not_null": true },
+        "id": { "default": "nextval('browser_journal_id_seq'::regclass)", "not_null": true },
+        "ms": { "default": null, "not_null": true },
+        "ok": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "tool": { "default": null, "not_null": true }
+      }
+    },
+    "browser_login_refusals": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id, network)": "browser_login_refusals_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "stamp": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "wall": { "default": null, "not_null": true }
+      }
+    },
+    "browser_pod_tenants": {
+      "pk": true,
+      "unique": {
+        "btree (cdp_endpoint)": "browser_pod_tenants_pkey"
+      },
+      "columns": {
+        "cdp_endpoint": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "browser_profiles": {
+      "pk": true,
+      "unique": {
+        "btree (profile_id)": "browser_profiles_profile_id_key",
+        "btree (telegram_id)": "browser_profiles_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "last_used_at": { "default": "now()", "not_null": true },
+        "profile_id": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "browser_recipes": {
+      "pk": true,
+      "unique": {
+        "btree (host, want)": "browser_recipes_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "hits": { "default": "1", "not_null": true },
+        "host": { "default": null, "not_null": true },
+        "how": { "default": "'text'::text", "not_null": true },
+        "label": { "default": null, "not_null": true },
+        "want": { "default": null, "not_null": true }
+      }
+    },
+    "browser_sessions": {
+      "pk": true,
+      "unique": {
+        "btree (session_id)": "browser_sessions_session_id",
+        "btree (telegram_id)": "browser_sessions_pkey"
+      },
+      "columns": {
+        "admin_token": { "default": null, "not_null": true },
+        "allowed_at": { "default": null, "not_null": false },
+        "allowed_host": { "default": null, "not_null": false },
+        "cdp_endpoint": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "endpoint": { "default": null, "not_null": false },
+        "last_seen_at": { "default": "now()", "not_null": true },
+        "person_wheel_until": { "default": null, "not_null": false },
+        "pod_id": { "default": null, "not_null": false },
+        "session_id": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "view_token": { "default": null, "not_null": true }
+      }
+    },
+    "browser_site_rules": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id, site)": "browser_site_rules_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "by_whom": { "default": null, "not_null": true },
+        "rule": { "default": null, "not_null": true },
+        "site": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "browser_tidy_asks": {
+      "pk": true,
+      "unique": {
+        "btree (approval_id)": "browser_tidy_asks_pkey"
+      },
+      "columns": {
+        "applied_at": { "default": null, "not_null": false },
+        "approval_id": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "tabs": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "business_connections": {
+      "pk": true,
+      "unique": {
+        "btree (connection_id)": "business_connections_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "can_reply": { "default": "false", "not_null": true },
+        "connected_at": { "default": null, "not_null": false },
+        "connection_id": { "default": null, "not_null": true },
+        "enabled": { "default": "true", "not_null": true },
+        "owner_chat_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "seen_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "business_expenses": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "business_expenses_pkey"
+      },
+      "columns": {
+        "amount": { "default": null, "not_null": true },
+        "bot_name": { "default": null, "not_null": true },
+        "category": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": false },
+        "currency": { "default": null, "not_null": true },
+        "description": { "default": null, "not_null": true },
+        "id": { "default": "nextval('business_expenses_id_seq'::regclass)", "not_null": true }
+      }
+    },
+    "buttons": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "buttons_pkey",
+        "btree (name)": "buttons_name_key"
+      },
+      "columns": {
+        "callback_data": { "default": null, "not_null": false },
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "id": { "default": "nextval('buttons_id_seq'::regclass)", "not_null": true },
+        "name": { "default": null, "not_null": true },
+        "text": { "default": null, "not_null": true },
+        "updated_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "client_defects": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "client_defects_pkey"
+      },
+      "columns": {
+        "fix_note": { "default": null, "not_null": false },
+        "fixed_at": { "default": null, "not_null": false },
+        "id": { "default": "nextval('client_defects_id_seq'::regclass)", "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "opened_at": { "default": "now()", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "product": { "default": null, "not_null": false },
+        "status": { "default": "'open'::text", "not_null": true },
+        "summary": { "default": null, "not_null": true }
+      }
+    },
+    "client_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "client_events_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": "''::text", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "from_scene": { "default": null, "not_null": false },
+        "id": { "default": "nextval('client_events_id_seq'::regclass)", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "to_scene": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "club_grant_period": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "club_grant_period_pkey",
+        "btree (telegram_id, period_start)": "club_grant_period_telegram_id_period_start_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "credited": { "default": "false", "not_null": true },
+        "grant_kind": { "default": null, "not_null": true },
+        "id": { "default": "nextval('club_grant_period_id_seq'::regclass)", "not_null": true },
+        "period_start": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "tokens_granted": { "default": null, "not_null": true },
+        "until": { "default": null, "not_null": true }
+      }
+    },
+    "club_period": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "club_period_pkey",
+        "btree (star_tx_id)": "club_period_star_tx_id_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('club_period_id_seq'::regclass)", "not_null": true },
+        "paid_at": { "default": null, "not_null": true },
+        "star_tx_id": { "default": null, "not_null": true },
+        "stars": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "tokens_granted": { "default": null, "not_null": true },
+        "until": { "default": null, "not_null": true }
+      }
+    },
+    "competitors": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "competitors_pkey"
+      },
+      "columns": {
+        "engagement_rate": { "default": null, "not_null": false },
+        "followers_count": { "default": null, "not_null": false },
+        "id": { "default": "nextval('competitors_id_seq'::regclass)", "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": true }
+      }
+    },
+    "content": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "content_pkey"
+      },
+      "columns": {
+        "comments_count": { "default": null, "not_null": false },
+        "competitor_id": { "default": null, "not_null": false },
+        "id": { "default": "nextval('content_id_seq'::regclass)", "not_null": true },
+        "likes_count": { "default": null, "not_null": false },
+        "post_url": { "default": null, "not_null": true },
+        "views_count": { "default": null, "not_null": false }
+      }
+    },
+    "content_plan_goals": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "content_plan_goals_pkey",
+        "btree (telegram_id, title)": "content_plan_goals_telegram_id_title_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('content_plan_goals_id_seq'::regclass)", "not_null": true },
+        "intent": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": true }
+      }
+    },
+    "content_plan_items": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "content_plan_items_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "goal_id": { "default": null, "not_null": true },
+        "id": { "default": "nextval('content_plan_items_id_seq'::regclass)", "not_null": true },
+        "note": { "default": null, "not_null": false },
+        "status": { "default": "'idea'::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "template_id": { "default": null, "not_null": false },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "corporate_account": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "corporate_account_pkey"
+      },
+      "columns": {
+        "allocated_balance": { "default": "0", "not_null": true },
+        "available_balance": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "created_by": { "default": null, "not_null": true },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "name": { "default": null, "not_null": true },
+        "status": { "default": "'ACTIVE'::character varying", "not_null": true },
+        "total_balance": { "default": "0", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "corporate_admin_role": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "corporate_admin_role_pkey"
+      },
+      "columns": {
+        "admin_telegram_id": { "default": null, "not_null": true },
+        "corporate_account_id": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "expires_at": { "default": null, "not_null": false },
+        "granted_at": { "default": "now()", "not_null": true },
+        "granted_by": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "permissions": { "default": "'[]'::jsonb", "not_null": true },
+        "role_type": { "default": "'ADMIN'::character varying", "not_null": true },
+        "status": { "default": "'ACTIVE'::character varying", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "courses": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "courses_pkey"
+      },
+      "columns": {
+        "category": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": true },
+        "difficulty": { "default": "'beginner'::text", "not_null": false },
+        "duration": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "instructor": { "default": null, "not_null": true },
+        "rating": { "default": "5.0", "not_null": false },
+        "students_count": { "default": "0", "not_null": false },
+        "thumbnail": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "crm_autopilot": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id)": "crm_autopilot_pkey"
+      },
+      "columns": {
+        "day": { "default": "((now() AT TIME ZONE 'utc'::text))::date", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "scope": { "default": "'all'::text", "not_null": true },
+        "sent_today": { "default": "0", "not_null": true },
+        "turned_off_at": { "default": null, "not_null": false },
+        "turned_on_at": { "default": "now()", "not_null": true },
+        "until": { "default": null, "not_null": true }
+      }
+    },
+    "crm_autopilot_leads": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "crm_autopilot_leads_pkey"
+      },
+      "columns": {
+        "added_at": { "default": "now()", "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true }
+      }
+    },
+    "crm_client_groups": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "crm_client_groups_pkey"
+      },
+      "columns": {
+        "bound_at": { "default": "now()", "not_null": true },
+        "chat_id": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true }
+      }
+    },
+    "crm_client_packages": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, client)": "crm_client_packages_pkey"
+      },
+      "columns": {
+        "client": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "profile": { "default": null, "not_null": true },
+        "skills": { "default": "'[]'::jsonb", "not_null": true },
+        "soul": { "default": "''::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "crm_client_profiles": {
+      "pk": false,
+      "unique": {
+        "btree (owner_id, telegram_id)": "crm_client_profiles_owner_client"
+      },
+      "columns": {
+        "client": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": false },
+        "profile": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "crm_dropped": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "crm_dropped_pkey"
+      },
+      "columns": {
+        "active": { "default": "true", "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "restored_at": { "default": null, "not_null": false },
+        "since": { "default": "now()", "not_null": true }
+      }
+    },
+    "crm_duet_runs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "crm_duet_runs_pkey"
+      },
+      "columns": {
+        "buyer_id": { "default": null, "not_null": true },
+        "coverage": { "default": "'{}'::jsonb", "not_null": true },
+        "dry_run": { "default": null, "not_null": true },
+        "error": { "default": null, "not_null": false },
+        "finished_at": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "media_sent": { "default": "0", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "paid_calls": { "default": "0", "not_null": true },
+        "profile_used": { "default": null, "not_null": false },
+        "started_at": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "transcript": { "default": "'[]'::jsonb", "not_null": true },
+        "turns": { "default": null, "not_null": true },
+        "violations": { "default": "'[]'::jsonb", "not_null": true },
+        "voice_flags": { "default": "'[]'::jsonb", "not_null": true }
+      }
+    },
+    "crm_group_messages": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, chat_id, msg_id)": "crm_group_messages_pkey"
+      },
+      "columns": {
+        "at": { "default": null, "not_null": true },
+        "chat_id": { "default": null, "not_null": true },
+        "msg_id": { "default": null, "not_null": true },
+        "out": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "sender_id": { "default": null, "not_null": false },
+        "text": { "default": null, "not_null": true }
+      }
+    },
+    "crm_groups": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, chat_id)": "crm_groups_pkey"
+      },
+      "columns": {
+        "chat_id": { "default": null, "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "members_count": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": true },
+        "seen_at": { "default": "now()", "not_null": true },
+        "title": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "crm_ingest_cursors": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id)": "crm_ingest_cursors_pkey"
+      },
+      "columns": {
+        "offset_date": { "default": null, "not_null": true },
+        "offset_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "crm_matter_digest": {
+      "pk": true,
+      "unique": {
+        "btree (matter)": "crm_matter_digest_pkey"
+      },
+      "columns": {
+        "channels": { "default": "'{}'::text[]", "not_null": true },
+        "counterparties": { "default": "'{}'::text[]", "not_null": true },
+        "days_since": { "default": null, "not_null": false },
+        "exported_at": { "default": "now()", "not_null": true },
+        "history": { "default": "'[]'::jsonb", "not_null": true },
+        "matter": { "default": null, "not_null": true },
+        "next_action": { "default": null, "not_null": false },
+        "owes_reply": { "default": null, "not_null": false },
+        "stage": { "default": null, "not_null": false }
+      }
+    },
+    "crm_messages": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id, msg_id)": "crm_messages_pkey"
+      },
+      "columns": {
+        "at": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "msg_id": { "default": null, "not_null": true },
+        "out": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "text": { "default": null, "not_null": true }
+      }
+    },
+    "crm_owed": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "crm_owed_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "ready_at": { "default": null, "not_null": false },
+        "ready_url": { "default": null, "not_null": false },
+        "settled_at": { "default": null, "not_null": false },
+        "task_at": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "task_mode": { "default": null, "not_null": false },
+        "what": { "default": null, "not_null": true },
+        "why": { "default": null, "not_null": true }
+      }
+    },
+    "crm_people": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "crm_people_pkey"
+      },
+      "columns": {
+        "avatar_checked_at": { "default": null, "not_null": false },
+        "avatar_url": { "default": null, "not_null": false },
+        "first_name": { "default": null, "not_null": false },
+        "last_name": { "default": null, "not_null": false },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "seen_at": { "default": "now()", "not_null": true },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "crm_touches": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "crm_touches_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "bot_name": { "default": null, "not_null": false },
+        "id": { "default": "nextval('crm_touches_id_seq'::regclass)", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "note": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": true },
+        "reverts_id": { "default": null, "not_null": false }
+      }
+    },
+    "deleted_test_payments": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "deleted_test_payments_pkey"
+      },
+      "columns": {
+        "deleted_at": { "default": "now()", "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "payment_data": { "default": null, "not_null": false }
+      }
+    },
+    "eleven_labs_transcriptions": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "eleven_labs_transcriptions_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "input_audio_url": { "default": null, "not_null": true },
+        "job_id": { "default": null, "not_null": false },
+        "transcription_data": { "default": null, "not_null": true },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "employee_allocation": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "employee_allocation_pkey"
+      },
+      "columns": {
+        "allocated_amount": { "default": null, "not_null": true },
+        "allocated_by": { "default": null, "not_null": true },
+        "allocation_date": { "default": "now()", "not_null": true },
+        "corporate_account_id": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "employee_telegram_id": { "default": null, "not_null": true },
+        "expiry_date": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "remaining_amount": { "default": null, "not_null": false },
+        "status": { "default": "'ACTIVE'::character varying", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "used_amount": { "default": "0", "not_null": true }
+      }
+    },
+    "employee_whitelist": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "employee_whitelist_pkey"
+      },
+      "columns": {
+        "access_level": { "default": "'FULL'::character varying", "not_null": false },
+        "added_at": { "default": "now()", "not_null": false },
+        "added_by": { "default": null, "not_null": false },
+        "bot_name": { "default": null, "not_null": true },
+        "department": { "default": "'Команда'::character varying", "not_null": false },
+        "employee_position": { "default": "'Сотрудник'::character varying", "not_null": false },
+        "first_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_active": { "default": "true", "not_null": false },
+        "is_permanent": { "default": "true", "not_null": false },
+        "last_name": { "default": null, "not_null": false },
+        "notes": { "default": null, "not_null": false },
+        "subscription_type": { "default": "'NEUROVIDEO'::character varying", "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "engage_proposals": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "engage_proposals_pkey",
+        "btree (network, post_url)": "engage_proposals_network_post_url_key"
+      },
+      "columns": {
+        "approval_id": { "default": null, "not_null": false },
+        "asked_at": { "default": "now()", "not_null": true },
+        "author": { "default": null, "not_null": false },
+        "comment": { "default": null, "not_null": true },
+        "detail": { "default": null, "not_null": false },
+        "done_at": { "default": null, "not_null": false },
+        "id": { "default": "nextval('engage_proposals_id_seq'::regclass)", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "post_text": { "default": null, "not_null": false },
+        "post_url": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "topic": { "default": null, "not_null": false }
+      }
+    },
+    "enrollments": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "enrollments_pkey"
+      },
+      "columns": {
+        "completed_at": { "default": null, "not_null": false },
+        "course_id": { "default": null, "not_null": false },
+        "enrolled_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "events_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "timezone('utc'::text, now())", "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "event_data": { "default": "'{}'::jsonb", "not_null": false },
+        "event_name": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "status": { "default": "'pending'::text", "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "updated_at": { "default": "timezone('utc'::text, now())", "not_null": false }
+      }
+    },
+    "game": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "game_pkey"
+      },
+      "columns": {
+        "ai_response": { "default": null, "not_null": false },
+        "consecutive_sixes": { "default": "'0'::bigint", "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "direction": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "is_finished": { "default": "true", "not_null": false },
+        "language_code": { "default": "'ru'::text", "not_null": false },
+        "loka": { "default": null, "not_null": false },
+        "position_before_three_sixes": { "default": null, "not_null": false },
+        "previous_loka": { "default": null, "not_null": false },
+        "report": { "default": null, "not_null": false },
+        "roll": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "generate_jobs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "generate_jobs_pkey"
+      },
+      "columns": {
+        "code": { "default": null, "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "finished_at": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "owner_id": { "default": "''::text", "not_null": true },
+        "prompt": { "default": null, "not_null": false },
+        "provider": { "default": null, "not_null": false },
+        "started_at": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "haim_employees": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "haim_employees_pkey",
+        "btree (telegram_id)": "haim_employees_telegram_id_key"
+      },
+      "columns": {
+        "access_level": { "default": "'FULL'::character varying", "not_null": false },
+        "added_at": { "default": "now()", "not_null": false },
+        "added_by": { "default": null, "not_null": false },
+        "department": { "default": "'Нейроофис'::character varying", "not_null": false },
+        "employee_position": { "default": "'Сотрудник'::character varying", "not_null": false },
+        "first_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_active": { "default": "true", "not_null": false },
+        "last_name": { "default": null, "not_null": false },
+        "notes": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "hive_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "hive_events_pkey"
+      },
+      "columns": {
+        "amount": { "default": null, "not_null": false },
+        "at": { "default": "now()", "not_null": true },
+        "bot": { "default": null, "not_null": false },
+        "id": { "default": "nextval('hive_events_id_seq'::regclass)", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": false },
+        "severity": { "default": "'normal'::text", "not_null": true },
+        "what": { "default": null, "not_null": false },
+        "who": { "default": null, "not_null": false }
+      }
+    },
+    "hive_report_cursor": {
+      "pk": true,
+      "unique": {
+        "btree (who)": "hive_report_cursor_pkey"
+      },
+      "columns": {
+        "last_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "who": { "default": null, "not_null": true }
+      }
+    },
+    "idempotency_keys": {
+      "pk": true,
+      "unique": {
+        "btree (idempotency_key)": "idempotency_keys_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "expires_at": { "default": null, "not_null": false },
+        "idempotency_key": { "default": null, "not_null": true },
+        "model_url": { "default": null, "not_null": false },
+        "num_images": { "default": "1", "not_null": false },
+        "prompt": { "default": null, "not_null": false },
+        "request_params": { "default": null, "not_null": false },
+        "response_data": { "default": null, "not_null": false },
+        "result": { "default": null, "not_null": false },
+        "status": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "improvement_logs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "improvement_logs_pkey"
+      },
+      "columns": {
+        "analysis": { "default": null, "not_null": false },
+        "changes_applied": { "default": "false", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "created_files": { "default": null, "not_null": false },
+        "description": { "default": null, "not_null": true },
+        "id": { "default": "uuid_generate_v4()", "not_null": true },
+        "score": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "type": { "default": null, "not_null": true },
+        "updated_files": { "default": null, "not_null": false }
+      }
+    },
+    "instagram_apify_reels": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "instagram_apify_reels_pkey",
+        "btree (reel_id)": "instagram_apify_reels_reel_id_key"
+      },
+      "columns": {
+        "caption": { "default": null, "not_null": false },
+        "comments_count": { "default": "0", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "duration": { "default": null, "not_null": false },
+        "hashtags": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "likes_count": { "default": "0", "not_null": false },
+        "music_artist": { "default": null, "not_null": false },
+        "music_title": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": false },
+        "owner_username": { "default": null, "not_null": false },
+        "posted_at": { "default": null, "not_null": false },
+        "project_id": { "default": null, "not_null": false },
+        "published_at": { "default": null, "not_null": false },
+        "reel_id": { "default": null, "not_null": false },
+        "scraped_at": { "default": "now()", "not_null": false },
+        "scraper_version": { "default": "'unified'::character varying", "not_null": false },
+        "source_type": { "default": null, "not_null": false },
+        "thumbnail_url": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false },
+        "video_url": { "default": null, "not_null": false },
+        "views_count": { "default": "0", "not_null": false }
+      }
+    },
+    "instagram_reel_analysis": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "instagram_reel_analysis_pkey"
+      },
+      "columns": {
+        "ai_insights": { "default": null, "not_null": false },
+        "ai_summary": { "default": null, "not_null": false },
+        "content_category": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "engagement_rate": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "key_topics": { "default": null, "not_null": false },
+        "recommended_actions": { "default": null, "not_null": false },
+        "reel_id": { "default": null, "not_null": false },
+        "sentiment": { "default": null, "not_null": false },
+        "user_telegram_id": { "default": null, "not_null": true },
+        "viral_score": { "default": null, "not_null": false }
+      }
+    },
+    "instagram_reels": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "instagram_reels_pkey",
+        "btree (reel_id)": "instagram_reels_reel_id_key"
+      },
+      "columns": {
+        "caption": { "default": null, "not_null": false },
+        "comments_count": { "default": "0", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "duration": { "default": "0", "not_null": false },
+        "hashtags": { "default": "'{}'::text[]", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "likes_count": { "default": "0", "not_null": false },
+        "music_artist": { "default": null, "not_null": false },
+        "music_id": { "default": null, "not_null": false },
+        "music_title": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": false },
+        "owner_username": { "default": null, "not_null": true },
+        "published_at": { "default": null, "not_null": false },
+        "reel_id": { "default": null, "not_null": true },
+        "scraping_id": { "default": null, "not_null": false },
+        "thumbnail_url": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": true },
+        "user_telegram_id": { "default": null, "not_null": true },
+        "video_url": { "default": null, "not_null": false },
+        "views_count": { "default": "0", "not_null": false }
+      }
+    },
+    "instagram_scrapings": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "instagram_scrapings_pkey"
+      },
+      "columns": {
+        "cost": { "default": "0", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "filters": { "default": "'{}'::jsonb", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "reels_count": { "default": "0", "not_null": false },
+        "source_type": { "default": null, "not_null": true },
+        "source_value": { "default": null, "not_null": true },
+        "user_telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "instagram_users": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "instagram_users_pkey",
+        "btree (username)": "instagram_users_username_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "follower_count": { "default": "0", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "username": { "default": null, "not_null": true }
+      }
+    },
+    "jobs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "jobs_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "download_assets_progress": { "default": "0", "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "render_progress": { "default": "0", "not_null": false },
+        "render_status": { "default": null, "not_null": false },
+        "result_object_key": { "default": null, "not_null": false },
+        "server_id": { "default": null, "not_null": false },
+        "status": { "default": null, "not_null": true },
+        "template_id": { "default": null, "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false },
+        "upload_result_progress": { "default": "0", "not_null": false },
+        "user_id": { "default": null, "not_null": true }
+      }
+    },
+    "lead_voices": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "lead_voices_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "ms_per_char": { "default": null, "not_null": false },
+        "owner_id": { "default": null, "not_null": true },
+        "seconds": { "default": null, "not_null": false },
+        "source_url": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false },
+        "voice_id": { "default": null, "not_null": true }
+      }
+    },
+    "leaderboard_entries": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "leaderboard_entries_pkey"
+      },
+      "columns": {
+        "avatar_url": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "full_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "level": { "default": "1", "not_null": false },
+        "rank": { "default": null, "not_null": false },
+        "total_xp": { "default": "0", "not_null": false },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "learning_streaks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "learning_streaks_pkey",
+        "btree (user_id)": "learning_streaks_user_id_key"
+      },
+      "columns": {
+        "best_streak": { "default": "0", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "current_streak": { "default": "0", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "last_activity_date": { "default": "CURRENT_DATE", "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "leelachakra": {
+      "pk": true,
+      "unique": {
+        "btree (user_id)": "leelachakra_pkey"
+      },
+      "columns": {
+        "correct_option_id": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": false },
+        "image_lesson_url": { "default": null, "not_null": false },
+        "lesson_number": { "default": null, "not_null": false },
+        "question": { "default": null, "not_null": false },
+        "question_en": { "default": null, "not_null": false },
+        "subtopic": { "default": "'1'::bigint", "not_null": false },
+        "topic": { "default": null, "not_null": false },
+        "topic_en": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": false },
+        "user_id": { "default": "gen_random_uuid()", "not_null": true },
+        "variant_0": { "default": null, "not_null": false },
+        "variant_0_en": { "default": null, "not_null": false },
+        "variant_1": { "default": null, "not_null": false },
+        "variant_1_en": { "default": null, "not_null": false },
+        "variant_2": { "default": null, "not_null": false },
+        "variant_2_en": { "default": null, "not_null": false }
+      }
+    },
+    "lesson_progress": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "lesson_progress_pkey"
+      },
+      "columns": {
+        "completed_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "lesson_id": { "default": null, "not_null": false },
+        "user_id": { "default": null, "not_null": false },
+        "xp_earned": { "default": "0", "not_null": false }
+      }
+    },
+    "lessons": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "lessons_pkey"
+      },
+      "columns": {
+        "content": { "default": null, "not_null": true },
+        "course_id": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": true },
+        "duration": { "default": null, "not_null": true },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "order_index": { "default": null, "not_null": true },
+        "title": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "video_url": { "default": null, "not_null": false }
+      }
+    },
+    "log_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "log_events_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "event_type": { "default": null, "not_null": true },
+        "id": { "default": "nextval('log_events_id_seq'::regclass)", "not_null": true },
+        "payload": { "default": null, "not_null": false }
+      }
+    },
+    "mail_push_feedback": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "mail_push_feedback_pkey"
+      },
+      "columns": {
+        "actual_text": { "default": null, "not_null": false },
+        "at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('mail_push_feedback_id_seq'::regclass)", "not_null": true },
+        "letter_subject": { "default": null, "not_null": false },
+        "letter_to": { "default": null, "not_null": false },
+        "offered_draft": { "default": null, "not_null": false }
+      }
+    },
+    "mail_push_outcomes": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "mail_push_outcomes_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "draft": { "default": null, "not_null": false },
+        "id": { "default": "nextval('mail_push_outcomes_id_seq'::regclass)", "not_null": true },
+        "message_id": { "default": null, "not_null": true },
+        "sent": { "default": "false", "not_null": true },
+        "sent_id": { "default": null, "not_null": false },
+        "state": { "default": null, "not_null": true },
+        "thread": { "default": "''::text", "not_null": true }
+      }
+    },
+    "mail_push_state": {
+      "pk": true,
+      "unique": {
+        "btree (owner)": "mail_push_state_pkey"
+      },
+      "columns": {
+        "owner": { "default": null, "not_null": true },
+        "seen": { "default": "'{}'::text[]", "not_null": true },
+        "sent": { "default": "'{}'::text[]", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "managed_bots": {
+      "pk": true,
+      "unique": {
+        "btree (bot_id)": "managed_bots_pkey"
+      },
+      "columns": {
+        "agent_id": { "default": null, "not_null": false },
+        "bot_id": { "default": null, "not_null": true },
+        "bot_name": { "default": "''::text", "not_null": true },
+        "bot_username": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "hive_chat_id": { "default": null, "not_null": false },
+        "hive_topic_id": { "default": null, "not_null": false },
+        "manager_bot": { "default": null, "not_null": true },
+        "media": { "default": "false", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "owner_username": { "default": null, "not_null": false },
+        "paid_until": { "default": null, "not_null": false },
+        "status": { "default": "'live'::text", "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "messages": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "messages_pkey"
+      },
+      "columns": {
+        "ai_content": { "default": null, "not_null": false },
+        "content": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "embedding": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "room_id": { "default": null, "not_null": false },
+        "user_id": { "default": null, "not_null": true },
+        "username": { "default": null, "not_null": false },
+        "workspace_id": { "default": null, "not_null": true }
+      }
+    },
+    "metrics": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "metrics_pkey"
+      },
+      "columns": {
+        "competitor_id": { "default": null, "not_null": false },
+        "engagement": { "default": null, "not_null": false },
+        "id": { "default": "nextval('metrics_id_seq'::regclass)", "not_null": true },
+        "reach": { "default": null, "not_null": false }
+      }
+    },
+    "model_trainings": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "model_trainings_pkey"
+      },
+      "columns": {
+        "api": { "default": "'replicate'::text", "not_null": true },
+        "bot_name": { "default": null, "not_null": false },
+        "cancel_url": { "default": null, "not_null": false },
+        "created_at": { "default": "timezone('utc'::text, now())", "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "finetune_id": { "default": null, "not_null": false },
+        "gender": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "is_ru": { "default": "true", "not_null": false },
+        "model_name": { "default": null, "not_null": true },
+        "model_url": { "default": null, "not_null": false },
+        "replicate_training_id": { "default": null, "not_null": false },
+        "result": { "default": null, "not_null": false },
+        "status": { "default": "'processing'::text", "not_null": false },
+        "steps": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "trigger_word": { "default": null, "not_null": true },
+        "updated_at": { "default": "timezone('utc'::text, now())", "not_null": false },
+        "weights": { "default": null, "not_null": false },
+        "zip_url": { "default": null, "not_null": false }
+      }
+    },
+    "model_trainings_copy": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "model_trainings_copy_pkey"
+      },
+      "columns": {
+        "api": { "default": null, "not_null": false },
+        "bot_name": { "default": null, "not_null": false },
+        "cancel_url": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "finetune_id": { "default": null, "not_null": false },
+        "gender": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "model_name": { "default": null, "not_null": false },
+        "model_url": { "default": null, "not_null": false },
+        "replicate_training_id": { "default": null, "not_null": false },
+        "result": { "default": null, "not_null": false },
+        "status": { "default": null, "not_null": false },
+        "steps": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "trigger_word": { "default": null, "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false },
+        "weights": { "default": null, "not_null": false },
+        "zip_url": { "default": null, "not_null": false }
+      }
+    },
+    "oidc_auth_requests": {
+      "pk": true,
+      "unique": {
+        "btree (state)": "oidc_auth_requests_pkey"
+      },
+      "columns": {
+        "code_verifier": { "default": null, "not_null": true },
+        "consumed_at": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "device_name": { "default": null, "not_null": false },
+        "device_pubkey": { "default": null, "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true }
+      }
+    },
+    "payment_status_logs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "payment_status_logs_pkey"
+      },
+      "columns": {
+        "id": { "default": "nextval('payment_status_logs_id_seq'::regclass)", "not_null": true },
+        "inv_id": { "default": null, "not_null": false },
+        "payment_id": { "default": null, "not_null": true },
+        "status": { "default": "'PENDING'::payment_status", "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "timestamp": { "default": "now()", "not_null": false },
+        "type": { "default": null, "not_null": true }
+      }
+    },
+    "payments_v2_duplicate": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "payments_v2_duplicate_pkey"
+      },
+      "columns": {
+        "amount": { "default": "0", "not_null": true },
+        "bot_name": { "default": null, "not_null": true },
+        "category": { "default": "'REAL_PAYMENT'::transaction_category", "not_null": false },
+        "cost": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "currency": { "default": "'STARS'::character varying", "not_null": true },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": "nextval('payments_v2_payment_id_seq'::regclass)", "not_null": true },
+        "inv_id": { "default": null, "not_null": false },
+        "invoice_url": { "default": null, "not_null": false },
+        "is_system_payment": { "default": "false", "not_null": false },
+        "language": { "default": "'ru'::character varying", "not_null": false },
+        "metadata": { "default": "'{}'::jsonb", "not_null": false },
+        "operation_id": { "default": null, "not_null": false },
+        "payment_date": { "default": "now()", "not_null": true },
+        "payment_method": { "default": null, "not_null": false },
+        "service_type": { "default": null, "not_null": false },
+        "stars": { "default": "0", "not_null": true },
+        "status": { "default": null, "not_null": true },
+        "subscription_type": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "type": { "default": null, "not_null": true }
+      }
+    },
+    "pending_messages": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "pending_messages_pkey"
+      },
+      "columns": {
+        "attempts": { "default": "0", "not_null": true },
+        "created_at": { "default": "now()", "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "last_attempt": { "default": null, "not_null": false },
+        "message": { "default": null, "not_null": true },
+        "message_type": { "default": "'general'::text", "not_null": true },
+        "priority": { "default": "'medium'::text", "not_null": true },
+        "sent": { "default": "false", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "plans": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "plans_pkey"
+      },
+      "columns": {
+        "description_bn": { "default": null, "not_null": false },
+        "description_de": { "default": null, "not_null": false },
+        "description_en": { "default": null, "not_null": false },
+        "description_es": { "default": null, "not_null": false },
+        "description_fr": { "default": null, "not_null": false },
+        "description_hi": { "default": null, "not_null": false },
+        "description_ja": { "default": null, "not_null": false },
+        "description_jv": { "default": null, "not_null": false },
+        "description_ko": { "default": null, "not_null": false },
+        "description_mr": { "default": null, "not_null": false },
+        "description_pa": { "default": null, "not_null": false },
+        "description_pt": { "default": null, "not_null": false },
+        "description_ru": { "default": null, "not_null": false },
+        "description_ta": { "default": null, "not_null": false },
+        "description_te": { "default": null, "not_null": false },
+        "description_tr": { "default": null, "not_null": false },
+        "description_ur": { "default": null, "not_null": false },
+        "description_vi": { "default": null, "not_null": false },
+        "description_zh": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "loka": { "default": null, "not_null": false },
+        "name": { "default": null, "not_null": false },
+        "name_ru": { "default": null, "not_null": false },
+        "short_desc_bn": { "default": null, "not_null": false },
+        "short_desc_de": { "default": null, "not_null": false },
+        "short_desc_en": { "default": null, "not_null": false },
+        "short_desc_es": { "default": null, "not_null": false },
+        "short_desc_fr": { "default": null, "not_null": false },
+        "short_desc_hi": { "default": null, "not_null": false },
+        "short_desc_ja": { "default": null, "not_null": false },
+        "short_desc_jv": { "default": null, "not_null": false },
+        "short_desc_ko": { "default": null, "not_null": false },
+        "short_desc_mr": { "default": null, "not_null": false },
+        "short_desc_pa": { "default": null, "not_null": false },
+        "short_desc_pt": { "default": null, "not_null": false },
+        "short_desc_ru": { "default": null, "not_null": false },
+        "short_desc_ta": { "default": null, "not_null": false },
+        "short_desc_te": { "default": null, "not_null": false },
+        "short_desc_tr": { "default": null, "not_null": false },
+        "short_desc_ur": { "default": null, "not_null": false },
+        "short_desc_vi": { "default": null, "not_null": false },
+        "short_desc_zh": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "players": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "players_pkey"
+      },
+      "columns": {
+        "avatar": { "default": null, "not_null": false },
+        "consecutiveSixes": { "default": "0", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "fullName": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "intention": { "default": null, "not_null": false },
+        "isFinished": { "default": "false", "not_null": false },
+        "isStart": { "default": "false", "not_null": false },
+        "message": { "default": null, "not_null": false },
+        "plan": { "default": "1", "not_null": true },
+        "positionBeforeThreeSixes": { "default": "0", "not_null": false },
+        "previous_plan": { "default": "0", "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "profiles": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "profiles_pkey",
+        "btree (lower(username)) WHERE ((username IS NOT NULL) AND (username <> ''::text))": "profiles_username_uniq",
+        "btree (telegram_id)": "profiles_tg_uniq"
+      },
+      "columns": {
+        "avatar_url": { "default": null, "not_null": false },
+        "bio": { "default": "''::text", "not_null": false },
+        "cover_url": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "display_name": { "default": null, "not_null": false },
+        "id": { "default": "nextval('profiles_id_seq'::regclass)", "not_null": true },
+        "is_public": { "default": "true", "not_null": false },
+        "is_verified": { "default": "false", "not_null": false },
+        "social_links": { "default": "'[]'::jsonb", "not_null": false },
+        "telegram_auth_date": { "default": "0", "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false }
+      }
+    },
+    "progress": {
+      "pk": true,
+      "unique": {
+        "btree (user_id)": "progress_pkey"
+      },
+      "columns": {
+        "all": { "default": "'0'::bigint", "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "leelachakra": { "default": "'0'::bigint", "not_null": false },
+        "user_id": { "default": null, "not_null": true }
+      }
+    },
+    "projects": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "projects_pkey"
+      },
+      "columns": {
+        "composition": { "default": null, "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "name": { "default": "''::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "prompts_history": {
+      "pk": true,
+      "unique": {
+        "btree (prompt_id)": "prompts_history_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "language_code": { "default": null, "not_null": false },
+        "media_url": { "default": null, "not_null": false },
+        "mode": { "default": null, "not_null": false },
+        "model_type": { "default": null, "not_null": true },
+        "prompt": { "default": null, "not_null": true },
+        "prompt_id": { "default": null, "not_null": true },
+        "status": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false }
+      }
+    },
+    "public_templates": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "public_templates_pkey"
+      },
+      "columns": {
+        "assets": { "default": "'[]'::jsonb", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "creator_avatar": { "default": null, "not_null": false },
+        "creator_name": { "default": "'Anonymous'::text", "not_null": true },
+        "creator_username": { "default": null, "not_null": false },
+        "deleted_at": { "default": null, "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "is_featured": { "default": "false", "not_null": true },
+        "is_public": { "default": "true", "not_null": true },
+        "likes_count": { "default": "0", "not_null": true },
+        "name": { "default": "'Untitled'::text", "not_null": true },
+        "original_creator_id": { "default": null, "not_null": false },
+        "parent_template_id": { "default": null, "not_null": false },
+        "stars_count": { "default": "0", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "template_settings": { "default": "'{}'::jsonb", "not_null": true },
+        "thumbnail_url": { "default": null, "not_null": false },
+        "tracks": { "default": "'[]'::jsonb", "not_null": true },
+        "uses_count": { "default": "0", "not_null": true },
+        "video_url": { "default": null, "not_null": true },
+        "views_count": { "default": "0", "not_null": true }
+      }
+    },
+    "reddit_acts": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "reddit_acts_pkey"
+      },
+      "columns": {
+        "approval_id": { "default": null, "not_null": false },
+        "body": { "default": "''::text", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "detail": { "default": null, "not_null": false },
+        "done_at": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "state": { "default": null, "not_null": true },
+        "target": { "default": null, "not_null": true }
+      }
+    },
+    "room_assets": {
+      "pk": true,
+      "unique": {
+        "btree (id, recording_id)": "room_assets_pkey",
+        "btree (recording_id)": "room_assets_recording_id_key"
+      },
+      "columns": {
+        "account_id": { "default": null, "not_null": false },
+        "app_id": { "default": null, "not_null": false },
+        "duration": { "default": null, "not_null": false },
+        "embedding": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "metadata_id": { "default": null, "not_null": false },
+        "metadata_timestamp": { "default": null, "not_null": false },
+        "recording_id": { "default": null, "not_null": true },
+        "room_id": { "default": null, "not_null": false },
+        "room_name": { "default": null, "not_null": false },
+        "session_id": { "default": null, "not_null": false },
+        "summary_json_asset_id": { "default": null, "not_null": false },
+        "summary_json_path": { "default": null, "not_null": false },
+        "summary_json_presigned_url": { "default": null, "not_null": false },
+        "summary_short": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "title": { "default": null, "not_null": false },
+        "transcript_json_asset_id": { "default": null, "not_null": false },
+        "transcript_json_path": { "default": null, "not_null": false },
+        "transcript_json_presigned_url": { "default": null, "not_null": false },
+        "transcript_srt_asset_id": { "default": null, "not_null": false },
+        "transcript_srt_path": { "default": null, "not_null": false },
+        "transcript_srt_presigned_url": { "default": null, "not_null": false },
+        "transcript_txt_asset_id": { "default": null, "not_null": false },
+        "transcript_txt_path": { "default": null, "not_null": false },
+        "transcript_txt_presigned_url": { "default": null, "not_null": false },
+        "transcription": { "default": null, "not_null": false },
+        "transcription_id": { "default": null, "not_null": false },
+        "workspace_id": { "default": null, "not_null": false }
+      }
+    },
+    "rooms": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "rooms_pkey",
+        "btree (room_id)": "rooms_room_id_key"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "chat_id": { "default": null, "not_null": false },
+        "created_at": { "default": null, "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "enabled": { "default": null, "not_null": false },
+        "id": { "default": "nextval('rooms_id_seq'::regclass)", "not_null": true },
+        "name": { "default": null, "not_null": false },
+        "public": { "default": "false", "not_null": false },
+        "room_code": { "default": null, "not_null": false },
+        "room_id": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "token": { "default": null, "not_null": false },
+        "type": { "default": null, "not_null": false },
+        "updated_at": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false },
+        "workspace_id": { "default": null, "not_null": true }
+      }
+    },
+    "service_type_corrections": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "service_type_corrections_pkey"
+      },
+      "columns": {
+        "corrected_at": { "default": null, "not_null": true },
+        "id": { "default": "nextval('service_type_corrections_id_seq'::regclass)", "not_null": true },
+        "new_service_type": { "default": null, "not_null": true },
+        "old_service_type": { "default": null, "not_null": false },
+        "payment_id": { "default": null, "not_null": true }
+      }
+    },
+    "social_oauth_states": {
+      "pk": true,
+      "unique": {
+        "btree (nonce)": "social_oauth_states_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "nonce": { "default": null, "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "used": { "default": "false", "not_null": true },
+        "verifier": { "default": null, "not_null": false }
+      }
+    },
+    "social_tokens": {
+      "pk": true,
+      "unique": {
+        "btree (owner, network)": "social_tokens_pkey"
+      },
+      "columns": {
+        "account_id": { "default": null, "not_null": true },
+        "expires_at": { "default": null, "not_null": false },
+        "meta": { "default": "'{}'::jsonb", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "owner": { "default": null, "not_null": true },
+        "refreshed_at": { "default": "now()", "not_null": true },
+        "token_sealed": { "default": null, "not_null": true }
+      }
+    },
+    "star_payments": {
+      "pk": true,
+      "unique": {
+        "btree (charge_id)": "star_payments_pkey"
+      },
+      "columns": {
+        "amount": { "default": null, "not_null": true },
+        "charge_id": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "story_faces": {
+      "pk": true,
+      "unique": {
+        "btree (owner_id, lead_id)": "story_faces_pkey"
+      },
+      "columns": {
+        "face_url": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "story_ideas": {
+      "pk": true,
+      "unique": {
+        "btree (seller_id, lead_id)": "story_ideas_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "ideas": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "seller_id": { "default": null, "not_null": true }
+      }
+    },
+    "story_jobs": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "story_jobs_pkey"
+      },
+      "columns": {
+        "about": { "default": null, "not_null": false },
+        "attempts": { "default": "0", "not_null": true },
+        "bot": { "default": null, "not_null": false },
+        "caption": { "default": null, "not_null": false },
+        "card_at": { "default": null, "not_null": false },
+        "clips": { "default": "'[]'::jsonb", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "cta": { "default": null, "not_null": false },
+        "deliver_to": { "default": null, "not_null": false },
+        "end_card": { "default": null, "not_null": false },
+        "error": { "default": null, "not_null": false },
+        "id": { "default": "nextval('story_jobs_id_seq'::regclass)", "not_null": true },
+        "item_id": { "default": null, "not_null": false },
+        "lead_id": { "default": null, "not_null": true },
+        "payer": { "default": null, "not_null": false },
+        "requester": { "default": null, "not_null": true },
+        "runner": { "default": null, "not_null": false },
+        "scene_count": { "default": null, "not_null": false },
+        "scenes": { "default": null, "not_null": false },
+        "seller_id": { "default": null, "not_null": true },
+        "status": { "default": "'running'::text", "not_null": true },
+        "still_tasks": { "default": "'[]'::jsonb", "not_null": true },
+        "stills": { "default": "'[]'::jsonb", "not_null": true },
+        "style": { "default": null, "not_null": false },
+        "topic": { "default": null, "not_null": false },
+        "updated_at": { "default": "now()", "not_null": true },
+        "url": { "default": null, "not_null": false },
+        "voice_mode": { "default": null, "not_null": false }
+      }
+    },
+    "subscription_plans": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "subscription_plans_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": true },
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "description_ru": { "default": null, "not_null": false },
+        "duration_days": { "default": "30", "not_null": true },
+        "features": { "default": "'{}'::text[]", "not_null": true },
+        "features_ru": { "default": "'{}'::text[]", "not_null": true },
+        "id": { "default": "nextval('subscription_plans_id_seq'::regclass)", "not_null": true },
+        "name": { "default": null, "not_null": true },
+        "name_ru": { "default": null, "not_null": true },
+        "price_en": { "default": null, "not_null": true },
+        "price_ru": { "default": null, "not_null": true },
+        "short_desc": { "default": null, "not_null": false },
+        "short_desc_ru": { "default": null, "not_null": false },
+        "stars": { "default": null, "not_null": true },
+        "updated_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "superhero_generations": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "superhero_generations_pkey",
+        "btree (telegram_id, month, year)": "superhero_generations_telegram_id_month_year_key"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": false },
+        "generation_count": { "default": "0", "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "last_generation_date": { "default": "now()", "not_null": false },
+        "month": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "year": { "default": null, "not_null": true }
+      }
+    },
+    "synclabs_videos": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "synclabs_videos_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": null, "not_null": true },
+        "is_ru": { "default": "false", "not_null": false },
+        "status": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "user_id": { "default": "gen_random_uuid()", "not_null": false },
+        "video_id": { "default": null, "not_null": false },
+        "video_url": { "default": null, "not_null": false }
+      }
+    },
+    "tasks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "tasks_pkey",
+        "btree (task_id)": "tasks_task_id_key"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "chat_id": { "default": null, "not_null": false },
+        "completed_at": { "default": null, "not_null": false },
+        "cost": { "default": "'0'::bigint", "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "description": { "default": null, "not_null": false },
+        "due_date": { "default": null, "not_null": false },
+        "embedding": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "is_archived": { "default": "false", "not_null": false },
+        "is_public": { "default": "false", "not_null": false },
+        "label": { "default": null, "not_null": false },
+        "passport_id": { "default": null, "not_null": false },
+        "priority": { "default": "'medium'::text", "not_null": false },
+        "recording_id": { "default": null, "not_null": false },
+        "room_id": { "default": null, "not_null": false },
+        "status": { "default": "'backlog'::text", "not_null": false },
+        "task_id": { "default": "gen_random_uuid()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": false },
+        "title": { "default": null, "not_null": false },
+        "translated_text": { "default": null, "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false },
+        "workspace_id": { "default": null, "not_null": true },
+        "workspace_name": { "default": null, "not_null": false }
+      }
+    },
+    "template_likes": {
+      "pk": true,
+      "unique": {
+        "btree (template_id, telegram_id)": "template_likes_pkey"
+      },
+      "columns": {
+        "action": { "default": "'like'::text", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "template_id": { "default": null, "not_null": true }
+      }
+    },
+    "template_stars": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "template_stars_pkey",
+        "btree (invoice_payload)": "template_stars_invoice_payload_key"
+      },
+      "columns": {
+        "amount": { "default": "1", "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "from_telegram_id": { "default": null, "not_null": true },
+        "id": { "default": "nextval('template_stars_id_seq'::regclass)", "not_null": true },
+        "invoice_payload": { "default": null, "not_null": true },
+        "paid_at": { "default": null, "not_null": false },
+        "status": { "default": "'pending'::text", "not_null": true },
+        "template_id": { "default": null, "not_null": true },
+        "to_telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "templates": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "templates_pkey"
+      },
+      "columns": {
+        "composition_name": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "name": { "default": null, "not_null": true },
+        "template_json": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "tg_known_phones": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "tg_known_phones_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "phone": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true },
+        "источник": { "default": null, "not_null": true }
+      }
+    },
+    "tg_sessions": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "tg_sessions_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "phone": { "default": null, "not_null": false },
+        "session": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "token_burn_clock": {
+      "pk": true,
+      "unique": {
+        "btree (one)": "token_burn_clock_pkey"
+      },
+      "columns": {
+        "one": { "default": "true", "not_null": true },
+        "started_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "token_burn_notices": {
+      "pk": true,
+      "unique": {
+        "btree (lot_id, days)": "token_burn_notices_pkey"
+      },
+      "columns": {
+        "days": { "default": null, "not_null": true },
+        "lot_id": { "default": null, "not_null": true },
+        "sent_at": { "default": "now()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "token_invoices": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "token_invoices_pkey"
+      },
+      "columns": {
+        "cancel_reason": { "default": null, "not_null": false },
+        "cancelled_at": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('token_invoices_id_seq'::regclass)", "not_null": true },
+        "owner_id": { "default": null, "not_null": false },
+        "redeemed": { "default": "false", "not_null": true },
+        "star_tx_id": { "default": null, "not_null": false },
+        "stars": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "tokens": { "default": null, "not_null": true }
+      }
+    },
+    "token_ledger": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "token_ledger_pkey",
+        "btree (kind, ref) WHERE (ref IS NOT NULL)": "token_ledger_once"
+      },
+      "columns": {
+        "balance_after": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "delta": { "default": null, "not_null": true },
+        "id": { "default": "nextval('token_ledger_id_seq'::regclass)", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "meta": { "default": "'{}'::jsonb", "not_null": true },
+        "reason": { "default": null, "not_null": true },
+        "ref": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "traffic_arrivals": {
+      "pk": true,
+      "unique": {
+        "btree (day, source, medium, campaign, content)": "traffic_arrivals_pkey"
+      },
+      "columns": {
+        "campaign": { "default": "''::text", "not_null": true },
+        "content": { "default": "''::text", "not_null": true },
+        "day": { "default": "CURRENT_DATE", "not_null": true },
+        "medium": { "default": "''::text", "not_null": true },
+        "n": { "default": "1", "not_null": true },
+        "source": { "default": null, "not_null": true }
+      }
+    },
+    "traffic_starts": {
+      "pk": true,
+      "unique": {
+        "btree (day, source, campaign)": "traffic_starts_pkey"
+      },
+      "columns": {
+        "campaign": { "default": "''::text", "not_null": true },
+        "day": { "default": "CURRENT_DATE", "not_null": true },
+        "n": { "default": "1", "not_null": true },
+        "source": { "default": null, "not_null": true }
+      }
+    },
+    "traffic_welcome": {
+      "pk": true,
+      "unique": {
+        "btree (day, step, item)": "traffic_welcome_pkey"
+      },
+      "columns": {
+        "day": { "default": "CURRENT_DATE", "not_null": true },
+        "item": { "default": "''::text", "not_null": true },
+        "n": { "default": "1", "not_null": true },
+        "step": { "default": null, "not_null": true }
+      }
+    },
+    "translations": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "translations_pkey",
+        "btree (key, bot_name, language_code)": "translations_key_bot_name_language_code_key",
+        "btree (key, language_code, bot_name)": "translations_key_language_code_bot_name_key"
+      },
+      "columns": {
+        "bot_name": { "default": "'neuro_blogger_bot'::text", "not_null": true },
+        "buttons": { "default": null, "not_null": false },
+        "category": { "default": "'specific'::text", "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "is_override": { "default": "false", "not_null": false },
+        "key": { "default": null, "not_null": true },
+        "language_code": { "default": null, "not_null": true },
+        "translation": { "default": null, "not_null": true },
+        "url": { "default": null, "not_null": false }
+      }
+    },
+    "tri_claim_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "tri_claim_events_pkey"
+      },
+      "columns": {
+        "at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('tri_claim_events_id_seq'::regclass)", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "outcome": { "default": null, "not_null": true },
+        "payee": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "work_id": { "default": null, "not_null": true }
+      }
+    },
+    "tri_github": {
+      "pk": true,
+      "unique": {
+        "btree (github_id)": "tri_github_github_id_key",
+        "btree (telegram_id)": "tri_github_pkey"
+      },
+      "columns": {
+        "github_id": { "default": null, "not_null": true },
+        "github_login": { "default": null, "not_null": true },
+        "linked_at": { "default": "now()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "tri_github_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "tri_github_events_pkey"
+      },
+      "columns": {
+        "action": { "default": null, "not_null": true },
+        "at": { "default": "now()", "not_null": true },
+        "github_id": { "default": null, "not_null": true },
+        "github_login": { "default": null, "not_null": true },
+        "id": { "default": "nextval('tri_github_events_id_seq'::regclass)", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "tri_github_flows": {
+      "pk": true,
+      "unique": {
+        "btree (device_code)": "tri_github_flows_pkey"
+      },
+      "columns": {
+        "device_code": { "default": null, "not_null": true },
+        "expires_at": { "default": null, "not_null": true },
+        "interval_s": { "default": null, "not_null": true },
+        "polled_at": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": true },
+        "user_code": { "default": null, "not_null": true }
+      }
+    },
+    "tri_wallet_challenges": {
+      "pk": true,
+      "unique": {
+        "btree (payload)": "tri_wallet_challenges_pkey"
+      },
+      "columns": {
+        "expires_at": { "default": null, "not_null": true },
+        "payload": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "used_at": { "default": null, "not_null": false }
+      }
+    },
+    "tri_wallet_events": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "tri_wallet_events_pkey"
+      },
+      "columns": {
+        "action": { "default": null, "not_null": true },
+        "address": { "default": null, "not_null": true },
+        "at": { "default": "now()", "not_null": true },
+        "chain": { "default": null, "not_null": true },
+        "id": { "default": "nextval('tri_wallet_events_id_seq'::regclass)", "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "tri_wallets": {
+      "pk": true,
+      "unique": {
+        "btree (chain, network, address)": "tri_wallets_chain_network_address_key",
+        "btree (telegram_id, chain, network)": "tri_wallets_pkey"
+      },
+      "columns": {
+        "address": { "default": null, "not_null": true },
+        "bound_at": { "default": "now()", "not_null": true },
+        "chain": { "default": null, "not_null": true },
+        "network": { "default": null, "not_null": true },
+        "public_key": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "user_achievements": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_achievements_pkey"
+      },
+      "columns": {
+        "achievement_id": { "default": null, "not_null": false },
+        "earned_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "user_course_progress": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_course_progress_pkey"
+      },
+      "columns": {
+        "course_id": { "default": null, "not_null": false },
+        "enrolled_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "progress_percentage": { "default": "0", "not_null": false },
+        "user_id": { "default": null, "not_null": false }
+      }
+    },
+    "user_events": {
+      "pk": true,
+      "unique": {
+        "btree (((detail ->> 'invoice_event'::text))) WHERE (event = 'club_invoice_abandoned'::text)": "user_events_abandoned_once",
+        "btree (id)": "user_events_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": true },
+        "detail": { "default": null, "not_null": false },
+        "event": { "default": null, "not_null": true },
+        "id": { "default": "nextval('user_events_id_seq'::regclass)", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "user_feature_views": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_feature_views_pkey",
+        "btree (telegram_id, feature_mode)": "user_feature_views_telegram_mode_key"
+      },
+      "columns": {
+        "feature_mode": { "default": null, "not_null": true },
+        "first_view_at": { "default": "now()", "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true }
+      }
+    },
+    "user_files": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_files_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "now()", "not_null": true },
+        "file_path": { "default": null, "not_null": false },
+        "id": { "default": null, "not_null": true },
+        "telegram_id": { "default": "gen_random_uuid()", "not_null": false },
+        "type": { "default": null, "not_null": false }
+      }
+    },
+    "user_media": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_media_pkey",
+        "btree (owner_id, lead_id, url)": "user_media_owner_id_lead_id_url_key"
+      },
+      "columns": {
+        "at": { "default": null, "not_null": true },
+        "bytes": { "default": null, "not_null": false },
+        "caption": { "default": null, "not_null": false },
+        "id": { "default": "nextval('user_media_id_seq'::regclass)", "not_null": true },
+        "kind": { "default": null, "not_null": true },
+        "lead_id": { "default": null, "not_null": true },
+        "mime": { "default": null, "not_null": false },
+        "msg_id": { "default": null, "not_null": false },
+        "name": { "default": null, "not_null": true },
+        "out": { "default": "false", "not_null": true },
+        "owner_id": { "default": null, "not_null": true },
+        "surface": { "default": null, "not_null": true },
+        "tg_file_unique_id": { "default": null, "not_null": false },
+        "transcribed_at": { "default": null, "not_null": false },
+        "transcript": { "default": null, "not_null": false },
+        "url": { "default": null, "not_null": true }
+      }
+    },
+    "user_passport": {
+      "pk": true,
+      "unique": {
+        "btree (passport_id)": "user_passport_pkey"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "chat_id": { "default": null, "not_null": true },
+        "first_name": { "default": null, "not_null": false },
+        "is_owner": { "default": "false", "not_null": false },
+        "last_name": { "default": null, "not_null": false },
+        "passport_id": { "default": null, "not_null": true },
+        "photo_url": { "default": null, "not_null": false },
+        "recording_id": { "default": null, "not_null": false },
+        "room_code": { "default": null, "not_null": false },
+        "room_id": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "type": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false },
+        "workspace_id": { "default": null, "not_null": false }
+      }
+    },
+    "user_profiles": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_profiles_pkey"
+      },
+      "columns": {
+        "avatar_url": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "full_name": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "level": { "default": "1", "not_null": false },
+        "total_xp": { "default": "0", "not_null": false },
+        "updated_at": { "default": "now()", "not_null": false }
+      }
+    },
+    "user_skills": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "user_skills_pkey",
+        "btree (telegram_id, name)": "user_skills_telegram_id_name_key"
+      },
+      "columns": {
+        "content": { "default": null, "not_null": true },
+        "created_at": { "default": "now()", "not_null": true },
+        "id": { "default": "nextval('user_skills_id_seq'::regclass)", "not_null": true },
+        "is_public": { "default": "false", "not_null": true },
+        "name": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "user_soul": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "user_soul_pkey"
+      },
+      "columns": {
+        "content": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "user_tokens": {
+      "pk": true,
+      "unique": {
+        "btree (telegram_id)": "user_tokens_pkey"
+      },
+      "columns": {
+        "balance": { "default": null, "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": true }
+      }
+    },
+    "users": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "users_pkey",
+        "btree (user_id)": "users_user_id_key"
+      },
+      "columns": {
+        "aspect_ratio": { "default": "'9:16'::character varying", "not_null": false },
+        "avatar_id": { "default": null, "not_null": false },
+        "avatar_transform_used": { "default": "false", "not_null": false },
+        "avatar_url": { "default": null, "not_null": false },
+        "bot_name": { "default": "'neuro_blogger_bot'::text", "not_null": true },
+        "chat_id": { "default": null, "not_null": false },
+        "company": { "default": null, "not_null": false },
+        "count": { "default": "'0'::bigint", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "designation": { "default": null, "not_null": false },
+        "display_name": { "default": null, "not_null": false },
+        "email": { "default": null, "not_null": false },
+        "first_name": { "default": null, "not_null": false },
+        "full_name": { "default": null, "not_null": false },
+        "gender": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "invitation_codes": { "default": null, "not_null": false },
+        "inviter": { "default": null, "not_null": false },
+        "is_bot": { "default": "false", "not_null": true },
+        "is_bot_owner": { "default": "false", "not_null": false },
+        "is_haim_employee": { "default": "false", "not_null": false },
+        "is_leela_start": { "default": "false", "not_null": false },
+        "language_code": { "default": null, "not_null": false },
+        "last_name": { "default": null, "not_null": false },
+        "level": { "default": "0", "not_null": true },
+        "mode": { "default": "'clean'::character varying", "not_null": false },
+        "model": { "default": "'gpt-4-turbo'::character varying", "not_null": false },
+        "photo_url": { "default": null, "not_null": false },
+        "pinata_avatar_id": { "default": null, "not_null": false },
+        "position": { "default": null, "not_null": false },
+        "role": { "default": "'student'::text", "not_null": false },
+        "select_izbushka": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "updated_at": { "default": "timezone('utc'::text, now())", "not_null": false },
+        "user_id": { "default": "gen_random_uuid()", "not_null": true },
+        "user_timezone": { "default": null, "not_null": false },
+        "username": { "default": null, "not_null": false },
+        "vip": { "default": "false", "not_null": false },
+        "voice_id": { "default": null, "not_null": false },
+        "voice_id_elevenlabs": { "default": null, "not_null": false },
+        "voice_id_synclabs": { "default": null, "not_null": false },
+        "xp": { "default": "0", "not_null": false }
+      }
+    },
+    "video_tasks": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "video_tasks_pkey",
+        "btree (task_id)": "video_tasks_task_id_key"
+      },
+      "columns": {
+        "bot_name": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "id": { "default": "nextval('video_tasks_id_seq'::regclass)", "not_null": true },
+        "is_ru": { "default": "false", "not_null": false },
+        "metadata": { "default": null, "not_null": false },
+        "model": { "default": null, "not_null": false },
+        "prompt": { "default": null, "not_null": false },
+        "provider": { "default": null, "not_null": false },
+        "status": { "default": null, "not_null": false },
+        "task_id": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "video_url": { "default": null, "not_null": false }
+      }
+    },
+    "voices": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "voices_pkey"
+      },
+      "columns": {
+        "created_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "id": { "default": "nextval('voices_id_seq'::regclass)", "not_null": true },
+        "name": { "default": null, "not_null": true },
+        "preview_url": { "default": null, "not_null": false },
+        "updated_at": { "default": "CURRENT_TIMESTAMP", "not_null": false },
+        "voice_id": { "default": null, "not_null": true }
+      }
+    },
+    "workspaces": {
+      "pk": true,
+      "unique": {
+        "btree (workspace_id)": "workspaces_pkey"
+      },
+      "columns": {
+        "app_id": { "default": null, "not_null": false },
+        "background": { "default": "'bg-black'::text", "not_null": false },
+        "bot_name": { "default": null, "not_null": false },
+        "codes": { "default": null, "not_null": false },
+        "colors": { "default": "'{{255,0,0},{255,40,90}}'::json[]", "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "customer": { "default": null, "not_null": false },
+        "customer_id": { "default": null, "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "email": { "default": null, "not_null": false },
+        "enabled": { "default": "true", "not_null": false },
+        "large_room": { "default": null, "not_null": false },
+        "recording_info": { "default": null, "not_null": false },
+        "region": { "default": null, "not_null": false },
+        "telegram_id": { "default": null, "not_null": false },
+        "template": { "default": null, "not_null": false },
+        "template_id": { "default": null, "not_null": false },
+        "title": { "default": null, "not_null": false },
+        "type": { "default": "'fire'::text", "not_null": false },
+        "updated_at": { "default": null, "not_null": false },
+        "workspace_id": { "default": null, "not_null": true }
+      }
+    },
+    "xp_transactions": {
+      "pk": true,
+      "unique": {
+        "btree (id)": "xp_transactions_pkey"
+      },
+      "columns": {
+        "achievement_id": { "default": null, "not_null": false },
+        "amount": { "default": null, "not_null": true },
+        "course_id": { "default": null, "not_null": false },
+        "created_at": { "default": "now()", "not_null": false },
+        "description": { "default": null, "not_null": false },
+        "id": { "default": "gen_random_uuid()", "not_null": true },
+        "lesson_id": { "default": null, "not_null": false },
+        "source": { "default": null, "not_null": false },
+        "status": { "default": "'COMPLETED'::text", "not_null": true },
+        "telegram_id": { "default": null, "not_null": true },
+        "updated_at": { "default": "now()", "not_null": false },
+        "user_id": { "default": null, "not_null": true },
+        "xp_type": { "default": null, "not_null": true }
+      }
+    }
+  }
+}

@@ -65,9 +65,14 @@ import {
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import { handMouseToPerson } from './mouse'
-import { readJournal } from './journal'
+import { lastAnnouncedDeskStart, readJournal, recordStep } from './journal'
 import type { PodDriver } from './pod-driver'
-import { announceBrowserStarted, type Actor, type Announcer } from './announce'
+import {
+  announceBrowserStarted,
+  deskStartMayAnnounce,
+  type Actor,
+  type Announcer,
+} from './announce'
 import {
   cdpTypeIo,
   canTypeInto,
@@ -86,7 +91,9 @@ import {
   ensureApprovals,
   pendingApprovalFor,
   decideAsPerson,
+  allowedActHost,
 } from './approvals'
+import { handleStrip, type StripIo } from './tab-strip'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -105,9 +112,12 @@ export const BROWSER_PATHS = [
   '/api/browser/scenarios',
   '/api/browser/reach',
   '/api/browser/tabs',
+  '/api/browser/strip',
   '/api/browser/watch',
   '/api/browser/heal',
   '/api/browser/logins',
+  '/api/browser/sites',
+  '/api/browser/watch-links',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -164,6 +174,8 @@ export interface BrowserDeps {
   ) => Promise<NetworkLogin[] | null>
   /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
   typeIo?: TypeIo
+  /** Injected for tests; defaults to the pod over CDP (tab-strip.ts). */
+  stripIo?: StripIo
   /**
    * Is the browser still a browser (health.ts). Injected so the one route that
    * asks before restarting anything can be tested without a pod, and so "it
@@ -591,7 +603,7 @@ export async function handleBrowser(
       pool,
       who,
       Number(q.get('limit')) || undefined,
-      // Probes (tri eyes) stay out of the person's view unless asked for.
+      // Probes (tri journal --probes) stay out of the person's view unless asked for.
       { probes: q.get('probes') === '1' }
     )
     /*
@@ -629,6 +641,108 @@ export async function handleBrowser(
       return { status: 200, body: { ok: true, running: false } }
     }
     return { status: 200, body: { ok: true, running: true, networks } }
+  }
+
+  /*
+   * THE PERSON'S OWN SITE LIST (site-rules.ts). Anyone signed in as this
+   * person reads it; the agent key may only tighten it (a new site, or ask
+   * -> block); removing a rule or loosening block -> ask is the person's door.
+   */
+  if (path === '/api/browser/sites') {
+    const { siteRulesOf, setSiteRule, removeSiteRule } = await import(
+      './site-rules'
+    )
+    const by = deps.actor(req) === 'person' ? 'person' : 'agent'
+    if (method === 'GET') {
+      const sites = await siteRulesOf(pool, who)
+      if (sites === null) {
+        return {
+          status: 503,
+          body: { ok: false, error: 'the site list could not be read' },
+        }
+      }
+      return { status: 200, body: { ok: true, sites } }
+    }
+    if (method === 'DELETE') {
+      if (by !== 'person') {
+        return {
+          status: 403,
+          body: { ok: false, error: "removing a site is the person's to do" },
+        }
+      }
+      const site = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+        'site'
+      )
+      const removed = await removeSiteRule(pool, who, site)
+      return { status: 200, body: { ok: true, removed } }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET, POST or DELETE' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let want: { site?: unknown; rule?: unknown }
+    try {
+      want = JSON.parse((await deps.readBody(req, 4096)) || '{}') ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    const r = await setSiteRule(pool, who, want.site, want.rule, by)
+    if (!r.ok) return { status: r.status, body: { ok: false, error: r.error } }
+    return { status: 200, body: r }
+  }
+
+  /*
+   * LINKS TO WATCH THE BROWSER WITHOUT THE WHEEL (watch-link.ts). Every
+   * method is the person's door: an agent that could mint a link could
+   * publish its owner's screen, which is the invisible mode turned outward.
+   * The token is in the answer to POST only, once; the list shows ids.
+   */
+  if (path === '/api/browser/watch-links') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: "a watch link is the person's to make" },
+      }
+    }
+    const wl = await import('./watch-link')
+    if (method === 'GET') {
+      return {
+        status: 200,
+        body: { ok: true, links: await wl.listWatchLinks(pool, who) },
+      }
+    }
+    if (method === 'DELETE') {
+      const id = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+        'id'
+      )
+      const revoked = await wl.revokeWatchLink(pool, who, id)
+      return { status: revoked ? 200 : 404, body: { ok: revoked, revoked } }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET, POST or DELETE' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let want: { hours?: unknown; label?: unknown }
+    try {
+      want = JSON.parse((await deps.readBody(req, 2048)) || '{}') ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    const r = await wl.createWatchLink(pool, who, want)
+    if (!r.ok) return { status: r.status, body: { ok: false, error: r.error } }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        id: r.id,
+        url: wl.watchUrl(r.token, deps.env ?? process.env),
+        expiresAt: r.expiresAt,
+      },
+    }
   }
 
   /*
@@ -716,7 +830,7 @@ export async function handleBrowser(
     }
     const bootBefore = await browserBootId(cdp)
     console.log('[browser:heal]', who, 'not answering, restarting')
-    const back = await restartBrowserAsAgent(who)
+    const back = await restartBrowserAsAgent(who, 'heal')
     const bootAfter = await browserBootId(cdp)
     return {
       status: 200,
@@ -783,6 +897,39 @@ export async function handleBrowser(
   }
 
   /*
+   * THE TAB STRIP (tab-strip.ts, spec browser-tab-strip.t27). GET: every page
+   * in the person's browser as id, clipped title, host and active. POST
+   * {action, id?}: switch, open or close. The person's door only; the
+   * diagnostic GET /api/browser/tabs above is a different door and stays.
+   */
+  if (path === '/api/browser/strip') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'вкладками управляет только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    if (method === 'GET')
+      return await handleStrip(pool, who, null, deps.stripIo)
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'tabs are not wired' } }
+    }
+    let raw: string
+    try {
+      raw = await deps.readBody(req, 1024)
+    } catch {
+      return { status: 400, body: { ok: false, error: 'bad body' } }
+    }
+    return await handleStrip(pool, who, raw, deps.stripIo)
+  }
+
+  /*
    * THE PERSON ANSWERS THE AGENT'S QUESTION IN THE APP (approvals.ts
    * decideAsPerson). GET: their open question; POST {id, allow}: the answer.
    * The person's door only -- an agent answering its own question would be
@@ -834,9 +981,10 @@ export async function handleBrowser(
       }
     }
     /* A yes opens the guarded door for a few minutes (guard.ts), and hands
-       the agent the wheel it needs to act on it. */
+       the agent the wheel it needs to act on it. Only a question about
+       acting on a page opens it, and only for that page's host. */
     if (state === 'allowed') {
-      await markAllowed(pool, who)
+      await markAllowed(pool, who, await allowedActHost(pool, answer.id, who))
       await setWheel(pool, who, 'agent').catch(() => {})
     }
     return { status: 200, body: { ok: true, state } }
@@ -887,9 +1035,10 @@ export async function handleBrowser(
      * a guarded page; the person pressed Save. Asking a second time for
      * permission to press Save is the double question that left the agent
      * standing on the Google page (owner, 2026-09-22). A choice opens the
-     * guard's few minutes; Done / Cannot (an action) opens nothing.
+     * guard's few minutes on the host it was asked on; Done / Cannot (an
+     * action) opens nothing.
      */
-    if (asked?.kind === 'choice') await markAllowed(pool, who)
+    if (asked?.kind === 'choice') await markAllowed(pool, who, asked.host)
     /*
      * ANSWERING THE AGENT HANDS IT THE WHEEL. The person just told the agent
      * what to do; a touch near the card had taken the wheel, and the agent
@@ -985,9 +1134,45 @@ export function configureAgentStart(deps: () => BrowserDeps): void {
  * The person is told, because it is their browser and they may be watching
  * it at that moment.
  */
-export async function restartBrowserAsAgent(who: string): Promise<boolean> {
+export async function restartBrowserAsAgent(
+  who: string,
+  by?: string
+): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
+  /*
+   * A restart takes the person's browser away for a moment, so it is
+   * journaled like a desk's start (#3450): the panel and `tri journal` say who
+   * did it and whether it came back. Without `by` nothing is written -- same
+   * rule as `startBrowserAsAgent`.
+   */
+  const t0 = Date.now()
+  const { ok, why } = await restartInside(who, deps)
+  if (by) {
+    /* The journal never stands between the restart and its answer. */
+    const pool = await deps.getPool().catch(() => null)
+    if (pool)
+      await recordStep(pool, who, {
+        tool: 'browser_restart',
+        ok,
+        ms: Date.now() - t0,
+        detail: ok ? { by } : { by, error: why },
+      })
+  }
+  return ok
+}
+
+/*
+ * Each way a restart can fail says which one it was, because the remedies
+ * differ: a pod the driver cannot restart needs a person at Railway, one that
+ * did not come back needs another start, and one that came back silent with
+ * the same boot identity was never restarted at all (boot.ts).
+ */
+async function restartInside(
+  who: string,
+  deps: BrowserDeps
+): Promise<{ ok: boolean; why: string }> {
+  if (!deps.driver) return { ok: false, why: 'no driver' }
   const driver = deps.driver
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
@@ -1018,7 +1203,7 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
         who,
         'the driver cannot restart this pod'
       )
-      return false
+      return { ok: false, why: 'the driver cannot restart this pod' }
     }
     /* The pod it pointed at is going down: the row must not outlive it. */
     await dropSession(pool, who)
@@ -1029,13 +1214,13 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
   const out = await open(pool, deps, driver, who, 'agent')
   if (out.status >= 300) {
     console.log('[browser:restart]', who, out.status, 'did not come back')
-    return false
+    return { ok: false, why: `did not come back (status ${out.status})` }
   }
   const back = await readSession(pool, who)
   if (!back?.cdpEndpoint) {
     /* No CDP means no agent can drive it; the person still has the wheel. */
     console.log('[browser:restart]', who, out.status, 'no cdp')
-    return true
+    return { ok: true, why: '' }
   }
   const { waitForBrowser, cdpHealthIo } = await import('./health')
   const answers = await waitForBrowser(back.cdpEndpoint, await cdpHealthIo())
@@ -1055,16 +1240,51 @@ export async function restartBrowserAsAgent(who: string): Promise<boolean> {
     verdict
   )
   return answers
+    ? { ok: true, why: '' }
+    : { ok: false, why: `came back but does not answer (${verdict})` }
 }
 
-export async function startBrowserAsAgent(who: string): Promise<boolean> {
+/*
+ * A DESK THAT STARTS THE BROWSER SAYS SO IN THE JOURNAL.
+ *
+ * The agent's tools journal every call, so a visit they open is explained by
+ * the step that follows it. The desks (Reddit, engage, blog-share, rounds,
+ * scenarios) drive the page over CDP and journal nothing, so a visit one of
+ * them opened was a row with no step behind it: measured 2026-10-03, the
+ * Reddit desk's hourly tick at 00:11:11 opened the owner's visit at 00:11:12,
+ * and `tri browser doctor` showed "visit on record" while the newest journal
+ * step was 22:47 the day before. Nobody could say who had opened it. `by`
+ * names the desk; the tools leave it out and keep journaling their own steps.
+ */
+export async function startBrowserAsAgent(
+  who: string,
+  by?: string
+): Promise<boolean> {
   const deps = agentStartDeps?.()
   if (!deps?.driver) return false
   const pool = await deps.getPool()
   await ensureBrowserSessions(pool)
   await ensureBrowserProfiles(pool)
-  const out = await open(pool, deps, deps.driver, who, 'agent')
-  return out.status < 300
+  const t0 = Date.now()
+  /* A desk tells the person once per quiet window (announce.ts). */
+  const quiet = by
+    ? !deskStartMayAnnounce(await lastAnnouncedDeskStart(pool, who), t0)
+    : false
+  const out = await open(pool, deps, deps.driver, who, 'agent', {
+    by,
+    quiet,
+  })
+  const ok = out.status < 300
+  if (by)
+    await recordStep(pool, who, {
+      tool: 'browser_start',
+      ok,
+      ms: Date.now() - t0,
+      detail: ok
+        ? { by, ...(out.announced ? { announced: true } : {}) }
+        : { by, error: `status ${out.status}` },
+    })
+  return ok
 }
 
 async function open(
@@ -1072,8 +1292,10 @@ async function open(
   deps: BrowserDeps,
   driver: PodDriver,
   who: string,
-  actor: Actor
-): Promise<RouteResult> {
+  actor: Actor,
+  /** Who started it, and whether to keep quiet about it (desk starts). */
+  start: { by?: string; quiet?: boolean } = {}
+): Promise<RouteResult & { announced?: boolean }> {
   const existing = await readSession(pool, who)
   if (existing?.podId && (await driver.alive(existing.podId))) {
     await touchSession(pool, who)
@@ -1135,10 +1357,11 @@ async function open(
      * Announced AFTER the pod is up, so the button in Telegram leads to a
      * browser that exists. Announced before would race the person opening it.
      */
-    if (deps.announcer) {
-      await announceBrowserStarted(deps.announcer, who, actor)
-    }
-    return { status: 201, body: publicView(live) }
+    const announced =
+      !!deps.announcer &&
+      !start.quiet &&
+      (await announceBrowserStarted(deps.announcer, who, actor, start.by))
+    return { status: 201, body: publicView(live), announced }
   } catch (err) {
     await dropSession(pool, who)
     return {

@@ -31,6 +31,7 @@
  * removing one line and watching them pass.
  */
 import type WebSocketType from 'ws'
+import { VISIBILITY_PROBE_MS } from '../spec/browser-tab-strip.gen'
 
 type WebSocketCtor = new (
   url: string,
@@ -54,6 +55,8 @@ export interface CdpTarget {
   title: string
   url: string
   webSocketDebuggerUrl?: string
+  /** For an "iframe" target: the target it is embedded in (embedded.ts). */
+  parentId?: string
 }
 
 /**
@@ -112,6 +115,17 @@ export function forgetResolved(): void {
 /** Long enough for a page, short enough that a hung pod is not a hung agent. */
 const CALL_TIMEOUT_MS = 20_000
 
+/*
+ * THE TAB LIST AND THE NEW TAB HAD NO CLOCK AT ALL (2026-10-02). Measured on
+ * the live pod: an empty tab took ~40 s to open, and opening LinkedIn's share
+ * page never answered -- the agent's call hung until the MCP request itself
+ * gave up after 170 s, and a blog run in the same state would hang with it.
+ * A new tab is given longer than a list: on a starved pod it is slow, not
+ * dead, and an abandoned open still leaves the tab behind.
+ */
+export const LIST_TIMEOUT_MS = CALL_TIMEOUT_MS
+export const NEW_PAGE_TIMEOUT_MS = 60_000
+
 export const httpBase = (endpoint: string) =>
   endpoint.startsWith('http') ? endpoint : `http://${endpoint}`
 
@@ -141,7 +155,9 @@ const reachable = (t: CdpTarget, endpoint: string): CdpTarget => ({
 
 export async function listTargets(given: string): Promise<CdpTarget[]> {
   const endpoint = await ipEndpoint(given)
-  const res = await fetch(`${httpBase(endpoint)}/json/list`)
+  const res = await fetch(`${httpBase(endpoint)}/json/list`, {
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+  })
   if (!res.ok) throw new Error(`CDP list failed: HTTP ${res.status}`)
   const targets = (await res.json()) as CdpTarget[]
   return targets.map(t => reachable(t, endpoint))
@@ -168,7 +184,7 @@ export async function newPage(given: string, url: string): Promise<CdpTarget> {
   /* PUT, not GET: Chrome refuses the old GET form since 111. */
   const res = await fetch(
     `${httpBase(endpoint)}/json/new?${encodeURIComponent(url)}`,
-    { method: 'PUT' }
+    { method: 'PUT', signal: AbortSignal.timeout(NEW_PAGE_TIMEOUT_MS) }
   )
   if (!res.ok) throw new Error(`CDP new page failed: HTTP ${res.status}`)
   return reachable((await res.json()) as CdpTarget, endpoint)
@@ -178,14 +194,17 @@ export async function newPage(given: string, url: string): Promise<CdpTarget> {
 export async function activatePage(given: string, id: string): Promise<void> {
   const endpoint = await ipEndpoint(given)
   const res = await fetch(
-    `${httpBase(endpoint)}/json/activate/${encodeURIComponent(id)}`
+    `${httpBase(endpoint)}/json/activate/${encodeURIComponent(id)}`,
+    { signal: AbortSignal.timeout(LIST_TIMEOUT_MS) }
   )
   if (!res.ok) throw new Error(`CDP activate failed: HTTP ${res.status}`)
 }
 
 export async function closePage(given: string, id: string): Promise<void> {
   const endpoint = await ipEndpoint(given)
-  await fetch(`${httpBase(endpoint)}/json/close/${id}`)
+  await fetch(`${httpBase(endpoint)}/json/close/${id}`, {
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+  })
 }
 
 /**
@@ -212,16 +231,22 @@ export async function browserWsUrl(given: string): Promise<string> {
   return rewriteWsUrl(info.webSocketDebuggerUrl, endpoint)
 }
 
+/** A call on the browser socket; with a sessionId it reaches that page. */
+export type BrowserSend = (
+  method: string,
+  params: Record<string, unknown>,
+  sessionId?: string
+) => Promise<Record<string, unknown>>
+
 /**
- * Opens one socket to the browser, attaches to the target, runs the calls and
- * leaves. A pooled connection would be faster and would also mean one slow
- * page holding up another call; a pod is one person's browser and the calls
- * are seconds apart.
+ * Opens ONE socket to the browser, hands the work a `send` that can address
+ * the browser itself or any flattened page session on it, and leaves.
+ * Everything that needs a page goes through here (see the note above on the
+ * silent page socket).
  */
-export async function onPage<T>(
+export async function onBrowser<T>(
   endpoint: string,
-  targetId: string,
-  work: (call: Call) => Promise<T>
+  work: (send: BrowserSend) => Promise<T>
 ): Promise<T> {
   const WS = await socketClass()
   const socket = new WS(await browserWsUrl(endpoint), {
@@ -260,11 +285,7 @@ export async function onPage<T>(
       waiter(msg)
     })
 
-    const send = (
-      method: string,
-      params: Record<string, unknown>,
-      sessionId?: string
-    ) =>
+    const send: BrowserSend = (method, params, sessionId) =>
       new Promise<Record<string, unknown>>((resolve, reject) => {
         const id = nextId++
         const timer = setTimeout(() => {
@@ -287,17 +308,97 @@ export async function onPage<T>(
         )
       })
 
+    return await work(send)
+  } finally {
+    socket.close()
+  }
+}
+
+/**
+ * Opens one socket to the browser, attaches to the target, runs the calls and
+ * leaves. A pooled connection would be faster and would also mean one slow
+ * page holding up another call; a pod is one person's browser and the calls
+ * are seconds apart.
+ */
+export async function onPage<T>(
+  endpoint: string,
+  targetId: string,
+  work: (call: Call) => Promise<T>
+): Promise<T> {
+  return await onBrowser(endpoint, async send => {
     const attached = await send('Target.attachToTarget', {
       targetId,
       flatten: true,
     })
     const sessionId = String(attached.sessionId || '')
     if (!sessionId) throw new Error('could not attach to the page')
-
     return await work((method, params = {}) => send(method, params, sessionId))
-  } finally {
-    socket.close()
-  }
+  })
+}
+
+/**
+ * WHICH OF THESE PAGES ARE VISIBLE, OVER ONE SOCKET (browser-tab-strip.t27
+ * SOCKETS_PER_POLL). The tab strip used to call `evaluateOn` once per page:
+ * up to twelve sockets every three seconds just to learn which tab is in
+ * front. Here one browser socket attaches to every page as a flattened
+ * session, asks each `document.visibilityState` in parallel, and detaches. A
+ * page that does not answer -- or has not answered within `probeMs` (a hung
+ * renderer, an open alert()) -- is simply not counted as visible: one silent
+ * page must not hold the whole strip for the 20 s call timeout.
+ */
+export async function visiblePages(
+  endpoint: string,
+  ids: readonly string[],
+  open: typeof onBrowser = onBrowser,
+  probeMs: number = VISIBILITY_PROBE_MS
+): Promise<Set<string>> {
+  if (!ids.length) return new Set()
+  return await open(endpoint, async send => {
+    const ask = async (targetId: string): Promise<string | null> => {
+      const attached = await send('Target.attachToTarget', {
+        targetId,
+        flatten: true,
+      })
+      const sessionId = String(attached.sessionId || '')
+      if (!sessionId) return null
+      try {
+        const out = await send(
+          'Runtime.evaluate',
+          { expression: 'document.visibilityState', returnByValue: true },
+          sessionId
+        )
+        const value = (out.result as { value?: unknown } | undefined)?.value
+        return value === 'visible' ? targetId : null
+      } finally {
+        /* Not awaited: a detach that hangs must not hold the answer. */
+        void send('Target.detachFromTarget', { sessionId }).catch(() => ({}))
+      }
+    }
+    const answers = await Promise.all(
+      ids.map(targetId => withinOrNull(ask(targetId), probeMs))
+    )
+    return new Set(answers.filter((id): id is string => id !== null))
+  })
+}
+
+/** The answer if it comes within `ms`, else null; a late failure is swallowed. */
+function withinOrNull<T>(
+  work: Promise<T | null>,
+  ms: number
+): Promise<T | null> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(null), ms)
+    work.then(
+      v => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
 }
 
 interface CdpMessage {
@@ -377,6 +478,103 @@ export async function evaluateOn(
   })
 }
 
+/** Element names that own a frame: a press on one may land inside it. */
+const FRAME_OWNER = /^(IFRAME|FRAME|EMBED|OBJECT|FENCEDFRAME|PORTAL)$/i
+
+/**
+ * WHICH FRAME A PRESS AT x,y LANDS IN, asked of Chromium (embedded.ts). The
+ * hit-test runs in the browser, not in page script: it sees into closed
+ * shadow roots, a page cannot override it, and it skips
+ * `pointer-events: none` exactly as a real press does. That is why
+ * `ignorePointerEventsNone` is NOT set: with it, a transparent overlay with
+ * pointer-events none would be "hit" while the real press fell through to
+ * the frame beneath.
+ *
+ * x,y are viewport CSS px (what clickAt and Input take); the hit-test takes
+ * document coordinates, so the scroll offset is added (read from
+ * Page.getLayoutMetrics, never guessed: no offset, no answer).
+ *
+ * Returns the frame id -- `targetId` itself for the top page, the iframe
+ * target id for a cross-origin frame (measured by the bee on #3507: they are
+ * the same id) -- and its address when the page's frame tree knows it.
+ * Throws when it cannot tell; the caller falls back, closed.
+ */
+export async function frameAtPoint(
+  endpoint: string,
+  targetId: string,
+  x: number,
+  y: number
+): Promise<{ frameId: string; url: string | null }> {
+  return await onPage(endpoint, targetId, call =>
+    frameAtPointWith(call, targetId, x, y)
+  )
+}
+
+/**
+ * The same, over calls already attached to the page: what a test drives.
+ * The point is ROUNDED into document px, not floored: with a fractional
+ * scroll offset, flooring put the check up to a pixel beside the press.
+ */
+export async function frameAtPointWith(
+  call: Call,
+  targetId: string,
+  x: number,
+  y: number
+): Promise<{ frameId: string; url: string | null }> {
+  const m = await call('Page.getLayoutMetrics')
+  const vv = (m.cssVisualViewport ?? m.cssLayoutViewport) as
+    | { pageX?: unknown; pageY?: unknown }
+    | undefined
+  const sx = Number(vv?.pageX)
+  const sy = Number(vv?.pageY)
+  if (!Number.isFinite(sx) || !Number.isFinite(sy))
+    throw new Error('no scroll offset: cannot place the point')
+  let hit: Record<string, unknown>
+  try {
+    hit = await call('DOM.getNodeForLocation', {
+      x: Math.round(x + sx),
+      y: Math.round(y + sy),
+      includeUserAgentShadowDOM: true,
+    })
+  } catch (e) {
+    /* Empty canvas: the press lands on the top page itself. */
+    if (/no node found/i.test(String((e as Error).message)))
+      return { frameId: targetId, url: null }
+    throw e
+  }
+  const described = await call('DOM.describeNode', {
+    backendNodeId: hit.backendNodeId,
+  })
+  const node = described.node as
+    | { nodeName?: string; frameId?: string }
+    | undefined
+  const owned =
+    node && FRAME_OWNER.test(node.nodeName ?? '') && node.frameId
+      ? node.frameId
+      : null
+  const frameId = owned ?? String(hit.frameId || '')
+  if (!frameId) throw new Error('the hit-test named no frame')
+  if (frameId === targetId) return { frameId, url: null }
+  const tree = await call('Page.getFrameTree').catch(() => null)
+  return { frameId, url: urlInTree(tree?.frameTree, frameId) }
+}
+
+interface FrameTreeNode {
+  frame?: { id?: string; url?: string; urlFragment?: string }
+  childFrames?: FrameTreeNode[]
+}
+
+function urlInTree(tree: unknown, id: string): string | null {
+  const stack = tree ? [tree as FrameTreeNode] : []
+  while (stack.length) {
+    const n = stack.pop() as FrameTreeNode
+    if (n.frame?.id === id && n.frame.url)
+      return n.frame.url + (n.frame.urlFragment ?? '')
+    stack.push(...(n.childFrames ?? []))
+  }
+  return null
+}
+
 /**
  * A click where the person would see one: a real mouse press and release at a
  * point, not a synthetic DOM event. A page that only reacts to trusted events
@@ -395,15 +593,26 @@ export async function clickAt(
   })
 }
 
-/** Types into whatever has focus, character by character, as a person would. */
+/**
+ * Types into whatever has focus, character by character, as a person would.
+ *
+ * A LINE BREAK IS A KEY ONLY WHERE ENTER IS SAFE (2026-10-03). A "\n" char
+ * event is dropped by X's composer, so the blog desk's thread came out as
+ * one line, title glued to the summary. "\r" is what the Enter key types,
+ * and X's composer breaks the line on it (measured in the pod). It stays
+ * opt-in: in a chat box Enter SENDS, and an approved comment must not leave
+ * half-typed.
+ */
 export async function typeText(
   endpoint: string,
   targetId: string,
-  text: string
+  text: string,
+  opts: { enterForNewline?: boolean } = {}
 ): Promise<void> {
   await onPage(endpoint, targetId, async call => {
     for (const ch of text) {
-      await call('Input.dispatchKeyEvent', { type: 'char', text: ch })
+      const key = ch === '\n' && opts.enterForNewline ? '\r' : ch
+      await call('Input.dispatchKeyEvent', { type: 'char', text: key })
     }
   })
 }

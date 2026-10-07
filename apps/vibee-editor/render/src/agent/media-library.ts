@@ -529,12 +529,18 @@ async function transcribeWithWhisper(
  * on 2026-09-22 so a video's soundtrack can be handed over without a trip
  * through the `/s3/` route, which would transcode the whole video first.
  */
-async function whisperBytes(
+export async function whisperBytes(
   w: WhisperConfig,
   bytes: Buffer,
   contentType: string | null,
   name: string | null,
-  timeoutMs: number
+  timeoutMs: number,
+  /**
+   * ISO 639-1 code when the caller already knows it. Measured in the whisper
+   * pod on 2026-10-02: a 2.7 s Russian phrase took 5.5 s undirected and 3.2 s
+   * with `language=ru` -- detection is a second encoder pass, not a lookup.
+   */
+  language?: string
 ): Promise<string | null> {
   if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
@@ -583,6 +589,7 @@ async function whisperBytes(
    * either shape, so a server that answers plain text is still understood.
    */
   form.append('response_format', 'json')
+  if (language) form.append('language', language)
   /*
    * `stream=false`, SAID OUT LOUD, BECAUSE THE SERVER GUESSED WRONG.
    *
@@ -745,6 +752,141 @@ export function readTranscript(body: string): string | null {
     }
   }
   return raw.slice(0, TRANSCRIPT_CAP)
+}
+
+/** One heard word and where it sits in the recording, seconds. */
+export interface HeardWord {
+  word: string
+  start: number
+  end: number
+}
+
+/**
+ * The timed words out of a transcription reply, whatever shape it came in.
+ *
+ * `verbose_json` with word granularity puts them in a top-level `words`
+ * (OpenAI, Groq); some servers only nest them under `segments[].words`.
+ * A server-sent-event body is read event by event, the same two shapes in
+ * each. Anything without a word and two finite times is not a word.
+ */
+export function readTimedWords(body: string): HeardWord[] {
+  const raw = String(body ?? '').trim()
+  if (!raw) return []
+  const fromObject = (o: any): HeardWord[] => {
+    const flat: any[] = Array.isArray(o?.words) ? o.words : []
+    const nested: any[] = Array.isArray(o?.segments)
+      ? o.segments.flatMap((s: any) => (Array.isArray(s?.words) ? s.words : []))
+      : []
+    return (flat.length ? flat : nested)
+      .map(w => ({
+        word: String(w?.word ?? w?.text ?? '').trim(),
+        start: Number(w?.start),
+        end: Number(w?.end),
+      }))
+      .filter(
+        w =>
+          w.word &&
+          Number.isFinite(w.start) &&
+          Number.isFinite(w.end) &&
+          w.end >= w.start
+      )
+  }
+  if (raw.startsWith('{')) {
+    try {
+      return fromObject(JSON.parse(raw))
+    } catch {
+      /* not one object: maybe events */
+    }
+  }
+  const out: HeardWord[] = []
+  for (const line of raw.split('\n')) {
+    const t = line.trim()
+    if (!t.startsWith('data:')) continue
+    const payload = t.slice(5).trim()
+    if (!payload || payload === '[DONE]') continue
+    try {
+      out.push(...fromObject(JSON.parse(payload)))
+    } catch {
+      /* a half-written event is not words */
+    }
+  }
+  return out.sort((a, b) => a.start - b.start)
+}
+
+/**
+ * The words of a recording WITH THEIR TIMES -- what a reel's captions are
+ * built from (split-reel.t27: captions from the final voice). Same server,
+ * same key as `whisperBytes`; asks for `verbose_json` at word granularity.
+ *
+ * The plain request goes first here, unlike `whisperBytes`: OpenAI and Groq
+ * only return word times on it. The streamed request is the fallback for a
+ * self-hosted server that answers the plain one with an empty 200 (the
+ * speaches streaming bug documented in `whisperBytes`). An empty list means
+ * no timed words came back by either road -- never a guess.
+ */
+export async function whisperWords(
+  w: WhisperConfig,
+  bytes: Buffer,
+  contentType: string | null,
+  name: string | null,
+  timeoutMs: number,
+  language?: string
+): Promise<HeardWord[]> {
+  if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
+    throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
+  const attempt = async (streaming: boolean): Promise<string> => {
+    const f = new FormData()
+    f.append('model', w.model)
+    f.append('response_format', 'verbose_json')
+    f.append('timestamp_granularities[]', 'word')
+    if (language) f.append('language', language)
+    f.append('stream', streaming ? 'true' : 'false')
+    f.append(
+      'file',
+      new Blob([bytes as Uint8Array<ArrayBuffer>], {
+        type: contentType || 'audio/mpeg',
+      }),
+      name || 'voice.mp3'
+    )
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    let r: Response
+    try {
+      r = await fetch(`${w.base}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${w.key}` },
+        body: f,
+        signal: ac.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+    if (!r.ok) {
+      const bad = await r.text().catch(() => '')
+      if (r.status === 401 || r.status === 403) {
+        whisperKeyRefused = true
+        throw new Error(`whisper answered ${r.status}`)
+      }
+      if (streaming) return ''
+      throw new Error(`whisper answered ${r.status}: ${bad.slice(0, 160)}`)
+    }
+    return await r.text()
+  }
+  const plain = await attempt(false).catch(e => {
+    if (whisperKeyRefused) throw e
+    return ''
+  })
+  const fromPlain = readTimedWords(plain)
+  if (fromPlain.length) return fromPlain
+  const streamed = await attempt(true)
+  const fromStream = readTimedWords(streamed)
+  // Lengths only: a body with text but no times would carry the speech.
+  if (!fromStream.length)
+    console.warn(
+      `[media] the transcriber gave no timed words (plain body ${plain.length} chars, ` +
+        `streamed body ${streamed.length} chars)`
+    )
+  return fromStream
 }
 
 /** The one provider that perceives this kind, in the configured order. */
@@ -1247,7 +1389,13 @@ export async function describeMedia(
     if (!p) return null
     return await askProvider(p, kind, safe)
   } catch (e) {
-    console.warn(
+    // A background ask that gave way to a live one is the vision lane doing
+    // its job (media-vision.ts, VisionPreempted), not a failure: it goes to
+    // stdout, which Railway files as info. stderr is filed as error, and this
+    // line there was noise burying real failures. The row stays pending
+    // either way -- DescribeFailed below.
+    const say = e instanceof VisionPreempted ? console.log : console.warn
+    say(
       `[media-library] could not describe ${kind} ${name ?? ''}: ${String(
         e instanceof Error ? e.message : e
       ).slice(0, 160)}`

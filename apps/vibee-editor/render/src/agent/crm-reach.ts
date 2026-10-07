@@ -58,6 +58,7 @@
  * learn whose client somebody is by being told off.
  */
 import type { ToolContext } from './tools'
+import { ToolRefusal } from './tool-refusal'
 
 /** What the caller is told, in either direction. Deliberately uninformative. */
 export const NO_SUCH_PERSON = 'такого человека нет: вы с ним не переписывались' // cyrillic-ok: message shown to the agent
@@ -137,5 +138,6 @@ export async function requireOwnLead(
   ctx: ToolContext | undefined,
   lead: string
 ): Promise<void> {
-  if (!(await ownsLead(ctx, lead))) throw new Error(NO_SUCH_PERSON)
+  if (!(await ownsLead(ctx, lead)))
+    throw new ToolRefusal('not_your_lead', NO_SUCH_PERSON)
 }

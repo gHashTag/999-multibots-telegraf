@@ -70,9 +70,9 @@ struct GenerateScreen: View {
    * веба до генерации не доходили вовсе. Язык был зашит «Russian» — человек,
    * которому нужен английский сценарий, получить его не мог.
    */
-  @State private var ниша = "Другое"
-  @State private var стиль = "Обучающий"
-  @State private var языкСценария = "Русский"
+  @State private var ниша = "Другое"  // cyrillic-ok: pre-existing name; ru-only-ok: chip value (shown via КаталогСценария.label)
+  @State private var стиль = "Обучающий"  // cyrillic-ok: pre-existing name; ru-only-ok: chip value (shown via КаталогСценария.label)
+  @State private var языкСценария = speaksRussian ? "Русский" : "English"  // ru-only-ok: value, shown via say
   /// Сохранённые шаблоны сценария. Читаются один раз при появлении экрана.
   @State private var шаблоны: [ШаблонСценария] = []
   @State private var сохраняемШаблон = false
@@ -92,8 +92,8 @@ struct GenerateScreen: View {
   /// Голоса приходят с `/api/voices`. Запасные — до первого ответа и при
   /// обрыве сети; они настоящие и уходят провайдеру дословно.
   @State private var голоса: [API.Голос] = [
-    API.Голос(id: "Russian_ReliableMan", name: "Максим — уверенный", category: "ru"),
-    API.Голос(id: "Russian_BrightHeroine", name: "Алиса — звонкая", category: "ru"),
+    API.Голос(id: "Russian_ReliableMan", name: "Максим — уверенный", category: "ru"),  // ru-only-ok: the server's own voice name
+    API.Голос(id: "Russian_BrightHeroine", name: "Алиса — звонкая", category: "ru"),  // ru-only-ok: the server's own voice name
     API.Голос(id: "English_Wiselady", name: "Wise Lady", category: "en"),
   ]
   @State private var скорость = "1.0"
@@ -112,6 +112,7 @@ struct GenerateScreen: View {
   @State private var модель: Модель?
   @ObservedObject private var слои = Слои.общие
   @State private var открытьРедактор = false
+  @Environment(\.tabReselects) private var tabReselects
 
   /**
    * WHAT WAS ACTUALLY BROKEN ABOUT "Взять" (Take).
@@ -140,9 +141,9 @@ struct GenerateScreen: View {
   @ViewBuilder private func takeButton(_ id: String) -> some View {
     Button { takeAsset(id) } label: {
       if recentlyTaken.contains(id) {
-        Label("Добавлено", systemImage: "checkmark.circle.fill")
+        Label(say("Added", "Добавлено"), systemImage: "checkmark.circle.fill")
       } else {
-        Text("Взять")
+        Text(say("Take", "Взять"))
       }
     }
     .font(Тема.Шрифт.стиль(.footnote, .medium))
@@ -230,15 +231,15 @@ struct GenerateScreen: View {
   /// Что писать в поле — своими словами для каждого вида.
   private var подсказкаПоля: String {
     switch вид {
-    case .видео: return "Кот прыгает через лужу в неоне…"
-    case .сценарий: return "Тема ролика: утренний кофе…"
+    case .видео: return say("A cat jumps over a puddle in neon…", "Кот прыгает через лужу в неоне…")
+    case .сценарий: return say("What the reel is about: morning coffee…", "Тема ролика: утренний кофе…")
     // Своя подсказка КАЖДОМУ виду, а не «остальным». В поле для озвучки
     // висело «Красный куб на белом столе» — описание картинки там, где
     // ждут слова для голоса.
-    case .звук: return "Текст, который надо произнести…"
-    case .аватар: return "Возьмём голос и образ из прошлых шагов"
+    case .звук: return say("The text to speak…", "Текст, который надо произнести…")
+    case .аватар: return say("We take the voice and the image from the steps before", "Возьмём голос и образ из прошлых шагов")
     case .редактор: return ""
-    case .картинка: return "Красный куб на белом столе…"
+    case .картинка: return say("A red cube on a white table…", "Красный куб на белом столе…")
     }
   }
 
@@ -278,7 +279,7 @@ struct GenerateScreen: View {
     defer { идётЗагрузка = false }
     do {
       guard let данные = try await элемент.loadTransferable(type: Data.self) else {
-        ошибкаЗагрузки = "Не удалось прочитать фото"
+        ошибкаЗагрузки = say("Could not read the photo", "Не удалось прочитать фото")
         return
       }
       // Тип и расширение — по виду файла: сервер кладёт их в S3 как есть, и
@@ -290,20 +291,19 @@ struct GenerateScreen: View {
         тип: видео ? "video/mp4" : "image/jpeg"
       )
     } catch {
-      ошибкаЗагрузки = "Загрузка не удалась: \(error.localizedDescription)"
+      ошибкаЗагрузки = say("Upload failed: ", "Загрузка не удалась: ") + error.localizedDescription
     }
   }
 
   private var почемуНельзяЗапускать: String? {
     if идёт { return nil }
-    guard let м = модель else { return "Выберите модель" }
-    if !м.живая { return м.почемуНельзя }
-    if промпт.isEmpty { return "Нужно описание" }
+    guard let м = модель else { return say("Choose a model", "Выберите модель") }  // cyrillic-ok: pre-existing names
+    if !м.живая { return м.pausedLabel }  // cyrillic-ok: pre-existing names
+    if промпт.isEmpty { return say("A description is needed", "Нужно описание") }  // cyrillic-ok: pre-existing names
     // Модель правки без исходника — заявка, которую сервер соберёт как null.
     // Сказать об этом ДО нажатия честнее, чем показать отказ после.
     if м.нуженИсходник && исходникИлиПодстава == nil {
-      let что = м.видИсходника == "видео" ? "видео" : "фото"
-      return идётЗагрузка ? "Файл загружается" : "Нужно \(что)"
+      return GenerateText.sourceMissing(video: м.видИсходника == "видео", uploading: идётЗагрузка)  // cyrillic-ok: pre-existing names
     }
     /*
      * ЛИПСИНКУ НУЖЕН ЗВУК, А НЕ ТОЛЬКО ФОТО.
@@ -318,7 +318,7 @@ struct GenerateScreen: View {
      * это как «липсинк не работает», хотя работать было не с чем.
      */
     if вид == .аватар, звукИзШагов == nil {
-      return "Сначала озвучка: сделайте её на вкладке «Голос»"
+      return say("Voiceover first: make it on the “Voice” tab", "Сначала озвучка: сделайте её на вкладке «Голос»")
     }
     /**
      * ХВАТИТ ЛИ ТОКЕНОВ — СПРАШИВАЕМ ДО НАЖАТИЯ.
@@ -375,9 +375,7 @@ struct GenerateScreen: View {
        * одну. Соврать «хватит» и получить отказ после нажатия хуже, чем
        * честно назвать единицу измерения.
        */
-      return (б.perSecond ?? []).contains(оп)
-        ? "не хватит: \(цена) за секунду звука, есть \(б.balance)"
-        : "не хватит токенов: нужно \(цена), есть \(б.balance)"
+      return GenerateText.shortfall(price: цена, balance: б.balance, perSecond: (б.perSecond ?? []).contains(оп))  // cyrillic-ok: pre-existing names
     }
     return nil
   }
@@ -543,18 +541,18 @@ struct GenerateScreen: View {
 
     var подпись: String {
       switch self {
-      case .видео: return "Видео"
-      case .редактор: return "Редактор"
+      case .видео: return say("Video", "Видео")
+      case .редактор: return say("Editor", "Редактор")
       // «Фото» и «Голос» — так они названы в вебе (app.t27.ai/generate/*).
       // Разные слова для одного и того же в двух клиентах — это два разных
       // продукта в глазах человека, который пользуется обоими.
-      case .картинка: return "Фото"
-      case .звук: return "Голос"
+      case .картинка: return say("Photo", "Фото")
+      case .звук: return say("Voice", "Голос")
       // Шаг называется тем, что делает: он оживляет фото голосом. «Аватар»
       // в этом продукте уже занят — так зовётся дорожка монтажа и
       // категория ассетов, то есть ТИП МЕДИА, а не шаг.
-      case .аватар: return "Липсинк"
-      case .сценарий: return "Сценарий"
+      case .аватар: return say("Lip-sync", "Липсинк")
+      case .сценарий: return say("Script", "Сценарий")
       }
     }
 
@@ -675,7 +673,7 @@ struct GenerateScreen: View {
       case .редактор:
         return [:]
       case .звук:
-        return ["text": "проверка", "voice_id": "Russian_ReliableMan", "speed": 1]
+        return ["text": "проверка", "voice_id": "Russian_ReliableMan", "speed": 1]  // ru-only-ok: probe body sent to the server
       case .аватар:
         return [
           "audio_url": "https://example.com/a.mp3",
@@ -684,7 +682,7 @@ struct GenerateScreen: View {
         ]
       case .сценарий:
         return [
-          "topic": "проверка", "niche": "lifestyle",
+          "topic": "проверка", "niche": "lifestyle",  // ru-only-ok: probe body sent to the server
           "style": "dynamic", "duration": 15, "language": "ru",
         ]
       case .видео, .картинка:
@@ -736,8 +734,11 @@ struct GenerateScreen: View {
             плашка(
               значок: "exclamationmark.shield",
               цвет: Тема.Цвет.предупреждение,
-              текст: "Нечем представиться серверу — он ответит отказом. "
-                + "Зайдите в Профиль и войдите по коду из бота."
+              текст: say(
+                "Nothing to introduce us to the server with — it will refuse. "
+                  + "Open Profile and sign in with the code from the bot.",
+                "Нечем представиться серверу — он ответит отказом. "
+                  + "Зайдите в Профиль и войдите по коду из бота.")
             )
           } else if Identity.accessToken == nil {
             /**
@@ -756,9 +757,13 @@ struct GenerateScreen: View {
             плашка(
               значок: "key.slash",
               цвет: Тема.Цвет.предупреждение,
-              текст: "Ключ агента открывает чат, но не генерацию: она стоит "
-                + "за общим гвардом, который знает только сессию. "
-                + "Войдите по коду в Профиле."
+              текст: say(  // cyrillic-ok: pre-existing parameter name
+                "The agent key opens the chat, not generation: generation sits "
+                  + "behind the shared guard, which only knows a session. "
+                  + "Sign in with the code in Profile.",
+                "Ключ агента открывает чат, но не генерацию: она стоит "
+                  + "за общим гвардом, который знает только сессию. "
+                  + "Войдите по коду в Профиле.")
             )
           }
 
@@ -777,14 +782,15 @@ struct GenerateScreen: View {
             показ(результат)
           }
         }
-        .padding(Тема.Отступ.md)
+        .padding(Тема.Отступ.md)  // cyrillic-ok: existing theme token
+        .scrollsToTopOnReselect(unless: открытьРедактор)  // cyrillic-ok: existing state
       }
       .background(Тема.Цвет.фон)
-      .navigationTitle("ИИ")
+      .navigationTitle(say("AI", "ИИ"))
       .navigationBarTitleDisplayMode(.inline)
       // Спрашиваем при входе и ПОСЛЕ каждой генерации: остаток изменился, и
       // показывать прежний — врать ровно на величину траты.
-      .task {
+      .taskWhileShown {
         /*
          * Подставной остаток — только из аргументов запуска и только в
          * отладочной сборке. Он существует потому, что денежные подписи
@@ -797,7 +803,7 @@ struct GenerateScreen: View {
           баланс = try? await API.баланс()
         }
       }
-      .onAppear { шаблоны = ХранилищеШаблонов.прочитать() }
+      .taskWhileShown { шаблоны = ХранилищеШаблонов.прочитать() }  // cyrillic-ok: existing state
       /*
        * Голоса спрашиваем У СЕРВЕРА, а не держим свой список: четвёртая копия
        * одного и того же разошлась бы так же молча, как разошлись витрина
@@ -819,9 +825,12 @@ struct GenerateScreen: View {
        * путь, а конвейер — это как раз про то, чтобы шаг за шагом идти
        * туда и обратно.
        */
+      // A repeat tap on the tab while the editor is open goes back to the
+      // root first -- UIKit's pop-to-root. The scroll waits for the next tap.
+      .onChange(of: tabReselects) { открытьРедактор = false }  // cyrillic-ok: existing state
       .navigationDestination(isPresented: $открытьРедактор) {
         EditorScreen()
-          .navigationTitle("Редактор")
+          .navigationTitle(say("Editor", "Редактор"))
           .navigationBarTitleDisplayMode(.inline)
       }
     }
@@ -941,7 +950,7 @@ struct GenerateScreen: View {
   @ViewBuilder private var историяАссетов: some View {
     if !слои.история.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
-        Text("История · \(слои.история.count)")
+        Text(say("History", "История") + " · \(слои.история.count)")  // cyrillic-ok: pre-existing names
           .font(Тема.Шрифт.стиль(.subheadline, .semibold))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -976,7 +985,8 @@ struct GenerateScreen: View {
         if слои.история.count > 20 {
           // Честно говорим, что показано не всё: молчаливое усечение
           // читается как «больше ничего нет».
-          Text("…и ещё \(слои.история.count - 20). Показаны последние 20.")
+          Text(say("…and \(слои.история.count - 20) more. Showing the last 20.",  // cyrillic-ok: pre-existing names
+                    "…и ещё \(слои.история.count - 20). Показаны последние 20."))  // cyrillic-ok: pre-existing names
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
         }
@@ -997,8 +1007,10 @@ struct GenerateScreen: View {
   @ViewBuilder private var сборка: some View {
     VStack(alignment: .leading, spacing: 14) {
       if слои.пусто {
-        Text("Пока нечего собирать. Пройдите шаги слева направо — "
-             + "сценарий, голос, образы — и всё сделанное появится здесь.")
+        Text(say("Nothing to assemble yet. Go through the steps left to right — "
+                   + "script, voice, images — and everything you make shows up here.",
+                 "Пока нечего собирать. Пройдите шаги слева направо — "
+                   + "сценарий, голос, образы — и всё сделанное появится здесь."))
           .font(Тема.Шрифт.стиль(.callout))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
@@ -1041,7 +1053,7 @@ struct GenerateScreen: View {
           Слои.общие.готоваяКомпозиция = слои.композиция()
           открытьРедактор = true
         } label: {
-          Label("Открыть в редакторе", systemImage: "square.stack.3d.up")
+          Label(say("Open in the editor", "Открыть в редакторе"), systemImage: "square.stack.3d.up")
             .font(Тема.Шрифт.стиль(.subheadline, .semibold))
             .frame(maxWidth: .infinity)
             .frame(minHeight: 50)
@@ -1055,7 +1067,7 @@ struct GenerateScreen: View {
 
   @ViewBuilder private var форма: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Text("Что сгенерировать")
+      Text(say("What to generate", "Что сгенерировать"))
         .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1080,7 +1092,7 @@ struct GenerateScreen: View {
       if вид == .видео,
          !(баланс?.поЗамеруФайла(модельДляСервера) ?? false),
          баланс?.полеДоходит("duration", модель: модельДляСервера) ?? true {
-        строкаВыбора("Длительность", ["6s", "10s"], $длительность)
+        строкаВыбора(say("Duration", "Длительность"), ["6s", "10s"], $длительность)
       }
       if вид == .сценарий {
         выборДлительностиСценария
@@ -1104,7 +1116,7 @@ struct GenerateScreen: View {
        */
       if [.видео, .картинка, .аватар].contains(вид),
          баланс?.полеДоходит("aspect_ratio", модель: модельДляСервера) ?? true {
-        строкаВыбора("Кадр", ["9:16", "16:9", "1:1"], $соотношение)
+        строкаВыбора(say("Aspect ratio", "Кадр"), ["9:16", "16:9", "1:1"], $соотношение)  // cyrillic-ok: pre-existing names
       }
 
       /*
@@ -1113,9 +1125,10 @@ struct GenerateScreen: View {
        * которая ни на что не влияет.
        */
       if вид == .сценарий {
-        чипыВыбора("Ниша", КаталогСценария.ниши, $ниша)
-        чипыВыбора("Стиль", КаталогСценария.стили, $стиль)
-        строкаВыбора("Язык", ["Русский", "English"], $языкСценария)
+        чипыВыбора(say("Niche", "Ниша"), КаталогСценария.ниши, $ниша, label: { КаталогСценария.label($0) })  // cyrillic-ok: pre-existing names
+        чипыВыбора(say("Style", "Стиль"), КаталогСценария.стили, $стиль, label: { КаталогСценария.label($0) })  // cyrillic-ok: pre-existing names
+        строкаВыбора(say("Language", "Язык"), ["Русский", "English"], $языкСценария,  // cyrillic-ok: pre-existing names; ru-only-ok: values
+                     label: { $0 == "Русский" ? say("Russian", "Русский") : $0 })  // ru-only-ok: value
         шаблоныСценария
         советыСценария
       }
@@ -1127,12 +1140,12 @@ struct GenerateScreen: View {
          * Показываем ИМЯ, отправляем ИДЕНТИФИКАТОР — разошлись бы они, и
          * выбор снова перестал бы доходить.
          */
-        чипыВыбораПоИмени(
-          "Голос",
+        чипыВыбораПоИмени(  // cyrillic-ok: pre-existing name
+          say("Voice", "Голос"),
           голоса.map { (значение: $0.id, подпись: $0.name) },
           $голос
         )
-        строкаВыбора("Скорость", ["0.75", "1.0", "1.25"], $скорость)
+        строкаВыбора(say("Speed", "Скорость"), ["0.75", "1.0", "1.25"], $скорость)  // cyrillic-ok: pre-existing names
       }
 
       /**
@@ -1145,7 +1158,7 @@ struct GenerateScreen: View {
        */
       if модель?.нуженИсходник == true {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Исходник")
+          Text(say("Source", "Исходник"))
             .font(Тема.Шрифт.стиль(.caption))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1165,11 +1178,13 @@ struct GenerateScreen: View {
               Image(systemName: исходник == nil ? "photo.badge.plus" : "checkmark.circle.fill")
               Text(
                 идётЗагрузка
-                  ? "Загружаю…"
-                  : исходник == nil
-                    ? (модель?.видИсходника == "видео" ? "Выбрать видео" : "Выбрать фото")
-                    : (модель?.видИсходника == "видео"
-                      ? "Видео готово — заменить" : "Фото готово — заменить")
+                  ? say("Uploading…", "Загружаю…")
+                  : исходник == nil  // cyrillic-ok: pre-existing name
+                    ? (модель?.видИсходника == "видео"  // cyrillic-ok: pre-existing names
+                      ? say("Choose a video", "Выбрать видео") : say("Choose a photo", "Выбрать фото"))
+                    : (модель?.видИсходника == "видео"  // cyrillic-ok: pre-existing names
+                      ? say("Video ready — replace", "Видео готово — заменить")
+                      : say("Photo ready — replace", "Фото готово — заменить"))
               )
               .accessibilityIdentifier("ии.исходник.кнопка")
             }
@@ -1220,7 +1235,7 @@ struct GenerateScreen: View {
        * — это не выбор, а поиск.
        */
       VStack(alignment: .leading, spacing: 4) {
-        Text("Модель")
+        Text(say("Model", "Модель"))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1245,10 +1260,10 @@ struct GenerateScreen: View {
         HStack(spacing: Тема.Отступ.sm) {
           if идёт {
             ProgressView().tint(Тема.Кнопка.основнаяТекст)
-            Text("Идёт \(прошло) с")
+            Text(say("Working \(прошло)s", "Идёт \(прошло) с"))  // cyrillic-ok: pre-existing name
           } else {
             Image(systemName: "sparkles")
-            Text("Сгенерировать")
+            Text(say("Generate", "Сгенерировать"))
               .accessibilityIdentifier("ии.кнопка.текст")
             /**
              * ЦЕНА — НА КНОПКЕ, ДО НАЖАТИЯ.
@@ -1336,8 +1351,10 @@ struct GenerateScreen: View {
          * спиннер на минуту неотличим от зависшего приложения, поэтому здесь
          * стоит счётчик секунд и обещание порядка ожидания.
          */
-        Text("Сервер отвечает одним ответом, без очереди: обычно 50–70 секунд. "
-             + "Не закрывайте вкладку.")
+        Text(say("The server answers in one reply, no queue: usually 50–70 seconds. "
+                   + "Keep this tab open.",
+                 "Сервер отвечает одним ответом, без очереди: обычно 50–70 секунд. "
+                   + "Не закрывайте вкладку."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
@@ -1345,12 +1362,15 @@ struct GenerateScreen: View {
   }
 
   private func строкаВыбора(
-    _ имя: String, _ варианты: [String], _ выбор: Binding<String>
+    _ имя: String, _ варианты: [String], _ выбор: Binding<String>,
+    // The value stays what the server and saved templates expect; only the
+    // label follows the phone's language.
+    label: @escaping (String) -> String = { $0 }
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(имя).font(Тема.Шрифт.стиль(.caption)).foregroundStyle(Тема.Цвет.текстПриглушённый)
       Picker(имя, selection: выбор) {
-        ForEach(варианты, id: \.self) { Text($0).tag($0) }
+        ForEach(варианты, id: \.self) { Text(label($0)).tag($0) }  // cyrillic-ok: pre-existing names
       }
       .pickerStyle(.segmented)
     }
@@ -1389,7 +1409,7 @@ struct GenerateScreen: View {
       слои.история, вид: вид.rawValue, дорожка: дорожкаСлоя)
     if !свои.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
-        Text("Прошлые генерации · \(свои.count)")
+        Text(say("Past generations", "Прошлые генерации") + " · \(свои.count)")  // cyrillic-ok: pre-existing name
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1443,23 +1463,23 @@ struct GenerateScreen: View {
 
   private var выборДлительностиСценария: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text("Длительность")
+      Text(say("Duration", "Длительность"))
         .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       HStack(spacing: Тема.Отступ.sm) {
         ForEach([15, 30, 60, 90], id: \.self) { сек in
-          чипДлительности("\(сек)с", выбран: !свояДлительность && длительностьСценарияСек == сек) {
+          чипДлительности(say("\(сек)s", "\(сек)с"), выбран: !свояДлительность && длительностьСценарияСек == сек) {
             длительностьСценарияСек = сек
             свояДлительность = false
           }
         }
-        чипДлительности("Своя", выбран: свояДлительность) { свояДлительность = true }
+        чипДлительности(say("Custom", "Своя"), выбран: свояДлительность) { свояДлительность = true }
       }
 
       if свояДлительность {
         TextField(
-          "секунд", text: Binding(
+          say("seconds", "секунд"), text: Binding(
             get: { длительностьСценарияСек == 0 ? "" : String(длительностьСценарияСек) },
             // Только цифры: буквы попадали бы в промпт сервера как есть —
             // «Create a abc seconds script» — и портили бы результат молча.
@@ -1507,18 +1527,19 @@ struct GenerateScreen: View {
   @ViewBuilder private var шаблоныСценария: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Text("Шаблоны")
+        Text(say("Templates", "Шаблоны"))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
         Spacer()
-        Button("Сохранить") { сохраняемШаблон = true }
+        Button(say("Save", "Сохранить")) { сохраняемШаблон = true }
           .font(Тема.Шрифт.стиль(.caption, .medium))
           .foregroundStyle(Тема.Цвет.акцент)
           .frame(minHeight: Тема.Касание.минимум)
       }
       if шаблоны.isEmpty {
         // Пустота ОБЪЯСНЕНА: пустая полоса читается как поломка.
-        Text("Пока пусто. Выставьте настройки и нажмите «Сохранить» — в следующий раз хватит одного касания.")
+        Text(say("Nothing yet. Set things up and tap “Save” — next time one tap is enough.",
+                  "Пока пусто. Выставьте настройки и нажмите «Сохранить» — в следующий раз хватит одного касания."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
@@ -1543,7 +1564,7 @@ struct GenerateScreen: View {
               // Удаление — долгим нажатием: отдельная кнопка-крестик на чипе
               // меньше пальца, и промах стирал бы чужой шаблон.
               .contextMenu {
-                Button("Удалить", role: .destructive) {
+                Button(say("Delete", "Удалить"), role: .destructive) {
                   шаблоны = ХранилищеШаблонов.удалить(шаблоны, id: т.id)
                   ХранилищеШаблонов.записать(шаблоны)
                 }
@@ -1554,10 +1575,10 @@ struct GenerateScreen: View {
         }
       }
     }
-    .alert("Название шаблона", isPresented: $сохраняемШаблон) {
-      TextField("Например, «Утренний крипто»", text: $имяШаблона)
-      Button("Отмена", role: .cancel) { имяШаблона = "" }
-      Button("Сохранить") {
+    .alert(say("Template name", "Название шаблона"), isPresented: $сохраняемШаблон) {  // cyrillic-ok: pre-existing name
+      TextField(say("For example, “Morning crypto”", "Например, «Утренний крипто»"), text: $имяШаблона)  // cyrillic-ok: pre-existing name
+      Button(say("Cancel", "Отмена"), role: .cancel) { имяШаблона = "" }  // cyrillic-ok: pre-existing name
+      Button(say("Save", "Сохранить")) {
         шаблоны = ХранилищеШаблонов.добавить(
           шаблоны, имя: имяШаблона, ниша: ниша, стиль: стиль,
           секунды: длительностьСценарияСек, язык: языкСценария,
@@ -1581,10 +1602,10 @@ struct GenerateScreen: View {
   /// Советы — те же четыре, что в вебе, дословно из одного списка.
   @ViewBuilder private var советыСценария: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text("Советы")
+      Text(say("Tips", "Советы"))
         .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
-      ForEach(СоветыСценария.все, id: \.self) { совет in
+      ForEach(СоветыСценария.все(), id: \.self) { совет in
         HStack(alignment: .top, spacing: 8) {
           Text("•").foregroundStyle(Тема.Цвет.акцент)
           Text(совет)
@@ -1640,7 +1661,8 @@ struct GenerateScreen: View {
   }
 
   @ViewBuilder private func чипыВыбора(
-    _ имя: String, _ варианты: [String], _ выбор: Binding<String>
+    _ имя: String, _ варианты: [String], _ выбор: Binding<String>,
+    label: @escaping (String) -> String = { $0 }
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(имя)
@@ -1650,7 +1672,7 @@ struct GenerateScreen: View {
         HStack(spacing: 8) {
           ForEach(варианты, id: \.self) { в in
             Button { выбор.wrappedValue = в } label: {
-              Text(в)
+              Text(label(в))  // cyrillic-ok: pre-existing loop variable
                 .font(Тема.Шрифт.стиль(.footnote, .medium))
                 .padding(.horizontal, 14)
                 .frame(minHeight: Тема.Касание.минимум)
@@ -1703,13 +1725,14 @@ struct GenerateScreen: View {
 
   private func заглушка(_ причина: String) -> some View {
     VStack(alignment: .leading, spacing: 12) {
-      Label("\(вид.подпись) сейчас не работает", systemImage: "wrench.and.screwdriver")
+      Label(say("\(вид.подпись) is not working right now", "\(вид.подпись) сейчас не работает"),  // cyrillic-ok: pre-existing names
+            systemImage: "wrench.and.screwdriver")
         .font(Тема.Шрифт.стиль(.subheadline, .semibold))
         .foregroundStyle(Тема.Цвет.предупреждение)
       Text(причина)
         .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
-      Text("Проверено живым запросом 28.08.2026.")
+      Text(say("Checked with a live request on 2026-08-28.", "Проверено живым запросом 28.08.2026."))
         .font(Тема.Шрифт.стиль(.caption2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Button {
@@ -1717,7 +1740,7 @@ struct GenerateScreen: View {
       } label: {
         HStack(spacing: Тема.Отступ.sm) {
           if идёт { ProgressView().tint(Тема.Цвет.текст) }
-          Text(идёт ? "Спрашиваем сервер…" : "Спросить сервер сейчас")
+          Text(идёт ? say("Asking the server…", "Спрашиваем сервер…") : say("Ask the server now", "Спросить сервер сейчас"))  // cyrillic-ok: pre-existing name
         }
         .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
@@ -1773,10 +1796,17 @@ struct GenerateScreen: View {
   }
 
   /// Какая часть сценария открыта. Имена — как в вебе.
-  private enum ЧастьСценария: String, CaseIterable {
-    case озвучка = "Озвучка"
-    case обложка = "Обложка"
-    case броль = "B-Roll"
+  private enum ЧастьСценария: CaseIterable {  // cyrillic-ok: pre-existing type
+    case озвучка, обложка, броль  // cyrillic-ok: pre-existing cases
+
+    /// The web's names (ScriptPreview.tsx): Voiceover, Cover, B-Roll.
+    var label: String {
+      switch self {
+      case .озвучка: return say("Voiceover", "Озвучка")  // cyrillic-ok: pre-existing case
+      case .обложка: return say("Cover", "Обложка")  // cyrillic-ok: pre-existing case
+      case .броль: return "B-Roll"  // cyrillic-ok: pre-existing case
+      }
+    }
   }
 
   @ViewBuilder private func частиСценария(_ р: Результат) -> some View {
@@ -1786,7 +1816,7 @@ struct GenerateScreen: View {
       HStack(spacing: 0) {
         ForEach(ЧастьСценария.allCases, id: \.self) { ч in
           Button { частьСценария = ч } label: {
-            Text(ч.rawValue)
+            Text(ч.label)  // cyrillic-ok: pre-existing name
               .font(Тема.Шрифт.стиль(.subheadline, .medium))
               .foregroundStyle(
                 частьСценария == ч ? Тема.Цвет.акцент : Тема.Цвет.текстПриглушённый
@@ -1820,14 +1850,14 @@ struct GenerateScreen: View {
       // Подписи — тайминги озвучки, поэтому живут с ней, а не отдельной
       // вкладкой: отдельной их нет и в вебе.
       if !р.подписи.isEmpty {
-        к.append("\nПодписи:\n" + р.подписи.map { "• \($0)" }.joined(separator: "\n"))
+        к.append("\n" + say("Captions", "Подписи") + ":\n" + р.подписи.map { "• \($0)" }.joined(separator: "\n"))
       }
       return к.joined(separator: "\n")
     case .обложка:
-      return р.обложка ?? "Сервер не прислал промпт обложки."
+      return р.обложка ?? say("The server sent no cover prompt.", "Сервер не прислал промпт обложки.")  // cyrillic-ok: pre-existing name
     case .броль:
       return р.кадры.isEmpty
-        ? "Сервер не прислал описания кадров."
+        ? say("The server sent no shot descriptions.", "Сервер не прислал описания кадров.")
         : р.кадры.map { "• \($0)" }.joined(separator: "\n")
     }
   }
@@ -1870,7 +1900,8 @@ struct GenerateScreen: View {
           case .failure:
             // Ссылка на картинку подписанная и живёт сутки. Молчать о том,
             // что она протухла, значит показать пустой прямоугольник.
-            Text("Картинка не загрузилась: ссылка сервера уже недействительна.")
+            Text(say("The picture did not load: the server's link has expired.",
+                     "Картинка не загрузилась: ссылка сервера уже недействительна."))
               .font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый).padding()
           default:
             ProgressView().frame(height: 200).frame(maxWidth: .infinity)
@@ -1882,7 +1913,7 @@ struct GenerateScreen: View {
       if let п = р.провайдер {
         // Кто РЕАЛЬНО сделал. Не то же самое, что было заказано: и видео, и
         // картинка сегодня уходят в запасной Replicate.
-        Text("Сделал: \(п)")
+        Text(say("Made by: ", "Сделал: ") + п)  // cyrillic-ok: pre-existing name
           .font(Тема.Шрифт.моно(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
@@ -1927,7 +1958,7 @@ struct GenerateScreen: View {
        */
       if r.текст != nil, r.озвучка != nil || r.обложка != nil || !r.кадры.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Дальше")
+          Text(say("Next", "Дальше"))
             .font(Тема.Шрифт.стиль(.subheadline, .semibold))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
@@ -1952,10 +1983,10 @@ struct GenerateScreen: View {
             columns: [GridItem(.adaptive(minimum: 150), spacing: 8)],
             alignment: .leading, spacing: 8
           ) {
-            if let о = r.озвучка { шагДальше("Озвучить", "waveform", .звук, о) }
-            if let об = r.обложка { шагДальше("Обложка", "photo", .картинка, об) }
+            if let о = r.озвучка { шагДальше(say("Voice it", "Озвучить"), "waveform", .звук, о) }
+            if let об = r.обложка { шагДальше(say("Cover", "Обложка"), "photo", .картинка, об) }
             ForEach(Array(r.кадры.enumerated()), id: \.offset) { i, кадр in
-              шагДальше("Кадр \(i + 1)", "film", .видео, кадр)
+              шагДальше(say("Shot \(i + 1)", "Кадр \(i + 1)"), "film", .видео, кадр)  // cyrillic-ok: pre-existing names
             }
             if !r.подписи.isEmpty {
               Button {
@@ -1963,7 +1994,7 @@ struct GenerateScreen: View {
                   Слои.общие.добавить(дорожка: "text", вид: вид.rawValue, подпись: п, текст: п)
                 }
               } label: {
-                Label("Подписи · \(r.подписи.count)", systemImage: "textformat")
+                Label(say("Captions", "Подписи") + " · \(r.подписи.count)", systemImage: "textformat")  // cyrillic-ok: pre-existing name
                   .font(Тема.Шрифт.стиль(.footnote, .medium))
                   .padding(.vertical, 8).padding(.horizontal, 12)
                   .frame(minHeight: 44)
@@ -1983,13 +2014,13 @@ struct GenerateScreen: View {
       // обещала бы не то.
       if let ссылка = р.ссылка {
         ShareLink(item: ссылка) {
-          Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
+          Label(say("Share the link", "Поделиться ссылкой"), systemImage: "square.and.arrow.up")
             .font(Тема.Шрифт.стиль(.subheadline, .medium))
         }
         .tint(Тема.Цвет.акцент)
       } else if let текст = р.текст {
         ShareLink(item: текст) {
-          Label("Поделиться сценарием", systemImage: "square.and.arrow.up")
+          Label(say("Share the script", "Поделиться сценарием"), systemImage: "square.and.arrow.up")
             .font(Тема.Шрифт.стиль(.subheadline, .medium))
         }
         .tint(Тема.Цвет.акцент)
@@ -2096,7 +2127,7 @@ struct GenerateScreen: View {
         среди: задачи.map {
           ПодборЗадачи.Задача(
             kind: $0.kind, startedAt: $0.startedAt, state: $0.state,
-            url: $0.url, error: $0.error)
+            url: $0.url, error: $0.error, code: $0.code)
         },
         вид: видСервера,
         началоЗапроса: начатоВ)
@@ -2110,7 +2141,7 @@ struct GenerateScreen: View {
         return Ответ(ссылка: u)
       }
       if з.state == "failed" {
-        return Ответ(отказ: з.error ?? "Провайдер отказал")
+        return Ответ(отказ: GenerationRefusal.text(code: з.code, detail: з.error))  // cyrillic-ok: pre-existing names
       }
     }
     return nil
@@ -2171,7 +2202,10 @@ struct GenerateScreen: View {
        */
       if let e = o["error"] as? String {
         let деталь = o["detail"] as? String
-        return Ответ(отказ: деталь.map { "\(e): \($0)" } ?? e)
+        // The words stay, after a sentence in the reader's language: the
+        // server's `code` names the failure (GenerationRefusal).
+        return Ответ(отказ: GenerationRefusal.text(  // cyrillic-ok: pre-existing names
+          code: o["code"] as? String, detail: деталь.map { "\(e): \($0)" } ?? e))  // cyrillic-ok: pre-existing names
       }
       guard (200...299).contains(код) else {
         /**
@@ -2208,7 +2242,7 @@ struct GenerateScreen: View {
             return подобрано
           }
         }
-        return Ответ(отказ: "Сервер ответил \(код) без объяснения")
+        return Ответ(отказ: say("The server answered \(код) with no explanation", "Сервер ответил \(код) без объяснения"))  // cyrillic-ok: pre-existing names
       }
       // Сценарий отвечает словами: voiceover, подписи и описания кадров.
       // Ищем их ДО ссылки, иначе успешный ответ был бы объявлен непонятным.
@@ -2216,10 +2250,10 @@ struct GenerateScreen: View {
         let подписи = (o["captions"] as? [String] ?? []).map { "• \($0)" }
         let кадры = (o["broll_prompts"] as? [String] ?? []).map { "• \($0)" }
         var части = [голос]
-        if !подписи.isEmpty { части.append("\nПодписи:\n" + подписи.joined(separator: "\n")) }
-        if !кадры.isEmpty { части.append("\nКадры:\n" + кадры.joined(separator: "\n")) }
+        if !подписи.isEmpty { части.append("\n" + say("Captions", "Подписи") + ":\n" + подписи.joined(separator: "\n")) }
+        if !кадры.isEmpty { части.append("\n" + say("Shots", "Кадры") + ":\n" + кадры.joined(separator: "\n")) }
         if let обложка = o["cover_prompt"] as? String {
-          части.append("\nОбложка:\n\(обложка)")
+          части.append("\n" + say("Cover", "Обложка") + ":\n" + обложка)  // cyrillic-ok: pre-existing names
         }
         return Ответ(
           текст: части.joined(separator: "\n"),
@@ -2231,7 +2265,7 @@ struct GenerateScreen: View {
         )
       }
       guard let url = o["url"] as? String else {
-        return Ответ(отказ: "Сервер ответил \(код), но ссылки в ответе нет")
+        return Ответ(отказ: say("The server answered \(код), but there is no link in the reply", "Сервер ответил \(код), но ссылки в ответе нет"))  // cyrillic-ok: pre-existing names
       }
       let timedCaptions = (o["timed_captions"] as? [[String: Any]] ?? [])
         .compactMap { row -> TimedCaption? in
@@ -2288,7 +2322,7 @@ struct GenerateScreen: View {
       if let подобрано = await подобратьОборванное(начатоВ: началоЗапроса) {
         return подобрано
       }
-      return Ответ(отказ: "Не дошло до сервера: \(error.localizedDescription)")
+      return Ответ(отказ: say("Did not reach the server: ", "Не дошло до сервера: ") + error.localizedDescription)  // cyrillic-ok: pre-existing name
     }
   }
 
@@ -2418,7 +2452,7 @@ struct GenerateScreen: View {
       Слои.общие.добавить(
         дорожка: "text",
         вид: вид.rawValue,
-        подпись: названиеИзОписания(промпт, иначе: "Сценарий"),
+        подпись: названиеИзОписания(промпт, иначе: say("Script", "Сценарий")),  // cyrillic-ok: pre-existing names
         текст: t
       )
       результат = Результат(
@@ -2443,7 +2477,7 @@ struct GenerateScreen: View {
         списано: о.списано, осталось: о.осталось
       )
     } else {
-      ошибка = "Сервер вернул ссылку, которую не удалось разобрать"
+      ошибка = say("The server sent a link that could not be parsed", "Сервер вернул ссылку, которую не удалось разобрать")
     }
   }
 
@@ -2456,12 +2490,15 @@ struct GenerateScreen: View {
 
     let о = await позвать(вид.путь, вид.телоПроверки)
     if let отказ = о.отказ {
-      ошибка = "Сервер сейчас отвечает так — \(отказ)"
+      ошибка = say("The server answers this way now — ", "Сервер сейчас отвечает так — ") + отказ  // cyrillic-ok: pre-existing names
     } else {
       // Причина отпала: сервер ответил успехом. Говорим об этом прямо, иначе
       // человек так и будет верить заглушке.
-      ошибка = "Сервер только что ответил успехом — причина отпала. "
-        + "Форму для этого вида ещё не включили в приложении."
+      ошибка = say(
+        "The server just answered with success — the reason is gone. "
+          + "The form for this kind is not switched on in the app yet.",
+        "Сервер только что ответил успехом — причина отпала. "
+          + "Форму для этого вида ещё не включили в приложении.")
     }
   }
 
@@ -2473,5 +2510,24 @@ struct GenerateScreen: View {
     case "1:1": return (1024, 1024)
     default: return (1024, 1792)
     }
+  }
+}
+
+/// The run button's reasons that take numbers or a choice, kept pure so a test
+/// can read them in both languages.
+enum GenerateText {
+  static func sourceMissing(video: Bool, uploading: Bool, russian: Bool = speaksRussian) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    if uploading { return l("The file is uploading", "Файл загружается") }
+    return video ? l("A video is needed", "Нужно видео") : l("A photo is needed", "Нужно фото")
+  }
+
+  /// Per-second models cannot promise a total before the audio exists, so
+  /// they name the unit; the rest name the sum.
+  static func shortfall(price: Int, balance: Int, perSecond: Bool, russian: Bool = speaksRussian) -> String {
+    func l(_ en: String, _ ru: String) -> String { russian ? ru : en }
+    return perSecond
+      ? l("not enough: \(price) per second of audio, you have \(balance)", "не хватит: \(price) за секунду звука, есть \(balance)")
+      : l("not enough tokens: \(price) needed, you have \(balance)", "не хватит токенов: нужно \(price), есть \(balance)")
   }
 }

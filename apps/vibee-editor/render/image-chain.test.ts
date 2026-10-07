@@ -36,6 +36,7 @@ import {
   FAL_IMAGE_MODELS,
   IMAGE_LEG_COST_USD,
   KIE_IMAGE_LEG,
+  POLLINATIONS_IMAGE_LEG,
   REPLICATE_IMAGE_LEG,
   everyImageLegName,
   falEndpointFor,
@@ -47,6 +48,7 @@ import {
   imageLegCost,
   legFitsPrice,
   vendorOfLeg,
+  watermarkOf,
   type ImageLeg,
   type ImageVendor,
 } from './src/image-chain'
@@ -182,6 +184,57 @@ describe('the ordered image chain', () => {
         error: 'REPLICATE token not configured',
       },
     ])
+  })
+
+  it('the free leg rescues the day both paid purses refuse on money', async () => {
+    // 2026-09-29, read from the providers' own answers that day: FAL locked
+    // for an exhausted balance, Replicate 402 for no credit. Without a free
+    // leg this is not a slow picture, it is NO picture anywhere on the
+    // platform -- the Tim reel died exactly here.
+    const r = recorder()
+    const out = await runImageChain(
+      [
+        r.refuses('fal/x', 'FAL failed: 403 - User is locked'),
+        r.refuses(
+          'replicate/flux-schnell',
+          'Replicate failed: 402 - Insufficient credit'
+        ),
+        r.ok('pollinations/flux', 'https://image.pollinations.ai/prompt/x'),
+        r.ok('kie/google/nano-banana', 'https://kie.invalid/c.png'),
+      ],
+      PRICED
+    )
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('unreachable')
+    expect(out.provider).toBe('pollinations/flux')
+    // The funded purse stayed shut: quality is paid for first, Kie is never
+    // the rescue while a free leg can draw.
+    expect(r.asked).toEqual([
+      'fal/x',
+      'replicate/flux-schnell',
+      'pollinations/flux',
+    ])
+    expect(out.tried.map(t => t.provider)).toEqual([
+      'fal/x',
+      'replicate/flux-schnell',
+    ])
+  })
+
+  it('a free leg that refuses is a refusal like any other, not a success', async () => {
+    // $0 is not a licence to report victory without bytes: the chain must
+    // fall through to the next leg, and if nothing drew, say so.
+    const r = recorder()
+    const out = await runImageChain(
+      [
+        r.refuses('pollinations/flux', 'Pollinations failed: 502 - busy'),
+        r.ok('kie/google/nano-banana', 'https://kie.invalid/c.png'),
+      ],
+      PRICED
+    )
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('unreachable')
+    expect(out.provider).toBe('kie/google/nano-banana')
+    expect(r.asked).toEqual(['pollinations/flux', 'kie/google/nano-banana'])
   })
 
   it('a leg that fails AFTER being accepted is just another refusal', async () => {
@@ -522,6 +575,8 @@ describe('every leg the route can build carries its price', () => {
     fal: () => Promise.reject(new Error('fal called while building')),
     replicate: () =>
       Promise.reject(new Error('replicate called while building')),
+    pollinations: () =>
+      Promise.reject(new Error('pollinations called while building')),
     kie: () => Promise.reject(new Error('kie called while building')),
   }
 
@@ -539,7 +594,13 @@ describe('every leg the route can build carries its price', () => {
       for (const leg of legs) {
         expect(leg.costUsd, `${leg.name} has no price`).not.toBeNull()
         expect(Number.isFinite(leg.costUsd), leg.name).toBe(true)
-        expect(leg.costUsd as number, leg.name).toBeGreaterThan(0)
+        expect(leg.costUsd as number, leg.name).toBeGreaterThanOrEqual(0)
+        // $0 is a PRICE, not the absence of one, and only one leg may carry
+        // it: the keyless call with no account behind it (2026-09-29). A
+        // second zero must argue its case the way pollinations/flux did --
+        // by showing there is nothing to bill -- not arrive as a default.
+        if (leg.costUsd === 0)
+          expect(leg.name, 'the only $0 leg').toBe(POLLINATIONS_IMAGE_LEG)
       }
     }
   })
@@ -559,7 +620,12 @@ describe('every leg the route can build carries its price', () => {
     }
     return {
       called,
-      run: { fal: rec('fal'), replicate: rec('replicate'), kie: rec('kie') },
+      run: {
+        fal: rec('fal'),
+        replicate: rec('replicate'),
+        pollinations: rec('pollinations'),
+        kie: rec('kie'),
+      },
     }
   }
 
@@ -579,12 +645,13 @@ describe('every leg the route can build carries its price', () => {
       expect(pairs, String(model)).toEqual([
         [falLeg(endpoint), 'fal'],
         [REPLICATE_IMAGE_LEG, 'replicate'],
+        [POLLINATIONS_IMAGE_LEG, 'pollinations'],
         [KIE_IMAGE_LEG, 'kie'],
       ])
     }
   })
 
-  it("at today's price the real chain pays Replicate and nobody else", async () => {
+  it("at today's price the real chain pays Replicate, not Kie and not the free leg", async () => {
     const { called, run } = recordingVendors()
     const outcome = await runImageChain(
       imageChainLegs(falEndpointFor(undefined), run),
@@ -594,13 +661,15 @@ describe('every leg the route can build carries its price', () => {
     if (!outcome.ok) return
     expect(outcome.provider).toBe(REPLICATE_IMAGE_LEG)
     expect(outcome.url).toBe('https://replicate.invalid/picture.png')
-    // The money property itself: the only provider asked is the one the
-    // 2-token price was set for.
+    // The money property itself: while the paid leg the 2-token price was
+    // set for answers, the free leg is not asked and the funded purse stays
+    // shut. Free is the rescue, not the default.
     expect(called).toEqual(['replicate'])
   })
 
   it('a leg name with no callable vendor is an error, not a guess', () => {
     expect(vendorOfLeg(REPLICATE_IMAGE_LEG)).toBe('replicate')
+    expect(vendorOfLeg(POLLINATIONS_IMAGE_LEG)).toBe('pollinations')
     expect(vendorOfLeg(KIE_IMAGE_LEG)).toBe('kie')
     expect(vendorOfLeg(falLeg('fal-ai/flux/dev'))).toBe('fal')
     expect(() => vendorOfLeg('openai/gpt-image-1')).toThrow(/no vendor/)
@@ -618,6 +687,16 @@ describe('every leg the route can build carries its price', () => {
     expect(Object.keys(IMAGE_LEG_COST_USD).sort()).toEqual(
       [...everyImageLegName()].sort()
     )
+    // The ORDER is the design, not a detail: paid quality first, the free
+    // rescue when the paid purses refuse, the talking heads' purse last.
+    expect(
+      imageChainLegs('fal-ai/nano-banana-pro', neverCalled).map(l => l.name)
+    ).toEqual([
+      'fal/fal-ai/nano-banana-pro',
+      REPLICATE_IMAGE_LEG,
+      POLLINATIONS_IMAGE_LEG,
+      KIE_IMAGE_LEG,
+    ])
   })
 
   it('an unknown leg name reads as no price, not as free', () => {
@@ -649,17 +728,24 @@ describe('every leg the route can build carries its price', () => {
     const runnable = everyImageLegName().filter(n =>
       legFitsPrice(imageLegCost(n), ceiling)
     )
-    // A floor that skips every leg is an outage, not a price rule.
-    expect(runnable).toEqual([REPLICATE_IMAGE_LEG])
+    // A floor that skips every leg is an outage, not a price rule -- the
+    // exact outage this suite sat green through until 2026-09-29, when the
+    // only runnable leg was Replicate and its purse was empty.
+    expect(runnable).toEqual([REPLICATE_IMAGE_LEG, POLLINATIONS_IMAGE_LEG])
     expect(
       legFitsPrice(imageLegCost(falLeg('fal-ai/nano-banana-pro')), ceiling)
     ).toBe(false)
     expect(legFitsPrice(imageLegCost(KIE_IMAGE_LEG), ceiling)).toBe(false)
+    // The free leg is priced as a fact, not a hope: $0 fits any ceiling a
+    // price can name, including a price of nothing.
+    expect(imageLegCost(POLLINATIONS_IMAGE_LEG)).toBe(0)
+    expect(legFitsPrice(imageLegCost(POLLINATIONS_IMAGE_LEG), 0)).toBe(true)
   })
 
   it('the tool and the price list say who draws, from the same computation', () => {
     const note = imageChainNote()
     expect(note).toContain(`${REPLICATE_IMAGE_LEG} ($0.003)`)
+    expect(note).toContain(`${POLLINATIONS_IMAGE_LEG} ($0)`)
     expect(note).toContain(`${falLeg('fal-ai/nano-banana-pro')} ($0.15)`)
     // The tool description carries the short form: it sits in the compact
     // kit a 16k model is shown, and provider.test.ts pins that size.
@@ -705,10 +791,13 @@ describe('the route charges one price and runs only the legs it covers', () => {
     expect(legs).toMatch(
       /\breplicate:\s*\(\)\s*=>\s*generateImageViaReplicate\(/
     )
+    expect(legs).toMatch(
+      /\bpollinations:\s*\(\)\s*=>\s*generateImageViaPollinations\(\s*prompt,\s*aspectRatio\s*\)/
+    )
     expect(legs).toMatch(/\bkie:\s*\(\)\s*=>\s*generateImageViaKie\(/)
     // Exactly one call per vendor: a second call smuggled into a key would
-    // satisfy the three patterns above and still pay the wrong provider.
-    expect(legs.match(/generateImageVia\w+\(/g)).toHaveLength(3)
+    // satisfy the patterns above and still pay the wrong provider.
+    expect(legs.match(/generateImageVia\w+\(/g)).toHaveLength(4)
   })
 
   it('each provider function calls the model its leg is priced as', () => {
@@ -731,6 +820,15 @@ describe('the route charges one price and runs only the legs it covers', () => {
     expect(
       fs.readFileSync(path.join(__dirname, 'src/kie-image.ts'), 'utf8')
     ).toContain('opts.model || T2I_MODEL')
+    // pollinations/flux is priced at $0 as a FACT (no account exists to
+    // bill): the call must be the keyless GET, and the model the leg is
+    // named for is the one the URL asks for.
+    const pollinations = fs.readFileSync(
+      path.join(__dirname, 'src/pollinations-image.ts'),
+      'utf8'
+    )
+    expect(pollinations).toContain('https://image.pollinations.ai/prompt/')
+    expect(pollinations).toMatch(/model: 'flux'/)
     // The denominator: each region is one function, not the rest of the file.
     for (const name of [
       'generateImageViaReplicate',
@@ -744,5 +842,26 @@ describe('the route charges one price and runs only the legs it covers', () => {
     expect(route).toMatch(/ceilingUsd:\s*imageChainCeilingUsd\(\)/)
     // ...and charges that very op, so the ceiling and the charge agree.
     expect(route).toMatch(/chargeMiniAppUser\(req, 'image_generate'/)
+  })
+})
+
+describe('a stamped picture is named, never handed over as clean', () => {
+  it('only the keyless pollinations leg carries a mark', () => {
+    expect(watermarkOf(POLLINATIONS_IMAGE_LEG)).toBe('pollinations.ai')
+    for (const leg of [REPLICATE_IMAGE_LEG, KIE_IMAGE_LEG, falLeg('x'), null])
+      expect(watermarkOf(leg)).toBeNull()
+  })
+
+  it('image_generate answers with the mark on success', () => {
+    const TOOLS_SRC = fs.readFileSync(
+      path.join(__dirname, 'src/agent/tools.ts'),
+      'utf8'
+    )
+    const start = TOOLS_SRC.indexOf("name: 'image_generate'")
+    const end = TOOLS_SRC.indexOf("name: 'audio_generate'", start)
+    const body = TOOLS_SRC.slice(start, end)
+    expect(body).toMatch(/const watermark = watermarkOf\(servedBy\)/)
+    const success = sliceFrom(body, 'сделано: true') // cyrillic-ok: the tool's own field
+    expect(success).toMatch(/\n\s*watermark,/)
   })
 })

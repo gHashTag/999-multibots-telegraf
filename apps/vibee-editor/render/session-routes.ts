@@ -628,7 +628,14 @@ const GAME_TOKENS_PER_WINDOW = 10
 const PLAYER_ORIGIN = 'https://app.t27.ai'
 
 type PairingIdentity =
-  | { ok: true; telegramId: string }
+  /*
+   * `issuedAt` is when the proof itself was issued, in seconds: the initData's
+   * auth_date, or the browser session's iat. "Sign out everywhere" is checked
+   * against it. Reading auth_date off an EMPTY initData on the Bearer door gave
+   * 0, and anybody who had ever pressed "sign out everywhere" was refused a
+   * code for good, however fresh the session presenting the request.
+   */
+  | { ok: true; telegramId: string; issuedAt: number }
   | { ok: false; reason?: string }
 
 const PAIRING_IDENTITY_FAILURE = Object.freeze({
@@ -651,7 +658,7 @@ function pairingIdentity(
     const verification = verifyTelegramInitData(initData)
     const telegramId = verifiedTelegramIdFrom(initData)
     return verification.ok && telegramId
-      ? { ok: true, telegramId }
+      ? { ok: true, telegramId, issuedAt: authDateOf(initData) }
       : { ok: false, reason: verification.reason }
   }
 
@@ -659,7 +666,7 @@ function pairingIdentity(
   if (authorization.startsWith('Bearer ')) {
     try {
       const claims = verifyAppSession(authorization.slice(7).trim())
-      return { ok: true, telegramId: claims.sub }
+      return { ok: true, telegramId: claims.sub, issuedAt: claims.iat }
     } catch {
       return { ok: false }
     }
@@ -1103,7 +1110,7 @@ export async function handleAuthRoute(
     )
     // After the insert, from the database: see signedOutSince. A code minted
     // here from a launch older than the cutoff is spent before anyone sees it.
-    if (await signedOutSince(pool, telegramId, authDateOf(initData))) {
+    if (await signedOutSince(pool, telegramId, identity.issuedAt)) {
       await pool.query(
         `UPDATE app_pairing_codes SET consumed_at = now()
           WHERE code_hash = $1 AND consumed_at IS NULL`,
@@ -1148,6 +1155,7 @@ export async function handleAuthRoute(
     if (!пуск.можно) {
       res.setHeader('Retry-After', String(пуск.ждатьСекунд))
       json(res, 429, {
+        code: 'too_often',
         error: 'слишком часто — подождите и попробуйте снова',
         ждать_секунд: пуск.ждатьСекунд,
       })
@@ -1158,7 +1166,10 @@ export async function handleAuthRoute(
     try {
       body = JSON.parse((await readBody(req)) || '{}')
     } catch {
-      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      json(res, 400, {
+        code: 'bad_body',
+        error: 'тело запроса не разобрано как JSON',
+      })
       return true
     }
 
@@ -1172,6 +1183,8 @@ export async function handleAuthRoute(
      */
     if (!new RegExp(`^\\d{${PAIRING.DIGITS}}$`).test(code)) {
       json(res, 400, {
+        code: 'bad_length',
+        digits: PAIRING.DIGITS,
         error: `код должен быть из ${PAIRING.DIGITS} цифр`,
       })
       return true
@@ -1219,8 +1232,11 @@ export async function handleAuthRoute(
         what: outcome.reason,
         severity: outcome.reason === 'exhausted' ? 'alarm' : 'attention',
       })
+      // `code` repeats `reason` so every refusal on this door names itself
+      // in one field; `reason` stays for the clients already reading it.
       json(res, 401, {
         error: 'pairing_failed',
+        code: outcome.reason,
         reason: outcome.reason,
         detail,
       })

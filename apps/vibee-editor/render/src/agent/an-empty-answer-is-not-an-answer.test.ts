@@ -133,7 +133,7 @@ afterEach(() => {
 describe('an empty answer after tools', () => {
   it('gets one follow-up on the same provider, and its text reaches the person', async () => {
     const asked = providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         () => tools('my_assets', 'my_renders'),
         empty,
         () => text('Вот что у тебя есть.'), // cyrillic-ok: fixture answer
@@ -147,7 +147,11 @@ describe('an empty answer after tools', () => {
 
     // The follow-up went back to the model that holds the context, with the
     // tool results already in the history and the request after them.
-    expect(asked.map(a => a.model)).toEqual(['glm-5.3', 'glm-5.3', 'glm-5.3'])
+    expect(asked.map(a => a.model)).toEqual([
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+    ])
     const followUp = asked[2].messages
     expect(followUp[followUp.length - 1]).toEqual({
       role: 'user',
@@ -162,7 +166,7 @@ describe('an empty answer after tools', () => {
 
   it('logs the decision with turn, provider and tool names, and never the words', async () => {
     providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         () => tools('my_assets', 'my_renders'),
         empty,
         () => text('Готово.'), // cyrillic-ok: fixture answer
@@ -186,8 +190,8 @@ describe('an empty answer after tools', () => {
   it('the follow-up goes to the provider that was empty, not back to the head of the chain', async () => {
     const busy = () => new Response('busy', { status: 429 })
     const asked = providers({
-      'glm-5.3': [busy, busy, busy],
-      'glm-4.5': [
+      'glm-4.7-flash': [busy, busy, busy],
+      'glm-4.5-flash': [
         () => tools('my_assets'),
         empty,
         () => text('Вот.'), // cyrillic-ok: fixture answer
@@ -198,28 +202,28 @@ describe('an empty answer after tools', () => {
     // zai refused twice; the empty answer came from zai-lite, so zai-lite is
     // asked again -- a third refusal from zai would only cost a round trip.
     expect(asked.map(a => a.model)).toEqual([
-      'glm-5.3',
-      'glm-4.5',
-      'glm-5.3',
-      'glm-4.5',
-      'glm-4.5',
+      'glm-4.7-flash',
+      'glm-4.5-flash',
+      'glm-4.7-flash',
+      'glm-4.5-flash',
+      'glm-4.5-flash',
     ])
   })
 
   it('still empty after the follow-up: the next provider in the chain answers', async () => {
     const asked = providers({
-      'glm-5.3': [() => tools('my_assets'), empty, empty],
-      'glm-4.5': [() => text('Нашёл два файла.')], // cyrillic-ok: fixture answer
+      'glm-4.7-flash': [() => tools('my_assets'), empty, empty],
+      'glm-4.5-flash': [() => text('Нашёл два файла.')], // cyrillic-ok: fixture answer
     })
     const events = await turn()
 
     expect(said(events)).toBe('Нашёл два файла.') // cyrillic-ok: fixture answer
     expect(kinds(events)).not.toContain('ошибка')
     expect(asked.map(a => a.model)).toEqual([
-      'glm-5.3',
-      'glm-5.3',
-      'glm-5.3',
-      'glm-4.5',
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+      'glm-4.7-flash',
+      'glm-4.5-flash',
     ])
     // The next provider sees the tool results and the request for words.
     const last = asked[3].messages
@@ -233,8 +237,8 @@ describe('an empty answer after tools', () => {
 
   it('every provider empty: an explicit error naming each of them, not an empty finish', async () => {
     providers({
-      'glm-5.3': [() => tools('my_assets', 'my_renders'), empty, empty],
-      'glm-4.5': [empty, empty],
+      'glm-4.7-flash': [() => tools('my_assets', 'my_renders'), empty, empty],
+      'glm-4.5-flash': [empty, empty],
       'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning': [empty, empty],
     })
     const events = await turn()
@@ -252,14 +256,14 @@ describe('an empty answer after tools', () => {
 
   it('is bounded: each provider is asked at most twice for words', async () => {
     const asked = providers({
-      'glm-5.3': [() => tools('my_assets'), empty, empty, empty, empty],
-      'glm-4.5': [empty, empty, empty, empty],
+      'glm-4.7-flash': [() => tools('my_assets'), empty, empty, empty, empty],
+      'glm-4.5-flash': [empty, empty, empty, empty],
       'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning': [empty, empty, empty],
     })
     await turn()
     const count = (m: string) => asked.filter(a => a.model === m).length
-    expect(count('glm-5.3')).toBe(3) // the tool step, then two empty answers
-    expect(count('glm-4.5')).toBe(2)
+    expect(count('glm-4.7-flash')).toBe(3) // the tool step, then two empty answers
+    expect(count('glm-4.5-flash')).toBe(2)
     expect(count('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')).toBe(2)
   })
 })
@@ -267,7 +271,7 @@ describe('an empty answer after tools', () => {
 describe('what is NOT an empty answer', () => {
   it('a turn that already said something before its tools is left alone', async () => {
     const asked = providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         () =>
           sse([
             { content: 'Сохранил.' }, // cyrillic-ok: fixture answer
@@ -293,7 +297,7 @@ describe('what is NOT an empty answer', () => {
 
   it('the unattended sweep (tools only) is not asked for prose', async () => {
     const asked = providers({
-      'glm-5.3': [() => tools('my_assets'), empty],
+      'glm-4.7-flash': [() => tools('my_assets'), empty],
     })
     const events: Array<Record<string, unknown>> = []
     for await (const ev of runAgent(
@@ -310,8 +314,8 @@ describe('what is NOT an empty answer', () => {
 
   it('an empty answer is not a timeout: it does not open the breaker by itself', async () => {
     providers({
-      'glm-5.3': [() => tools('my_assets'), empty, empty],
-      'glm-4.5': [() => text('Есть.')], // cyrillic-ok: fixture answer
+      'glm-4.7-flash': [() => tools('my_assets'), empty, empty],
+      'glm-4.5-flash': [() => text('Есть.')], // cyrillic-ok: fixture answer
     })
     await turn()
     expect(breakerSnapshot()).toEqual([])
@@ -342,7 +346,7 @@ describe('the follow-up does not redo the work', () => {
   it('an identical call after the request for words is refused, and the handler does not run again', async () => {
     const ran = countAssets()
     const asked = providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         callWith('my_assets', { limit: 5 }),
         empty,
         // Asked for words, it does the work again instead.
@@ -384,7 +388,7 @@ describe('the follow-up does not redo the work', () => {
       tool.parameters = schema
     })
     providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         callWith('my_assets', {
           limit: 5,
           kind: 'image',
@@ -395,7 +399,7 @@ describe('the follow-up does not redo the work', () => {
       ],
       // zai-lite gets the history and the nudge, and redoes the work with the
       // keys in its own order, nested ones included.
-      'glm-4.5': [
+      'glm-4.5-flash': [
         callWith('my_assets', {
           where: { b: 2, a: 1 },
           kind: 'image',
@@ -419,7 +423,7 @@ describe('the follow-up does not redo the work', () => {
   it('a different call after the request for words still runs', async () => {
     const ran = countAssets()
     providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         callWith('my_assets', { limit: 5 }),
         empty,
         callWith('my_assets', { limit: 20 }),
@@ -434,7 +438,7 @@ describe('the follow-up does not redo the work', () => {
   it('before the request for words, a repeat runs as it always did', async () => {
     const ran = countAssets()
     providers({
-      'glm-5.3': [
+      'glm-4.7-flash': [
         callWith('my_assets', { limit: 5 }),
         callWith('my_assets', { limit: 5 }),
         () => text('Вот.'), // cyrillic-ok: fixture answer

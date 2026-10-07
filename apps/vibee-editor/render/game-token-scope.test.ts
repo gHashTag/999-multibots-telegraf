@@ -3,6 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * WHERE A GAME TOKEN WORKS: /mcp, FOR IDENTITY TOOLS ONLY. NOWHERE ELSE.
  *
@@ -78,7 +86,7 @@ beforeEach(async () => {
   routes = await import('./src/agent/routes')
   tools = await import('./src/agent/tools')
   session.setRevokedSessions([])
-})
+}, SLOW_IMPORT_TIMEOUT_MS)
 
 afterEach(() => {
   for (const k of ENV) {
@@ -304,6 +312,8 @@ describe('every other Bearer reader refuses a game token', () => {
     // identity of every chatIdentity/resolveIdentity route in render-server.ts.
     expect(routes.chatIdentity(bare, null)).toBeNull()
     expect(await routes.resolveIdentity(bare, () => emptyPool())).toBeNull()
+    // personIdentity: the TRI wallet routes (src/tri-wallet.ts).
+    expect(routes.personIdentity(bare)).toBeNull()
 
     // project-routes.ts.
     const { projectOwner } = await import('./project-routes')

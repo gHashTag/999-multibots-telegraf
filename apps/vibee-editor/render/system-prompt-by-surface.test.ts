@@ -35,7 +35,7 @@ describe('the client in the owner DM (surface business)', () => {
    */
   it('offers the client no tariff, subscription or club, and never pay first', () => {
     expect(p).toContain(
-      'Клиенту ни тарифов,\n  ни подписок, ни клуба не предлагай' // cyrillic-ok: prompt copy
+      'клиенту ни тарифов,\n  ни подписок, ни клуба не предлагай' // cyrillic-ok: prompt copy
     )
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ')
     expect(p).toContain('tokens_invoice')

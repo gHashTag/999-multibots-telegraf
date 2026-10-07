@@ -128,6 +128,15 @@ pre-commit:
       run: node scripts/check-t27-specs.mjs
       fail_text: 'A .t27 spec of record breaks a law: see the lines above (skill t27-spec-first).'
 
+    # 9. Every Railway call in tri names its project (#3427). A bare call
+    #    follows the directory's link, which drifts between projects, and
+    #    `tri secret` / `tri meta put` once wrote keys into whatever it pointed
+    #    at. The ids live in bin/helpers/rail.sh only. Offline, under a second.
+    tri-rail:
+      glob: '{tri,bin/tri,bin/helpers/*.sh}'
+      run: bash bin/helpers/rail-check.sh .
+      fail_text: 'A Railway call bypasses bin/helpers/rail.sh: use rvars/rlogs or $RAIL_PROJECT/$RAIL_ENV.'
+
 commit-msg:
   commands:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:

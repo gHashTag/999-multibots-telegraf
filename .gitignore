@@ -361,6 +361,10 @@ credentials.json
 service-account.json
 id_rsa*
 id_dsa*
+id_ed25519*
+id_ecdsa*
+.envrc
+secrets
 zomro*
 known_hosts
 authorized_keys

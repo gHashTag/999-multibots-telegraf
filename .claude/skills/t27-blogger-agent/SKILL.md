@@ -37,7 +37,10 @@ Deliver a verified campaign, not a list of ideas.
 **Что сделано.** Крон публикаций пишет в X именно так: первый пост —
 заголовок и выжимка без единой ссылки (весь лимит 280 достаётся тексту,
 а не «ссылка = 23 символа»), ссылка — вторым постом того же треда
-(`xThread` в `render/src/agent/blog-share.ts`). Если композер X отвечает не
+(`xThread` в `render/src/agent/blog-share.ts`). Оговорка ленты
+(`[evidence]`, например «derived, not measured») в первый пост не влезает и
+едет во втором, над ссылкой (`xSecondPost`, #3457): иначе X был единственной
+сетью, где читатель видел утверждение без оговорки. Если композер X отвечает не
 так, как ожидалось, публикуется старый одиночный пост со ссылкой, и владельцу
 в отчёте написано, какой из двух путей сработал.
 
@@ -49,3 +52,290 @@ Deliver a verified campaign, not a list of ideas.
 числа вернём независимо от результата. Гипотеза его — результат тоже его.
 
 - **24.09.2026.** Читатель, давший совет про ссылку во втором посте, сам пишет, что публикует мало и это может быть совпадением, и обещает поделиться находками. Значит, наша проверка охвата нужна не только нам: до чисел не называть правилом.
+
+## Why the blog was not reaching the networks (2026-10-02)
+
+**Measured:** `blog_shares` held 11 articles: 1 posted, 10 `declined` — each
+closed exactly 30 minutes after the question. The owner never said no.
+
+**Cause:** the desk asks through `requestPermission` (browser approvals), whose
+lifetime was a single global `APPROVAL_TTL_MS` = 10 min. The desk believes it
+waits `ANSWER_WAIT_MS` = 24 h, but `readApproval` already answered `expired`
+at minute 10, and the next tick closed the row as declined — silently. The
+Reddit desk had the identical defect.
+
+**Fix:** `browser_approvals.ttl_ms` — each question carries its own lifetime
+(null = 10 min for clicks); blog and Reddit desks pass 24 h. An expired
+question is now told to the owner; a run where no network took the post is
+`failed`, not `posted`. Tick every 5 min (the pace lives in the table): a
+30-min timer rarely survives the render's deploy cadence.
+
+**First look next time:** `tri blog-share` — states, minutes-to-close, and
+what each network did. Uniform `min_to_close` = a timer, not a person.
+
+**Read the last line before diagnosing (#3425, 2026-10-03).** `tri blog-share`
+ends with `next:` -- the desk's own next step: an open question and when it
+closes, or the article it asks about and in how many hours. A whole loop tick
+went into "why is nothing posted" when the answer was the pace: one question
+every `ASK_EVERY_MS` (20 h), and the next one was 1.8 h away. "Nothing posted
+today" with a `next: asks about ... in N h` line is the design, not a fault.
+After `reoffer --apply` the backlog is the whole feed (75 articles on 10-03),
+offered newest first, one a day.
+
+Once #3235 is deployed: `tri blog-share reoffer` lists articles the timer closed (declined 20–40 min after asking); `--apply` forgets them and the desk re-asks one a day. Never apply before the deploy — the re-asked question would die at ten minutes again.
+
+**Receipts (2026-10-02).** Every press now says whether the page left the share form (`receiptOf`, `LEFT_THE_FORM`); a confirmed tab is closed, an unconfirmed one stays open as evidence. `blog-share-wiring.ts` is stubbed in tests — a missing import there passes vitest and dies in prod; run `npx tsc --noEmit -p .` in render after touching it.
+
+### Two more lessons (2026-10-02, after #3235)
+
+- **A "declined" is real only if the approval row was decided.** All twelve
+  closed rows had `browser_approvals.state = 'pending'` -- nobody pressed no.
+  `tri blog-share reoffer` selects by that join (#3279), not by a time window
+  (rows closed at 53 and 94 minutes slipped past the 20-40 minute window).
+  Stale `pending` approvals past their TTL are cosmetic noise; mark them
+  `expired`.
+- **One look for the publish button is not a look.** The only allowed article
+  reported "button not found" on X and LinkedIn: the cold browser had not drawn
+  the composer at six seconds. The desk now looks every 3 s up to ~30 s (#3281);
+  the path test with late-drawing composers fails on the old code.
+
+### The button was on screen and the probe could not see it (2026-10-02, #3361)
+
+- **Reddit and LinkedIn put their publish button in a shadow root**
+  (`<r-post-form-submit-button>`, LinkedIn's `#interop-outlet`). `findProbe`
+  read only `document`, so "button not found" was the probe being blind, not
+  the page being slow. It now walks open shadow roots, document first.
+- **Proof before the fix, in one command:** `tri browser find "<words>" <tabId>`
+  runs THIS checkout's probe on the live tab without clicking. Old probe on the
+  owner's Reddit submit tab: not found; new probe: `{x:755, y:452}`.
+  When `find` says NOT FOUND for a button you can see, `tri browser layers <id>`
+  counts the page's shadow roots and iframes first (Reddit's submit page: 370
+  shadow roots plus a cross-origin recaptcha frame the probe cannot enter).
+- **Read every network's answer in full:** `tri blog-share detail [slug]`. The
+  table cuts `result` at 80 characters, and that day's cause was in the cut.
+- **Still open after #3361:** X sent the thread but `confirmOnProfile` did not
+  find it (X may have refused it, or the profile check misses it); Threads is
+  not signed in (the owner signs in himself, never the agent).
+- **Our own blog is blank in the agent's browser** (2026-10-03): t27.ai dies on
+  Babylon's "WebGL not supported" in the GPU-less pod. `tri browser blank <id>`
+  names the crash. Anything the desk reads from t27.ai there reads "".
+  **Fixed by trinity#1255 -- and the tab still showed it.** A tab loaded before
+  the deploy keeps running the old bundle. `blank` now compares the tab's
+  module scripts with what the site serves and reports `staleTab`; then
+  `tri browser reload <id>` and read again (measured: blank false, 550 nodes).
+  An error on a stale tab is history, not a live bug.
+
+## Threads, Instagram and Facebook go by Meta's API (2026-10-02)
+
+**Measured:** the owner's own browser was signed out of Instagram, Threads and
+Facebook (`browser_logins`), so the desk skipped all three on every article.
+A browser that is not signed in cannot post, and asking the agent to sign in
+there each time is the expensive road.
+
+**Fix:** a connector to Meta's own Graph API, written in t27 first:
+`specs/automation/meta-connect.t27` (t27#5523), bound in
+`render/src/spec/meta-connect.*`.
+
+- `publishEverywhere` asks `postByApi` first. A network holding a token goes
+  by the API, and the browser loop skips it. Reddit still goes by the browser;
+  LinkedIn and X have their own API road (next section).
+- Two logins cover three networks:
+  - The Threads login gets a 60-day token, refreshed by `th_refresh_token`
+    once it is a day old and 15 or fewer days remain.
+  - The Facebook Login gets a Page token that never ends. That token also
+    publishes to the Instagram professional account linked to the Page.
+- Instagram needs a public JPEG, and the blog's feed has none. The answer is
+  `GET /api/social/card/<slug>.jpg`: a 1080x1350 dark card with the triangle
+  point-down and the title. The title is looked up in the feed by slug and
+  never taken from the address.
+- The receipt is `опубликовано через API · <permalink>`, built from the
+  published id (`posted()`). `headlineOf` counts it as a success.
+
+**The owner does this once.** We never create the apps or sign in for him.
+
+1. Create the Meta apps: a Threads use case, plus Facebook Login with the
+   Pages and Instagram use cases.
+2. Register the callback
+   `https://vibee-render-production.up.railway.app/api/social/meta/callback`.
+3. Put `THREADS_APP_ID/SECRET` and `META_APP_ID/SECRET` on `vibee-render`,
+   and `META_TOKEN_KEY` -- required: it is the only key that seals tokens at
+   rest (it used to fall back to an app secret, so regenerating that secret
+   locked every held token), and Connect refuses without it. Optionally
+   `META_PAGE_ID`.
+4. Accept the tester invites in Threads and Instagram.
+5. Link the IG professional account to the Page.
+6. Profile → «🔗 Threads, Instagram, Facebook через API» → Подключить.
+
+**First look:** `tri meta` lists which apps are set, which tokens are held,
+the account and the days left. It never prints values. `tri meta card <slug>`
+fetches the card.
+
+## LinkedIn and X go by their own APIs too (2026-10-02, #3338)
+
+Spec `specs/automation/social-api.t27` (t27#5584), bound in
+`render/src/spec/social-api.*`. Code is in `render/src/agent/social-api.ts`. It
+REUSES meta-connect's token table, sealing, single-use state, `scrub`,
+`VIA_API` and `writeToken`; do not copy them.
+
+- **LinkedIn** posts through the Posts API. `POST /rest/posts`, scope
+  `w_member_social`.
+  - Send the `LinkedIn-Version: YYYYMM` header. It defaults to last month;
+    override it with `LINKEDIN_API_VERSION`.
+  - The receipt is the `x-restli-id` header. A 201 with no id is NOT a post.
+  - The token lasts 60 days and cannot be refreshed. The card warns at 7 days
+    or fewer, and the owner reconnects.
+- **X** posts through API v2 with OAuth 2.0 PKCE (S256) and `offline.access`.
+  - The verifier rides in `social_oauth_states.verifier` and is used once.
+  - Every refresh issues a NEW refresh token, sealed in `meta.refresh_sealed`.
+    Keeping the old one loses the connection.
+  - The token is refreshed in its last 5 minutes.
+  - Weight: 280 per post, a link 23, an emoji 2.
+- The desk runs `postByApi` (Meta) and `postBySocialApi` (LinkedIn/X) in
+  parallel. The X browser thread is skipped once X has an API receipt.
+- All networks share ONE redirect URI: `/api/social/meta/callback`. The state
+  row says which network it is.
+- The owner sets `LINKEDIN_CLIENT_ID/SECRET` and `X_CLIENT_ID/SECRET` on
+  `vibee-render` and registers that URI in each app.
+
+**Whose turn:** the "-- ready? --" block at the end of `tri meta` prints one
+line per network: waits for the owner (app), waits for Connect, or READY.
+RUN_LIVE stays false in both specs until a post returns its id in production.
+
+## Engage desk: comments under other people's posts (2026-10-02)
+
+Cross-posting the blog is the **blog-share** desk above. The engage desk does
+something else. The owner's browser looks for recent posts on his research
+topics and drafts one substantive comment per post. **Every comment needs his
+own yes, every time.** Nothing is posted without that yes.
+
+- **Where the rules live:**
+  - spec: `specs/automation/engage-desk.t27` (vendored in render `src/spec/`);
+  - logic: `src/agent/engage-desk.ts`;
+  - browser and model wiring: `src/agent/engage-desk-wiring.ts`;
+  - tick: `render-server.ts`, every `TICK_MS`. Switched on by
+    `ENGAGE_DESK_ENABLED=1`. The search mark lives in `agent_strategies`
+    (`engage:last-search`).
+- **Read the rows:** `tri engage [N]`.
+- **Networks.** The desk searches x, linkedin, reddit, threads and habr, but
+  only when `browser_logins` shows the network as `signed_in`.
+  - Habr has no known sign-in cookie, so it stays `unknown` and is skipped.
+  - Facebook and Telegram have no reader. They are named in the log and never
+    guessed at.
+  - Searches run in parallel tabs, `PARALLEL_TABS_MAX` at a time.
+- **Per-network rule table** (`NETWORK_RULES` plus the spec):
+
+  | Network  | Rule                                                                                                                                                                                                                                   |
+  | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | X        | The automation rules forbid automated replies. Each reply is written for one post and sent on a person's yes. No link.                                                                                                                 |
+  | LinkedIn | No automated commenting and no engagement pods. No link, no pitch.                                                                                                                                                                     |
+  | Reddit   | **9:1**: at most 10% of posted comments over 30 days carry a link to his work. The subreddit's `about/rules.json` is read **before** drafting: a sub that bans AI or bots is skipped, and a sub that bans self-promotion gets no link. |
+  | Threads  | Short, no link.                                                                                                                                                                                                                        |
+  | Habr     | No advertising in comments, no link.                                                                                                                                                                                                   |
+
+  A draft that breaks its row is dropped, never edited.
+
+- **Context and voice.** The thread's replies are read before drafting. With
+  no thread there is no draft. The owner's voice is `VOICE_SAMPLES` of his own
+  feed paragraphs, cached weekly in `engage:voice`. Both go into the prompt as
+  data.
+- **Hard rules from the spec:**
+  - 3 proposals per network per day;
+  - never twice on one post;
+  - no mentions and no DMs;
+  - the claim guard (no top rank, no multiplier-freedom credited to the format,
+    no FPGA decode advantage);
+  - a question lives 24 h (`ttl_ms` on the approval row);
+  - a decline is real only when decided, and silence is told to the owner;
+  - the receipt is the comment's own words read back on the post page.
+- **Lead signals.** A posted comment is looked at between a day and a week
+  after it went up. Reddit replies come from the thread JSON. A reply is told
+  to the owner, because the conversation is the lead and answering it is his
+  job. Other networks show replies as empty, not zero. Followers and DMs
+  cannot be attributed to one comment, so they are not counted.
+
+### Lead generation inside the terms of service (what the desk is built on)
+
+1. **Give first, no pitch.** Add a measurement, a trade-off or a question to
+   _this_ post. Buyers find people who are useful in public; a pitch in a
+   stranger's thread gets removed and lowers the account's reach.
+2. **Few, specific, human-approved.** Every network forbids automated or bulk
+   engagement: the X automation rules, LinkedIn's ban on automated activity and
+   engagement pods, and Reddit's rules against spam and manipulated
+   engagement. A small daily cap with a person's yes per comment is what keeps
+   this inside the rules.
+3. **Links are earned.** Reddit's 9:1 guideline, and no links on X, LinkedIn,
+   Threads or Habr comments. The profile and the pinned post do the selling.
+   Keep the owner's profile header pointed at t27.ai.
+4. **Read the room.** Check the community's rules and the thread first, and
+   match its tone. Skip communities that ban AI-assisted text.
+5. **Answer the replies.** A reply is the lead. The desk tells the owner, and
+   he answers himself. The desk never writes a DM.
+6. **Measure honestly.** Count replies per comment. Do not attribute followers
+   or DMs to one comment without evidence.
+
+## X said "not on the profile" because the post on X was mangled (2026-10-03)
+
+The thread was actually published. The first post had lost about 115
+characters from the middle: "The seeg; a stand-alone unit…" instead of "The
+seed moved Fmax 1.22x…". So the profile check was **right** not to find the
+title words. The desk typed character by character into X's composer, never
+looked at the result, and pressed "Post all".
+
+- **Read back before pressing.** `postThreadOnX` reads every
+  `[data-testid="tweetTextarea_N"]` (the home timeline keeps its own composer
+  under the dialog) and compares the words with `composerHolds`. On a
+  mismatch the draft is closed unposted and the desk falls back to
+  `x.com/intent/post`, whose text travels in the URL and is not typed.
+- **A line break is Enter, only where Enter is safe.** X drops a `"\n"` char
+  event, so the title was glued to the summary. `typeText(…, {
+enterForNewline: true })` sends `"\r"`, which is what the Enter key types;
+  this was measured in the pod's X composer. It is opt-in because in a chat
+  box Enter SENDS.
+- **X "не подтверждено: в профиле не найдено" can mean the text, not the
+  check.** The profile is searched for the TITLE (`needleOf`). On 2026-10-02
+  the first post went out as "The seeg; ..." (#3373), so the title was not
+  there to find. Read the post itself before blaming `confirmOnProfile`.
+- **Reproduce without posting:** `tri browser open https://x.com/compose/post`,
+  `tri browser type "…"`, `tri browser composer ID` (each box's text and
+  length, the same `tweetTextarea_N` boxes the desk reads, and which of
+  Post / Post all / plus are on the page), then `tri browser close ID`.
+  Nothing is pressed, so nothing is published. Before any of this, `tri
+browser doctor` lists every tab with unsent composer text: a draft left by
+  an earlier run is found there, not by a second post.
+- **A missing button closes the draft too** (#3375). If the box, the plus or
+  "Post all" is not found, nothing was pressed, so the draft is closed before
+  the share-link fallback opens -- two X drafts of one article side by side
+  invite a double post. After "Post all" the tab closes only when the post
+  is seen on the profile; otherwise it stays open as the evidence.
+- **`tri blog-share detail` rc 2 = the database did not answer** (#3377), not
+  "no such article". Before, a refused connection read as a missing row.
+
+## The owner's agent posts by hand too, and the CRM shows the networks (2026-10-03, #3396)
+
+The blog desk posts on its own timer. The owner can also ask his agent in chat (or any /mcp client) to post something now:
+
+- `social_status`: for each of Threads, Facebook (+Instagram), LinkedIn and X, connected, expired, app keys missing, or never connected. Each one carries a `todo` line and the connect link.
+- `social_post`: the first call shows ONE permission card with each chosen network's own text. Only connected networks are offered; if none is connected, the owner is not asked at all. The second call (with `approval`) posts after Allow, only to the networks stored on the card (`only` in `postByApi` / `postBySocialApi`). A card is used once and must be answered by the owner himself.
+- Both tools are owner-only (`requireOwner`) and are not in the client allowlist.
+- The CRM screen has a _Social networks_ panel (SocialPanel.tsx) that reads `social_status`. It is a refusal, and draws nothing, for anyone else.
+- **A player panel calling a new tool ships in the tool's own PR.** The pre-push `contracts` gate (`scripts/cross-service-vocabularies.cjs`) refuses a player that calls a tool main does not have, and it is right: the server would refuse silently.
+- **The kanban** (app.t27.ai/game/kanban) is gHashTag/t27's open issues. A non-code task is an issue WITHOUT `## Boundary`, so no bee takes it. Social: epic t27#5629, tasks #5625–#5628.
+
+## Pictures for posts and brand art: never the free leg's stamp (2026-10-03)
+
+Measured live: `image_generate` skips fal ($0.15 against the $0.005 the
+charge covers), Replicate is off, so **Pollinations draws every picture** --
+768x768 with a "pollinations.ai" mark, `nologo=true` notwithstanding.
+
+- A stamped picture is never a post or a client card. Since #3657
+  `image_generate` refuses it on every surface and returns no URL at all, so
+  the old `draft_url` branch of `crm_deliver` (#3414) could never run and was
+  removed (#3678).
+- Brand art (the FB page avatar and 1640x624 cover for "Trinity S³AI") comes
+  from `image_edit` (Kie nano-banana-edit, 8 tokens) on a **raster** source --
+  it refuses SVG. The canonical mark is `https://t27.ai/apple-touch-icon.png`
+  (green subdivided ▽, dark centre). Prompt "do NOT redesign, pixel-faithful",
+  or the model redraws it as concentric outlines. 16:9 comes back 1344x768
+  with letterbox bars: crop, then check the bars are gone.
+- Drafts go to the owner first (Bot API album: `--form-string media=<json>`),
+  and are uploaded or posted only after his «да».

@@ -306,7 +306,14 @@ describe.skipIf(!has('iverilog') || !has('verilator') || !has('yosys'))(
         steps: Array<{ output: string }>
       }
       expect(synth.passed).toBe(true)
-      expect(synth.steps[0].output).toMatch(/Number of cells/i)
+      // `stat` output changed shape across yosys releases: <=0.4x printed
+      // "Number of cells:", 0.67 prints a bare "N cells" inventory line
+      // (captured live on this runner, 2026-09-28). Either way the report
+      // must name the top module and count its cells -- pinning the old
+      // wording alone made the test red on a machine whose only sin was
+      // a newer toolchain.
+      expect(synth.steps[0].output).toMatch(/=== fifo ===/)
+      expect(synth.steps[0].output).toMatch(/Number of cells|\b\d+ cells\b/)
       const broken = (await runHdl(
         {
           mode: 'sim',

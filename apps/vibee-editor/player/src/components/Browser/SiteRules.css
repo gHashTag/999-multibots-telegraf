@@ -1,0 +1,85 @@
+/* The person's site list. Layout only; colours follow ImportLogins.css. */
+.site-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  background: #111;
+}
+
+.site-rules h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.site-rules p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #bbb;
+}
+
+.site-rules__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.site-rules__add input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  background: #0a0a0a;
+  color: #fff;
+  font-size: 16px; /* under 16px iOS zooms the page on focus */
+}
+
+.site-rules__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-rules__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-rules__site {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: #fff;
+}
+
+.site-rules__rule {
+  font-size: 12px;
+  color: #888;
+}
+
+.site-rules__list li[data-rule='block'] .site-rules__rule {
+  color: #ff6b6b;
+}
+
+.site-rules p.site-rules__muted {
+  color: #888;
+}
+
+.site-rules p.site-rules__fail {
+  color: #ff6b6b;
+}

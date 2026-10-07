@@ -6,10 +6,15 @@ import { turnsFromResponse } from '@/lib/agentHistory'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
 import { checkedDay, useAgentAcceptance } from '@/hooks/useAgentAcceptance'
+import { useAgentClients } from '@/hooks/useAgentClients'
 import { AgentSkillsPanel } from '@/components/Chat/AgentSkillsPanel'
 import { AgentFace } from '@/components/Chat/AgentFace'
 import { makeAgentAvatars, useAgentAvatars } from '@/hooks/useAgentAvatars'
-import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
+import {
+  MARKETPLACE_AGENTS,
+  marketplaceAgentById,
+} from '../../../packages/vibee-atoms/src/agent-marketplace'
+import { helpersFor } from '@/lib/clientHelpers'
 import { agentGate } from './agentSuggestions'
 import './AgentDashboard.css'
 
@@ -65,41 +70,6 @@ function useRecentWork(agentId: string, open: boolean): string[] | null {
   return open ? recent : null
 }
 
-export interface ClientWork {
-  client: string
-  turns: number
-  lastAt: string
-}
-
-/** The caller's clients this agent helped with (tool agent_clients). */
-function useAgentClients(agentId: string, open: boolean): ClientWork[] | null {
-  const [rows, setRows] = useState<ClientWork[] | null>(null)
-  useEffect(() => {
-    if (!open) return
-    let live = true
-    fetch(`${API_BASE}/mcp`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name: 'agent_clients', arguments: { agent: agentId } },
-      }),
-    })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        const c = d?.result?.structuredContent?.clients
-        if (live && Array.isArray(c)) setRows(c as ClientWork[])
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [agentId, open])
-  return open ? rows : null
-}
-
 export default function AgentDashboardPage() {
   const { agentId } = useParams<{ agentId: string }>()
   const agent = marketplaceAgentById(agentId)
@@ -131,6 +101,42 @@ export default function AgentDashboardPage() {
       <Link className="agent-dash__back" to="/agents">
         ← {t('agents.dash.market')}
       </Link>
+      {/*
+        SWITCHING THE AGENT SWITCHES THE DASHBOARD (owner, 2026-09-29: "when
+        the agent changes, the dashboard must change"). The row offers every
+        agent this person may open -- the same rule as their own threads
+        (helpersFor, the ClientHelperPicker's filter) -- so a keeper previews
+        trainees here too. The current agent's face is ringed, not a link:
+        it says where you already are.
+      */}
+      <nav
+        className="agent-dash__switch"
+        aria-label={t('agents.dash.switch')}
+        data-testid="agent-switcher"
+      >
+        {helpersFor(MARKETPLACE_AGENTS, keeper, verdicts).map(a =>
+          a.id === agent.id ? (
+            <span
+              key={a.id}
+              className="agent-dash__switch-face is-current"
+              data-testid={`agent-switch-${a.id}`}
+            >
+              <i aria-hidden="true">{a.icon}</i>
+              {a.name[l]}
+            </span>
+          ) : (
+            <Link
+              key={a.id}
+              to={`/agents/${a.id}`}
+              className="agent-dash__switch-face"
+              data-testid={`agent-switch-${a.id}`}
+            >
+              <i aria-hidden="true">{a.icon}</i>
+              {a.name[l]}
+            </Link>
+          )
+        )}
+      </nav>
       <header className="agent-dash__head">
         <AgentFace
           className="agent-dash__icon"

@@ -43,8 +43,15 @@
  * Switched on by REDDIT_DESK_ENABLED=1.
  */
 import { OWN_HOSTS } from './utm'
-import { linkFor, parseRss, type Article } from './blog-share'
+import {
+  clip,
+  linkFor,
+  parseRss,
+  summaryWithEvidence,
+  type Article,
+} from './blog-share'
 import type { Queryable } from '../browser/sessions'
+import * as SPEC from '../spec/reddit-desk.gen'
 
 /** How a community feels about a project talking about itself. */
 export type Promo =
@@ -78,12 +85,12 @@ export interface Subreddit {
  * so the owner is never approving a post into rules nobody looked at.
  */
 export const SUBREDDITS: Subreddit[] = [
-  {
-    name: 't27ai',
-    why: 'наше сообщество', // cyrillic-ok: read by the owner
-    promo: 'own',
-    everyHours: 24,
-  },
+  /*
+   * r/t27ai is NOT here any more (2026-10-06): Reddit banned it on 2026-10-03,
+   * and as the first entry it kept the whole desk from posting. A community
+   * Reddit closes later is skipped by the desk itself (`withSkip`, spec
+   * reddit-desk.t27) without a deploy and without anyone editing a list.
+   */
   {
     name: 'ProgrammingLanguages',
     why: 'язык и компилятор — там показывают свои', // cyrillic-ok
@@ -156,6 +163,274 @@ export const INBOX_URL = 'https://www.reddit.com/message/unread.json?limit=25'
 /** That community's own rules, as JSON. Pure. */
 export function rulesUrl(name: string): string {
   return `https://www.reddit.com/r/${encodeURIComponent(name)}/about/rules.json`
+}
+
+/**
+ * IS THE COMMUNITY STILL THERE TO POST TO?
+ *
+ * Reddit banned r/t27ai on 2026-10-03 (gHashTag/t27#5916, #3572). Both desks
+ * kept aiming at it: the blog-share desk opened the dead submit page on every
+ * run and left an unfinished form in the owner's browser, and this desk still
+ * listed it as `own`. A community Reddit closed is not posted to and not
+ * opened.
+ *
+ * The answer comes from the community's own `about.json`, and only its BODY
+ * decides: Reddit answers 404 `{"reason":"banned"}` for a banned community and
+ * 403 `{"reason":"private"}` for a private one, but it also answers 403 with an
+ * HTML page to any client its network filter blocks (measured 2026-10-06 from
+ * a plain curl). A status alone would read that block as "private" and switch
+ * every community off; a failed read is `unknown`, and `unknown` keeps the
+ * desks doing what they did before.
+ */
+export type CommunityState =
+  | 'open'
+  | 'banned'
+  | 'private'
+  | 'quarantined'
+  | 'not_found'
+  /** Only approved members may post here (or the community is archived). */
+  | 'restricted'
+  | 'unknown'
+
+/** Community types in which a stranger's post is not accepted. */
+const NOT_POSTABLE_TYPES = new Set([
+  'restricted',
+  'archived',
+  'gold_restricted',
+  'employees_only',
+])
+
+/** A community's own description, as JSON. Pure. */
+export function aboutUrl(name: string): string {
+  return `https://www.reddit.com/r/${encodeURIComponent(name)}/about.json`
+}
+
+/** What `about.json` says about the community. Never throws. Pure. */
+export function communityStateOf(raw: unknown): CommunityState {
+  const data = typeof raw === 'string' ? safeJson(raw.trim()) : raw
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'unknown'
+  const d = data as Record<string, unknown>
+  const reason = String(d.reason ?? '').toLowerCase()
+  if (reason === 'banned') return 'banned'
+  if (reason === 'private') return 'private'
+  if (reason === 'quarantined') return 'quarantined'
+  /*
+   * NO SUCH COMMUNITY. Reddit sends an unknown name's about.json on to its
+   * community search, which answers a Listing; asked directly it answers 404
+   * `{"message": "Not Found"}` with no reason. Both are JSON from Reddit
+   * itself -- a block page is HTML and never gets this far.
+   */
+  if (d.kind === 'Listing') return 'not_found'
+  if (
+    Number(d.error) === 404 &&
+    String(d.message ?? '').toLowerCase() === 'not found'
+  )
+    return 'not_found'
+  /* The community's own record came back: it is there and readable. */
+  if (d.kind === 't5' && d.data && typeof d.data === 'object') {
+    const r = d.data as Record<string, unknown>
+    if (r.quarantine === true) return 'quarantined'
+    /*
+     * A restricted community takes posts only from approved members. Only the
+     * signed-in read can say whether the owner is one (`user_is_contributor`
+     * true or false); the anonymous read carries null there, so it says
+     * `unknown` and the signed-in read decides -- an anonymous read must not
+     * skip a community the owner may well be approved in.
+     */
+    if (NOT_POSTABLE_TYPES.has(String(r.subreddit_type ?? '').toLowerCase())) {
+      if (r.user_is_contributor === true) return 'open'
+      if (r.user_is_contributor === false) return 'restricted'
+      return 'unknown'
+    }
+    return 'open'
+  }
+  return 'unknown'
+}
+
+/**
+ * Closed by Reddit: neither posted to nor opened. Mirrors the spec's
+ * `closed(state)`; `unknown` is never closed (SPEC.UNKNOWN_SKIPS). Pure.
+ */
+export function isClosed(state: CommunityState): boolean {
+  return (
+    state === 'banned' ||
+    state === 'private' ||
+    state === 'quarantined' ||
+    state === 'not_found' ||
+    state === 'restricted'
+  )
+}
+
+/**
+ * THE DESK HEALS ITS OWN LIST (spec src/spec/reddit-desk.t27).
+ *
+ * Owner, 2026-10-07: the agent itself must be able to do everything without
+ * him. On 2026-10-03 Reddit banned r/t27ai, the first community on the list,
+ * and the desk stopped posting until a person edited the list. Now a community
+ * Reddit closed goes into a skip record of its own (SPEC.SKIP_KEY) with the
+ * reason and the time, the round moves on to the next community, and the
+ * owner is told once. The owner's list (SPEC.LIST_KEY) is never rewritten:
+ * when a skip expires after SPEC.SKIP_MS the community he wrote comes back by
+ * itself -- a community that was private for a week is not lost for good.
+ */
+export interface Skip {
+  /** Without the `r/`. */
+  name: string
+  state: CommunityState
+  /** When it was first seen closed, ISO. */
+  at: string
+}
+
+/** The skip record as its strategy row holds it. Never throws. Pure. */
+export function skipsOf(raw: unknown): Skip[] {
+  const list: unknown[] = Array.isArray(raw)
+    ? raw
+    : raw &&
+        typeof raw === 'object' &&
+        Array.isArray((raw as { skips?: unknown }).skips)
+      ? (raw as { skips: unknown[] }).skips
+      : []
+  const out: Skip[] = []
+  for (const row of list) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as Record<string, unknown>
+    const name = String(r.name ?? '').replace(/^\/?r\//, '')
+    const state = String(r.state ?? '') as CommunityState
+    const at = String(r.at ?? '')
+    if (!/^[A-Za-z0-9_]{2,30}$/.test(name) || !isClosed(state)) continue
+    if (!Number.isFinite(Date.parse(at))) continue
+    out.push({ name, state, at })
+  }
+  return out
+}
+
+/** Is a skip seen `ageMs` ago still in force? Mirrors `skip_active`. Pure. */
+export function skipActive(ageMs: number): boolean {
+  return ageMs < SPEC.SKIP_MS
+}
+
+/** May a community be taken? Mirrors `may_take`. Pure. */
+export function mayTake(skipped: boolean, ageMs: number): boolean {
+  return !skipped || !skipActive(ageMs)
+}
+
+/** Is the owner told about this skip? Once, when it is new. Pure. */
+export function tellSkip(alreadySkipped: boolean): boolean {
+  return !alreadySkipped
+}
+
+/** The skips still in force at `nowMs`; expired ones are dropped. Pure. */
+export function activeSkips(skips: Skip[], nowMs: number): Skip[] {
+  return skips.filter(s => !mayTake(true, nowMs - Date.parse(s.at)))
+}
+
+/** Is `name` among these skips? Case-insensitive, as Reddit is. Pure. */
+export function skippedIn(skips: Skip[], name: string): boolean {
+  const n = name.toLowerCase()
+  return skips.some(s => s.name.toLowerCase() === n)
+}
+
+/**
+ * The record with `name` added, and whether it was new. A community already
+ * skipped keeps its first time: seeing it closed again does not stretch the
+ * skip, so it is tried again SKIP_MS after it was first seen. Pure.
+ */
+export function withSkip(
+  skips: Skip[],
+  name: string,
+  state: CommunityState,
+  nowMs: number
+): { skips: Skip[]; added: boolean } {
+  if (skippedIn(skips, name)) return { skips, added: false }
+  return {
+    skips: [...skips, { name, state, at: new Date(nowMs).toISOString() }],
+    added: true,
+  }
+}
+
+/** The owner's line for a community the desk now skips. Pure. */
+export function skipLine(name: string, state: CommunityState): string {
+  const days = Math.round(SPEC.SKIP_MS / 86_400_000)
+  return `r/${name} ${state} -> skipped: закрыто Reddit-ом, пропускаю ${days} дн. и беру следующее; ваш список не тронут` // cyrillic-ok: told to the owner
+}
+
+/** The owner's line for a community Reddit closed. Pure. */
+export function closedLine(name: string, state: CommunityState): string {
+  return `сообщество r/${name} закрыто Reddit-ом (${state}) — ничего не открыто` // cyrillic-ok: told to the owner
+}
+
+/**
+ * The community's state, by each reader in turn until one gives a definite
+ * answer: the server's own anonymous read first (cheap, often blocked), then
+ * whatever the caller adds. A reader that throws is a reader that did not
+ * know. Never throws.
+ */
+export async function subredditOpen(
+  name: string,
+  reads: Array<(url: string) => Promise<unknown>>
+): Promise<CommunityState> {
+  if (!/^[A-Za-z0-9_]{2,30}$/.test(name)) return 'unknown'
+  for (const read of reads) {
+    const state = communityStateOf(
+      await Promise.resolve()
+        .then(() => read(aboutUrl(name)))
+        .catch(() => null)
+    )
+    if (state !== 'unknown') return state
+  }
+  return 'unknown'
+}
+
+/** about.json read by the server itself, with a short timeout. */
+export async function readAnonymously(
+  url: string,
+  timeoutMs = 8_000
+): Promise<string> {
+  const r = await fetch(url, {
+    headers: { 'user-agent': 'web:ai.t27.render:v1 (community check)' },
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  /* The body decides, whatever the status (see CommunityState). */
+  return await r.text()
+}
+
+/**
+ * ONE ARTICLE, ONE POST PER COMMUNITY, WHICHEVER DESK MAKES IT. On 2026-10-03
+ * both desks posted the same article to r/t27ai about three hours apart (the
+ * blog-share link post at 08:36 UTC, this desk's text post at 11:30 UTC) --
+ * the likely trigger of the ban. Before the blog-share desk opens a
+ * community's submit page it asks two things here: is the community open,
+ * and did this desk already post or ask to post the article there. The line
+ * for the owner, or null to go ahead. Never throws.
+ */
+export async function redditShareRefusal(
+  sub: string,
+  slug: string,
+  d: {
+    state: (name: string) => Promise<CommunityState>
+    deskPosted: (sub: string, slug: string) => Promise<boolean>
+  }
+): Promise<string | null> {
+  const state = await d.state(sub).catch((): CommunityState => 'unknown')
+  if (isClosed(state)) return closedLine(sub, state)
+  if (await d.deskPosted(sub, slug).catch(() => false))
+    return `статья уже предложена или опубликована в r/${sub} Reddit-столом — второй раз не открыто` // cyrillic-ok: told to the owner
+  return null
+}
+
+/** Did this desk post, or ask to post, `slug` in `sub`? */
+export async function deskPostedTo(
+  q: Queryable,
+  sub: string,
+  slug: string
+): Promise<boolean> {
+  const { rows } = await q.query(
+    `SELECT 1 FROM reddit_acts
+      WHERE kind = 'post' AND lower(target) = lower($1)
+        AND state IN ('asked', 'done') LIMIT 1`,
+    [`${sub}/${slug}`]
+  )
+  return rows.length > 0
 }
 
 /** The pages the desk WALKS on a round: the inbox first, then the feeds. */
@@ -403,12 +678,10 @@ export const TITLE_MAX = 300
  * Pure.
  */
 export function postFor(sub: Subreddit, a: Article): PlannedPost {
-  const title =
-    a.title.length <= TITLE_MAX
-      ? a.title
-      : `${a.title.slice(0, TITLE_MAX - 1)}…`
+  const title = clip(a.title, TITLE_MAX)
   const body = [
-    a.summary.trim(),
+    /* A text post has room: the evidence label goes with the claim. */
+    summaryWithEvidence(a).trim(),
     '',
     linkFor(a, 'reddit'),
     '',
@@ -472,6 +745,17 @@ export interface RedditDeps {
   /** One line about the project, for the draft. */
   about: string
   subs?: Subreddit[]
+  /** Whether Reddit still lets the community be posted to (subredditOpen). */
+  communityState?: (name: string) => Promise<CommunityState>
+  /** The skip record (SPEC.SKIP_KEY), as its strategy row holds it. */
+  readSkips?: () => Promise<unknown>
+  /** Writes the skip record -- never the owner's list (SPEC.LIST_KEY). */
+  writeSkips?: (skips: Skip[]) => Promise<void>
+  /**
+   * What the blog-share desk already pressed "Post" for on Reddit, as
+   * `<subreddit>/<slug>`, lower case (blog-share.ts redditPressedKeys).
+   */
+  blogPosted?: () => Promise<string[]>
 }
 
 /** Every act, newest first. */
@@ -531,6 +815,21 @@ export async function redditTick(d: RedditDeps): Promise<string> {
       typeof row.detail === 'string' ? safeJson(row.detail) : row.detail
     ) as Record<string, unknown> | null
     const body = String(row.body ?? '')
+    /*
+     * A yes given before the community closed, or before the blog-share desk
+     * posted the same article there, is not acted on: the post would be the
+     * second copy, or a press on a dead page.
+     */
+    if (String(row.kind) === 'post') {
+      const target = String(row.target ?? '')
+      const sub = target.split('/')[0]
+      const why = await whyNotPost(d, sub, target)
+      if (why) {
+        await close(d, id, 'skipped', { why })
+        await d.tell(`Reddit: r/${sub} — ${why}`).catch(() => {})
+        return `${id}: skipped, ${why}`
+      }
+    }
     const said = await (
       String(row.kind) === 'post'
         ? d.submit(detail as unknown as PlannedPost)
@@ -594,18 +893,70 @@ export async function redditTick(d: RedditDeps): Promise<string> {
   }
 
   /* 3. At most one post, and only where posting is welcome. */
-  const sub = dueSubreddit(subs, acts, d.now())
-  if (!sub) return inbox.length ? 'every reply is handled' : 'nothing to answer'
+  /*
+   * A community Reddit closed is passed over, written into the skip record,
+   * and the next due one is taken in this same round. A community skipped
+   * earlier is not even looked at until its skip expires. `subs` -- the
+   * owner's list -- is only read here, never written.
+   */
+  const nowMs = d.now()
+  const stored = skipsOf(
+    d.readSkips ? await d.readSkips().catch(() => null) : null
+  )
+  let skips = activeSkips(stored, nowMs)
+  const closed: string[] = skips
+    .filter(k => subs.some(s => s.name.toLowerCase() === k.name.toLowerCase()))
+    .map(k => `r/${k.name} ${k.state}`)
+  let left = subs.filter(s => !skippedIn(skips, s.name))
+  let sub = dueSubreddit(left, acts, nowMs)
+  const fresh: Skip[] = []
+  while (sub && d.communityState) {
+    const state = await d
+      .communityState(sub.name)
+      .catch((): CommunityState => 'unknown')
+    if (!isClosed(state)) break
+    closed.push(`r/${sub.name} ${state}`)
+    const next = withSkip(skips, sub.name, state, nowMs)
+    skips = next.skips
+    if (tellSkip(!next.added)) fresh.push(skips[skips.length - 1])
+    const shut = sub
+    left = left.filter(s => s !== shut)
+    sub = dueSubreddit(left, acts, nowMs)
+  }
+  /* Written when something changed: a new skip, or an expired one dropped. */
+  if (d.writeSkips && (fresh.length || skips.length !== stored.length)) {
+    const saved = await d
+      .writeSkips(skips)
+      .then(() => true)
+      .catch(() => false)
+    for (const k of fresh)
+      await d
+        .tell(skipLine(k.name, k.state) + (saved ? '' : ' (не записано)')) // cyrillic-ok: told to the owner
+        .catch(() => {})
+  }
+  const skipNote = fresh.length
+    ? ` (skipped: ${fresh.map(k => `r/${k.name} ${k.state}`).join(', ')})`
+    : ''
+  if (!sub)
+    return closed.length
+      ? `nothing to post: closed by Reddit (${closed.join(', ')})`
+      : inbox.length
+        ? 'every reply is handled'
+        : 'nothing to answer'
   if (!promoRatioOk(acts))
-    return `not earned yet: fewer than ${ANSWERS_PER_POST} answers since the last post`
+    return `not earned yet: fewer than ${ANSWERS_PER_POST} answers since the last post${skipNote}`
   const articles = parseRss(await d.fetchRss().catch(() => ''))
   const postedSlugs = new Set(
     acts.filter(a => a.kind === 'post').map(a => a.target)
   )
+  const byBlog = new Set(await blogPostedKeys(d))
   const article = articles.find(
-    a => !postedSlugs.has(`${sub.name}/${a.slug}`) && !postedSlugs.has(a.slug)
+    a =>
+      !postedSlugs.has(`${sub.name}/${a.slug}`) &&
+      !postedSlugs.has(a.slug) &&
+      !byBlog.has(`${sub.name}/${a.slug}`.toLowerCase())
   )
-  if (!article) return `nothing new to post in r/${sub.name}`
+  if (!article) return `nothing new to post in r/${sub.name}${skipNote}`
   const planned = postFor(sub, article)
   const rules = parseRules(
     await d.readJson(rulesUrl(sub.name)).catch(() => null)
@@ -620,7 +971,30 @@ export async function redditTick(d: RedditDeps): Promise<string> {
     approval,
     planned
   )
-  return `asked about posting in r/${sub.name}`
+  return `asked about posting in r/${sub.name}${skipNote}`
+}
+
+/** The blog-share desk's Reddit posts, or none when they cannot be read. */
+async function blogPostedKeys(d: RedditDeps): Promise<string[]> {
+  if (!d.blogPosted) return []
+  return await d.blogPosted().catch(() => [])
+}
+
+/** Why an approved post must not go out now, or '' when it may. */
+async function whyNotPost(
+  d: RedditDeps,
+  sub: string,
+  target: string
+): Promise<string> {
+  if (d.communityState) {
+    const state = await d
+      .communityState(sub)
+      .catch((): CommunityState => 'unknown')
+    if (isClosed(state)) return closedLine(sub, state)
+  }
+  if ((await blogPostedKeys(d)).includes(target.toLowerCase()))
+    return 'статья уже опубликована там столом блога — второй раз не отправлено' // cyrillic-ok: told to the owner
+  return ''
 }
 
 async function remember(

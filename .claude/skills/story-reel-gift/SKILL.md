@@ -1,9 +1,13 @@
 ---
 name: 'Story reel gift'
-description: 'Лид-магнит №2 для КАЖДОГО клиента: рилс-история про его дело из его же данных — его фото, его слова о деле, ЕГО голос из голосовых в личке (crm_voice_clone), 3 сцены в разных декорациях, до 15 с, пауза с призывом его дела, чтобы он сразу выложил в Instagram. Загружать при словах «второй подарок», «лид-магнит 2», «рилс клиенту», «рилс про её бизнес», «её голосом», «голос из переписки», «клон голоса клиента», «без клона», «её голосовые», «Replicate 402», «Kie оплачен», «сделай для каждого клиента», «вовлечь в бота», «шаблон рилса в CRM», «рилс одним нажатием», «start=reel», «любая история», а также перед тем, как делать рилс человеку из CRM.'
+description: 'Лид-магнит №2 для КАЖДОГО клиента: рилс-история про его дело из его же данных — его фото, его слова о деле, ЕГО голос из голосовых в личке (crm_voice_clone), 3 сцены в его студии (общий / средний / крупный план из одного фото), до 15 с, пауза с призывом его дела, чтобы он сразу выложил в Instagram. Загружать при словах «второй подарок», «лид-магнит 2», «рилс клиенту», «рилс про её бизнес», «её голосом», «голос из переписки», «клон голоса клиента», «без клона», «её голосовые», «Replicate 402», «Kie оплачен», «сделай для каждого клиента», «вовлечь в бота», «шаблон рилса в CRM», «рилс одним нажатием», «start=reel», «любая история», а также перед тем, как делать рилс человеку из CRM.'
 ---
 
 # Рилс-подарок клиенту (лид-магнит №2)
+
+> **Reels are made ONLY through the server pipeline** (`/mcp` -> `story_reel` / `reel_render`, Kie and Remotion on the server; never by hand on the Mac). Owner rule 2026-10-03, the door and the steps: skill **`cloud-agent-does-the-work`**. Not repeated here.
+
+> **Провайдер — только Kie, лицо владельца — studio-lab, голос владельца — сгенерированный, не его заметки.** Правило, модели и чего у Kie нет (клонирования речи) — в навыке **`kie-only`**. Здесь не повторяется.
 
 Решение владельца 26.09.2026: «надо делать для каждого клиента из его данных,
 как например у 2086031075 @Ryabinika_Perm — изучи и сделай её рилс с её
@@ -13,6 +17,37 @@ description: 'Лид-магнит №2 для КАЖДОГО клиента: р�
 Первый подарок — портрет 9:16 из аватарки (`crm_deliver_photo`). Второй —
 этот рилс. Смысл второго: человек получает готовый ролик про СВОЁ дело своим
 голосом, выкладывает его и приходит за следующими — это вовлечение в бота.
+
+## Scenes: open wide with a hook, never leave the studio (crm-story-reel v19)
+
+**This is the one home of the rule; other skills point here.** Owner, 2026-10-03,
+after a reel that opened on a drawn picture with "Good morning in the rainy
+weather" and put him on a street in the rain:
+
+- _"a talking-head reel starts on a wide shot of the talking head, not on a picture"_
+- _"the reel starts with the hook, not with 'good morning'"_
+- _"we do everything without leaving the studio, working with shots"_ /
+  _"don't do that!! the blogger's studio, his look!!"_
+
+What the code holds (spec `crm-story-reel.t27` v19, `story-reel-tool.ts`,
+`studio-shots.ts`):
+
+1. **Scene 1 is the source photo itself, wide** (`OPEN_ON_SOURCE`,
+   `OPEN_SCENE 0`) -- never drawn, even when a setting is given.
+2. **The first line is a hook.** A greeting opener ("Доброе утро", "Привет",
+   "Hello"...) is refused with `scenes.0: ...` before anything is spent.
+3. **A scene with no `setting` is a shot cut from the same photo** by ffmpeg
+   (`STUDIO_SHOTS`): scene 2 close (42 % of the side), scene 3 medium (65 %),
+   alternating; face kept a third down. Same studio, same look, nothing
+   drawn, nothing paid. **Default: leave `setting` out.**
+4. A `setting` is drawn (`image_edit`) ONLY when the person named a place
+   themselves; a drawn still with no face is drawn once more, then the run
+   stops before any voice is paid for.
+5. Each line is heard before its lip-sync; a line over `LINE_MAX_MS` (3.5 s,
+   ~6 words) gets no lip-sync and the run names it. The default reel stays
+   within 15 s.
+6. The house gets its reel through **@t27ai_bot** (`HOUSE_DELIVERY_BOT`), a
+   client through their own bot, then the main bot (`buyer-delivery.ts`).
 
 ## Когда
 
@@ -42,7 +77,7 @@ description: 'Лид-магнит №2 для КАЖДОГО клиента: р�
    ```
    story_reel {
      image_url: <его фото: crm_client_face>,
-     scenes: [ {setting, line} ×3 ],   // обстановка новая в каждой, реплики 2–4 с
+     scenes: [ {line} ×3 ],            // no setting = a shot of the source (v19); first line = hook; each line <= 3.5 s
      style:  <один стиль на все кадры>,
      for_lead: <его id>,               // говорит ЕГО голосом
      cta:    <призыв его дела>,         // стоит на экране в паузе

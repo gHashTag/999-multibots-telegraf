@@ -48,11 +48,58 @@ export interface Announcement {
   replyMarkup: unknown
 }
 
-export function browserStartedMessage(url = BROWSER_TAB_URL): Announcement {
+/* cyrillic-ok: who started the browser, in the person's words */
+const DESK_NAMES: Record<string, string> = {
+  reddit: 'стол Reddit читает входящие', // cyrillic-ok
+  engage: 'стол комментариев', // cyrillic-ok
+  'blog-share': 'публикация блога', // cyrillic-ok
+  rounds: 'обход сетей', // cyrillic-ok
+  scenarios: 'сценарий', // cyrillic-ok
+  heal: 'починка зависшего браузера', // cyrillic-ok
+}
+
+export function deskName(by: unknown): string {
+  return (typeof by === 'string' && DESK_NAMES[by]) || 'агент' // cyrillic-ok
+}
+
+/*
+ * ONE MESSAGE PER QUIET WINDOW FOR THE DESKS.
+ *
+ * Measured 2026-10-03: the Reddit desk ticks hourly, the reaper drops an idle
+ * visit after ten minutes, so every tick opened a fresh visit and every
+ * opening sent "the agent opened your browser" -- one Telegram message an
+ * hour, all night, to the owner. That is the noise this file exists to avoid:
+ * a channel that pings hourly gets muted, and with it the start that
+ * mattered. A desk's start is announced once, then the desks are quiet for
+ * this long; the journal (`browser_start` with `by`) still names each one.
+ * A start by a tool -- a chat turn -- is announced every time, as before.
+ */
+export const DESK_QUIET_MS = 12 * 60 * 60 * 1000
+
+/** `lastMs` = the last desk start that was announced, null if none or unreadable. */
+export function deskStartMayAnnounce(
+  lastMs: number | null,
+  nowMs: number
+): boolean {
+  return lastMs === null || nowMs - lastMs >= DESK_QUIET_MS
+}
+
+export function browserStartedMessage(
+  url = BROWSER_TAB_URL,
+  by?: string
+): Announcement {
+  const head = by
+    ? `Агент открыл ваш браузер: ${deskName(by)}.\n\n` // cyrillic-ok: user-facing
+    : 'Агент открыл ваш браузер и начал работать.\n\n' // cyrillic-ok: user-facing
+  const tail = by
+    ? '\n\nСледующие 12 ч фоновые задачи открывают его без этого сообщения — ' + // cyrillic-ok: user-facing
+      'каждый их шаг виден в журнале на вкладке «Браузер».' // cyrillic-ok: user-facing
+    : ''
   return {
     text:
-      'Агент открыл ваш браузер и начал работать.\n\n' + // cyrillic-ok: user-facing
-      'Откройте, чтобы смотреть за ним — и в любой момент взять управление.', // cyrillic-ok: user-facing
+      head +
+      'Откройте, чтобы смотреть за ним — и в любой момент взять управление.' + // cyrillic-ok: user-facing
+      tail,
     replyMarkup: {
       inline_keyboard: [
         [openBrowserButton('👁 Смотреть за агентом', url)], // cyrillic-ok: button label
@@ -77,10 +124,12 @@ export interface Announcer {
 export async function announceBrowserStarted(
   announcer: Announcer,
   telegramId: string,
-  actor: Actor
+  actor: Actor,
+  /** The desk that started it; a tool's start leaves it out. */
+  by?: string
 ): Promise<boolean> {
   if (actor !== 'agent') return false
-  const { text, replyMarkup } = browserStartedMessage()
+  const { text, replyMarkup } = browserStartedMessage(BROWSER_TAB_URL, by)
   try {
     await announcer.send(telegramId, text, replyMarkup)
     return true

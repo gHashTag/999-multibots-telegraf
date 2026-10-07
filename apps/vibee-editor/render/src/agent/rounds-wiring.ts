@@ -7,6 +7,7 @@
  * off -- a round that skipped every time the pod was asleep would never run.
  */
 import type { Queryable } from '../browser/sessions'
+import { ruleFor, type SiteRuleRow } from '../browser/site-rules'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -52,12 +53,29 @@ export async function runRoundNow(
   const { waitForBrowser, cdpHealthIo } = await import('../browser/health')
 
   const { loginsOfPerson } = await import('../browser/logins')
+  const { deskMayGo, holdDeskTab, releaseDeskTab } = await import(
+    '../browser/desk-page'
+  )
+  const { siteRulesOf } = await import('../browser/site-rules')
+  /*
+   * THE PERSON'S SITE LIST, read before the walk (#3488, found by the bee):
+   * the round opens and navigates its own window over raw CDP, past the
+   * agent tools' guard. A blocked site is not walked at all -- left in, it
+   * would come back as a failed look, and a round of only those reads as a
+   * blank browser and restarts it. An unreadable list walks nothing.
+   */
+  const rules = await siteRulesOf(pool, owner)
+  if (rules === null) return 'site list unreadable'
+  const sites = walkableSites(strategy.sites, rules)
+  /* Nothing left to walk: no round, and no empty message to the person. */
+  if (!sites.length) return 'every site of the round is blocked'
+  const who = { pool, telegramId: owner }
 
   /** The endpoint of the person's browser, started if it is not up yet. */
   const endpoint = async (): Promise<string> => {
     let s = await readSession(pool, owner)
     if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-      await startBrowserAsAgent(owner)
+      await startBrowserAsAgent(owner, 'rounds')
       s = await readSession(pool, owner)
     }
     if (!s?.cdpEndpoint) throw new Error('the browser did not start')
@@ -74,7 +92,13 @@ export async function runRoundNow(
    */
   const at = PROFILE_ORDER.indexOf(desk?.id ?? '')
   const win = deskWindow({
-    open: async url => await openWindow(await endpoint(), url),
+    open: async url => {
+      await deskMayGo(who, url)
+      const id = await openWindow(await endpoint(), url)
+      /* Held like a desk tab: the sweep spares it, the tab strip marks it. */
+      holdDeskTab(id)
+      return id
+    },
     tile: async targetId => {
       if (!desk) return
       await tileWindow(
@@ -87,9 +111,28 @@ export async function runRoundNow(
         )
       )
     },
-    goTo: async (targetId, url) => await goTo(await endpoint(), targetId, url),
-    alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
-    close: async targetId => await closeWindow(await endpoint(), targetId),
+    goTo: async (targetId, url) => {
+      await deskMayGo(who, url)
+      await goTo(await endpoint(), targetId, url)
+      /* Each step renews the hold: a round longer than DESK_HOLD_MS stays marked. */
+      holdDeskTab(targetId)
+    },
+    /*
+     * A window a restart took is let go here, not left to expire: the round
+     * opens a new one, and the old id must not stay marked as the desk's.
+     */
+    alive: async targetId => {
+      const ok = await pageUrl(await endpoint(), targetId).then(
+        u => !!u,
+        () => false
+      )
+      if (!ok) releaseDeskTab(targetId)
+      return ok
+    },
+    close: async targetId => {
+      releaseDeskTab(targetId)
+      await closeWindow(await endpoint(), targetId)
+    },
     /*
      * A round can start minutes after a deploy swap, when the port answers and
      * Chromium behind it does not (browser/health.ts). Waiting here is what
@@ -109,6 +152,8 @@ export async function runRoundNow(
         const target = await win.at(url)
         const where = await endpoint()
         await settle(strategy.settleMs)
+        /* Where it LANDED: a redirect may have left the site asked for. */
+        await deskMayGo(who, await pageUrl(where, target))
         const { itemsProbe, itemsOf } = await import('../browser/items')
         const got = (await evaluateOn(
           where,
@@ -130,14 +175,26 @@ export async function runRoundNow(
       },
       tell: text =>
         sendToTelegram(owner, desk ? `[${desk.name}] ${text}` : text),
-      restart: () => restartBrowserAsAgent(owner),
+      restart: () => restartBrowserAsAgent(owner, 'rounds'),
       now: () => new Date(),
-      sites: strategy.sites,
+      sites,
     })
   } finally {
     /* A round leaves no windows behind: the person's browser is theirs. */
     await win.close()
   }
+}
+
+/**
+ * The round's sites minus those the person blocked (#3488). Pure, so the
+ * filter is held by a test: the bee's mutation that walked blocked sites
+ * again survived every suite.
+ */
+export function walkableSites<T extends { url: string }>(
+  sites: T[],
+  rules: SiteRuleRow[]
+): T[] {
+  return sites.filter(s => ruleFor(s.url, rules) !== 'block')
 }
 
 /** Where the time of the last round is kept, so a deploy cannot forget it. */

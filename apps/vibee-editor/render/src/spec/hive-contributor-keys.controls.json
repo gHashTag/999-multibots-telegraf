@@ -1,0 +1,52 @@
+[
+  {
+    "name": "denied identities may manage keys",
+    "from": "return allowed && person && signed_subject;",
+    "to": "return allowed || (person && signed_subject);"
+  },
+  {
+    "name": "delegated identities may manage keys",
+    "from": "return allowed && person && signed_subject;",
+    "to": "return allowed && (person || signed_subject);"
+  },
+  {
+    "name": "subject length excludes its accepted boundary",
+    "from": "digits <= MAX_SUBJECT_DIGITS",
+    "to": "digits < MAX_SUBJECT_DIGITS"
+  },
+  {
+    "name": "body limit admits one extra byte",
+    "from": "bytes <= BODY_MAX_BYTES",
+    "to": "bytes <= BODY_MAX_BYTES + 1"
+  },
+  {
+    "name": "empty secret is accepted",
+    "from": "chars > 0 && chars <= MAX_SECRET_CHARS",
+    "to": "chars <= MAX_SECRET_CHARS"
+  },
+  {
+    "name": "secret length excludes its accepted boundary",
+    "from": "chars <= MAX_SECRET_CHARS",
+    "to": "chars < MAX_SECRET_CHARS"
+  },
+  {
+    "name": "label limit admits one extra character",
+    "from": "chars <= MAX_LABEL_CHARS",
+    "to": "chars <= MAX_LABEL_CHARS + 1"
+  },
+  {
+    "name": "client-selected owner is allowed",
+    "from": "return plain_object && known_provider && known_fields;",
+    "to": "return plain_object && (known_provider || known_fields);"
+  },
+  {
+    "name": "unknown actions can be forwarded",
+    "from": "return exact_prefix && safe_integer && exact_action;",
+    "to": "return exact_prefix && (safe_integer || exact_action);"
+  },
+  {
+    "name": "VERSION disagrees with its header",
+    "from": "pub const VERSION : u8 = 1;",
+    "to": "pub const VERSION : u8 = 2;"
+  }
+]

@@ -30,12 +30,13 @@ import {
   wheelAfterTouch,
   wheelAfterHandBack,
   shouldRenewWheel,
-  type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { Desks } from '@/components/Browser/Desks'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
+import { SiteRules } from '@/components/Browser/SiteRules'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
+import { TabStrip } from '@/components/Browser/TabStrip'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
 import { PEEK_PX, ISLAND_PX, type Detent } from '@/lib/sheetDetents'
 import { browserLayout, CLASSIC_VIEW } from '@/lib/browserLayout'
@@ -99,12 +100,13 @@ const TYPE_PARAM = 'type'
  *    proxies `/live/` under its own origin.
  */
 export default function BrowserPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [view, setView] = useState<BrowserSessionView | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showSites, setShowSites] = useState(false)
   const [showType, setShowType] = useState(false)
   const [journalOpen, setJournalOpen] = useState(false)
   const [walking, setWalking] = useState(false)
@@ -331,7 +333,7 @@ export default function BrowserPage() {
 
   const rootClass = [
     'remote-browser',
-    embedded ? 'remote-browser--live' : '',
+    embedded ? 'remote-browser--live remote-browser--tabs' : '',
     /* The minimal view reuses full screen's stage: fixed, over the app. */
     minimal ? 'remote-browser--full remote-browser--minimal' : '',
     layout === 'sheet' ? 'remote-browser--sheet' : '',
@@ -544,6 +546,16 @@ export default function BrowserPage() {
           {t('browser.import.open')}
         </button>
 
+        {/* Where the agent asks first or never goes; see SiteRules. */}
+        <button
+          type="button"
+          className="remote-browser__secondary"
+          aria-expanded={showSites}
+          onClick={() => setShowSites(v => !v)}
+        >
+          {t('browser.sites.open')}
+        </button>
+
         <button
           type="button"
           className="remote-browser__secondary"
@@ -575,6 +587,7 @@ export default function BrowserPage() {
       {/* One cabinet per line of work (components/Browser/Desks.tsx). */}
       {embedded ? <Desks /> : null}
       {showImport ? <ImportLogins /> : null}
+      {showSites ? <SiteRules /> : null}
       <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
     </>
   )
@@ -653,6 +666,9 @@ export default function BrowserPage() {
 
       {live ? (
         <section className="remote-browser__live">
+          {/* Every page of the pod, one tap away (components/Browser/TabStrip). */}
+          {embedded ? <TabStrip live={live && onThisTab} /> : null}
+
           {embedded ? (
             /*
              * The glow says an agent is working in here. It stops the moment
@@ -673,7 +689,7 @@ export default function BrowserPage() {
               <iframe
                 ref={frame}
                 className="remote-browser__frame"
-                src={absoluteViewUrl(view!.viewUrl!)}
+                src={absoluteViewUrl(view!.viewUrl!, lang)}
                 title={t('browser.title')}
                 allow="clipboard-read; clipboard-write; fullscreen"
                 onLoad={e => {

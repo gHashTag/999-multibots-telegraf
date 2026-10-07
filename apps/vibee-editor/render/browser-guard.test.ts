@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import {
   isSensitive,
   mayAct,
@@ -80,6 +80,7 @@ describe('one yes, and how long it lasts', () => {
         {
           url: 'https://mail.google.com/',
           allowedAtMs: NOW - 60_000,
+          allowedHost: 'mail.google.com',
           nowMs: NOW,
         },
         list
@@ -104,6 +105,7 @@ describe('one yes, and how long it lasts', () => {
         {
           url: 'https://mail.google.com/',
           allowedAtMs: NOW - 30 * 60 * 1000,
+          allowedHost: 'mail.google.com',
           nowMs: NOW,
         },
         list
@@ -118,6 +120,7 @@ describe('one yes, and how long it lasts', () => {
         {
           url: 'https://mail.google.com/',
           allowedAtMs: NOW - PERMISSION_WINDOW_MS - 1,
+          allowedHost: 'mail.google.com',
           nowMs: NOW,
         },
         list
@@ -132,6 +135,70 @@ describe('one yes, and how long it lasts', () => {
         list
       ).allowed
     ).toBe(true)
+  })
+})
+
+describe('a yes is for one place (2026-10-03)', () => {
+  const at = (url: string, allowedHost: string | null | undefined) =>
+    mayAct({ url, allowedAtMs: NOW - 60_000, allowedHost, nowMs: NOW }, list)
+      .allowed
+
+  it('a yes on a bank does not unlock mail', () => {
+    expect(at('https://mail.google.com/mail/u/0', 'online.sberbank.ru')).toBe(
+      false
+    )
+  })
+
+  it('the same host inside the window is allowed (www and case aside)', () => {
+    expect(at('https://online.sberbank.ru/pay', 'online.sberbank.ru')).toBe(
+      true
+    )
+    expect(at('https://WWW.PayPal.com/send', 'paypal.com')).toBe(true)
+  })
+
+  it('a neighbouring room of the same company is another place', () => {
+    expect(at('https://mail.google.com/', 'accounts.google.com')).toBe(false)
+  })
+
+  it('a fresh yes with no host (from before, or not about a page) opens nothing', () => {
+    expect(at('https://mail.google.com/', null)).toBe(false)
+    expect(at('https://mail.google.com/', undefined)).toBe(false)
+    expect(at('https://mail.google.com/', '')).toBe(false)
+  })
+
+  it('an unreadable address stays shut even with a yes', () => {
+    expect(at('', 'mail.google.com')).toBe(false)
+    expect(at('not a url', 'mail.google.com')).toBe(false)
+  })
+
+  it('the right host but a stale yes is still refused', () => {
+    expect(
+      mayAct(
+        {
+          url: 'https://mail.google.com/',
+          allowedAtMs: NOW - PERMISSION_WINDOW_MS - 1,
+          allowedHost: 'mail.google.com',
+          nowMs: NOW,
+        },
+        list
+      ).allowed
+    ).toBe(false)
+  })
+
+  it('a yes given on the tab covers a frame on it, and only that tab', () => {
+    const frame = (tabUrl: string) =>
+      mayAct(
+        {
+          url: 'https://js.stripe.com/v3/frame',
+          allowedAtMs: NOW - 60_000,
+          allowedHost: 'shop.example.org',
+          tabUrl,
+          nowMs: NOW,
+        },
+        [...list, 'stripe.com']
+      ).allowed
+    expect(frame('https://shop.example.org/cart')).toBe(true)
+    expect(frame('https://other.example.org/cart')).toBe(false)
   })
 })
 
@@ -153,6 +220,8 @@ describe('one yes, and how long it lasts', () => {
 const cdpCalls: string[] = []
 
 vi.mock('./src/browser/cdp', () => ({
+  /* Chromium's hit-test: every press lands on the top page itself. */
+  frameAtPoint: async () => ({ frameId: 'page-1', url: null }),
   frontPage: async () => ({ id: 'page-1', url: PAGE.url }),
   listTargets: async () => [{ id: 'page-1', url: PAGE.url, type: 'page' }],
   newPage: async () => ({ id: 'page-1', url: PAGE.url }),
@@ -161,7 +230,16 @@ vi.mock('./src/browser/cdp', () => ({
   },
   evaluateOn: async () => {
     cdpCalls.push('evaluateOn')
-    return { title: 'x', url: PAGE.url, text: 'x' }
+    // Also answers the screenshot's paint probe (paint-wait.ts) as a page
+    // that has loaded and shows something; otherwise the shot polls eight
+    // times and the call log measures the wait, not the guard.
+    return {
+      title: 'x',
+      url: PAGE.url,
+      text: 'x',
+      readyState: 'complete',
+      visible: true,
+    }
   },
   clickAt: async () => {
     cdpCalls.push('clickAt')
@@ -178,7 +256,10 @@ vi.mock('./src/browser/cdp', () => ({
 /* The page the fake browser is sitting on; each test sets it. */
 const PAGE = { url: 'https://ru.wikipedia.org/wiki/x' }
 
-function ctxWith(allowedMsAgo: number | null) {
+function ctxWith(
+  allowedMsAgo: number | null,
+  allowedHost: string | null = 'mail.google.com'
+) {
   return {
     telegramId: '900000001',
     requestId: 'r1',
@@ -193,6 +274,7 @@ function ctxWith(allowedMsAgo: number | null) {
             cdp_endpoint: '127.0.0.1:2',
             allowed_ms:
               allowedMsAgo === null ? null : Date.now() - allowedMsAgo,
+            allowed_host: allowedHost,
             state: 'live',
             view_token: 'v',
             admin_token: 'a',
@@ -215,6 +297,13 @@ const argsFor: Record<string, Record<string, unknown>> = {
 }
 
 describe('the tools that act are the ones that are gated', () => {
+  // agent-tools drags in the whole agent module graph. Its cold transform is
+  // paid once here, under its own budget, so no single test below spends the
+  // 5 s default on it when the machine is loaded.
+  beforeAll(async () => {
+    await import('./src/browser/agent-tools')
+  }, 180_000)
+
   beforeEach(() => {
     cdpCalls.length = 0
   })
@@ -249,7 +338,8 @@ describe('the tools that act are the ones that are gated', () => {
         tool!.handler(argsFor[name], ctxWith(null))
       ).resolves.toBeTruthy()
     }
-    expect(cdpCalls).toEqual(['evaluateOn', 'screenshot'])
+    // browser_read, then the screenshot's one paint probe and the shot itself.
+    expect(cdpCalls).toEqual(['evaluateOn', 'evaluateOn', 'screenshot'])
   })
 
   it('acts once the person has said yes, and the click LANDS', async () => {
@@ -261,6 +351,19 @@ describe('the tools that act are the ones that are gated', () => {
       click.handler({ x: 1, y: 2 }, ctxWith(60_000))
     ).resolves.toBeTruthy()
     expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('a yes for ANOTHER host does not open this one', async () => {
+    PAGE.url = 'https://mail.google.com/mail/u/0'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+    for (const name of ACTING) {
+      const tool = BROWSER_TOOLS.find(t => t.name === name)!
+      await expect(
+        tool.handler(argsFor[name], ctxWith(60_000, 'online.sberbank.ru')),
+        name
+      ).rejects.toThrow(/permission/i)
+    }
+    expect(cdpCalls).toEqual([])
   })
 
   it('a yes from an hour ago does not still open the door', async () => {

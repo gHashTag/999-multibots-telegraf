@@ -5,6 +5,7 @@ import {
   загрузитьБаланс,
   ценаНажатия,
   мераЦены,
+  priceUnitLabel,
   тысячиЗнаковКОплате,
   полеДоходит,
   type Баланс,
@@ -81,6 +82,7 @@ import {
   buildBrollPromptQueue,
   nextBrollPromptIndex,
 } from '@/lib/brollPromptQueue'
+import { generationRefusalText } from '@/lib/generationRefusal'
 import './GeneratePanel.css'
 
 // Re-export GenerateTab type for use in Editor.tsx
@@ -153,6 +155,9 @@ interface GeneratePanelProps {
 
 export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const { t, lang } = useLanguage()
+  // A failed generation in the reader's language, the server's detail after.
+  const refusal = (r: { code?: string; error?: string }) =>
+    generationRefusalText({ code: r.code, detail: r.error ?? '' }, lang)
   const [internalTab, setInternalTab] = useState<GenerateTab>('image')
   /*
    * ЦЕНА ДО НАЖАТИЯ. Мини-приложение не спрашивало баланс ни разу: человек
@@ -227,12 +232,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // («· 6/с»), но во фразе давала «не хватит: 6 за с» — по-русски это не
     // читается. Мобильное приложение говорит «за секунду звука» с самого
     // начала, и до липсинка эта ветка в вебе просто не встречалась.
-    const словами =
-      мера === 'с'
-        ? 'секунду звука'
-        : мера === '1000 зн.'
-          ? '1000 знаков'
-          : мера
+    const словами = мера ? priceUnitLabel(мера, lang, 'words') : null
+    if (lang !== 'ru') {
+      return словами && количество === 1 // cyrillic-ok: pre-existing names
+        ? `not enough: ${ц} per ${словами}, you have ${баланс.balance}`
+        : `not enough tokens: ${всего} needed, you have ${баланс.balance}`
+    }
     return словами && количество === 1
       ? `не хватит: ${ц} за ${словами}, есть ${баланс.balance}`
       : `не хватит токенов: нужно ${всего}, есть ${баланс.balance}`
@@ -278,7 +283,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // Знаем количество — называем СУММУ: это и есть то, что спишут.
     if (количество > 1) return ` · ${ц * количество}`
     const мера = мераЦены(баланс, модель, операция)
-    return мера ? ` · ${ц}/${мера}` : ` · ${ц}`
+    return мера ? ` · ${ц}/${priceUnitLabel(мера, lang)}` : ` · ${ц}`
   }
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -714,7 +719,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         // the offer existed only BEFORE the free renders ran out and never
         // after somebody had actually started paying.
         if (result.insufficientTokens) setShowPaywall(true)
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Image error:', err)
@@ -789,7 +794,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
           setVideoPrompt('')
         }
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Video error:', err)
@@ -847,7 +852,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         await logRender()
         setAudioText('')
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Audio error:', err)
@@ -903,7 +908,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         setLipsyncAudioUrl('')
         setLipsyncImageUrl('')
       } else {
-        setError(result.error || t('generate.error'))
+        setError(refusal(result))
       }
     } catch (err) {
       console.error('[GeneratePanel] Lipsync error:', err)

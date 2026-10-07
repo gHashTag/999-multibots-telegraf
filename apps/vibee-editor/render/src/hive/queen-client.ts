@@ -44,7 +44,7 @@
  * break can forge a whole message.
  */
 
-const BASE =
+export const QUEEN_BASE =
   process.env.QUEEN_BASE_URL ||
   'https://trios-agent-server-production.up.railway.app'
 
@@ -61,7 +61,7 @@ async function ask<T>(path: string): Promise<T> {
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), TIMEOUT_MS)
   try {
-    const res = await fetch(`${BASE}${path}`, { signal: stop.signal })
+    const res = await fetch(`${QUEEN_BASE}${path}`, { signal: stop.signal })
     if (!res.ok) throw new Error(`the Queen answered ${res.status}`)
     return (await res.json()) as T
   } finally {
@@ -261,6 +261,120 @@ function pulseOf(raw: unknown): QueenPulse | undefined {
     }
   }
   return Object.keys(out).length ? out : undefined
+}
+
+/**
+ * ONE CARD, BY ITS NUMBER -- for the chat a card opens (agent/task-thread.ts).
+ *
+ * `queenBoard` rations the cards per column, so the card somebody tapped is
+ * usually not in its sample. This reads the whole board and keeps it for
+ * `cacheMs`: a person tapping through ten cards costs one read, not ten.
+ * `needs` is what she says the issue lacks ("boundary", "scenarios"...).
+ */
+export interface QueenCardDetail {
+  number: number
+  title: string
+  column: string
+  criteria?: number
+  needs: string[]
+}
+
+export interface QueenIndex {
+  repo: string
+  cards: Map<number, QueenCardDetail>
+}
+
+let index: { at: number; value: QueenIndex } | null = null
+
+export async function queenIndex(cacheMs: number): Promise<QueenIndex> {
+  if (index && Date.now() - index.at < cacheMs) return index.value
+  const b = await ask<any>('/queen/public-board')
+  const cards = new Map<number, QueenCardDetail>()
+  for (const c of Array.isArray(b?.cards) ? b.cards : []) {
+    const number = Number(c?.number)
+    if (!Number.isInteger(number) || number <= 0) continue
+    const criteria = Number(c?.criteria)
+    cards.set(number, {
+      number,
+      title: safeTitle(c?.title),
+      column: clean(c?.column, 30) || 'unknown',
+      criteria:
+        c?.criteria == null || !Number.isFinite(criteria)
+          ? undefined
+          : criteria,
+      needs: (Array.isArray(c?.needs) ? c.needs : [])
+        .slice(0, 8)
+        .map((n: unknown) => clean(n, 30))
+        .filter(Boolean),
+    })
+  }
+  const value = { repo: clean(b?.repo, 140), cards }
+  index = { at: Date.now(), value }
+  return value
+}
+
+export interface QueenMoveAnswer {
+  status: number
+  moved: boolean
+  reason: string
+  column?: string
+}
+
+/**
+ * POST /queen/move: ask her to move ONE card (BrowserOS#519).
+ *
+ * Her door admits the deployment's own credential and nothing else, so this
+ * runs on the server with the token it holds -- the token never reaches a
+ * browser. Her answer's status and reason come back as she said them; a
+ * network failure or a body that is not hers throws, and the caller says a
+ * fixed sentence rather than ours or pg's diagnostics.
+ */
+export async function queenMove(
+  body: {
+    number: number
+    from: string
+    to: string
+    reason: string
+    by: string
+  },
+  token: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<QueenMoveAnswer> {
+  const stop = new AbortController()
+  const timer = setTimeout(() => stop.abort(), TIMEOUT_MS)
+  try {
+    const res = await fetchImpl(`${QUEEN_BASE}/queen/move`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal: stop.signal,
+    })
+    const said = (await res.json().catch(() => null)) as {
+      moved?: unknown
+      reason?: unknown
+      column?: unknown
+    } | null
+    if (!said || typeof said.reason !== 'string') {
+      throw new Error(`the Queen answered ${res.status} without a reason`)
+    }
+    return {
+      status: res.status,
+      moved: said.moved === true,
+      reason: clean(said.reason, 300),
+      column:
+        typeof said.column === 'string' ? clean(said.column, 30) : undefined,
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** For tests: forget the cached board. */
+export function forgetQueenIndex(): void {
+  index = null
 }
 
 export async function queenBoard(): Promise<QueenBoard> {

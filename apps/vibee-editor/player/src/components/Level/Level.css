@@ -1,0 +1,80 @@
+/* The level switch and the head of a level's CRM dashboard. */
+
+.level-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.level-switch__label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.level-switch__chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--bg-input, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  /* A finger, not a cursor: the CRM phone stand counted these at 28px. */
+  min-height: var(--touch-target, 44px);
+}
+
+.level-switch__chip.is-on {
+  background: var(--accent, #7c5cff);
+  border-color: var(--accent, #7c5cff);
+  color: #fff;
+}
+
+.level-switch__reset {
+  opacity: 0.8;
+  border-style: dashed;
+}
+
+.level-switch-select {
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--bg-input, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  max-width: 110px;
+  min-height: var(--touch-target, 44px);
+}
+
+.level-dashboard {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+}
+
+.level-dashboard__title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.level-dashboard__testing {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.level-dashboard__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.level-dashboard__shortcut {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent, #7c5cff);
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+}

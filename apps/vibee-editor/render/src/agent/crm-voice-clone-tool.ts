@@ -47,6 +47,12 @@ export interface LeadVoiceDeps {
   join: (inputs: string[], output: string) => Promise<number>
   clone: (voiceFileUrl: string) => Promise<string>
   price: number
+  /**
+   * Why a new clone cannot be made right now, or null. Asked before the
+   * notes are fetched and before the charge: with Replicate off
+   * (src/replicate-off.ts) a clone was a charge, a 402 and a refund.
+   */
+  unavailable?: () => string | null
 }
 
 type GramMessage = {
@@ -130,6 +136,8 @@ const SHORT_NOTE =
 export function makeLeadVoiceTool(deps: LeadVoiceDeps): AgentTool {
   return {
     name: 'crm_voice_clone',
+    // The one-time clone price (TOKEN_PRICES.voice_clone), charged through deps.
+    charges: ['voice_clone'],
     description:
       'Клон голоса клиента из ЕГО голосовых в твоей личке с ним — чтобы его подарок (рилс про его дело) ' +
       `говорил его голосом. Берутся только его голосовые, не твои; нужно от ${LEAD_VOICE_MIN_SECONDS} с, ` +
@@ -175,6 +183,9 @@ export function makeLeadVoiceTool(deps: LeadVoiceDeps): AgentTool {
           дальше: `audio_generate {text, for_lead: "${already.lead}"}`, // cyrillic-ok: the tools’ answer fields
         }
       }
+
+      const off = deps.unavailable?.()
+      if (off) return { сделано: false, причина: off } // cyrillic-ok: the tools’ answer fields
 
       const got = await deps.notes(ctx, chat)
       if (!got.lead) {

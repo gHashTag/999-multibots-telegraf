@@ -20,7 +20,8 @@
  * Each state is a PNG plus four measurements, all inside the panel:
  *   - wider: the page scrolls sideways (documentElement.scrollWidth);
  *   - small: a button, input or link under the target on either side;
- *   - cut: text clipped by its own box (scrollWidth > clientWidth);
+ *   - cut: text clipped by its own box (scrollWidth > clientWidth), or
+ *     spilling out of the bottom of a button (scrollHeight > clientHeight);
  *   - overlap: two controls whose boxes intersect;
  *   - order: what a harness says must be read first (its `before` pairs:
  *     the price above the button, spec v16) stands higher on the screen.
@@ -31,7 +32,7 @@
  * start are refused by the answer script.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, existsSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
@@ -40,6 +41,9 @@ const HERE = import.meta.dirname
 const ROOT = resolve(HERE, '../..')
 const PLAYER = join(ROOT, 'apps/vibee-editor/player')
 const RENDER = join(ROOT, 'apps/vibee-editor/render')
+const CRM_CLIENT_FIXTURES = JSON.parse(
+  readFileSync(join(PLAYER, 'src/harness/crmClientFixtures.json'), 'utf8')
+)
 
 // tri gate: the tree as this check found it; record compares it at the end.
 process.env.TRI_GATE_START = spawnSync(
@@ -60,13 +64,20 @@ const positional = argv.filter(
   (a, i) => !a.startsWith('--') && !flags.has(argv[i - 1])
 )
 const name = positional[0] ?? 'story-palette'
-const width = Number(opt('width', '390'))
-const lang = opt('lang', 'ru')
+// `tri shot card-chat 320 ru` reads as width and language. These were once
+// dropped without a word, and a "320px green" was in fact a 390px run.
+const rest = positional.slice(1)
+const posWidth = rest.find(a => /^\d+$/.test(a))
+const posLang = rest.find(a => a === 'ru' || a === 'en')
+const unread = rest.filter(a => a !== posWidth && a !== posLang)
+const width = Number(opt('width', posWidth ?? '390'))
+const lang = opt('lang', posLang ?? 'ru')
 const gitDir = spawnSync('git', ['rev-parse', '--git-dir'], {
   cwd: ROOT,
   encoding: 'utf8',
 }).stdout.trim()
-const out = resolve(opt('out', join(ROOT, gitDir || '.git', 'tri-shot')))
+// --git-dir is absolute in a worktree; resolve keeps it, join glued it on.
+const out = resolve(opt('out', resolve(ROOT, gitDir || '.git', 'tri-shot')))
 
 /*
  * Every harness is a story: the answers its panel gets and the presses that
@@ -91,6 +102,196 @@ const JOBS = [
   },
 ]
 
+/*
+ * The palette lives under the story panel's closed "More" since #3242 (the
+ * dark panel). A stand that waited for it to be visible measured nothing --
+ * every run "NOT MEASURED", never red (found 2026-10-02). Open it the way a
+ * thumb does: one press on its summary, once.
+ */
+const openMore = async p => {
+  const more = p.locator('.story-reel__more')
+  await more.waitFor({ state: 'attached' })
+  if (!(await more.evaluate(d => d.open)))
+    await more.locator(':scope > summary').click()
+}
+
+/*
+ * A STAND-IN POD FOR THE TAB STRIP. Its door is answered by render's own
+ * `handleStrip` (browser/tab-strip.ts) over an injected StripIo and a pool
+ * that knows one live session -- so the title clip, the hidden devtools://
+ * page, the 12-tab cap and the refusal to close the last tab are the
+ * host's, not this file's. The pod's tabs live here between requests; the
+ * visible page is the active one, as on a single-window pod.
+ */
+const STRIP_DOOR = `
+const { pod, raw } = JSON.parse(process.argv[1])
+const m = await import('./src/browser/tab-strip.ts')
+const { handleStrip } = m.handleStrip ? m : m.default
+const pool = {
+  query: async sql =>
+    /SELECT/.test(sql)
+      ? { rows: [{ telegram_id: 'shot', session_id: 'shot', state: 'live',
+          cdp_endpoint: 'pod:9222' }] }
+      : { rows: [] },
+}
+let seq = pod.targets.length
+const io = {
+  list: async () => pod.targets,
+  visible: async (_e, ids) => new Set(ids.filter(id => id === pod.active)),
+  activate: async (_e, id) => { pod.active = id },
+  open: async (_e, url) => {
+    const t = { id: 'new-' + ++seq, type: 'page', url, title: 'Google' }
+    pod.targets.push(t)
+    return t
+  },
+  close: async (_e, id) => {
+    // As Chromium does: closing the shown tab shows its neighbour.
+    const i = pod.targets.findIndex(t => t.id === id)
+    pod.targets = pod.targets.filter(t => t.id !== id)
+    if (pod.active === id)
+      pod.active = (pod.targets[Math.max(0, i - 1)] ?? {}).id ?? null
+    // A closed tab is nobody's to work in any more.
+    pod.desk = (pod.desk ?? []).filter(d => d !== id)
+  },
+  // The tabs a desk round holds (desk-page.ts); the host marks and guards them.
+  agents: () => ({ desk: new Set(pod.desk ?? []), chat: new Set() }),
+}
+const r = await handleStrip(pool, 'shot', raw, io)
+console.log(JSON.stringify({ r, pod }))
+`
+const stripPod = (targets, active, desk = []) => {
+  let pod = { targets, active, desk }
+  return req => {
+    const raw = req.method() === 'POST' ? (req.postData() ?? '') : null
+    const run = spawnSync(
+      join(RENDER, 'node_modules/.bin/tsx'),
+      ['--input-type=module', '-e', STRIP_DOOR, JSON.stringify({ pod, raw })],
+      { cwd: RENDER, encoding: 'utf8' }
+    )
+    if (run.status !== 0) throw new Error(`strip door: ${run.stderr.trim()}`)
+    const out = JSON.parse(run.stdout.trim().split('\n').pop())
+    pod = out.pod
+    return { status: out.r.status, json: out.r.body }
+  }
+}
+// The head of the page's own title: the host clips the tail (40 chars).
+const HABR = 'Троичная логика' // cyrillic-ok
+/* Real-length titles: a strip breaks on what a pod really holds. */
+const POD_FIVE = [
+  [
+    'reddit',
+    'https://www.reddit.com/r/FPGA/comments/1abcde/ternary_nets/?share=1',
+    'Ternary neural networks on a $40 FPGA board: what we measured : r/FPGA',
+  ],
+  [
+    'habr',
+    'https://habr.com/ru/articles/912345/',
+    `${HABR} на FPGA: как мы ускорили инференс втрое / Хабр`, // cyrillic-ok
+  ],
+  [
+    'github',
+    'https://github.com/gHashTag/999-multibots-telegraf/pull/3808',
+    'feat(browser): the tab strip above the picture · Pull Request #3808 · gHashTag/999-multibots-telegraf',
+  ],
+  [
+    'google',
+    'https://www.google.com/search?q=ternary+fpga+inference',
+    'ternary fpga inference benchmark - Google Search',
+  ],
+  [
+    't27b-lab',
+    'https://t27b-lab-production.up.railway.app/coverage',
+    't27b lab: native AArch64 backend coverage, every corpus file',
+  ],
+].map(([id, url, title]) => ({ id, type: 'page', url, title }))
+/* The browser's own pages are never tabs: the host drops them. */
+const POD_HIDDEN = [
+  {
+    id: 'devtools',
+    type: 'page',
+    url: 'devtools://devtools/bundled/inspector.html',
+    title: 'DevTools',
+  },
+  { id: 'sw', type: 'service_worker', url: 'https://www.reddit.com/sw.js' },
+]
+/*
+ * The strip sits ABOVE the picture it chooses for, so it stays short: two
+ * rows and the top of a third (TabStrip.css), scrolled inside. At twelve
+ * tabs the first grid was 610 px and pushed the picture off a phone. And
+ * what a thumb needs at once -- the chosen tab and "+" -- is on screen
+ * whole, inside the strip and inside the window.
+ */
+const STRIP_CAP_PX = 140
+const stripCompact = async (p, when) => {
+  const m = await p.evaluate(() => {
+    const row = document.querySelector('.tab-strip__row')
+    const box = row.getBoundingClientRect()
+    const whole = sel => {
+      const el = document.querySelector(sel)
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return (
+        r.top >= box.top - 1 &&
+        r.bottom <= box.bottom + 1 &&
+        r.top >= 0 &&
+        r.bottom <= window.innerHeight &&
+        r.left >= 0 &&
+        r.right <= window.innerWidth
+      )
+    }
+    return {
+      height: Math.round(box.height),
+      active: whole('.tab-strip__tab.is-active'),
+      plus: whole('.tab-strip__new'),
+    }
+  })
+  if (m.height > STRIP_CAP_PX)
+    throw new Error(`${when}: strip ${m.height}px > ${STRIP_CAP_PX}px cap`)
+  if (!m.active) throw new Error(`${when}: the chosen tab is off-screen`)
+  if (!m.plus) throw new Error(`${when}: "+" is off-screen`)
+  if (process.env.TRI_SHOT_DEBUG) console.error(`${when}: strip ${m.height}px`)
+}
+/*
+ * The confirm before closing an agent's tab (browser-tab-strip v2) opens
+ * under the strip, not inside its scroll: whole on screen, both buttons a
+ * finger wide, and the picture still starts inside the window.
+ */
+const confirmInView = async (p, when) => {
+  const m = await p.evaluate(() => {
+    const box = sel => document.querySelector(sel)?.getBoundingClientRect()
+    const c = box('.tab-strip__confirm')
+    const stage = box('.remote-browser__stage')
+    const btns = [...document.querySelectorAll('.tab-strip__confirm button')]
+    return {
+      confirm: c && {
+        top: c.top,
+        bottom: c.bottom,
+        left: c.left,
+        right: c.right,
+      },
+      stageTop: stage ? stage.top : null,
+      w: window.innerWidth,
+      h: window.innerHeight,
+      buttons: btns.map(b => Math.round(b.getBoundingClientRect().height)),
+    }
+  })
+  if (!m.confirm) throw new Error(`${when}: no confirm`)
+  const c = m.confirm
+  if (c.top < 0 || c.bottom > m.h || c.left < 0 || c.right > m.w)
+    throw new Error(`${when}: the confirm is cut by the window`)
+  if (m.buttons.length !== 2 || m.buttons.some(h => h < 44))
+    throw new Error(`${when}: confirm buttons ${m.buttons} (need two, >=44)`)
+  // The picture stays on screen: at least a finger of it under the confirm.
+  if (m.stageTop === null || m.stageTop > m.h - 44)
+    throw new Error(`${when}: the picture starts at ${m.stageTop} of ${m.h}`)
+  if (process.env.TRI_SHOT_DEBUG)
+    console.error(`${when}: confirm ${c.top}-${c.bottom}, stage ${m.stageTop}`)
+}
+const POD_TWELVE = Array.from({ length: 12 }, (_, i) => {
+  const t = POD_FIVE[i % POD_FIVE.length]
+  return { ...t, id: `${t.id}-${i}`, title: `${i + 1}. ${t.title}` }
+})
+
 const HARNESSES = {
   'story-palette': {
     tool: 'crm_story_reel',
@@ -104,6 +305,7 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
+    open: openMore,
     root: '[data-testid=story-palette]',
     scope: '.crm-client',
     // The whole story panel around the palette: its start row and reels too.
@@ -143,6 +345,41 @@ const HARNESSES = {
     ],
   },
   /*
+   * THE TEMPLATE GALLERY of the story panel: the host's own templates, each
+   * priced on its card before the tap (PRICE_BEFORE_PRESS); the tap fills
+   * the fields and spends nothing.
+   */
+  'story-gallery': {
+    page: 'story-palette',
+    tool: 'crm_story_reel',
+    fixture: { templates: true, jobs: JOBS },
+    root: '[data-testid=story-reel-gallery]',
+    scope: '.crm-client',
+    within: 'section',
+    before: [
+      ['[data-testid=story-reel-gallery]', 'section .crm-client__duet-go'],
+    ],
+    // Every template card stands on its own: tall enough to read, never
+    // drawn over another (it once passed green while collapsed).
+    cards: { sel: '.story-reel__template', min: 40 },
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('[data-testid=story-reel-gallery]').waitFor(),
+      },
+      {
+        id: 'picked',
+        ready: async p => {
+          await p
+            .locator('[data-testid="story-reel-template-hook-studio:en"]')
+            .click()
+          await p.locator('.story-reel__lines textarea').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
    * THE WHOLE CLIENT CARD (/crm/:id): six panels and the story panel, as the
    * seller sees them on a phone. The story tool is the host's; the other six
    * answer with the shapes CrmClient.test.tsx holds against the page's
@@ -161,129 +398,9 @@ const HARNESSES = {
       },
       jobs: JOBS,
     },
-    fixtures: {
-      crm_client_profile: {
-        telegram_id: '900000011',
-        client: 'Анна Ветрова — флористика и декор интерьеров',
-        has_profile: true,
-        has_soul: true,
-        skills: ['рилсы', 'голос', { name: 'контент-план' }],
-        profile: { client: 'Анна Ветрова' },
-        updated_at: '2026-09-26T10:00:00Z',
-      },
-      crm_client_plan: {
-        telegram_id: '900000011',
-        goals: [
-          {
-            id: 1,
-            title: 'Прогреть подписчиков перед весенней коллекцией',
-            intent: 'три рилса в неделю, каждый — одна ваза в новом интерьере',
-            items: {
-              total: 8,
-              done: 3,
-              by_status: { idea: 3, draft: 2, done: 3 },
-            },
-          },
-          {
-            id: 2,
-            title: 'Запустить запись на мастер-классы',
-            intent: 'сторис с отзывами и ссылкой на запись',
-            items: {
-              total: 4,
-              done: 1,
-              by_status: { idea: 2, draft: 1, done: 1 },
-            },
-          },
-        ],
-        items: [],
-        total: 12,
-        done: 4,
-      },
-      crm_duet_runs: {
-        runs: [
-          {
-            id: 'duet-1',
-            buyer: '900000011',
-            state: 'done',
-            dry_run: false,
-            turns: 4,
-            started_at: '2026-09-26T09:00:00Z',
-            finished_at: '2026-09-26T09:05:00Z',
-            paid_calls: 1,
-            media_sent: 2,
-            profile_used: true,
-            coverage: { reel_render: { calls: 3, ok: 2, fail: 1 } },
-            violations: ['отправил ссылку до того, как она спросила'],
-            voice_flags: ['слишком официально', 'слишком длинно'],
-            lines: 8,
-          },
-        ],
-      },
-      crm_history: {
-        telegram_id: '900000011',
-        total: 3,
-        stage: 'talking',
-        because: 'replied',
-        waiting: 'ours',
-        touches: [
-          {
-            kind: 'written',
-            at: '2026-09-24T08:00:00Z',
-            note: null,
-            bot_name: 'b',
-          },
-          {
-            kind: 'replied',
-            at: '2026-09-25T08:00:00Z',
-            note: 'спросила цену букета на свадьбу и можно ли доставку в субботу',
-            bot_name: 'b',
-          },
-          {
-            kind: 'written',
-            at: '2026-09-26T08:00:00Z',
-            note: 'прислали прайс',
-            bot_name: 'b',
-          },
-        ],
-      },
-      crm_lead_context: {
-        name: 'Анна Ветрова',
-        username: 'anna_vetrova_flowers_demo',
-        waiting_for_reply: 1,
-        dialog: [
-          {
-            at: '2026-09-25T08:00:00Z',
-            who: 'person',
-            text: 'Здравствуйте! Сколько стоит свадебный букет из пионов и можно ли доставку в субботу к десяти утра на другой конец города?',
-          },
-          {
-            at: '2026-09-25T08:05:00Z',
-            who: 'owner',
-            text: 'Добрый день, Анна! Пришлю прайс и варианты.',
-          },
-        ],
-      },
-      crm_lead_media: {
-        items: [
-          {
-            id: 'm1',
-            kind: 'photo',
-            name: 'svadebnyj-buket-piony-variant-2-finalnyj.jpg',
-            at: '2026-09-25T08:10:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m1.jpg',
-          },
-          {
-            id: 'm2',
-            kind: 'voice',
-            name: 'golosovoe.ogg',
-            at: '2026-09-25T08:12:00Z',
-            who: 'person',
-            url: 'https://example.invalid/m2.ogg',
-          },
-        ],
-      },
-    },
+    // One source with the harness page, which answers them itself when
+    // nothing intercepts (the preview browser, no chrome-headless-shell).
+    fixtures: CRM_CLIENT_FIXTURES,
     root: '.crm-client',
     scope: '.crm-client',
     within: 'root',
@@ -292,6 +409,8 @@ const HARNESSES = {
         id: 'load',
         ready: async p => {
           await p.locator('.crm-client__chat').waitFor()
+          // Measured open: the closed panel is a strict subset of it.
+          await openMore(p)
           await p.locator('[data-testid=story-palette]').waitFor()
           await p.locator('section:has(select) .crm-client__duet-go').waitFor()
         },
@@ -304,6 +423,48 @@ const HARNESSES = {
           await p.locator('section:has(select) input[type=checkbox]').uncheck()
           await p.locator('section:has(select) .crm-client__duet-go').click()
           await p.locator('.crm-client__duet-confirm').waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * THE CRM LIST (/crm): the owner's contact book, opened on a phone to find
+   * one person. The harness answers its own tool calls in the page
+   * (src/harness/crmFixtures.ts) so the same fixtures serve `tri shot` and a
+   * preview pane with no Chromium of its own; `tool` is never reached.
+   */
+  crm: {
+    tool: 'crm_clients',
+    root: '.crm',
+    scope: '.crm',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => p.locator('.crm__row').first().waitFor(),
+      },
+      {
+        // The owner's complaint, 2026-10-01: finding one contact on a phone.
+        // Open the contacts section where there is one, then type.
+        id: 'search',
+        ready: async p => {
+          const tab = p.locator('.section-strip__item', {
+            hasText: /Контакты|Contacts/, // cyrillic-ok: the RU label
+          })
+          // Two search fields live on this page: the work section's
+          // `.crm__find` hands its focus to the contacts section and then
+          // unmounts (the router switches in a transition). Aiming at any
+          // `input[type=search]` caught that one mid-switch -- "not attached
+          // to the DOM" at 320px, three times in three. The contacts box is
+          // `.crm__finder`; wait for it, then type.
+          if (await tab.count()) await tab.first().click()
+          else await p.locator('.crm__find input').click()
+          const box = p.locator('.crm__finder input[type=search]')
+          await box.waitFor()
+          await box.scrollIntoViewIfNeeded()
+          await box.fill('ан')
+          await p.waitForTimeout(400)
         },
       },
     ],
@@ -337,6 +498,516 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * Her reels inside the chat with the agent (owner, 2026-10-02): the same
+   * widget, open before the talk and folded after. The summary is the
+   * press that unfolds it, so it is held to the page's touch target.
+   */
+  'chat-story': {
+    tool: 'my_story_reel',
+    fixture: { next_topic: 'Как выбрать вазу под свой интерьер', jobs: JOBS },
+    root: '.chat-story-stand',
+    scope: '.chat-story-stand',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p =>
+          p.locator('.chat-story .crm-client__duet-go').first().waitFor(),
+      },
+    ],
+  },
+  /*
+   * THE KANBAN CARD'S AGENT SHEET (/game/kanban?card=<n>): a thumb taps a
+   * card and the conversation rises at HALF over the board. No MCP tool --
+   * the sheet reads render's task thread and writes to the agent's chat
+   * door, so both are answered in the host's shapes (task-thread.ts, the
+   * chat's NDJSON events). The title is the board's longest kind: a real
+   * epic title, cut by the server at TITLE_MAX, never by the phone.
+   */
+  'card-chat': {
+    query: '?card=5382&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5382',
+            card: {
+              title:
+                'EPIC: tap any kanban card and its agent conversation opens -- history, composer, A2A sync, mobile-first detent sheet, spec-first interface between agents and the person',
+              column: 'running',
+            },
+            messages: [
+              {
+                role: 'user',
+                content: 'Что с этой задачей? Где мы остановились?',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                content:
+                  'PR #3208 открыт: лист с историей и полем ввода готов, тесты зелёные. Осталось поднять QUEEN_REF, чтобы доска слала open-card.',
+                surface: 'kanban',
+              },
+              {
+                role: 'assistant',
+                // Two proposals: the cards under the last answer (spec v2).
+                content:
+                  'Проверил через tri card 5382: нить общая.\n[[card: Поднять QUEEN_REF | попрошу владельца в эпике]]\n[[card: Тест доски | добавлю тест на open-card]]',
+                surface: 'agent',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/agent/chat',
+        () => ({
+          contentType: 'application/x-ndjson',
+          body:
+            // The stream's keys are the server's own words (agentStream.ts).
+            JSON.stringify({ тип: 'ход', id: 'shot-1' }) + // cyrillic-ok
+            '\n' +
+            JSON.stringify({
+              тип: 'текст', // cyrillic-ok
+              текст: 'Продолжаю: открою PR, когда скажешь.', // cyrillic-ok
+            }) +
+            '\n',
+        }),
+      ],
+      // The task's work (spec v2): two linked PRs, one green, one running.
+      [
+        'https://api.github.com/repos/*/*/issues/*/timeline**',
+        () => ({
+          json: [
+            ['gHashTag/999-multibots-telegraf', 3208],
+            ['gHashTag/t27', 5389],
+          ].map(([repo, number]) => ({
+            event: 'cross-referenced',
+            created_at: '2026-10-01T10:00:00Z',
+            source: {
+              issue: {
+                number,
+                title: `PR ${number}`,
+                state: 'open',
+                repository: { full_name: repo },
+                pull_request: {
+                  html_url: `https://github.com/${repo}/pull/${number}`,
+                  merged_at: null,
+                },
+              },
+            },
+          })),
+        }),
+      ],
+      // Spec v3 (CHECKS_ONE_READ): checks by the PR's head ref, no pulls/<n>.
+      [
+        'https://api.github.com/repos/*/*/commits/refs/pull/*/head/check-runs**',
+        req => ({
+          json: {
+            check_runs: req.url().includes('/refs/pull/3208/')
+              ? [{ status: 'completed', conclusion: 'success' }]
+              : [{ status: 'in_progress', conclusion: null }],
+          },
+        }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    // The conversation is read above the place to write into it.
+    before: [['.card-chat__log', '.card-chat__composer']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__msg').first().waitFor()
+          await p.locator('.agent-cards').waitFor()
+          await p.locator('.card-chat__checks--pass').waitFor()
+        },
+      },
+      {
+        // The composer focused: the sheet goes FULL, the thumb types.
+        id: 'full',
+        ready: async p => {
+          await p.locator('.card-chat__input').focus()
+          await p.locator('.detent-sheet--full').waitFor()
+          await p.locator('.card-chat__input').fill('Продолжай, открой PR')
+        },
+      },
+      {
+        id: 'sent',
+        ready: async p => {
+          await p.locator('.card-chat__send').click()
+          await p
+            .locator('.card-chat__msg--assistant', { hasText: 'Продолжаю' })
+            .waitFor()
+        },
+      },
+    ],
+  },
+
+  /*
+   * A CARD NOBODY HAS TALKED ABOUT YET: no title from the board, no turns --
+   * the three starters are the first thing the thumb meets.
+   */
+  'card-chat-empty': {
+    page: 'card-chat',
+    query: '?card=5383&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({ json: { thread: 'task:gHashTag/t27#5383', messages: [] } }),
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__starter').first().waitFor()
+          // GitHub over its limit: said as not measured, never as "no PR".
+          await p
+            .locator('.card-chat__work-note--unmeasured[data-retry-at]')
+            .waitFor()
+        },
+      },
+    ],
+  },
+  /*
+   * THE BEE AT WORK ON A CARD (spec v7, S20): a running card opens on its
+   * bee -- each call a line, the CLI picked out, the outcome under it, the
+   * newest line in view. Rows are the shapes render's /api/card-work sends
+   * (agent/card-work.ts), masked and cut there, so the phone draws them as
+   * they come: long commands must wrap at 320 px, never scroll sideways.
+   */
+  'card-chat-bee': {
+    page: 'card-chat',
+    query: '?card=5673&repo=gHashTag/t27',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5673',
+            card: {
+              title: 'demos/hello_world.t27: say hello in every backend',
+              column: 'running',
+            },
+            messages: [],
+          },
+        }),
+      ],
+      [
+        '**/api/card-work**',
+        () => {
+          const at = s => `2026-10-03T10:${s}Z`
+          const rows = [
+            ['tool', 'bash', 'tri card 5673', '04:01'],
+            [
+              'result',
+              true,
+              'card #5673 running, branch queen/5673',
+              '04:02',
+              3,
+            ],
+            [
+              'thought',
+              null,
+              'The spec has no test block for the Zig backend; add one first.',
+              '04:05',
+            ],
+            ['tool', 'read', 'demos/hello_world.t27', '04:06'],
+            ['result', true, 'module hello_world', '04:06', 41],
+            ['tool', 'edit', 'demos/hello_world.t27', '04:09'],
+            ['result', true, 'edited 1 block', '04:09'],
+            [
+              'tool',
+              'bash',
+              't27c test-report demos/hello_world.t27 --backend zig --backend rust --backend ts',
+              '04:10',
+            ],
+            [
+              'result',
+              false,
+              'FAILED  zig: expected "hello" got "hello\\n"',
+              '04:14',
+              12,
+            ],
+            ['tool', 'bash', 'git diff --stat … | tail -3', '04:15'],
+            ['result', true, '1 file changed, 6 insertions(+)', '04:15'],
+            ['tool', 'bash', 'gh pr view 5701 --json state,checks', '04:16'],
+            ['result', true, '{"state":"OPEN"}', '04:16'],
+          ].map(([kind, x, text, t, lines], i) => ({
+            seq: i + 1,
+            at: at(t),
+            kind,
+            text,
+            ...(kind === 'tool' ? { tool: x } : {}),
+            ...(kind === 'result' ? { ok: x, lines: lines ?? 1 } : {}),
+          }))
+          return {
+            json: {
+              configured: true,
+              measured: true,
+              prose: true,
+              bee: {
+                conversation: '7d1c2e8a-4b5f-4c3d-9e2a-1f0b6c7d8e9f',
+                branch: 'queen/5673',
+                model: 'glm-5.3',
+                dispatchedAt: at('04:00'),
+                finishedAt: null,
+                outcome: null,
+                running: true,
+              },
+              rows,
+              next: rows.length,
+            },
+          }
+        },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.bee-log[data-state="running"]').waitFor()
+          await p.locator('.bee-log__row--failed').waitFor()
+        },
+      },
+      {
+        // The thumb turns to the chat: one tap, the bee keeps its dot.
+        id: 'chat',
+        ready: async p => {
+          await p.locator('#card-chat-tab-chat').click()
+          await p.locator('.card-chat__starter').first().waitFor()
+        },
+      },
+    ],
+  },
+  /*
+   * THE MOVE ROW A KEEPER SEES (spec v5, S16): a backlog card, the Queen's
+   * door on. `&door=1` is the stand's preview of the version that flips
+   * MOVE_DOOR_EXISTS -- the app itself keeps the row dark until then. One
+   * tap arms, the second asks; the Queen's own reason is what is shown.
+   */
+  'card-chat-move': {
+    page: 'card-chat',
+    query: '?card=5384&repo=gHashTag/t27&door=1',
+    routes: [
+      [
+        '**/api/agent/history**',
+        () => ({
+          json: {
+            thread: 'task:gHashTag/t27#5384',
+            card: {
+              title: 'Port the drift check to the iOS hive tab',
+              column: 'backlog',
+            },
+            messages: [
+              {
+                role: 'assistant',
+                content: 'Задача в бэклоге, никто её не взял.',
+                surface: 'kanban',
+              },
+            ],
+          },
+        }),
+      ],
+      [
+        '**/api/card-move',
+        req =>
+          req.method() === 'POST'
+            ? {
+                json: {
+                  moved: true,
+                  column: 'dropped',
+                  reason: 'Moved to dropped by a keeper: not doing this one.',
+                },
+              }
+            : { json: { offered: true, keeper: true, door: true } },
+      ],
+    ],
+    root: '.card-chat-sheet',
+    scope: '.card-chat-sheet',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').waitFor()
+        },
+      },
+      {
+        id: 'armed',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn').click()
+          await p.locator('.card-chat__move-btn--armed').waitFor()
+        },
+      },
+      {
+        id: 'moved',
+        ready: async p => {
+          await p.locator('.card-chat__move-btn--armed').click()
+          await p.locator('.card-chat__move-said').waitFor()
+        },
+      },
+    ],
+  },
+  /*
+   * THE TABS OF THE PERSON'S OWN BROWSER (/browser on a phone, above the
+   * picture): five long titles, GitHub chosen, Reddit held by a desk round.
+   * A thumb switches to another tab, then closes it; then presses "x" on the
+   * desk's tab, which asks first, and closes it on "Close". render's
+   * handleStrip answers every press.
+   */
+  'tab-strip': {
+    routes: [
+      [
+        '**/api/browser/strip',
+        stripPod([...POD_FIVE, ...POD_HIDDEN], 'github', ['reddit']),
+      ],
+    ],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    // The tabs are read above the picture they choose.
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').nth(4).waitFor()
+          // The host drops the browser's own pages: five tabs, not six.
+          if ((await p.locator('.tab-strip__tab').count()) !== 5)
+            throw new Error('load: the strip does not show five tabs')
+          // The desk's tab carries the mark, and only it does.
+          const marked = await p.locator('.tab-strip__agent.is-desk').count()
+          const any = await p.locator('.tab-strip__agent').count()
+          if (marked !== 1 || any !== 1)
+            throw new Error(`load: ${marked} desk marks, ${any} in all`)
+          await stripCompact(p, 'load')
+        },
+      },
+      {
+        id: 'switch',
+        ready: async p => {
+          await p.locator('.tab-strip__pick', { hasText: HABR }).click()
+          await p
+            .locator('.tab-strip__tab.is-active', { hasText: HABR })
+            .waitFor()
+          await stripCompact(p, 'switch')
+        },
+      },
+      {
+        id: 'close',
+        ready: async p => {
+          await p.locator('.tab-strip__tab.is-active .tab-strip__close').click()
+          await p
+            .locator('.tab-strip__tab', { hasText: HABR })
+            .waitFor({ state: 'detached' })
+          if ((await p.locator('.tab-strip__tab').count()) !== 4)
+            throw new Error('close: the strip does not show four tabs')
+        },
+      },
+      {
+        // "x" on the desk's tab asks, inline; nothing is closed yet.
+        id: 'confirm',
+        ready: async p => {
+          const desk = p.locator('.tab-strip__tab', {
+            has: p.locator('.tab-strip__agent.is-desk'),
+          })
+          await desk.locator('.tab-strip__close').click()
+          await p.locator('.tab-strip__confirm').waitFor()
+          if ((await p.locator('.tab-strip__tab').count()) !== 4)
+            throw new Error('confirm: a tab closed before the yes')
+          // Asked without the yes, the door refuses too.
+          const status = await p.evaluate(async () => {
+            const r = await fetch('/api/browser/strip', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'close', id: 'reddit' }),
+            })
+            return r.status
+          })
+          if (status !== 409)
+            throw new Error(`confirm: an unconfirmed close answered ${status}`)
+          await confirmInView(p, 'confirm')
+          await stripCompact(p, 'confirm')
+        },
+      },
+      {
+        id: 'confirmed',
+        ready: async p => {
+          await p.locator('.tab-strip__confirm-close').click()
+          await p
+            .locator('.tab-strip__agent.is-desk')
+            .waitFor({ state: 'detached' })
+          await p.locator('.tab-strip__confirm').waitFor({ state: 'detached' })
+          if ((await p.locator('.tab-strip__tab').count()) !== 3)
+            throw new Error('confirmed: the strip does not show three tabs')
+        },
+      },
+    ],
+  },
+  /* The pod's cap: twelve tabs, so "+" is refused before it is pressed. */
+  'tab-strip-12': {
+    page: 'tab-strip',
+    routes: [['**/api/browser/strip', stripPod(POD_TWELVE, 'github-7')]],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').nth(11).waitFor()
+          if (!(await p.locator('.tab-strip__new').isDisabled()))
+            throw new Error('twelve tabs: "+" is not disabled')
+          // The chosen tab is the eighth: below the cap until scrolled to.
+          await p.waitForFunction(
+            () => document.querySelector('.tab-strip__row').scrollTop > 0
+          )
+          await stripCompact(p, 'twelve tabs')
+        },
+      },
+    ],
+  },
+  /* One tab: no close cross at all, and the host refuses one if asked. */
+  'tab-strip-1': {
+    page: 'tab-strip',
+    routes: [['**/api/browser/strip', stripPod([POD_FIVE[2]], 'github')]],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').first().waitFor()
+          if ((await p.locator('.tab-strip__close').count()) !== 0)
+            throw new Error('one tab: a close cross is offered')
+          // Asked anyway, the door refuses: the last tab stays open.
+          const status = await p.evaluate(async () => {
+            const r = await fetch('/api/browser/strip', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'close', id: 'github' }),
+            })
+            return r.status
+          })
+          if (status !== 409)
+            throw new Error(`one tab: closing the last answered ${status}`)
+        },
+      },
+    ],
+  },
 }
 
 /*
@@ -345,46 +1016,13 @@ const HARNESSES = {
  * in a shell loop; a loop is where one line gets forgotten. Each run records
  * itself in tri gate as usual. Exit: 1 if any is red, else 2 if any could
  * not measure, else 0.
+ *
+ * One dev server serves every run (TRI_SHOT_BASE): a Vite start per run was
+ * most of the cost -- twelve starts took over ten minutes on a loaded
+ * machine, which is how a gate gets switched off. Runs go TRI_SHOT_JOBS at a
+ * time (default 3); each still has its own browser and its own verdict, and
+ * the report keeps the matrix order whatever finishes first.
  */
-if (name === 'all') {
-  const MATRIX = [
-    ['390', 'ru'],
-    ['390', 'en'],
-    ['320', 'ru'],
-  ]
-  let worst = 0
-  for (const each of Object.keys(HARNESSES))
-    for (const [w, l] of MATRIX) {
-      const r = spawnSync(
-        'node',
-        [process.argv[1], each, '--width', w, '--lang', l],
-        { encoding: 'utf8' }
-      )
-      const verdict = (r.stdout || '')
-        .split('\n')
-        .filter(x => /^== shot|^\s+(small|cut|overlap|order|error) /.test(x))
-      for (const x of verdict) console.log(x)
-      if (!verdict.length)
-        console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
-      const c = r.status ?? 2
-      worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
-    }
-  process.exit(worst)
-}
-
-const h = HARNESSES[name]
-if (
-  !h ||
-  !Number.isInteger(width) ||
-  width < 240 ||
-  !['ru', 'en'].includes(lang)
-) {
-  console.log(
-    `usage: tri shot [${Object.keys(HARNESSES).join('|')}|all] [--width 390] [--lang ru|en] [--out DIR]`
-  )
-  process.exit(2)
-}
-
 const freePort = () =>
   new Promise((ok, fail) => {
     const s = createServer()
@@ -395,6 +1033,124 @@ const freePort = () =>
       s.close(() => ok(port))
     })
   })
+
+/** The player's dev server, answered at `probe` before it is handed out. */
+const startVite = async probe => {
+  const port = await freePort()
+  const server = spawn(
+    join(PLAYER, 'node_modules/.bin/vite'),
+    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+  )
+  let log = ''
+  server.stdout.on('data', c => (log += c))
+  server.stderr.on('data', c => (log += c))
+  const base = `http://127.0.0.1:${port}`
+  const until = Date.now() + 120_000
+  for (;;) {
+    const ok = await fetch(base + probe)
+      .then(r => r.ok)
+      .catch(() => false)
+    if (ok) return { server, base }
+    if (Date.now() > until || server.exitCode !== null) {
+      stopVite(server)
+      throw new Error(`dev server did not answer ${probe}\n${log.slice(-1500)}`)
+    }
+    await new Promise(r => setTimeout(r, 500))
+  }
+}
+
+const stopVite = server => {
+  if (!server?.pid) return
+  try {
+    process.kill(-server.pid, 'SIGTERM')
+  } catch {
+    /* already gone */
+  }
+}
+
+if (name === 'all') {
+  const MATRIX = [
+    ['390', 'ru'],
+    ['390', 'en'],
+    ['320', 'ru'],
+  ]
+  const runs = Object.keys(HARNESSES).flatMap(each =>
+    MATRIX.map(([w, l]) => [each, w, l])
+  )
+  let vite
+  try {
+    vite = await startVite(`/harness/${runs[0][0]}.html`)
+  } catch (e) {
+    console.log(`== shot NOT MEASURED -- all: ${e.message}`)
+    process.exit(2)
+  }
+  const one = ([each, w, l]) =>
+    new Promise(done => {
+      const child = spawn(
+        'node',
+        [process.argv[1], each, '--width', w, '--lang', l],
+        {
+          env: { ...process.env, TRI_SHOT_BASE: vite.base },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
+      )
+      let stdout = ''
+      child.stdout.on('data', c => (stdout += c))
+      // Drain stderr even though only stdout carries the verdict: an unread
+      // pipe fills at ~64 KB and the child then blocks forever on a write.
+      child.stderr.resume()
+      // A child that cannot start is "not measured", not a crash of the matrix.
+      child.on('error', () => done({ stdout, status: 2 }))
+      child.on('close', status => done({ stdout, status }))
+    })
+  const results = new Array(runs.length)
+  let next = 0
+  const lanes = Math.max(1, Number(process.env.TRI_SHOT_JOBS) || 3)
+  await Promise.all(
+    Array.from({ length: Math.min(lanes, runs.length) }, async () => {
+      while (next < runs.length) {
+        const i = next++
+        results[i] = await one(runs[i])
+      }
+    })
+  )
+  stopVite(vite.server)
+  let worst = 0
+  runs.forEach(([each, w, l], i) => {
+    const r = results[i]
+    const verdict = r.stdout
+      .split('\n')
+      // The per-state line carries the screenshot path and the sideways
+      // shift (`wider N px`); without it a watch could name neither.
+      .filter(x =>
+        /^== shot|^(?:RED|ok)\s+\S+: |^could not measure: |^\s+(small|cut|overlap|order|card|error|hint) /.test(
+          x
+        )
+      )
+    for (const x of verdict) console.log(x)
+    if (!verdict.length)
+      console.log(`== shot NOT MEASURED -- ${each} ${w} ${l}`)
+    const c = r.status ?? 2
+    worst = c === 1 || worst === 1 ? 1 : Math.max(worst, c)
+  })
+  process.exit(worst)
+}
+
+const h = HARNESSES[name]
+if (
+  !h ||
+  unread.length > 0 ||
+  argv.includes('--help') ||
+  !Number.isInteger(width) ||
+  width < 240 ||
+  !['ru', 'en'].includes(lang)
+) {
+  console.log(
+    `usage: tri shot [${Object.keys(HARNESSES).join('|')}|all] [--width 390] [--lang ru|en] [--out DIR]`
+  )
+  process.exit(2)
+}
 
 const answer = (tool, args) => {
   const r = spawnSync(
@@ -410,7 +1166,7 @@ const answer = (tool, args) => {
 }
 
 /* Measured in the page: the target is the page's own --touch-target. */
-function measure({ root, scope, within: area, before = [] }) {
+function measure({ root, scope, within: area, before = [], cards: deck }) {
   const target =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -457,6 +1213,16 @@ function measure({ root, scope, within: area, before = [] }) {
       ({ el, r }) =>
         `${name(el)} ${Math.round(r.width)}×${Math.round(r.height)}`
     )
+  /*
+   * A visually hidden word (the usual sr-only recipe: a 1px box clipped to
+   * nothing) is cut ON PURPOSE -- the eye is meant to miss it and the screen
+   * reader to read it -- so it is not a cut. Counting it made the CRM's
+   * AUTO word "cut 33>1" in every row (2026-10-02).
+   */
+  const srOnly = (el, s) =>
+    s.clipPath === 'inset(50%)' ||
+    s.clip === 'rect(0px, 0px, 0px, 0px)' ||
+    (el.clientWidth <= 1 && el.clientHeight <= 1 && s.position === 'absolute')
   const cut = [...within.querySelectorAll('*')]
     .filter(shown)
     .filter(el => {
@@ -464,12 +1230,54 @@ function measure({ root, scope, within: area, before = [] }) {
       return (
         s.overflowX !== 'visible' &&
         el.scrollWidth > el.clientWidth + 1 &&
-        !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) &&
+        !srOnly(el, s)
       )
     })
     .map(el => `${name(el)} ${el.scrollWidth}>${el.clientWidth}`)
+  /*
+   * SPILL: a button of fixed height whose words wrap paints them out of its
+   * own box, over the next row -- not clipped, so the sideways test above
+   * never sees it (tab strip, 2026-10-07: the design system's button rule
+   * fixes height). Counted as a cut, downwards. Only where overflow is
+   * VISIBLE: a button with overflow hidden is clamped on purpose (the card
+   * chat's two-line heading has scrollHeight 90 over 44, and paints two
+   * lines), and its tail is not on screen to paint over anything.
+   */
+  for (const el of controls)
+    if (
+      el.tagName === 'BUTTON' &&
+      getComputedStyle(el).overflowY === 'visible' &&
+      el.scrollHeight > el.clientHeight + 1
+    )
+      cut.push(`${name(el)} spills ${el.scrollHeight}>${el.clientHeight} down`)
+  /*
+   * What of a control is on screen: its box cut by every clipping ancestor
+   * (a scrolled log). A starter half-scrolled under the log's edge does not
+   * lie under the composer -- the screen shows the log's edge between them
+   * (measured 01.10.2026, card-chat-empty). Size is still the whole box: a
+   * thumb meets it whole once scrolled to.
+   */
+  const onScreen = el => {
+    const r = el.getBoundingClientRect()
+    let { left, top, right, bottom } = r
+    for (
+      let p = el.parentElement;
+      p && p !== document.body;
+      p = p.parentElement
+    ) {
+      const s = getComputedStyle(p)
+      if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
+      const c = p.getBoundingClientRect()
+      left = Math.max(left, c.left)
+      top = Math.max(top, c.top)
+      right = Math.min(right, c.right)
+      bottom = Math.min(bottom, c.bottom)
+    }
+    return { left, top, right, bottom }
+  }
   const overlap = []
-  const rects = controls.map(el => ({ el, r: el.getBoundingClientRect() }))
+  const rects = controls.map(el => ({ el, r: onScreen(el) }))
   for (let i = 0; i < rects.length; i++)
     for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i].r
@@ -493,7 +1301,34 @@ function measure({ root, scope, within: area, before = [] }) {
         : `${first} is not above ${then}`
     })
     .filter(x => x !== null)
+  /*
+   * CARDS: a harness that names its cards gets each one held to a minimum
+   * height and to no overlap with any other card. No cards found is "not
+   * measured", which counts as a failure, never as a pass.
+   */
+  const card = []
+  if (deck) {
+    const els = [...document.querySelectorAll(deck.sel)]
+    if (!els.length) card.push(`${deck.sel}: not measured (no cards)`)
+    const rs = els.map(el => el.getBoundingClientRect())
+    rs.forEach((r, i) => {
+      if (r.height < deck.min)
+        card.push(
+          `${deck.sel}#${i} height ${Math.round(r.height)}px < ${deck.min}px`
+        )
+    })
+    for (let i = 0; i < rs.length; i++)
+      for (let j = i + 1; j < rs.length; j++) {
+        const a = rs[i]
+        const b = rs[j]
+        const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (x > 0 && y > 0 && x * y > 1)
+          card.push(`${deck.sel}#${i} ∩ #${j} (${Math.round(x * y)}px²)`)
+      }
+  }
   return {
+    card,
     order,
     target,
     controls: controls.length,
@@ -512,31 +1347,24 @@ const lines = []
 try {
   const require = createRequire(join(PLAYER, 'package.json'))
   const { chromium } = require('playwright')
-  const port = await freePort()
-  server = spawn(
-    join(PLAYER, 'node_modules/.bin/vite'),
-    ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-    { cwd: PLAYER, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
-  )
-  let log = ''
-  server.stdout.on('data', c => (log += c))
-  server.stderr.on('data', c => (log += c))
-  const url = `http://127.0.0.1:${port}/harness/${name}.html`
-  const until = Date.now() + 120_000
-  for (;;) {
-    const ok = await fetch(url)
-      .then(r => r.ok)
-      .catch(() => false)
-    if (ok) break
-    if (Date.now() > until || server.exitCode !== null)
-      throw new Error(`dev server did not answer ${url}\n${log.slice(-1500)}`)
-    await new Promise(r => setTimeout(r, 500))
-  }
+  // `tri shot all` hands every run its one server; alone, a run starts its own.
+  const probe = `/harness/${h.page ?? name}.html`
+  let base = process.env.TRI_SHOT_BASE
+  if (!base) ({ server, base } = await startVite(probe))
+  const url = base + probe + (h.query ?? '')
 
   /* The container's Chromium, whatever revision this playwright expects. */
-  const exe = ['/opt/pw-browsers/chromium', chromium.executablePath()].find(p =>
-    existsSync(p)
-  )
+  // On a Mac with no playwright download, any installed Chromium-family
+  // browser opens the page the same way (a fresh temp profile, never the
+  // person's own); TRI_SHOT_CHROME names one explicitly.
+  const exe = [
+    process.env.TRI_SHOT_CHROME,
+    '/opt/pw-browsers/chromium',
+    chromium.executablePath(),
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/BrowserOS.app/Contents/MacOS/BrowserOS',
+  ].find(p => p && existsSync(p))
   browser = await chromium.launch({ executablePath: exe })
   const context = await browser.newContext({
     viewport: { width, height: 844 },
@@ -548,6 +1376,12 @@ try {
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', e => errors.push(String(e)))
+  // TRI_SHOT_DEBUG=1: the page's console and every request it makes, for a
+  // state that waits forever (a harness without the app's store did).
+  if (process.env.TRI_SHOT_DEBUG) {
+    page.on('console', m => console.error('console', m.type(), m.text()))
+    page.on('request', r => console.error('request', r.method(), r.url()))
+  }
   await page.route('**/mcp', async route => {
     const body = JSON.parse(route.request().postData() || '{}')
     const tool = body?.params?.name
@@ -580,7 +1414,36 @@ try {
       },
     })
   })
+  /*
+   * A harness whose page talks to render's own doors (not /mcp) answers
+   * them here, in the host's shapes. Every other render door is refused, so
+   * a shot never reaches production; playwright tries the last route first.
+   */
+  if (h.routes) {
+    await page.route('**/api/**', route =>
+      route.fulfill({ status: 404, json: { error: 'tri shot: no such door' } })
+    )
+    // GitHub's public API answers as over its limit unless a harness says
+    // otherwise: a shot never spends the machine's sixty reads an hour.
+    await page.route('https://api.github.com/**', route =>
+      route.fulfill({
+        status: 403,
+        // As GitHub does: without the expose list the browser hides the
+        // reset, and the sheet could not say when it will read again.
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-expose-headers': 'X-RateLimit-Reset',
+          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800),
+        },
+        json: { message: 'tri shot: API rate limit exceeded' },
+      })
+    )
+    for (const [glob, reply] of h.routes)
+      await page.route(glob, route => route.fulfill(reply(route.request())))
+  }
   await page.goto(url, { waitUntil: 'domcontentloaded' })
+  // A root behind a closed door (a <details>) is opened first, as a thumb would.
+  await h.open?.(page)
   await page.locator(h.root).waitFor({ timeout: 60_000 })
 
   mkdirSync(out, { recursive: true })
@@ -593,6 +1456,7 @@ try {
       scope: h.scope,
       within: h.within,
       before: h.before,
+      cards: h.cards,
     })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
@@ -619,16 +1483,20 @@ try {
       m.small.length +
       m.cut.length +
       m.overlap.length +
-      m.order.length
+      m.order.length +
+      m.card.length
     bad += wrong
     lines.push(
       `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
-        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length} · ${file}`
+        `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length}` +
+        (h.cards ? `, card ${m.card.length}` : '') +
+        ` · ${file}`
     )
     for (const x of m.small) lines.push(`       small   ${x}`)
     for (const x of m.cut) lines.push(`       cut     ${x}`)
     for (const x of m.overlap) lines.push(`       overlap ${x}`)
     for (const x of m.order) lines.push(`       order   ${x}`)
+    for (const x of m.card) lines.push(`       card    ${x}`)
   }
   if (errors.length) {
     bad += errors.length
@@ -636,17 +1504,18 @@ try {
   }
   code = bad ? 1 : 0
 } catch (e) {
-  lines.push(`could not measure: ${e instanceof Error ? e.message : e}`)
+  const msg = e instanceof Error ? e.message : String(e)
+  lines.push(`could not measure: ${msg}`)
+  // The one cause this message has had: a state's locator caught an element
+  // the page swapped out mid-step (crm search at 320px, #3359).
+  if (/not attached to the DOM/.test(msg))
+    lines.push(
+      "       hint    the element was replaced while the state ran -- aim at the final state's own selector and waitFor() it first"
+    )
   code = 2
 } finally {
   await browser?.close().catch(() => {})
-  if (server?.pid) {
-    try {
-      process.kill(-server.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
+  stopVite(server)
 }
 
 for (const l of lines) console.log(l)

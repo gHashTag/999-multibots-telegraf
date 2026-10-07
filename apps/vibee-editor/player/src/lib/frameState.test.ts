@@ -29,6 +29,14 @@ describe('frameStateOf', () => {
         ORIGIN
       )
     ).toBe('stuck')
+    /* The socket is up and no frame comes: skin.ts FREEZE_SCRIPT. */
+    expect(
+      frameStateOf(
+        ev({ data: { source: WINDOW_EVENT, state: 'frozen' } }),
+        frame,
+        ORIGIN
+      )
+    ).toBe('frozen')
   })
 
   it('ignores another origin, another frame, another shape, another state', () => {
@@ -57,6 +65,7 @@ describe('frameStateOf', () => {
   it('a lost or stuck window re-reads the session; a connected one does not', () => {
     expect(shouldReread('reconnecting')).toBe(true)
     expect(shouldReread('stuck')).toBe(true)
+    expect(shouldReread('frozen')).toBe(true)
     expect(shouldReread('connected')).toBe(false)
     expect(shouldReread(null)).toBe(false)
   })

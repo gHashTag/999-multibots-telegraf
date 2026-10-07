@@ -1,5 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { DEFAULT_BOT_PHOTO_URL } from '@/config/publicStorage'
 
 export interface Avatar {
   telegram_id: string
@@ -127,7 +128,9 @@ export const avatarService = {
   addAvatarOwner: async (
     telegram_id: string | number,
     bot_name: string,
-    avatar_url = 'https://example.com/default_avatar.png',
+    // Was example.com/default_avatar.png, which never existed; getPhotoUrl
+    // sends the stored value as the bot's menu photo.
+    avatar_url = DEFAULT_BOT_PHOTO_URL,
     group = `${bot_name}_group`
   ) => {
     try {

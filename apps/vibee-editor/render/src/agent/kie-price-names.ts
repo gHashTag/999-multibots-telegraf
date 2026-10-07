@@ -125,7 +125,7 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
 
   // GLM идёт НЕ через KieAI, а по своей подписке z.ai, и её прайса в
   // выгрузке KieAI нет — потому null, а не выдуманная цифра.
-  'glm-5.3': null,
+  'glm-4.7-flash': null,
 }
 
 /**

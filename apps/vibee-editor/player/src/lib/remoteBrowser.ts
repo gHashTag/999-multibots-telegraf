@@ -16,6 +16,7 @@
  */
 import { API_BASE } from '../config'
 import { apiFetch, type ApiError } from '@/lib/apiFetch'
+import * as TAB_STRIP from '@/spec/browser-tab-strip.gen'
 
 export type BrowserState =
   | 'none'
@@ -101,8 +102,16 @@ export const asView = (a: ServerAnswer): BrowserSessionView => ({
  * A path is resolved against this app. An absolute URL, if the server ever
  * returns one, is left alone and `canEmbed` then refuses to frame it.
  */
-export function absoluteViewUrl(viewUrl: string): string {
-  return new URL(viewUrl, window.location.origin).toString()
+export function absoluteViewUrl(viewUrl: string, lang?: 'ru' | 'en'): string {
+  const url = new URL(viewUrl, window.location.origin)
+  /*
+   * The window speaks the APP's language, not the phone's (owner, 2026-10-06:
+   * Russian app, English "Starting your browser" under it). The proxy keeps
+   * `lang` through its login redirect; the window keeps it for the tab
+   * (render skin.ts LANG_SCRIPT).
+   */
+  if (lang === 'ru' || lang === 'en') url.searchParams.set('lang', lang)
+  return url.toString()
 }
 
 /**
@@ -562,5 +571,201 @@ export async function chooseInBrowser(
     return true
   } catch {
     return false
+  }
+}
+
+/*
+ * THE PERSON'S OWN SITE LIST (render/src/browser/site-rules.ts).
+ *
+ * "ask": acting there needs their yes, as on a bank. "block": the agent does
+ * not open, read or shoot it at all. The app is the person's door, so it may
+ * loosen (remove a site, block -> ask); an agent key may only tighten.
+ */
+export type SiteRule = 'ask' | 'block'
+
+export interface SiteRuleRow {
+  site: string
+  rule: SiteRule
+  by: 'person' | 'agent'
+}
+
+/** Null when the server could not read the list -- not an empty list. */
+export async function readSiteRules(): Promise<SiteRuleRow[] | null> {
+  try {
+    const answer = await apiFetch<{ sites?: unknown }>(
+      `${API_BASE}/api/browser/sites`
+    )
+    return siteRowsOf(answer.sites)
+  } catch (e) {
+    if ((e as ApiError | undefined)?.status === 503) return null
+    throw e
+  }
+}
+
+/**
+ * What the screen shows after a read. Only a 503 is "unreadable" -- the
+ * server's own word that it cannot say where the person said no, which stops
+ * the agent. A 401 or a dropped network says nothing about the list, so it is
+ * an error of this screen, not a claim about the agent.
+ */
+export type SiteListState =
+  | { rows: SiteRuleRow[] }
+  | { unreadable: true }
+  | { failed: string }
+
+export async function readSiteListState(): Promise<SiteListState> {
+  try {
+    const rows = await readSiteRules()
+    return rows === null ? { unreadable: true } : { rows }
+  } catch (e) {
+    return { failed: siteRuleReason(e) }
+  }
+}
+
+/** The row's one-tap flip: never <-> ask first. */
+export function nextRule(rule: SiteRule): SiteRule {
+  return rule === 'block' ? 'ask' : 'block'
+}
+
+/*
+ * The server's refusals are English sentences; the person reads their own
+ * language. Known statuses get a dictionary key, the rest the raw reason.
+ */
+export function siteRuleFailKey(e: unknown): string | null {
+  switch ((e as ApiError | undefined)?.status) {
+    case 400:
+      return 'browser.sites.badSite'
+    case 409:
+      return 'browser.sites.full'
+    case 503:
+      return 'browser.sites.unreadableNow'
+    default:
+      return null
+  }
+}
+
+/** The server's error code, or the message: what "Not saved: …" quotes. */
+export function siteRuleReason(e: unknown): string {
+  return (
+    (e as { code?: string } | null)?.code ||
+    (e instanceof Error ? e.message : String(e))
+  )
+}
+
+export async function putSiteRule(site: string, rule: SiteRule): Promise<void> {
+  await apiFetch(`${API_BASE}/api/browser/sites`, {
+    method: 'POST',
+    body: JSON.stringify({ site, rule }),
+  })
+}
+
+export async function dropSiteRule(site: string): Promise<void> {
+  await apiFetch(
+    `${API_BASE}/api/browser/sites?site=${encodeURIComponent(site)}`,
+    { method: 'DELETE' }
+  )
+}
+
+/** Only well-formed rows; a row the app cannot name is not shown as a rule. */
+export function siteRowsOf(raw: unknown): SiteRuleRow[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap(r => {
+    const row = r as Partial<SiteRuleRow> | null
+    if (!row || typeof row.site !== 'string' || !row.site) return []
+    if (row.rule !== 'ask' && row.rule !== 'block') return []
+    return [
+      {
+        site: row.site,
+        rule: row.rule,
+        by: row.by === 'agent' ? ('agent' as const) : ('person' as const),
+      },
+    ]
+  })
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * THE TAB STRIP (owner, 2026-10-06; spec browser-tab-strip.t27). Every page
+ * in the person's browser, as the server chose to describe it: an id, a
+ * clipped title, a host and whether it is in front. Never a path.
+ * ──────────────────────────────────────────────────────────────────────── */
+/** Who works in a tab (browser-tab-strip.t27 v2): one word, or nobody. */
+export type TabAgent =
+  | typeof TAB_STRIP.AGENT_DESK
+  | typeof TAB_STRIP.AGENT_CHAT
+  | null
+
+export interface BrowserTab {
+  id: string
+  title: string
+  host: string
+  active: boolean
+  agent: TabAgent
+}
+
+/** The server's code for "an agent is working in that tab; confirm first". */
+export const AGENT_WORKING = TAB_STRIP.REASON_AGENT_WORKING
+
+export type TabAction = 'activate' | 'new' | 'close'
+
+/** Only well-formed tabs; a tab without an id cannot be pressed. Pure. */
+export function tabsOf(raw: unknown): BrowserTab[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap(r => {
+    const t = r as Partial<BrowserTab> | null
+    if (!t || typeof t.id !== 'string' || !t.id) return []
+    return [
+      {
+        id: t.id,
+        title: typeof t.title === 'string' ? t.title : '',
+        host: typeof t.host === 'string' ? t.host : '',
+        active: t.active === true,
+        agent:
+          t.agent === TAB_STRIP.AGENT_DESK || t.agent === TAB_STRIP.AGENT_CHAT
+            ? t.agent
+            : null,
+      },
+    ]
+  })
+}
+
+/** The tabs open now; null when they cannot be read. Never throws. */
+export async function readBrowserTabs(): Promise<BrowserTab[] | null> {
+  try {
+    const a = await apiFetch<{ tabs?: unknown }>(
+      `${API_BASE}/api/browser/strip`
+    )
+    return tabsOf(a.tabs)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Switch, open or close; the tabs after it, or null when refused, or
+ * AGENT_WORKING when the tab became an agent's after the strip last read it
+ * and the close needs the person's confirm. `confirm` is sent only as true.
+ */
+export async function actOnBrowserTab(
+  action: TabAction,
+  id?: string,
+  confirm = false
+): Promise<BrowserTab[] | null | typeof AGENT_WORKING> {
+  try {
+    const a = await apiFetch<{ tabs?: unknown }>(
+      `${API_BASE}/api/browser/strip`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          action,
+          ...(id ? { id } : {}),
+          ...(confirm ? { confirm: true } : {}),
+        }),
+      }
+    )
+    return tabsOf(a.tabs)
+  } catch (e) {
+    const err = e as ApiError | undefined
+    if (err?.status === 409 && err.code === AGENT_WORKING) return AGENT_WORKING
+    return null
   }
 }

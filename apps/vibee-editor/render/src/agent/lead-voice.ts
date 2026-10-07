@@ -81,6 +81,13 @@ export function ensureLeadVoices(pool: Pool): Promise<void> {
          PRIMARY KEY (owner_id, lead_id)
        )`
     )
+    // split-reel v9: the slowest pace this clone was ever measured at, in ms
+    // a speech unit (NULL: never measured). It belongs to the voice.
+    .then(() =>
+      pool.query(
+        `ALTER TABLE lead_voices ADD COLUMN IF NOT EXISTS ms_per_char integer`
+      )
+    )
     .then(() => undefined)
     .catch(e => {
       tableReady = null
@@ -146,6 +153,59 @@ export async function ownVoiceOf(
     : null
 }
 
+/**
+ * The clone a call `for_lead` speaks with -- the one home of the rule both
+ * audio_generate and split_reel follow: the asker naming herself gets her
+ * OWN voice, anybody else only the clone the asker made of them.
+ */
+export async function cloneFor(
+  pool: Pool,
+  asker: string,
+  forLead: string
+): Promise<{ voiceId: string; seconds: number } | null> {
+  const self = String(forLead ?? '').replace(/^@/, '') === String(asker)
+  return self ? ownVoiceOf(pool, asker) : leadVoiceOf(pool, asker, forLead)
+}
+
+/**
+ * The slowest pace this clone was ever measured at, ms a speech unit
+ * (split-reel v9); 0 when it never was. Read by the VOICE, never by who asks.
+ */
+export async function voicePaceOf(
+  pool: Pool,
+  voiceId: string
+): Promise<number> {
+  if (!String(voiceId ?? '').trim()) return 0
+  await ensureLeadVoices(pool)
+  const r = await pool.query(
+    `SELECT ms_per_char FROM lead_voices WHERE voice_id = $1
+      ORDER BY ms_per_char DESC NULLS LAST LIMIT 1`,
+    [String(voiceId)]
+  )
+  const pace = Number(r?.rows?.[0]?.ms_per_char)
+  return Number.isInteger(pace) && pace > 0 ? pace : 0
+}
+
+/**
+ * Keep a new measurement of this clone's pace. The row only ever slows down
+ * (split-reel v9 slowest_pace), here too, so two reels measured at once
+ * keep the slower. A clone replaced meanwhile has another id: nothing moves.
+ */
+export async function keepVoicePace(
+  pool: Pool,
+  voiceId: string,
+  pace: number
+): Promise<void> {
+  if (!String(voiceId ?? '').trim() || !Number.isInteger(pace) || pace <= 0)
+    return
+  await ensureLeadVoices(pool)
+  await pool.query(
+    `UPDATE lead_voices SET ms_per_char = GREATEST(COALESCE(ms_per_char, 0), $2)
+      WHERE voice_id = $1`,
+    [String(voiceId), pace]
+  )
+}
+
 export async function saveLeadVoice(
   pool: Pool,
   row: {
@@ -164,6 +224,8 @@ export async function saveLeadVoice(
      ON CONFLICT (owner_id, lead_id) DO UPDATE
        SET username = EXCLUDED.username, voice_id = EXCLUDED.voice_id,
            seconds = EXCLUDED.seconds, source_url = EXCLUDED.source_url,
+           ms_per_char = CASE WHEN lead_voices.voice_id = EXCLUDED.voice_id
+                              THEN lead_voices.ms_per_char END,
            created_at = now()`,
     [
       String(row.owner),

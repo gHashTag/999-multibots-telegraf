@@ -72,6 +72,22 @@ ENV NEKO_SESSION_IMPLICIT_HOSTING=true
 COPY chromium.conf /etc/neko/supervisord/chromium.conf
 COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
 
+# THE MOUSE, AND WHY A SECOND SOCAT IS IN THE IMAGE.
+#
+# neko's ICE candidate carries its TCP-mux LISTEN port, so nothing between
+# the browser and the pod may remap the number. Railway's TCP proxy does
+# exactly that (one platform-chosen public port, delivered to another port
+# in the container), which is why control was dead while the stream lived:
+# the candidate said the delivery port, the browser dialed it at the proxy,
+# and nothing answered (2026-09-29). The fix is to make neko listen on the
+# PROXY's public port and bridge the delivery port to it inside the pod.
+# The relay decides at runtime whether it is needed, so this image stays
+# correct on a laptop too, where both numbers are equal and no relay runs.
+# See start-webrtc-relay.sh for the full chain.
+COPY webrtc-relay.conf /etc/neko/supervisord/webrtc-relay.conf
+COPY start-webrtc-relay.sh /usr/local/bin/start-webrtc-relay.sh
+RUN chmod +x /usr/local/bin/start-webrtc-relay.sh
+
 # ── POLICY, EDITED AS JSON AND CHECKED ───────────────────────────────────
 #
 # Chromium ignores a policy file it cannot parse -- ALL of it, blocklists

@@ -27,7 +27,19 @@ import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 export interface Reached<T> {
   reachable: boolean
   data: T | null
+  /**
+   * What failed, as it came: the server's refusal text (Russian -- it is
+   * written for a model), `HTTP <status>`, or the browser's own message. For
+   * comparing failures, not for showing: the screen words it with
+   * `crmErrorText` (lib/crmErrorText.ts) from `code`.
+   */
   error?: string
+  /**
+   * Why it failed, by name: `http_<status>`, `empty`, `network`, `bad_reply`
+   * from `callTool` itself, or the server's `error.data.code` (`refused` when
+   * the server named nothing). Set exactly when `error` is.
+   */
+  code?: string
   /**
    * The tool itself said no (a JSON-RPC error: "only the owner may..."), as
    * opposed to a server that could not be reached. A panel that is not for
@@ -44,8 +56,16 @@ async function callTool<T>(
   name: string,
   args: Record<string, unknown> = {}
 ): Promise<Reached<T>> {
+  const failed = (code: string, error: string): Reached<T> => ({
+    reachable: false,
+    data: null,
+    error,
+    code,
+  })
+  const said = (e: unknown) => (e instanceof Error ? e.message : String(e))
+  let r: Response
   try {
-    const r = await fetch(`${API_BASE}/mcp`, {
+    r = await fetch(`${API_BASE}/mcp`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -55,22 +75,26 @@ async function callTool<T>(
         params: { name, arguments: args },
       }),
     })
-    if (!r.ok) {
-      // In the game's TRI frame a refused credential means "sign in", and the
-      // route gate swaps the CRM for the sign-in panel (lib/embedGuest.ts).
-      if (r.status === 401) markEmbedSignInNeeded()
-      return {
-        reachable: false,
-        data: null,
-        error: `сервер ответил ${r.status}`,
-      }
-    }
+  } catch (e) {
+    return failed('network', said(e))
+  }
+  if (!r.ok) {
+    // In the game's TRI frame a refused credential means "sign in", and the
+    // route gate swaps the CRM for the sign-in panel (lib/embedGuest.ts).
+    if (r.status === 401) markEmbedSignInNeeded()
+    // `HTTP 401` keeps the status in the text: refusalRules.isSignInReason
+    // reads it there.
+    return failed(`http_${r.status}`, `HTTP ${r.status}`)
+  }
+  try {
     const body = await r.json()
     if (body?.error) {
+      const code = body.error.data?.code
       return {
-        reachable: false,
-        data: null,
-        error: String(body.error.message ?? 'отказ'),
+        ...failed(
+          typeof code === 'string' && code ? code : 'refused',
+          String(body.error.message ?? 'refused')
+        ),
         refused: true,
       }
     }
@@ -85,13 +109,9 @@ async function callTool<T>(
     if (typeof text === 'string') {
       return { reachable: true, data: JSON.parse(text) as T }
     }
-    return { reachable: false, data: null, error: 'пустой ответ' }
+    return failed('empty', 'empty answer')
   } catch (e) {
-    return {
-      reachable: false,
-      data: null,
-      error: e instanceof Error ? e.message : String(e),
-    }
+    return failed('bad_reply', said(e))
   }
 }
 
@@ -140,6 +160,15 @@ export interface WaitingRow {
    * does not send it.
    */
   nextWhy: string
+  /**
+   * The same two reasons as codes (`because_code`, `next_why_code`), for the
+   * screen's own language: the words above are Russian, and an English
+   * screen printed them as they came (loop tick 12). Null from an older
+   * server, and then the words are shown. See `reasonLine`.
+   */
+  becauseCode: string | null
+  nextWhyCode: string | null
+  nextWhyVars: Record<string, string | number> | null
   urgency: string | null
 }
 
@@ -187,8 +216,14 @@ function toLeads(r: RawLeads): HotLeads {
 
 const map = <A, B>(r: Reached<A>, f: (a: A) => B): Reached<B> =>
   r.data === null
-    ? { reachable: r.reachable, data: null, error: r.error, refused: r.refused }
-    : { reachable: r.reachable, data: f(r.data), error: r.error }
+    ? {
+        reachable: r.reachable,
+        data: null,
+        error: r.error,
+        code: r.code,
+        refused: r.refused,
+      }
+    : { reachable: r.reachable, data: f(r.data), error: r.error, code: r.code }
 
 export const loadOverview = async () =>
   map(await callTool<RawOverview>('crm_overview'), toOverview)
@@ -257,7 +292,7 @@ export const loadTraffic = async (days: number) =>
  * match the component instead of the server, which is the fake agreeing with
  * the code rather than with the world.
  */
-function toWaiting(r: Record<string, unknown>): WaitingList {
+export function toWaiting(r: Record<string, unknown>): WaitingList {
   const rows = Array.isArray(r['waiting'])
     ? (r['waiting'] as Array<Record<string, unknown>>)
     : []
@@ -276,9 +311,43 @@ function toWaiting(r: Record<string, unknown>): WaitingList {
       stage: String(x['stage'] ?? 'new'),
       because: String(x['because'] ?? ''),
       nextWhy: String(x['next_why'] ?? ''),
+      becauseCode: str(x['because_code']),
+      nextWhyCode: str(x['next_why_code']),
+      nextWhyVars: reasonVars(x['next_why_vars']),
       urgency: str(x['urgency']),
     })),
   }
+}
+
+/*
+ * A REASON IN THE SCREEN'S LANGUAGE, OR THE SERVER'S WORDS.
+ *
+ * The server sends each reason twice: Russian words for the agent, and a
+ * code. A code the dictionary knows becomes `crm.why.<code>` with its
+ * numbers; a code it does not know (a server newer than this screen), or no
+ * code at all (a server older than it), shows the words, which are at least
+ * true. Never the bare key: `t` returns the key for a missing line, and
+ * "crm.why.promise_late" on a phone says nothing to anybody.
+ */
+export function reasonLine(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  code: string | null,
+  vars: Record<string, string | number> | null,
+  words: string
+): string {
+  if (!code) return words
+  const key = `crm.why.${code}`
+  const line = t(key, vars ?? undefined)
+  return line === key ? words : line
+}
+
+function reasonVars(v: unknown): Record<string, string | number> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+  const out: Record<string, string | number> = {}
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof x === 'string' || typeof x === 'number') out[k] = x
+  }
+  return out
 }
 
 /*
@@ -320,6 +389,64 @@ export function toRevenue(r: Record<string, unknown>): Revenue {
 
 export const loadRevenue = async () =>
   map(await callTool<Record<string, unknown>>('crm_revenue', {}), toRevenue)
+
+/**
+ * THE OWNER'S NETWORKS (tool `social_status`, render social-tools.ts): which
+ * of Threads, Facebook, LinkedIn and X his agent can post to, and where to
+ * connect the rest. The tool is the owner's only; anyone else is refused.
+ */
+export const SOCIAL_NETWORKS = ['threads', 'facebook', 'linkedin', 'x'] as const
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number]
+/** connected: posts go out; expired: reconnect; noApp: our side is missing
+ * the app keys; off: never connected. */
+export type SocialState = 'connected' | 'expired' | 'noApp' | 'off'
+
+export interface SocialRow {
+  network: SocialNetwork
+  state: SocialState
+  account: string | null
+  instagram: string | null
+  daysLeft: number | null
+}
+
+export interface Social {
+  rows: SocialRow[]
+  connect: string | null
+}
+
+const textOf = (v: unknown): string | null =>
+  typeof v === 'string' && v ? v : null
+
+export function toSocial(r: Record<string, unknown>): Social {
+  const apps = (r['apps'] ?? {}) as Record<string, unknown>
+  const held = Array.isArray(r['networks'])
+    ? (r['networks'] as Array<Record<string, unknown>>)
+    : []
+  const connect = textOf(r['connect'])
+  return {
+    connect: connect && connect.startsWith('https://') ? connect : null,
+    rows: SOCIAL_NETWORKS.map(network => {
+      const t = held.find(x => x['network'] === network)
+      const state: SocialState = t
+        ? t['usable'] === true
+          ? 'connected'
+          : 'expired'
+        : apps[network] === false
+          ? 'noApp'
+          : 'off'
+      return {
+        network,
+        state,
+        account: t ? textOf(t['account']) : null,
+        instagram: t ? textOf(t['instagram']) : null,
+        daysLeft: t ? num(t['daysLeft']) : null,
+      }
+    }),
+  }
+}
+
+export const loadSocial = async () =>
+  map(await callTool<Record<string, unknown>>('social_status', {}), toSocial)
 
 export const loadWaiting = async () =>
   map(await callTool<Record<string, unknown>>('crm_waiting'), toWaiting)
@@ -421,6 +548,12 @@ export interface ClientRow {
   duets: number
   /** The picture the rail draws; null means initials (ChatThreads.tsx). */
   avatarUrl: string | null
+  /** The bots this person owns on the platform; only the keeper is sent any. */
+  bots: string[]
+  /** Content-plan cards, of them done, and faults still open. */
+  tasksTotal: number
+  tasksDone: number
+  faultsOpen: number
 }
 
 /**
@@ -439,6 +572,18 @@ export interface ClientsList {
   nextOffset: number | null
 }
 
+/** An older server sends no `tasks`: zero work recorded, not an error. */
+function tasksOf(
+  t: unknown
+): Pick<ClientRow, 'tasksTotal' | 'tasksDone' | 'faultsOpen'> {
+  const o = t && typeof t === 'object' ? (t as Record<string, unknown>) : {}
+  return {
+    tasksTotal: num(o['total']) ?? 0,
+    tasksDone: num(o['done']) ?? 0,
+    faultsOpen: num(o['faults_open']) ?? 0,
+  }
+}
+
 function toClients(r: Record<string, unknown>): ClientsList {
   return {
     clients: rows(r['clients']).map(c => ({
@@ -454,6 +599,12 @@ function toClients(r: Record<string, unknown>): ClientsList {
       lastSeen: str(c['last_seen']),
       duets: num(c['duets']) ?? 0,
       avatarUrl: str(c['avatar_url']),
+      bots: Array.isArray(c['bots'])
+        ? (c['bots'] as unknown[]).filter(
+            (b): b is string => typeof b === 'string' && b !== ''
+          )
+        : [],
+      ...tasksOf(c['tasks']),
     })),
     // An older server that does not send the flag is treated as knowing:
     // the note is for a server that SAID it could not read payments.
@@ -462,11 +613,65 @@ function toClients(r: Record<string, unknown>): ClientsList {
   }
 }
 
+/**
+ * What a typed search looks for, the same for every list on the page.
+ *
+ * A leading @ is how Telegram shows a username, so it is how people type
+ * one. The server's clientQuery drops it; the player did not, and "@lapin"
+ * hid the very person the server had just found (CRM mobile loop, tick 2).
+ */
+export const searchNeedle = (q: string) =>
+  q.trim().replace(/^@/, '').toLowerCase()
+
 /** One search for every list of people: name, @username, package, id. */
 export const matches = (x: ClientRow, q: string) => {
-  const needle = q.trim().toLowerCase()
+  const needle = searchNeedle(q)
   if (!needle) return true
-  return [x.name, x.username, x.client, x.telegramId]
+  return [x.name, x.username, x.client, x.telegramId, ...x.bots]
+    .filter(Boolean)
+    .some(v => String(v).toLowerCase().includes(needle))
+}
+
+/**
+ * A text cut where the search found it, so a row can show WHY it is among
+ * the results (Telegram and iOS Contacts mark the typed letters). Only the
+ * first place: a name is short, and one mark is where the eye goes.
+ *
+ * Lowercasing can change a string's length (Turkish dotted I); then an
+ * index into the lowercase copy is not an index into the text, so nothing
+ * is marked rather than the wrong letters.
+ *
+ * `keepBefore`: a found part far into a long text would sit past the
+ * line's ellipsis; the text before it is then cut to that many letters
+ * after a "…", the way Telegram's search shows a hit inside a message.
+ */
+export function splitByNeedle(
+  text: string,
+  q: string,
+  keepBefore?: number
+): Array<{ text: string; hit: boolean }> {
+  const needle = searchNeedle(q)
+  const low = text.toLowerCase()
+  const at = needle && low.length === text.length ? low.indexOf(needle) : -1
+  if (at < 0) return [{ text, hit: false }]
+  const end = at + needle.length
+  const from =
+    keepBefore !== undefined && at > keepBefore + 1 ? at - keepBefore : 0
+  return [
+    { text: (from > 0 ? '…' : '') + text.slice(from, at), hit: false },
+    { text: text.slice(at, end), hit: true },
+    { text: text.slice(end), hit: false },
+  ].filter(p => p.text !== '')
+}
+
+/**
+ * Found by the id alone. A row shows no id, so such a row sits in the
+ * results with nothing on it that was typed; the row then names the id.
+ */
+export const foundOnlyById = (x: ClientRow, q: string) => {
+  const needle = searchNeedle(q)
+  if (!needle || !x.telegramId.toLowerCase().includes(needle)) return false
+  return ![x.name, x.username, x.client]
     .filter(Boolean)
     .some(v => String(v).toLowerCase().includes(needle))
 }
@@ -601,6 +806,10 @@ export interface StoryReady {
   ready: boolean
   why: string | null
   face: string | null
+  /** The seller's own photo stands over her avatar. */
+  faceCustom: boolean
+  /** Her avatar: the default face to go back to. */
+  avatar: string | null
   voice: boolean
   vip: boolean
   link: string | null
@@ -629,6 +838,97 @@ export interface StoryReady {
   endCardFixPalette: StoryEndCard | null
   /** Her background, shaded until every line reads (v13, end_card_fix_bg). */
   endCardFixBg: StoryEndCard | null
+  /**
+   * How many scenes a reel may have and what each count costs (the server
+   * reads both from crm-story-reel.t27); null from an older server.
+   */
+  scenes: StoryScenes | null
+  /** The look and the call the next reel uses when nothing is typed. */
+  style: string | null
+  cta: string | null
+  /**
+   * Finished scripts the seller can press for her (crm-story-reel v20,
+   * TEMPLATES_FROM_SERVER): the gallery draws exactly these; [] from an
+   * older server.
+   */
+  templates: StoryTemplate[]
+}
+
+/** One template of the gallery, as the server lists it. */
+export interface StoryTemplate {
+  id: string
+  language: 'ru' | 'en'
+  /** Spoken lines, one per studio shot, the hook first. */
+  lines: string[]
+  /** The call on the end card. */
+  call: string
+  /** The end card's button. */
+  button: string
+  scenes: number
+  /** The longest the reel can run, seconds. */
+  maxSeconds: number
+}
+
+/** One template's identity in the gallery: the same id comes in two languages. */
+export const templateKey = (t: Pick<StoryTemplate, 'id' | 'language'>) =>
+  `${t.id}:${t.language}`
+
+const toStoryTemplates = (v: unknown): StoryTemplate[] =>
+  (Array.isArray(v) ? v : [])
+    .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')
+    .map(t => ({
+      id: str(t['id']) ?? '',
+      language: (t['language'] === 'en' ? 'en' : 'ru') as 'ru' | 'en',
+      lines: (Array.isArray(t['lines']) ? t['lines'] : [])
+        .map(l => (typeof l === 'string' ? l : ''))
+        .filter(Boolean),
+      call: str(t['call']) ?? '',
+      button: str(t['button']) ?? '',
+      scenes: num(t['scenes']) ?? 0,
+      maxSeconds: num(t['max_seconds']) ?? 0,
+    }))
+    .filter(t => t.id && t.lines.length)
+
+export interface StoryScenes {
+  default: number
+  min: number
+  max: number
+  /** Tokens by scene count; a count the server did not price is absent. */
+  priceTokens: Record<number, number>
+}
+
+/** Optional overrides of one press: the count of scenes, the look, the call. */
+export interface StoryStartOptions {
+  sceneCount?: number
+  style?: string
+  cta?: string
+  /** Send the finished reel to her DM as a gift (the tool's `to: "dm"`). */
+  toDm?: boolean
+  /** A template from the gallery, with the seller's edits (v20). */
+  template?: {
+    id: string
+    language: 'ru' | 'en'
+    lines: string[]
+    button?: string
+  }
+}
+
+const toStoryScenes = (v: unknown): StoryScenes | null => {
+  if (!v || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  const d = num(o['default'])
+  const min = num(o['min'])
+  const max = num(o['max'])
+  if (d == null || min == null || max == null || min > max) return null
+  const prices: Record<number, number> = {}
+  const raw = o['price_tokens']
+  if (raw && typeof raw === 'object')
+    for (const [k, p] of Object.entries(raw as Record<string, unknown>)) {
+      const n = Number(k)
+      const t = num(p)
+      if (Number.isInteger(n) && t != null) prices[n] = t
+    }
+  return { default: d, min, max, priceTokens: prices }
 }
 
 export interface StoryStart {
@@ -655,6 +955,8 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     ready: bool(r['ready']) ?? false,
     why: str(r['why']),
     face: str(r['face']),
+    faceCustom: bool(r['face_custom']) ?? false,
+    avatar: str(r['avatar']),
     voice: bool(r['voice']) ?? false,
     vip: bool(r['vip']) ?? false,
     link: str(r['one_tap_link']),
@@ -667,6 +969,10 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     endCardFix: toEndCard(r['end_card_fix']),
     endCardFixPalette: toEndCard(r['end_card_fix_palette']),
     endCardFixBg: toEndCard(r['end_card_fix_bg']),
+    scenes: toStoryScenes(r['scenes']),
+    style: str(r['style']),
+    cta: str(r['cta']),
+    templates: toStoryTemplates(r['templates']),
     jobs: jobs
       .filter((j): j is Record<string, unknown> => !!j && typeof j === 'object')
       .map(j => ({
@@ -687,12 +993,32 @@ export const loadStoryReel = async (lead: string) =>
   )
 
 /**
+ * The seller's own photo for her reels instead of her avatar; '' puts the
+ * avatar back. The answer is the panel's new state.
+ */
+export const saveStoryFace = async (lead: string, url: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      face_url: url,
+    }),
+    toStoryReady
+  )
+
+/**
  * The same template for the person HERSELF (tool `my_story_reel`): the /story
  * page. No lead argument -- the server reads who is asking from the session.
  */
 export const loadMyStory = async () =>
   map(
     await callTool<Record<string, unknown>>('my_story_reel', {}),
+    toStoryReady
+  )
+
+/** Her own photo for her reels instead of her avatar; '' puts it back. */
+export const saveMyStoryFace = async (url: string) =>
+  map(
+    await callTool<Record<string, unknown>>('my_story_reel', { face_url: url }),
     toStoryReady
   )
 
@@ -756,12 +1082,48 @@ export const keepStoryPalette = async (
     }
   )
 
-export const startStoryReel = async (lead: string, topic: string) =>
+/**
+ * Topic ideas for her next reel, written from what the seller and she
+ * agreed on and her SOUL (`ideas: true`). Nothing is spent but one short
+ * model call; an empty list when there is nothing to go on.
+ */
+export const loadStoryIdeas = async (lead: string) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      ideas: true,
+    }),
+    (r): string[] =>
+      Array.isArray(r['ideas'])
+        ? (r['ideas'] as unknown[]).map(String).filter(Boolean)
+        : []
+  )
+
+export const startStoryReel = async (
+  lead: string,
+  topic: string,
+  opts: StoryStartOptions = {}
+) =>
   map(
     await callTool<Record<string, unknown>>('crm_story_reel', {
       lead,
       start: true,
       ...(topic.trim() ? { topic: topic.trim() } : {}),
+      ...(opts.template
+        ? {
+            template: opts.template.id,
+            language: opts.template.language,
+            scenes: opts.template.lines.map(line => ({ line: line.trim() })),
+            ...(opts.template.button?.trim()
+              ? { end_card: { button: opts.template.button.trim() } }
+              : {}),
+          }
+        : opts.sceneCount != null
+          ? { scene_count: opts.sceneCount }
+          : {}),
+      ...(opts.style?.trim() ? { style: opts.style.trim() } : {}),
+      ...(opts.cta?.trim() ? { cta: opts.cta.trim() } : {}),
+      ...(opts.toDm ? { to: 'dm' } : {}),
     }),
     (r): StoryStart => ({
       started: bool(r['started']) ?? false,

@@ -84,6 +84,32 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
   приложение не открывается. `buttonsForAnswer` получает `{ bot: ctx.botInfo }` — тогда
   сырой адрес приложения в ответе модели переписывается сам. Скил `links-open-in-telegram`.
 - `qwen3:1.7b` отвечает `[[Подпись|can]]` без инструментов — прежде чем судить о кнопках, переключить `/model`.
+- **A press that did not land gives the buttons back** (audit 2026-10-03). A relayed press
+  (`bap:`, `mtg:`, `tgp:ok`) strips the card at once — a second tap has nothing to hit while
+  the relay is in flight — and on failure puts back `ctx.callbackQuery.message.reply_markup`
+  (`restoreButtons`). Settle the card ("✅ Sent") only AFTER reading the result. Each failure
+  says why (`SAID` in `src/services/browserApproval.ts`: no key / restarting / timeout /
+  offline), never one "try again in a minute". Quiet retry only where a repeat is harmless
+  (the approve token decides once; meeting "later" inserts a reminder per press — no retry;
+  a dropped send is "not sure", never retried). Live proof: `tri relays` (key parity by hash,
+  guard 401, approve and meeting with junk tokens, failures across every deploy in the window —
+  `railway logs` without an id reads only the current deploy).
+- **The probe runs itself every hour: `tri relays-watch`** (`bin/helpers/relays-watch.sh`,
+  launchd `ai.t27.relays-watch`). Render down (000/5xx): it waits out a deploy swap, then
+  redeploys `vibee-render` at most once per 6 h and reports what broke, what it did and the
+  result. Key or 401 problems are reported with the next step, never touched. `tri relays-watch
+status` shows the state. Install from a shell where `railway whoami` works: launchd's PATH
+  once found an old railway 4.5.4 that was "Unauthorized", so every run said "not measured".
+  `install` now pins the logged-in CLI and refuses an install that could not measure.
+
+## Railway watch
+
+The same probe runs every hour on Railway as the cron service `queen-watch`, so a
+starved Mac no longer means a silent watch. It reports only on change -- to the Queen
+(`/queen/report`), to the owner's DM and, on red, to one open GitHub issue labelled
+`queen-watch`. What it probes, what it heals and what it never heals is written in one
+place: the header of `deployment/queen-watch/watch.mjs`. The steward that acts on it:
+`.claude/agents/queen-steward.md`.
 
 ## Related Resources
 

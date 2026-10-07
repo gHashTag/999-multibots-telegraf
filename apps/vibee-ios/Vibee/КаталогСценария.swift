@@ -13,14 +13,14 @@ import Foundation
  */
 enum КаталогСценария {
   static let ниши = [
-    "Крипто", "Фитнес", "Технологии", "Бизнес", "Лайфстайл", "Путешествия",
-    "Еда", "Мода", "Игры", "Образование", "Развлечения", "Красота",
-    "Мотивация", "Другое",
+    "Крипто", "Фитнес", "Технологии", "Бизнес", "Лайфстайл", "Путешествия",  // ru-only-ok: values are server keys, shown via label()
+    "Еда", "Мода", "Игры", "Образование", "Развлечения", "Красота",  // ru-only-ok: values are server keys, shown via label()
+    "Мотивация", "Другое",  // ru-only-ok: values are server keys, shown via label()
   ]
 
   static let стили = [
-    "Обучающий", "Развлекательный", "Рекламный", "Сторителлинг",
-    "Профессиональный", "Разговорный", "Энергичный", "Спокойный",
+    "Обучающий", "Развлекательный", "Рекламный", "Сторителлинг",  // ru-only-ok: values are server keys, shown via label()
+    "Профессиональный", "Разговорный", "Энергичный", "Спокойный",  // ru-only-ok: values are server keys, shown via label()
   ]
 
   private static let ключиНиш = [
@@ -37,6 +37,26 @@ enum КаталогСценария {
     "Профессиональный": "professional", "Разговорный": "conversational",
     "Энергичный": "energetic", "Спокойный": "calm",
   ]
+
+  /// English labels, word for word from the web (`SCRIPT_NICHE_OPTIONS` and
+  /// `SCRIPT_STYLE_OPTIONS` labelEn in vibee-atoms defaults.ts).
+  private static let english = [
+    "Крипто": "Crypto", "Фитнес": "Fitness", "Технологии": "Tech",
+    "Бизнес": "Business", "Лайфстайл": "Lifestyle", "Путешествия": "Travel",
+    "Еда": "Food", "Мода": "Fashion", "Игры": "Gaming",
+    "Образование": "Education", "Развлечения": "Entertainment",
+    "Красота": "Beauty", "Мотивация": "Motivation", "Другое": "Other",
+    "Обучающий": "Educational", "Развлекательный": "Entertaining",
+    "Рекламный": "Promotional", "Сторителлинг": "Storytelling",
+    "Профессиональный": "Professional", "Разговорный": "Casual",
+    "Энергичный": "Energetic", "Спокойный": "Calm",
+  ]
+
+  /// What the chip shows. The Russian name stays the VALUE: saved templates
+  /// and the server keys below are built on it.
+  static func label(_ name: String, russian: Bool = speaksRussian) -> String {
+    russian ? name : (english[name] ?? name)
+  }
 
   /// Ключ для сервера. Неизвестное имя даёт «general», а не пустую строку:
   /// пустая ниша попала бы в промпт как « in the  niche» — мусор в задании.

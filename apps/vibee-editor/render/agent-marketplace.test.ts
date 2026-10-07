@@ -31,6 +31,7 @@ describe('the first labour-market agent is real and isolated', () => {
     await expect(threadFor(null, '42', getPool, 'google')).resolves.toEqual({
       ok: false,
       status: 400,
+      code: 'agent_unavailable',
       error: 'agent is not available',
     })
   })
@@ -56,7 +57,7 @@ describe('the first labour-market agent is real and isolated', () => {
       throw new Error('no seller row can be read')
     }
     await expect(threadFor('12345', '42', getPool, 'blogger')).resolves.toEqual(
-      { ok: false, status: 403, error: 'not a seller' }
+      { ok: false, status: 403, code: 'not_seller', error: 'not a seller' }
     )
   })
 
@@ -66,6 +67,7 @@ describe('the first labour-market agent is real and isolated', () => {
     await expect(threadFor('12345', OWNER, pool, 'nobody')).resolves.toEqual({
       ok: false,
       status: 400,
+      code: 'agent_unavailable',
       error: 'agent is not available',
     })
   })
@@ -91,7 +93,15 @@ describe('a keeper can open a trainee, nobody else can', () => {
   })
 
   it('opens every catalogued trainee for the keeper, each in its own thread', async () => {
-    for (const id of ['job', 'google', 'tiktok', 'scientist', 'fpga', 'rtl']) {
+    for (const id of [
+      'job',
+      'google',
+      'tiktok',
+      'scientist',
+      'fpga',
+      'rtl',
+      't27b',
+    ]) {
       await expect(threadFor(null, KEEPER, getPool, id)).resolves.toEqual({
         ok: true,
         thread: `agent:${id}`,
@@ -103,7 +113,12 @@ describe('a keeper can open a trainee, nobody else can', () => {
 
   it('still refuses a trainee to anybody who is not a keeper', async () => {
     await expect(threadFor(null, '900000078', getPool, 'job')).resolves.toEqual(
-      { ok: false, status: 400, error: 'agent is not available' }
+      {
+        ok: false,
+        status: 400,
+        code: 'agent_unavailable',
+        error: 'agent is not available',
+      }
     )
   })
 
@@ -113,6 +128,7 @@ describe('a keeper can open a trainee, nobody else can', () => {
     ).resolves.toEqual({
       ok: false,
       status: 400,
+      code: 'agent_unavailable',
       error: 'agent is not available',
     })
   })
@@ -165,6 +181,13 @@ describe('specialist contracts', () => {
     /* The engineers run what they write, and quote it (hdl-run.ts). */
     expect(marketplaceAgentPrompt('rtl')).toContain('hdl_run')
     expect(marketplaceAgentPrompt('fpga')).toContain('hdl_run mode synth')
+    /* t27b cannot run the compiler here: numbers come only from a run. */
+    const t27b = marketplaceAgentPrompt('t27b')
+    expect(t27b).toContain('#6063')
+    expect(t27b).toContain('--blockers')
+    expect(t27b).toContain('не запускалось') // cyrillic-ok: contract words
+    expect(t27b).toContain('расхождение с эталоном — остановка') // cyrillic-ok: contract words
+    expect(t27b).toContain('не мержишь') // cyrillic-ok: contract words
   })
 })
 
@@ -202,7 +225,12 @@ describe('a trainee that earned the market', () => {
   })
 
   it('six days, or a failure among the seven, keep it closed', async () => {
-    const refused = { ok: false, status: 400, error: 'agent is not available' }
+    const refused = {
+      ok: false,
+      status: 400,
+      code: 'agent_unavailable',
+      error: 'agent is not available',
+    }
     await expect(
       threadFor(null, '900000078', poolWith(passingDays('job', 6)), 'job')
     ).resolves.toEqual(refused)
@@ -219,6 +247,7 @@ describe('a trainee that earned the market', () => {
     ).resolves.toEqual({
       ok: false,
       status: 400,
+      code: 'agent_unavailable',
       error: 'agent is not available',
     })
   })

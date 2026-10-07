@@ -18,6 +18,7 @@
  */
 
 import { chosenProvider } from './provider-choice'
+import * as SPEC from '../spec/agent-provider-chain.gen'
 
 export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'reserve' | 'ollama'
 
@@ -86,6 +87,13 @@ export interface Provider {
    * providers keep their own defaults -- their keys are not prepaid per call.
    */
   maxTokens?: number
+  /**
+   * Set when another provider in the chain calls the same base with the same
+   * key: the id of the first such provider, the same label on every member.
+   * A key-wide limit on one member is then a limit on all of them for the
+   * rest of the turn (isKeyWideLimit). Never the key itself.
+   */
+  keyGroup?: ProviderId
 }
 
 /**
@@ -143,7 +151,11 @@ const CATALOG: Record<
   ProviderId,
   {
     base: string
-    env: string
+    /**
+     * Where the key is read: the first variable in the list that is set.
+     * Empty for ollama (no key) and unused for reserve (reserveEnv).
+     */
+    env: readonly string[]
     model: string
     thinking: boolean
     tools: boolean
@@ -165,8 +177,14 @@ const CATALOG: Record<
       process.env.ZAI_BASE_URL,
       'https://api.z.ai/api/coding/paas/v4'
     ),
-    env: 'GLM_API_KEY',
-    model: 'glm-5.3',
+    env: ['GLM_API_KEY'],
+    // The FREE flash models, owner's rule 2026-10-04. Measured that day on a
+    // key with zero balance: glm-5.3 and glm-4.5 answer 1113 "Insufficient
+    // balance" on both endpoints, glm-4.5-flash and glm-4.7-flash answer 200
+    // with tool calls, thinking on or off. A busy free tier says 1305
+    // "overloaded", which is why zai-lite runs the OTHER flash model.
+    // Skill: zai-free-flash.
+    model: 'glm-4.7-flash',
     thinking: true,
     tools: true,
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
@@ -183,16 +201,24 @@ const CATALOG: Record<
    * агент просто молчал. Владелец сказал прямо: «у нас z.ai».
    *
    * Подписка кодерская и живёт на том же эндпоинте, поэтому запасной путь
-   * ничего не стоит: та же аутентификация, другая модель. glm-4.5 легче и
-   * отвечает, когда glm-5.3 занята или недоступна.
+   * ничего не стоит: та же аутентификация, другая модель. glm-4.5-flash is
+   * free like glm-4.7-flash and still answers when that one is overloaded.
+   *
+   * ITS OWN KEY, WHEN THERE IS ONE. vibee-render production logs, 2026-10-06
+   * 05:00-11:32 UTC: zai answered 429 (rate limit) 33 times,
+   * zai-lite 6 times, and 15 of 45 turns ended in error. z.ai counts limits
+   * per key, and both routes read GLM_API_KEY, so on a key-wide limit the
+   * fallback hits the same wall as the route it stands in for.
+   * ZAI_LITE_API_KEY gives it a key of its own; unset, it reads GLM_API_KEY
+   * exactly as before, so nothing changes until the owner sets the variable.
    */
   'zai-lite': {
     base: endpointBase(
       process.env.ZAI_BASE_URL,
       'https://api.z.ai/api/coding/paas/v4'
     ),
-    env: 'GLM_API_KEY',
-    model: 'glm-4.5',
+    env: ['ZAI_LITE_API_KEY', 'GLM_API_KEY'],
+    model: 'glm-4.5-flash',
     thinking: false,
     tools: true,
     // Same endpoint, same refusal.
@@ -219,7 +245,7 @@ const CATALOG: Record<
       process.env.NVIDIA_BASE_URL,
       'https://integrate.api.nvidia.com/v1'
     ),
-    env: 'NVIDIA_API_KEY',
+    env: ['NVIDIA_API_KEY'],
     model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
     thinking: false,
     // Checked at NVIDIA when it was added: it calls tools (see above).
@@ -252,7 +278,7 @@ const CATALOG: Record<
    */
   reserve: {
     base: '',
-    env: 'RESERVE_API_KEY',
+    env: ['RESERVE_API_KEY'],
     model: '',
     thinking: false,
     tools: true,
@@ -262,7 +288,7 @@ const CATALOG: Record<
   },
   ollama: {
     base: endpointBase(process.env.OLLAMA_BASE_URL, OLLAMA_PRIVATE),
-    env: '',
+    env: [],
     model: process.env.OLLAMA_MODEL || 'qwen3:1.7b',
     thinking: false,
     // A 1.7B model writes tool names into markers instead of calling them.
@@ -294,14 +320,29 @@ function available(id: ProviderId): { key: string } | null {
     const r = reserveEnv()
     return r ? { key: r.key } : null
   }
-  const key = c.env ? process.env[c.env] : undefined
+  const key = keyFrom(c.env)
   return key ? { key } : null
+}
+
+/**
+ * The value of the first variable in `names` that is set and not blank.
+ * Exported for tests; the value is a secret and is never logged.
+ */
+export function keyFrom(names: readonly string[]): string | undefined {
+  for (const name of names) {
+    const v = process.env[name]
+    // A blank variable is "not set": an empty ZAI_LITE_API_KEY on the
+    // dashboard must fall through to GLM_API_KEY, not drop the route.
+    if (v && v.trim()) return v
+  }
+  return undefined
 }
 
 /**
  * The order providers are tried in: the paid ones first by default, our
  * own model last as the safety net. AGENT_PROVIDER moves any of them to
- * the front; the rest keep their order behind it.
+ * the front; the rest keep their order behind it. This is the WANTED order;
+ * `providerChain` drops absent providers and demotes a head without tools.
  */
 export function providerOrder(): ProviderId[] {
   // The owner's choice from the bot, then the deploy-time variable.
@@ -363,7 +404,7 @@ export function reserveEnv(): {
 }
 
 /** Spec: agent-provider-chain.t27 RESERVE_MAX_TOKENS_DEFAULT. */
-export const RESERVE_MAX_TOKENS_DEFAULT = 1024
+export const RESERVE_MAX_TOKENS_DEFAULT = SPEC.RESERVE_MAX_TOKENS_DEFAULT
 
 /**
  * RESERVE_MAX_TOKENS as a positive integer, else the default. "0", "-5",
@@ -413,15 +454,120 @@ function build(id: ProviderId, key: string): Provider {
   }
 }
 
-export function allProviders(): Provider[] {
-  const order = providerOrder()
+/**
+ * A HEAD WITHOUT TOOLS IS DEMOTED (#3659, spec agent-provider-chain.t27 v2).
+ * 2026-10-05: AGENT_PROVIDER=ollama put qwen3:1.7b (tools: false) at the
+ * head of every chat turn, and the agent "made the poster" without calling a
+ * single tool. The bot button is the owner's explicit pick and still wins;
+ * any other head that cannot call tools (the variable, or the default order
+ * once absent providers drop out) moves right behind the first provider that
+ * can. A chain where nobody calls tools keeps its order. Mirrors the spec's
+ * `demote_head`, `head_note` and `demoted_index`.
+ */
+export function demoteHead(
+  fromBot: boolean,
+  headTools: boolean,
+  anyTools: boolean
+): boolean {
+  return !fromBot && !headTools && anyTools
+}
+
+export function headNote(
+  fromBot: boolean,
+  headTools: boolean,
+  anyTools: boolean
+): string {
+  if (headTools) return SPEC.NOTE_NONE
+  if (fromBot) return SPEC.NOTE_BOT_PICK
+  if (anyTools) return SPEC.NOTE_DEMOTED
+  return SPEC.NOTE_NO_TOOLS
+}
+
+/** `restIndex`: the first tools-capable provider's index without the head. */
+export function demotedIndex(restIndex: number): number {
+  return restIndex + 1
+}
+
+/**
+ * Label providers that share a key on the same base (see `keyGroup`).
+ * Today that is zai and zai-lite while ZAI_LITE_API_KEY is unset.
+ */
+function markKeyGroups(chain: Provider[]): void {
+  for (const p of chain) {
+    const first = chain.find(q => q.base === p.base && q.key === p.key)
+    if (first && first !== p) {
+      first.keyGroup = first.id
+      p.keyGroup = first.id
+    }
+  }
+}
+
+/**
+ * z.ai codes that mean THIS KEY is limited, not the model.
+ *
+ * Measured 2026-10-06 on the coding endpoint: the production key answered
+ * 1302 three times out of three even on glm-4.5-flash, while three other
+ * accounts' keys answered 200 on that model -- a per-key limit, so another
+ * route on the same key is the same wall. 1305 is the opposite: "model
+ * overloaded" for everybody, returned by glm-4.7-flash on 3 of 4 accounts --
+ * a different model on the same key is exactly the way round it, so 1305
+ * must NOT skip zai-lite. Only measured codes are listed; an unlisted code
+ * costs one quick extra call, a wrongly listed one costs a fallback that
+ * would have answered.
+ */
+export const KEY_WIDE_LIMIT_CODES: readonly string[] = ['1302']
+
+export function isKeyWideLimit(status: number, body: string): boolean {
+  if (status !== 429) return false
+  const code = vendorCode(body)
+  return !!code && KEY_WIDE_LIMIT_CODES.includes(code)
+}
+
+/** The line a skipped key-sharing provider is logged with. */
+export function sharedKeyReason(id: ProviderId, limited: ProviderId): string {
+  return `${id}: shares ${limited}'s key, same limit -- not asked this turn`
+}
+
+/** The available chain, head rule applied, and what to say about its head. */
+export function providerChain(): { chain: Provider[]; note: string } {
   const out: Provider[] = []
-  for (const id of order) {
+  for (const id of providerOrder()) {
     const have = available(id)
     if (!have) continue
     out.push(build(id, have.key))
   }
-  return out
+  markKeyGroups(out)
+  const head = out[0]
+  if (!head) return { chain: out, note: SPEC.NOTE_NONE }
+  const fromBot = chosenProvider() === head.id
+  const rest = out.slice(1)
+  const firstTools = rest.findIndex(p => p.tools)
+  const anyTools = firstTools >= 0
+  const note = headNote(fromBot, head.tools, anyTools)
+  if (!demoteHead(fromBot, head.tools, anyTools)) return { chain: out, note }
+  const at = demotedIndex(firstTools)
+  return { chain: [...rest.slice(0, at), head, ...rest.slice(at)], note }
+}
+
+export function allProviders(): Provider[] {
+  return providerChain().chain
+}
+
+/**
+ * The vendor's numeric error code in an error body, or null.
+ *
+ * WHY. The logs of 2026-10-06 (05:00-11:32 UTC) hold 33 zai and 6 zai-lite
+ * 429s as the bare line "limit exceeded", and z.ai puts very different things
+ * behind that one status: 1302/1303 are this key's request rate, 1305 is the
+ * free model being overloaded for everybody. The first is shared by every
+ * route on the key, the second is not -- zai-lite runs the other flash model
+ * precisely for 1305. Without the code nobody can tell from the log whether a
+ * shared key is the wall, so the code rides along. Only the code: the body is
+ * the vendor's text and never carries the key.
+ */
+export function vendorCode(body: string): string | null {
+  const m = /"code"\s*:\s*"?(\d{3,5})"?/.exec(body || '')
+  return m ? m[1] : null
 }
 
 export function diagnose(id: ProviderId, status: number, body: string): string {
@@ -449,7 +595,10 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
       ? `${id}: такой модели нет на queen-ollama — ollama pull ${process.env.OLLAMA_MODEL || 'qwen3:1.7b'} или поправьте OLLAMA_MODEL`
       : `${id}: такой модели нет — проверьте AGENT_MODEL`
   }
-  if (status === 429) return `${id}: превышен лимит запросов`
+  if (status === 429) {
+    const code = vendorCode(body)
+    return `${id}: превышен лимит запросов` + (code ? ` (code ${code})` : '')
+  }
   if (status === 404 && b.trim() === '404 page not found') {
     // Measured 2026-09-13 against integrate.api.nvidia.com with NO base URL
     // override: GET /v1/models answers 200 with the catalogue, a POST with a
@@ -472,15 +621,17 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
 export function resolveProvider(): Provider {
   const first = allProviders()[0]
   if (first) return first
-  const names = providerOrder()
-    .map(id =>
-      id === 'ollama'
-        ? 'OLLAMA_BASE_URL'
-        : id === 'reserve'
-          ? 'RESERVE_BASE_URL+RESERVE_API_KEY+RESERVE_MODEL'
-          : CATALOG[id].env
-    )
-    .join(' или ')
+  const names = [
+    ...new Set(
+      providerOrder().flatMap(id =>
+        id === 'ollama'
+          ? ['OLLAMA_BASE_URL']
+          : id === 'reserve'
+            ? ['RESERVE_BASE_URL+RESERVE_API_KEY+RESERVE_MODEL']
+            : CATALOG[id].env
+      )
+    ),
+  ].join(' или ')
   throw new Error(
     `Ключ модели не задан. Нужен ${names}. ` +
       'Взять: railway variables --kv | grep -E "GLM_API_KEY|OPENAI_API_KEY"'

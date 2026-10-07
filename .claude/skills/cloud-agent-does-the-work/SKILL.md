@@ -1,6 +1,6 @@
 ---
 name: 'Cloud agent does the work'
-description: 'Правило владельца: рилсы, липсинк, гламур фото, посты и любую работу с контентом делает ОБЛАЧНЫЙ агент сервиса (агент-блогер из каталога /agents, агент в боте и в приложении) своими инструментами — не локальные скрипты и не разовые функции Railway из сессии Claude Code. Загружать ПЕРЕД тем, как собрать что-то «руками»: скрипт, ffmpeg, curl к KIE/fal, функцию или сервис в Railway; при словах «сделай рилс», «липсинк», «сгламуй», «пришли готовое», «агент не умеет».'
+description: 'Правило владельца: рилсы, липсинк, гламур фото, посты и любую работу с контентом делает ОБЛАЧНЫЙ агент сервиса (агент-блогер из каталога /agents, агент в боте и в приложении) своими инструментами — не локальные скрипты и не разовые функции Railway из сессии Claude Code. Загружать ПЕРЕД тем, как собрать что-то «руками»: скрипт, ffmpeg, curl к KIE/fal, функцию или сервис в Railway; при словах «сделай рилс», «собери шаблон», «SplitTalkingHead», «remotion render», «вручную», «липсинк», «сгламуй», «пришли готовое», «агент не умеет».'
 ---
 
 # Работу делает облачный агент
@@ -8,6 +8,63 @@ description: 'Правило владельца: рилсы, липсинк, г�
 **Решение владельца, 2026-09-24:** «это всё агент-блогер в облаке должен
 делать, а не через локальные скрипты — мы сервис создали для этого, используй
 его на всё, 100%».
+
+## Owner rule 2026-10-03: reels ONLY through the server pipeline
+
+> «почему ты вручную создаёшь шаблон, а не через t27? у нас пайплайн создания
+> рилсов… через Remotion… сервер настроен на работу с Kie — через него
+> запросы делай и заодно проверяй, работает ли всё как надо… в скилы сохрани,
+> чтобы работать только так» (owner, 2026-10-03)
+
+**What went wrong.** Reel v9 was built on the Mac: Kie `createTask` called
+directly with the service key, whisper and `split-reel-plan` caption maths run
+in a local `tsx`, `npx remotion render SplitTalkingHead` run locally. The
+result looked right, but nothing went through the service: no ledger, no
+server logs, and no proof that the server path itself works. That is exactly
+what this skill forbids.
+
+**The only way to make a reel** (owner's, a client's, a test):
+
+1. **Door:** `/mcp` of `vibee-render` as the owner, `X-Agent-Key` from
+   `AGENT_KEYS` (skill `mcp-owner-access`; the key never leaves a variable).
+   Long tools outlive the public edge (it drops an idle call after 50-60 s)
+   and Node `fetch` (300 s header timeout), so run the call **inside the
+   render pod** against `127.0.0.1:$PORT/mcp` with `node:http`,
+   `req.setTimeout(0)`, under `nohup`, writing the answer to a file. Then
+   poll the file and the logs. A redeploy kills the call: repeat it with the
+   `stills`/`clips` the answer returned; finished work is not paid twice.
+2. **Story reel:** `story_reel`, one call. Inside it: `image_edit` on Kie,
+   `audio_generate` (the owner's line goes to our `voice_clone_speak` with
+   `OWNER_VOICE_REF_URL`), `lipsync_generate` with Kie Kling, then
+   `reel_render StoryReel` (Remotion on the server).
+3. **Split reel:** spec `render/src/spec/split-reel.t27`, then host plan
+   `split-reel-plan.ts`, then composition `SplitTalkingHead` via
+   `reel_render`. The pieces come from the same tools (`audio_generate`,
+   `lipsync_generate`, `image_edit`), chained by ONE call: `split_reel
+{image_url, text, brolls, for_lead?, cta?}` (`split-reel-tool.ts`). It
+   gates the voice at `SPEECH_MAX_SECONDS`, draws only the b-roll the voice
+   needs, hears the clip's own soundtrack with our whisper (word times) for
+   the captions, and returns `voice_url`/`clip`/`broll_urls` on every
+   failure so a retry pays nothing twice. Still not on the server: the
+   `tri reel-check` comparison before sending, and a measured face aim.
+4. **Every run is also a check.** Read the render logs step by step:
+   - `[токены]` lines;
+   - Kie `createTask`;
+   - `Uploaded to S3`;
+   - `Rendering <Composition> with props`.
+
+   Every refusal or detour is a finding, and it goes into the report: a
+   provider other than Kie, a fallback chain, a wrong key.
+
+**Never, for a deliverable:**
+
+- Kie or any provider called from the Mac;
+- local `npx remotion render`;
+- local whisper or caption maths;
+- an ffmpeg mux of the final file.
+
+Local tools may only **inspect** what the server made: frames,
+`tri reel-check`, ffprobe.
 
 ## Правило
 
@@ -101,7 +158,7 @@ omnihuman), хотя вопрос каждый раз был «работает 
 Как делается безопасный запуск чужого кода (тот же приём, что у `hdl_run`):
 
 - **Все разрешения сняты, а не выданы.** Deno `run --no-prompt --no-remote
-  --no-npm` без единого `--allow-*`: запрос к сети/диску/окружению/подпроцессу
+--no-npm` без единого `--allow-*`: запрос к сети/диску/окружению/подпроцессу
   — ОШИБКА, а не запрос. Проверено на живом Deno: все отказы держатся.
 - **Пустое окружение + `nobody`.** `env: {PATH, HOME}`, а когда сервер под
   root — `uid/gid 65534`: даже если проверка что-то пропустит, процесс не
@@ -114,6 +171,102 @@ omnihuman), хотя вопрос каждый раз был «работает 
 Чего инструмент пока не умеет — говорит честно: `code_run` не запускает
 Python и отвечает «не запускалось», а не выдумывает вывод. Из сессии тот же
 прогон — `tri code [--lang ts|js] ФАЙЛ` (нужен Deno на PATH; в образе есть).
+
+## The agent says only what it did (2026-10-06)
+
+Two guards in `apps/vibee-editor/render/src/agent/` stand between the
+model's words and the person, plus one deploy setting:
+
+- `claimed-but-not-done.ts` (issue #3658, PR #3667; scope PR #3680): an
+  answer that claims a picture, a video, a sent file or a browser action with
+  no matching tool call in the same turn gets an honesty note. Quoted text is
+  not a claim; a back-reference header ("Above I:", "**Earlier I:**", an
+  emoji or `###` header, with or without a colon or a blank line) covers only
+  the FIRST sentence of each item of the list directly under it -- a plain
+  line after the list or a second sentence in an item is judged on its own.
+  Voice claims: #3684, merged in PR #3693 (5041a5673); rare openers left: #3723.
+- `printed-facts.ts` (#3661, PR #3679): a date, time or price going into a
+  picture prompt must be one the person wrote, or one the agent showed and
+  the person answered a PLAIN yes to. A yes is a closed list of yes words --
+  any other word (a new day, "later") asks once more. Otherwise
+  `image_generate` / `image_edit` refuse BEFORE the charge and name the facts.
+  Leftovers: #3686. A bare number after a price word ("price 20") is a
+  currency-less price and matches the same amount in any currency (#3692).
+- The deploy setting, not a file: a provider head with no tool support
+  narrates work it cannot do (memory `agent-provider-ollama-has-no-tools`).
+
+While a tool runs, every chat surface (DM, business DM, managed bots, the
+hive) shows the tool's own chat action -- upload_photo / upload_video /
+upload_voice -- from the explicit map `TOOL_ACTIONS`, read by `actionForTool`
+in `src/helpers/telegramLongAnswer.ts` (#3682, #3688). A new tool whose name
+sounds like media (image, video, voice, audio, reel...) without an entry turns
+`toolActionEverywhere.test.ts` red: add the entry. A media tool with a neutral
+name is NOT caught -- add its entry by hand when you add the tool.
+
+Lesson from five review rounds (2026-10-06): an OPEN list of "change words"
+never ends -- the reviewer always finds one more correction that reads as yes.
+A CLOSED list of what counts as yes, with "ask again" as the default, ended
+it in one round. Same for headers: decide what IS a header, not what is not.
+
+But a closed list is not always the safe one. Close the list on the side
+where a MISS is safe. "What counts as yes": a miss asks once more -- safe.
+"What may stand before the agent's verb": a miss hides a real claim -- unsafe.
+That closed list dropped ordinary adverbs ("Ну сделала афишу", "Теперь…",
+"Короче…") and let the claim through (#3693, review round 2). Two more from
+the same round:
+
+- A question excuses a claim only inside the claim's OWN clause. "Сделала
+  афишу — как тебе?" is still a claim; the "?" belongs to the next clause.
+- Check EVERY match of a claim pattern, not only the first: a harmless first
+  match must not shadow a real claim later in the answer.
+
+"Whose verb is it?" took SIX review rounds (#3693). Each round fixed a list
+and the reviewer found the next position: openers, then pronouns and
+prepositions, then a preposition three words back. A fixed window ("the two
+words before the name") is a closed list in disguise -- the boundary is
+always in the wrong place. What ended it was a rule tied to the grammar: a
+capitalised word is someone else's subject only at the start of its clause
+with no preposition anywhere earlier in that clause. Before patching a
+list, ask what STRUCTURE the misses share.
+
+A grid before review, a fixed class instead of a fixed site, a list closed on
+the safe side, and a usability bar: the long form, with this guard's #3728
+and #3730 as evidence, lives in `continuous-improvement-loop`, section
+"Lessons of the night of 2026-10-06".
+
+Digit groups must join only across a space, NBSP (U+00A0) or narrow NBSP
+(U+202F) -- never across a newline, or "30\n500" on two lines becomes 30500.
+Both readers share `DIGIT_JOINERS`: `look-at-own-picture.ts` since #3705,
+`printed-facts.ts` since #3716 (79c96bd84).
+
+Measure, do not guess: `tri honesty` prints the deploy-time provider head
+(tools or not) and the `[agent:honesty]` flags by kind, counts only; rc 1 on
+any flag or a toolless head (#3670).
+
+Can the agent read its own picture? `tri vision-bench` runs the render's own
+vision (llama.cpp, Qwen3-VL-2B, ONE slot) inside vibee-render and prints a row
+per read: ms, hits, and whether the slot was busy just before. Measured
+2026-10-06, vision idle:
+
+- synthetic posters (four lines, fonts 26-72 px at 1536): 4/4 facts at every
+  size; a 448 px height reads in ~1.2 s, 768 px in ~2.4 s. 448 is enough.
+- the SAME JPEG bytes a second time read in ~0.45 s at any size: llama.cpp
+  reused its cached image prompt. The bench draws a fresh background every run
+  so the number is a cold read; a bench that repeats a picture measures the
+  cache, not the model.
+- a real `agent-image` "poster" of 2026-10-05 (prompt: title, "8 October ·
+  11:30", venue) read as `© pollinations.ai` and nothing else -- and it is
+  right: the picture is a stock portrait with no text at all. That is the
+  case the self-check (#3660) exists for; a reading of 0/N is a finding about
+  the picture before it is a finding about vision.
+
+`--image URL --expect "11:30,500"` scores any real picture; rc 1 on a miss.
+
+Pollinations draws no lettering. The newest prod poster scored 0/4 on the
+bench (#3701). The self-check of #3660 (merged 1cfe53604, false-missing fix
+5458846f9) makes the agent SAY the facts are missing -- it does not put them
+on the picture. Exact dates, times and prices need the facts overlay drawn
+by code, spec first (#3701); never promise them from the image model.
 
 ## Related Resources
 

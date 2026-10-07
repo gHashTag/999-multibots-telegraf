@@ -14,6 +14,7 @@
 # as that service is concerned. Exit 0 all SUCCESS/SKIPPED, 1 a FAILED or
 # CRASHED, 2 could not tell (unknown PR, not merged, no answer in time).
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 REF="${1:?usage: tri deployed <PR number | sha> [service ...]}"; shift
 SERVICES=("$@"); [ ${#SERVICES[@]} -eq 0 ] && SERVICES=(vibee-render vibee-editor 999-multibots-telegraf)
@@ -30,7 +31,7 @@ worst=0
 for svc in "${SERVICES[@]}"; do
   end=$(( $(date +%s) + WAIT )); st=none
   while :; do
-    st=$( (cd "${MAIN:-$ROOT}" && railway deployment list --service "$svc" --json 2>/dev/null) \
+    st=$( (railway deployment list --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$svc" --json 2>/dev/null) \
       | SHA="$SHA" python3 -c 'import json,os,sys
 try: d=json.load(sys.stdin)
 except Exception: print("noanswer"); sys.exit()

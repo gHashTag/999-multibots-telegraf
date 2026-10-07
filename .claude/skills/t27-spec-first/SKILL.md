@@ -1,6 +1,6 @@
 ---
 name: 't27-spec-first'
-description: 'Спеки .t27 — стандарт по умолчанию (решение владельца 27.09.2026). Любая вертикаль с числами и правилами (цены, лимиты, таймеры, кто платит, что уходит клиенту) описывается спекой в gHashTag/t27, копируется в хост вместе с выводом `t27c gen-ts`, хост ИМПОРТИРУЕТ числа, а тест гоняет векторы спеки против кода; строгая проверка — scripts/check-t27-specs.mjs. Загружать при словах «спека», «t27», «.t27», «перепиши на t27», «привяжи спеку», «стандарт», «gen-ts», «t27c», «Zig», при правке чисел в привязанной вертикали (src/spec/*), когда pre-commit пишет «A .t27 spec of record breaks a law», и ПЕРЕД тем, как написать в комментарии «spec: specs/…t27».'
+description: 'Спеки .t27 — стандарт по умолчанию (решение владельца 27.09.2026). Любая вертикаль с числами и правилами (цены, лимиты, таймеры, кто платит, что уходит клиенту) описывается спекой в gHashTag/t27, копируется в хост вместе с выводом `t27c gen-ts`, хост ИМПОРТИРУЕТ числа, а тест гоняет векторы спеки против кода; строгая проверка — scripts/check-t27-specs.mjs. Загружать при словах «спека», «t27», «.t27», «перепиши на t27», «привяжи спеку», «стандарт», «gen-ts», «t27c», «Zig», при «оркестрация», «связать через .t27», «развилка между хостами», при правке чисел в привязанной вертикали (src/spec/*), когда pre-commit пишет «A .t27 spec of record breaks a law», и ПЕРЕД тем, как написать в комментарии «spec: specs/…t27».'
 ---
 
 # Спеки .t27 — стандарт по умолчанию
@@ -30,6 +30,39 @@ description: 'Спеки .t27 — стандарт по умолчанию (ре
   синхронизируй, не правь `*.gen.ts` руками.
 - Пишешь в коде `specs/…/x.t27` → x должна быть привязана или записана как
   долг в `scripts/t27-specs.json` (проверка не пустит иначе).
+
+## Оркестрация связывается через .t27
+
+**Владелец, 02.10.2026:** «для оркестрации мы всё связываем .t27». Когда
+работа идёт через несколько хостов сразу — сервер, плеер, `tri`, другой
+агент, чужой API, — **развилку между ними** первой описывает спека. Это
+решения «какой дорогой идти», пороги и то, что считается квитанцией.
+Каждый участник ссылается на эту спеку, а не на соседний файл.
+
+- **Развилка — функция спеки.** В `automation/meta-connect.t27` это
+  `route(has_token, signed_in) -> "api" | "browser" | "skip"`. Хост повторяет
+  её одноимённой функцией, а `publishEverywhere` идёт строго по ней. Тест
+  проверяет развилку на самом хосте: без токена не уходит ни одного вызова API.
+- **Квитанция — тоже правило спеки.** `posted(published_id)`: опубликовано
+  только тогда, когда вернулся id поста. Нажатая кнопка постом не считается.
+  Строку результата, по которой стол блога ставит ✅, держит тест.
+- **Каждый участник ссылается на одну спеку.** Сервер импортирует числа из
+  `meta-connect.gen`. Карточка плеера (`MetaConnectCard.tsx`) и `tri meta`
+  читают ту же таблицу `social_tokens`, и в их шапках названа спека. Своих
+  чисел у них нет.
+- **Отказы тоже в спеке.** `TOKEN_LEAVES_SERVER=false` и `ASK_NEEDS_YES=true` —
+  это константы с тестом на хосте: токен не уходит наружу, а ключ агента
+  получает 403 на `/start`. Без такой константы запрет остаётся просто
+  комментарием.
+
+Порядок:
+
+1. Спека в t27.
+2. Seal и PR в t27.
+3. `sync-t27-spec.mjs`.
+4. Хост и тест с теми же заголовками.
+5. Мутанты.
+6. PR в 999 со ссылкой на t27#N.
 
 ## Строгая проверка — `scripts/check-t27-specs.mjs`
 
@@ -239,6 +272,20 @@ drift` уже значил «влито, но не выехало»; `case` бе
   константой с тестом и контролем (v16 `PRICE_BEFORE_PRESS`), а место на
   экране меряет `tri shot` (`before`). Название теста не должно обещать
   больше, чем он проверяет.
+- **В самом t27 коммит идёт через ЕГО tri.** Если в PATH стоит глобальный
+  `tri` из 999, хук падает с «unknown command: hooks». Нужно собрать свой
+  (`cargo build --release -p tri --offline`) и коммитить с
+  `PATH=$PWD/target/release:$PATH`.
+- **Пуш в t27 требует запись NOW.** Без неё ворота NOW отказывают в пуше.
+  Запись создаётся командой
+  `./scripts/tri now add "<заголовок>" --bullet … --closes N` и коммитится
+  отдельно.
+- **`t27c validate-vacuity` принимает только `--specs-dir <каталог>`.** Голый
+  каталог он отвергает. Негативный контроль обязателен: замените один `<=` на
+  `<`, и нужный тест должен покраснеть.
+- **`[host-imports]` до `git add` — ложная тревога.** Проверка ищет
+  отслеживаемые файлы, поэтому сначала `git add` новых файлов хоста, потом
+  повторный прогон.
 - **VERSION — в отдельном тесте спеки** («VERSION says what the header's last
   note says»): иначе каждый подъём версии правит чужой тест (v15 держал
   `VERSION == 15` внутри теста о причинах).
@@ -246,15 +293,66 @@ drift` уже значил «влито, но не выехало»; `case` бе
   documented subcommands, corpus ratchet, duplicate-bodies, coverage,
   emit-bitexact) — это не твоя спека; см. комментарии в t27#4850/#4852.
 
+**2026-10-07 loop (crm-story-reel v20, ratchet drift #3828):**
+
+- **A rewrite stales mutant anchors silently until the next
+  `tri mutants --check`.** #3824 rewrote the retry rule through
+  `carryStills`/`carryClips`/`voiceKnown` and merged with three anchors
+  stale; no gate runs `--check`, so it took #3827 to find and re-anchor them.
+  Run `tri mutants --check` in the same PR as the rewrite; after
+  re-anchoring, rerun that exact mutant rather than trusting the new anchor.
+- **At current mode `VOICE_NONE` (0) only `voiceKnown` keeps a missing voice
+  mode from carrying clips.** `Number(null)` is `0`, so `sameVoice` alone
+  calls a missing mode the same mode; `carryClips` returns
+  `carryStills(sameStyle) && voiceKnown && sameVoice`, and `voiceKnown` is
+  what blocks the clips. The boundary vector, from #3824, is
+  `carryClips(true, true, false)`; it kills #3824's mutant "clips carried
+  from an unrecorded voice". The story test "a failed job that never
+  recorded its voice carries no clips" runs at mode 1 (`VOICE_CLONE`,
+  `qualify()` gives a clone), so on its own it does not cover the mode-0
+  boundary.
+- **`tri mutants` lives in `bin/tri`.** The root `./tri` reaches it only
+  through its unknown-command bridge (exit 64 = "not mine"); a word the root
+  `./tri` handles itself never reaches `bin/tri` that way. When in doubt, call
+  `bin/tri` directly.
+- **A `*.gen.ts` goes stale when t27c changes, not only when the spec
+  changes.** `mail-push.gen.ts` gained a "TestBlock was not emitted" line in
+  #3831. Regenerate with the current compiler; never hand-edit the output.
+- **A bee never applies the owner's `owner-approved-foreign` label to its own
+  PR.** Generated output plus data is allowed without it; if the label is
+  truly needed, park the branch and report.
+- **Census/ratchet drift on t27 master can come from a master workflow
+  change, not from your spec.** t27#7399 added a "Foreign-line budget" `run:`
+  step to `own-language.yml` (which exists since t27 0f9f314d3, 2026-10-05)
+  without re-blessing the census; `tools/census/quiet.txt` and `shell.txt`
+  went from 181/301 to 182/302 only in t27#7451, an unrelated spec PR.
+  Compare against fresh master before blaming your diff.
+- **`git push` exiting 141 is not a failure by itself** (SIGPIPE from the
+  pre-push hook output). Verify with `git ls-remote origin <branch>` and retry
+  only if the branch is missing.
+- **In a 999 worktree run `./tri wt-deps` first.** It links the root
+  `node_modules` to the main checkout and copies render's into a real
+  directory. It does not touch the player: the player tests need a separate
+  `ln -sfn` of `apps/vibee-editor/player/node_modules` to the main checkout
+  (`.claude/loop-opus/WORKFLOW.md`). Never commit either link (add files by
+  name).
+- **`check-t27-specs.mjs` without `--t27 <fresh t27 clone>` cannot see drift
+  from t27.** Ratchet entries (`citedMissing`, `unbound`) only show up with
+  it.
+- **Lessons written from a compacted session summary carried four false
+  claims (#3837 -> #3838).** Verify every fact against code or PR history
+  before it goes into a skill.
+
 ## Что уже привязано (27.09.2026)
 
-| спека                              | хост                                                                                    | что нашла привязка                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| automation/crm-story-reel v14      | story-template, story-reel-tool, story-card, story-voice-notes, crm-playbook            | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs); v4/v5: её голосовые на Kie без клона или при 402; v6: лимит дня до траты; v7: палитра концовки продавца, #hex 5/7 цифр молча ломал CSS, контраст до траты; v8/v9: агентов к старому рилсу вели слова (бриф, Королева, подсказки, чтение плана); v10: палитра клиента хранится отдельно — в `profile.story_reel` она включила бы ей платное самообслуживание; v11: панель выбрасывала палитру из ответа; v12: отказ называет читаемый оттенок её цвета, закон «оттенок есть всегда» проверен перебором; v13: её цвет и её фон рядом с оттенком, фон бывает не всегда (контрпример найден перебором хоста); v14: оттенок в OKLCH — sRGB уводил тон на 19,8°, закон дрейфа ≤ 3° проверен перебором |
-| automation/crm-lead-magnet v2      | crm-deliver-tool, client-face, kie-image, billing-shared                                | «один подарок на человека» не держался; безопасная зона только в комментарии; подпись «по аватарке» на чужом источнике; устаревшие «не запускали», «платит получатель», «6 за секунду»                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| automation/crm-client-workspace v4 | conversation.ts, crm-duet-tool, routes (threadFor), плеер (маршруты, панели)            | v1 превращал кривой id клиента в личную ветку, а код отказывает (400); панелей 7, не 6; ветка Королевы и агент в чате клиента не были описаны; v3: задачи Королевы шли Ассистенту, а не выбранному специалисту; v4: Королева называет исполнителя, чужое имя не теряет задачу                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| automation/crm-sellers v2          | telegram-tools (isSeller), crm-sellers-tool, бот (обход по продавцам)                   | тесты v1 без скобок сравнивали литералы сами с собой и называли реальных людей                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| automation/crm-duet v3             | crm-duet-tool, leela-canon, crm-story-tool (storyTo), бот (businessBotService, текстом) | окно отрицания в проверке голоса было 3 слова, а не 2; мягкий лимит брифа — 2 на прогон, не 3; векторы state_after не отличали `turns * 2` от `turns`; v3: рилс дуэта — рилс-история: инструмента не было ни в одном наборе дуэта, обещание «исполнялось» её портретом, план читал только карточки старого шаблона                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| спека                              | хост                                                                                               | что нашла привязка                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| automation/crm-story-reel v14      | story-template, story-reel-tool, story-card, story-voice-notes, crm-playbook                       | двойная оплата кадра «ещё рисуется»; агент CRM не доходил до шаблона (голос — Replicate, не ElevenLabs); v4/v5: её голосовые на Kie без клона или при 402; v6: лимит дня до траты; v7: палитра концовки продавца, #hex 5/7 цифр молча ломал CSS, контраст до траты; v8/v9: агентов к старому рилсу вели слова (бриф, Королева, подсказки, чтение плана); v10: палитра клиента хранится отдельно — в `profile.story_reel` она включила бы ей платное самообслуживание; v11: панель выбрасывала палитру из ответа; v12: отказ называет читаемый оттенок её цвета, закон «оттенок есть всегда» проверен перебором; v13: её цвет и её фон рядом с оттенком, фон бывает не всегда (контрпример найден перебором хоста); v14: оттенок в OKLCH — sRGB уводил тон на 19,8°, закон дрейфа ≤ 3° проверен перебором |
+| automation/crm-lead-magnet v2      | crm-deliver-tool, client-face, kie-image, billing-shared                                           | «один подарок на человека» не держался; безопасная зона только в комментарии; подпись «по аватарке» на чужом источнике; устаревшие «не запускали», «платит получатель», «6 за секунду»                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| automation/crm-client-workspace v4 | conversation.ts, crm-duet-tool, routes (threadFor), плеер (маршруты, панели)                       | v1 превращал кривой id клиента в личную ветку, а код отказывает (400); панелей 7, не 6; ветка Королевы и агент в чате клиента не были описаны; v3: задачи Королевы шли Ассистенту, а не выбранному специалисту; v4: Королева называет исполнителя, чужое имя не теряет задачу                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| automation/crm-sellers v2          | telegram-tools (isSeller), crm-sellers-tool, бот (обход по продавцам)                              | тесты v1 без скобок сравнивали литералы сами с собой и называли реальных людей                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| automation/meta-connect v1         | meta-connect, meta-routes, meta-card, blog-share-wiring (publishEverywhere), плеер MetaConnectCard | браузер владельца вышел из Instagram/Threads/Facebook — стол молча пропускал три сети; API даёт id поста как квитанцию; ключ агента не может сам подключить сеть (403); токен запечатан и вычищается из ошибок                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| automation/crm-duet v3             | crm-duet-tool, leela-canon, crm-story-tool (storyTo), бот (businessBotService, текстом)            | окно отрицания в проверке голоса было 3 слова, а не 2; мягкий лимит брифа — 2 на прогон, не 3; векторы state_after не отличали `turns * 2` от `turns`; v3: рилс дуэта — рилс-история: инструмента не было ни в одном наборе дуэта, обещание «исполнялось» её портретом, план читал только карточки старого шаблона                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Очередь привязки (от быстрых побед к крупным)
 
@@ -276,3 +374,10 @@ drift` уже значил «влито, но не выехало»; `case` бе
 - `apps/vibee-editor/render/src/spec/` — привязанные спеки и их тесты
 - навык `own-language-first` — наш язык для документов о себе
 - CLAUDE.md, «Миссия: t27 в центре»
+
+## Stacked spec PRs after a squash merge (07.10, t27#7000/#7009)
+
+After the first PR of a chain squash-merges, every retargeted child conflicts
+in the spec and its seal. Fix with a plain `git merge origin/master` (keep the
+child's spec, `t27c seal --save`), never force push; wait for required checks
+started AFTER the push. Better: do not stack spec PRs while Actions is down.

@@ -20,7 +20,9 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { toolContentForModel } from './tool-content'
+import type { TurnWidgets } from './client-widgets'
 import * as REEL from '../spec/crm-story-reel.gen'
+import * as SPLIT from '../spec/split-reel.gen'
 import {
   TOOLS_BY_NAME,
   toOpenAITools,
@@ -39,7 +41,13 @@ import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic
 import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
 import { asksForAPicture, noteOwed } from './crm-owed'
-import { allProviders, diagnose } from './provider'
+import {
+  allProviders,
+  diagnose,
+  isKeyWideLimit,
+  sharedKeyReason,
+  type ProviderId,
+} from './provider'
 import {
   claimProbe,
   orderByBreaker,
@@ -52,6 +60,7 @@ import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
 import {
   clientSurfaceDenial,
+  textOnlyDenial,
   createContactGuard,
   isClientFacing,
   ownPhones,
@@ -68,11 +77,13 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
+import { SOCIAL_PROMPT_LINE } from './social-tools'
 import {
   MARKETPLACE_AGENTS,
   marketplaceAgentById,
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import * as WS from '../spec/crm-client-workspace.gen'
+import * as CHAIN from '../spec/agent-provider-chain.gen'
 import { stopRequested } from './agent-stops'
 
 const MAX_STEPS = 8
@@ -265,8 +276,17 @@ export type AgentEvent =
    */
   | { тип: 'ждём'; имя: string; мс: number } // cyrillic-ok: event envelope
   | { тип: 'результат'; имя: string; значение: unknown; мс: number }
-  | { тип: 'готово'; витков: number; обрыв?: string }
-  | { тип: 'ошибка'; текст: string }
+  /*
+   * `code` names a failure for a client that translates it (step_limit,
+   * no_answer, model_failed; `internal` comes from routes.ts). The words stay
+   * for the developer. Checked by agent-chat-codes.test.ts.
+   */
+  | { тип: 'готово'; витков: number; обрыв?: string; code?: 'step_limit' }
+  | {
+      тип: 'ошибка'
+      текст: string
+      code?: 'no_answer' | 'model_failed' | 'internal'
+    }
 
 /**
  * The money-and-plan rule, lifted OUT of the SYSTEM template on purpose.
@@ -415,6 +435,22 @@ export const CARD_MARKERS =
   'Одна карточка — одно действие. Не ставь карточку ради украшения.' // cyrillic-ok: prompt copy
 
 /**
+ * THE CARD CHAT ON THE KANBAN (spec kanban-card-chat.t27 v2).
+ *
+ * The person writes from a card's sheet, so the agent proposes with the same
+ * cards (CARDS_ON_KANBAN) and acts only on the tap (ACTIONS_ON_TAP_ONLY).
+ * Two promises it must not make, because no door honours them: moving the
+ * card (the column is the Queen's verdict, computed from her registry --
+ * MOVE_OFFERED false) and opening a pull request (this server holds no
+ * GitHub token -- AGENT_OPENS_PR false).
+ */
+export const KANBAN_LIMITS =
+  '\n\nКАРТОЧКА ДОСКИ. Человек пишет тебе из карточки задачи. Колонку ' + // cyrillic-ok: prompt copy
+  'карточки ставит Королева по своему реестру — не обещай её перенести. ' + // cyrillic-ok: prompt copy
+  'Открыть PR или смержить ты не можешь: доступа к GitHub у тебя нет — ' + // cyrillic-ok: prompt copy
+  'предложи карточкой то, что сделаешь сам, или скажи прямо, кто может.' // cyrillic-ok: prompt copy
+
+/**
  * THE CREATOR IN THE APP.
  *
  * History, because each layer explains a line below. Until 2026-09-08 this
@@ -499,9 +535,14 @@ const CREATOR_MONEY_BULLET = [
 const DM_CLIENT_BULLET = [
   '- ТЫ ОТВЕЧАЕШЬ В ЛИЧНОЙ ПЕРЕПИСКЕ ОТ ИМЕНИ ВЛАДЕЛЬЦА ЕГО КЛИЕНТУ. Продолжай',
   '  разговор по истории ниже: отвечай на то, что человек написал, помни, о чём',
-  '  говорили раньше, обращайся так, как он сам себя назвал. Клиенту ни тарифов,',
+  '  говорили раньше, обращайся так, как он сам себя назвал. За картинки, рилсы и озвучку клиенту ни тарифов,',
   '  ни подписок, ни клуба не предлагай — только токены за звёзды Telegram;',
-  '  пакеты: %%PACKS_LINE%%. НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ: ни счёта, ни «оплатить», ни цены, пока человек не',
+  '  пакеты: %%PACKS_LINE%%. Спрашивает про другой продукт владельца (бот по ссылке,',
+  '  приложение, игра) — цены только из блока ПРОДУКТЫ ВЛАДЕЛЬЦА ниже; нет там такого',
+  '  продукта или блока — цифр не называй, скажи, что уточнишь у владельца.',
+  '  Человек пишет, что что-то сломалось или не работает — посочувствуй одной фразой,',
+  '  вызови report_defect и скажи, что передал владельцу и напишешь, когда починят.',
+  '  НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ: ни счёта, ни «оплатить», ни цены, пока человек не',
   '  спросил — клиент должен захотеть сам. Счёт (tokens_invoice) — только когда он',
   '  сам сказал «хочу оплатить», «как купить», «пополнить» или спросил цену и',
   '  согласился; тогда одна ссылка одной строкой, сумма только из ответа',
@@ -656,7 +697,13 @@ export async function dmHistoryBlock(
  */
 export function clientTurnContext(
   ctx: ToolContext,
-  opts?: { client?: string; faceOf?: string; toolsOnly?: boolean }
+  opts?: {
+    client?: string
+    faceOf?: string
+    toolsOnly?: boolean
+    surface?: string
+    seller?: string
+  }
 ): ToolContext {
   const numeric = (v: unknown) => /^\d{5,15}$/.test(String(v ?? ''))
   let out = ctx
@@ -670,6 +717,14 @@ export function clientTurnContext(
   }
   if (opts?.toolsOnly === true && !out.sellerSweep)
     out = { ...out, sellerSweep: true }
+  // The business DM's owner, for report_defect. From the server-keyed
+  // seller_id only, and never the client himself.
+  if (
+    opts?.surface === 'business' &&
+    numeric(opts.seller) &&
+    String(opts.seller) !== String(ctx.telegramId)
+  )
+    out = { ...out, dmSeller: String(opts.seller) }
   return out
 }
 
@@ -973,8 +1028,9 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}
   3 сцены в ОДНОМ стиле, обстановка новая в КАЖДОЙ, в первой тоже (фон исходника не повторять); реплики по 2–4 с, последняя — призыв; в конце пауза 3 с с надписью cta; весь ролик до 15 с (сторис). ${'' /* cyrillic-ok: prompt copy */}
-  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку». ${'' /* cyrillic-ok: prompt copy */}
-  Бот в речи — одно слово «Тринити», без букв и цифр. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+  Для владельца: image_url — его эталон ${OWNER_NOIR_PORTRAIT}, в style словами значок ВЕРШИНОЙ ВНИЗ «POINTING DOWN, inverted triangle, NOT an upward pyramid» и чистая лысина. Для клиента из CRM — не этот вызов, а шаблон рилс-истории CRM: он делает рилс в фоне и присылает владельцу карточку «в группу»/«в личку»; у рилса клиента призыв и кнопка ЕГО, не Тринити. ${'' /* cyrillic-ok: prompt copy */}
+  Бот в речи — одно слово «Тринити», без букв и цифр; рилс клиента называет Тринити, только если человек сам это написал. Вернулись stills/clips без видео — повтори story_reel с ними: готовое второй раз не делается и не оплачивается. ${'' /* cyrillic-ok: prompt copy */}
+- СПЛИТ-РИЛС (говорящая голова, сверху b-roll, жёлтые титры по слову) — ОДНИМ вызовом split_reel {image_url: студийный кадр с лицом, text до ${SPLIT.SPEECH_MAX_SECONDS} с речи, brolls: обстановки, for_lead, cta}; вернулись voice_url/clip/broll_urls без видео — повтори с ними. ${'' /* cyrillic-ok: prompt copy */}
 - Режим AUTO: autopilot_status говорит, включён ли он, до какого часа и сколько автоотправок осталось сегодня. Включённый AUTO значит, что подготовленные карточки уходят клиенту сами. Включает и выключает его САМ владелец — кнопкой AUTO прямо над этим чатом, во вкладке «Браузер», в CRM или в боте; тебе этот переключатель не дан, и просьбу включить его словами выполняй так: скажи, где кнопка. ${'' /* cyrillic-ok: prompt copy */}
 ${WEB_RULES}
 
@@ -1274,6 +1330,11 @@ function canTakeSection(surface?: string): string {
     'Имя или «HR» в профиле ничего не значат. Новую группу под аудиторию ' + // cyrillic-ok: prompt copy
     'открывает tg_create_group — карточка, владелец нажимает сам; группа ' + // cyrillic-ok: prompt copy
     'создаётся пустой, приглашения отдельно.' + // cyrillic-ok: prompt copy
+    '\n\nТЫ УМЕЕШЬ СОЗДАТЬ TELEGRAM-БОТА — tg_create_bot: ссылка и кнопка ' + // cyrillic-ok: prompt copy
+    'открывают окно создания в самом Telegram, человек подтверждает, токен ' + // cyrillic-ok: prompt copy
+    'никто не видит. Не говори, что боты создаются только в @BotFather, и ' + // cyrillic-ok: prompt copy
+    'не веди по /newbot; если инструмент ответил, что режим выключен, — ' + // cyrillic-ok: prompt copy
+    'передай ровно его путь включения.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *
@@ -1361,12 +1422,29 @@ function ownerSideSection(surface?: string): string {
     '(project_get, project_save, projects_list). План по Лиле (leela_plan). ' +
     'Почта владельца (Zoho): список, поиск, чтение писем (mail_*); письмо ' +
     'уходит только после нажатия владельца на карточке mail_send. ' +
+    /* social-tools.ts: the owner's networks by their own APIs, one tap. */
+    SOCIAL_PROMPT_LINE +
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
-    '«Подключи мои сети» — browser_logins, затем каждую signed_out по ' + // cyrillic-ok: prompt copy
+    '«Подключи мои сети» — browser_logins, затем каждую signed_out и refused по ' + // cyrillic-ok: prompt copy
     'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть. ' + // cyrillic-ok: prompt copy
     /* #2974: where visitors come from, by the utm tag of each channel. */
     'Откуда приходят люди, по каналам (utm_source) — crm_traffic. ' + // cyrillic-ok: prompt copy
+    /* automation/bot-topic-tabs.t27: the person's private-chat topic tabs. */
+    'Вкладки-темы человека в боте (Агент, Рилсы, Браузер…): какие есть, а каких нет — tabs_status. ' + // cyrillic-ok: prompt copy
+    /* automation/ball-board.t27: one board of CRM, mail and code work by client. */
+    'Где мяч по всем делам сразу — CRM, почта, открытые PR и баги, по ' + // cyrillic-ok: prompt copy
+    'клиентам, чей ход — ball_board; адрес, домен, репо или метку к ' + // cyrillic-ok: prompt copy
+    'клиенту — ball_link. ' + // cyrillic-ok: prompt copy
+    /* client-defects.ts: a client's fault from the DM, filed by report_defect. */
+    'Поломки, о которых клиенты сказали в личке (их заводит report_defect в ' + // cyrillic-ok: prompt copy
+    'переписке с клиентом) — defects_open; починил — defect_close с номером ' + // cyrillic-ok: prompt copy
+    'и что сделано, и клиент узнает в своей переписке. ' + // cyrillic-ok: prompt copy
+    /* automation/meeting-reminders.t27: meetings with reminders in Telegram. */
+    'Встреча онлайн или вживую («созвон завтра в 15», «кофе в пятницу на Тверской») — ' + // cyrillic-ok: prompt copy
+    'meeting_create: сам напомнит в Telegram за день, час и 10 минут и спросит, как прошло; ' + // cyrillic-ok: prompt copy
+    'без часового пояса спроси город, не угадывай. Список — meeting_list, перенос — ' + // cyrillic-ok: prompt copy
+    'meeting_update, отмена — meeting_cancel. ' + // cyrillic-ok: prompt copy
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
@@ -1516,12 +1594,40 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       '- L2 ГЕНЕРАЦИЯ: поведение живёт в спеке, файлы под gen/ не правь руками.\n' + // cyrillic-ok: prompt copy
       '- L1 СЛЕД: у PR должна быть ссылка на issue (Closes #N); L7: новых *.sh ' + // cyrillic-ok: prompt copy
       'не заводи, запускай через tri/t27c.\n' + // cyrillic-ok: prompt copy
-      '- ПЕЧАТЬ: новый/изменённый спек под specs/ требует seal (tri seal … ' + // cyrillic-ok: prompt copy
+      '- ПЕЧАТЬ: новый/изменённый спек под specs/ требует seal (t27c seal … ' + // cyrillic-ok: prompt copy
       '--save, файл .trinity/seals/*.json), а PR должен затронуть docs/NOW.md.\n' + // cyrillic-ok: prompt copy
       '- ПРОВЕРКА: спек готов, только когда t27c spec-status = IMPLEMENTED или ' + // cyrillic-ok: prompt copy
       'PARTIAL (не NOFN/NOPARSE) и t27c parse-complete дочитал до конца. Нет ' + // cyrillic-ok: prompt copy
       't27c под рукой — так и скажи «не проверял», не выдавай парс за истину. ' + // cyrillic-ok: prompt copy
       'О себе проект пишет на своём языке (own-language-first), а не в чужом формате.' // cyrillic-ok: prompt copy
+    )
+  }
+  /*
+   * THE t27b COMPILER ENGINEER (gHashTag/t27 epic #6063). It reads the
+   * blockers and the lab's runs; it cannot build t27b here, so every number
+   * it did not quote from a run is "not run", and a mismatch is a stop.
+   */
+  if (agent.id === 't27b') {
+    return (
+      '\n\nТВОЯ СПЕЦИАЛИЗАЦИЯ — ИНЖЕНЕР КОМПИЛЯТОРА t27b: нативный AArch64-бэкенд ' + // cyrillic-ok: prompt copy
+      't27 без LLVM (cli/t27b в github.com/gHashTag/t27) до 100% корпуса спеков. ' + // cyrillic-ok: prompt copy
+      'Карта: эпик gHashTag/t27#6063, зонтик #5977; команда t27b corpus считает ' + // cyrillic-ok: prompt copy
+      'прогоны, t27b corpus --blockers даёт блокеры в порядке разблокировки. ' + // cyrillic-ok: prompt copy
+      'Честный знаменатель — спеки, у которых сам эталонный путь (t27c gen + ' + // cyrillic-ok: prompt copy
+      'zig test) проходит; спек, падающий на эталоне, вне знаменателя. Эпик, код ' + // cyrillic-ok: prompt copy
+      'и прогоны Railway-лаборатории читай web_read: её адрес — в комментариях ' + // cyrillic-ok: prompt copy
+      'эпика, она отдаёт /latest.json и /runs/<sha>.json. Справку по AArch64 ищи ' + // cyrillic-ok: prompt copy
+      'web_search. Нет адреса или прогона — так и говори, не подставляй число. ' + // cyrillic-ok: prompt copy
+      'Собрать и запустить t27b здесь нечем: code_run — ' + // cyrillic-ok: prompt copy
+      'песочница без сети и без компилятора, поэтому всё, что ты не процитировал ' + // cyrillic-ok: prompt copy
+      'из вывода прогона, помечаешь «не запускалось». Правила: число покрытия ' + // cyrillic-ok: prompt copy
+      '(pass/reference и число расхождений) называешь только со ссылкой на прогон, ' + // cyrillic-ok: prompt copy
+      'который его напечатал; расхождение с эталоном — остановка и отчёт, никогда ' + // cyrillic-ok: prompt copy
+      'не пропуск и не обход; одно семейство конструкций на PR, со своим issue, ' + // cyrillic-ok: prompt copy
+      'Refs #6063 и тестом вместе с изменением; PR не мержишь и не одобряешь — это ' + // cyrillic-ok: prompt copy
+      'решает владелец. Законы репозитория L1-L7: Closes #N, gen/ руками не ' + // cyrillic-ok: prompt copy
+      'правится, исходник только ASCII, идентификаторы и комментарии на ' + // cyrillic-ok: prompt copy
+      'английском (LANG-EN), в каждом спеке блок test/invariant/bench, новых *.sh нет.' // cyrillic-ok: prompt copy
     )
   }
   return ''
@@ -1556,13 +1662,15 @@ export function systemPrompt(
       ? BUTTON_MARKERS
       : surface === 'miniapp'
         ? CARD_MARKERS
-        : /*
-           * The client's DM gets its own kind: url-only buttons there, so the
-           * options are deep links rather than callbacks (LOOK_MARKERS).
-           */
-          surface === 'business'
-          ? LOOK_MARKERS
-          : ''
+        : surface === 'kanban'
+          ? CARD_MARKERS + KANBAN_LIMITS
+          : /*
+             * The client's DM gets its own kind: url-only buttons there, so the
+             * options are deep links rather than callbacks (LOOK_MARKERS).
+             */
+            surface === 'business'
+            ? LOOK_MARKERS
+            : ''
   /*
    * Not for the unattended sweep: it must call tools, not explain itself to
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a
@@ -1613,7 +1721,7 @@ export function systemPrompt(
  * a dead route stays invisible for as long as the others live. One warn line
  * per skip, before the next provider is tried.
  */
-export const SKIP_LOG_PREFIX = '[agent] provider skipped:'
+export const SKIP_LOG_PREFIX = CHAIN.SKIP_LOG_PREFIX
 
 function skipped(reason: string): void {
   console.warn(`${SKIP_LOG_PREFIX} ${reason}`)
@@ -1915,8 +2023,23 @@ export async function* streamModel(
   // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
   // и не узнает, что дело в нулевом балансе или протухшем ключе.
   const причины: string[] = []
+  /*
+   * A key-wide limit (z.ai 1302) on one provider is the same limit for every
+   * provider on that key (provider.ts, keyGroup). 2026-10-06: zai and
+   * zai-lite both read GLM_API_KEY, and the production key answered 1302 on
+   * both models -- asking zai-lite after zai's 1302 spent a call to hear the
+   * same refusal. Per turn only: the breaker keeps its own counts.
+   */
+  const keyLimited = new Map<string, ProviderId>()
   providerLoop: for (const p of chain) {
     if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
+    const limitedBy = p.keyGroup ? keyLimited.get(p.keyGroup) : undefined
+    if (limitedBy) {
+      const why = sharedKeyReason(p.id, limitedBy)
+      skipped(why)
+      причины.push(why) // cyrillic-ok: pre-existing identifier
+      continue
+    }
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
@@ -1999,6 +2122,9 @@ export async function* streamModel(
           if (!r.ok || !r.body) {
             const t = await r.text().catch(() => '')
             const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
+            if (p.keyGroup && isKeyWideLimit(r.status, t)) {
+              keyLimited.set(p.keyGroup, p.id)
+            }
             skipped(почему) // cyrillic-ok: pre-existing identifier
             причины.push(почему) // cyrillic-ok: pre-existing identifier
             fail('error', почему) // cyrillic-ok: pre-existing identifier
@@ -2221,7 +2347,14 @@ async function* runAgentTurn(
   opts?: {
     surface?: string
     toolsOnly?: boolean
+    /** The Manager Agent: words only, no media tools (client-facing.ts). */
+    textOnly?: boolean
     client?: string
+    /**
+     * The widgets beside the client's chat and their state, already checked
+     * (client-widgets.ts widgetsOfTurn). Read only together with `client`.
+     */
+    widgets?: TurnWidgets
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
     /**
@@ -2278,6 +2411,12 @@ async function* runAgentTurn(
      * goes in through foreignText like every other person's words.
      */
     personNote?: string
+    /**
+     * The kanban card this conversation is about (task-thread.ts taskNote).
+     * Built by the server from the board, already fenced there: an issue
+     * title is a stranger's words. Absent for every other thread.
+     */
+    taskNote?: string
     /**
      * Whose chat a business turn is: the account the Telegram business
      * connection belongs to. Accepted only behind the server key (routes.ts),
@@ -2453,6 +2592,20 @@ async function* runAgentTurn(
     : ''
 
   /*
+   * What the owner sees beside that chat (owner, 2026-10-03: the agent sent
+   * an old render while the reel panel stood open with a new topic). Context,
+   * not an instruction; the free text in it is fenced. Spec v5 of
+   * crm-client-workspace.t27: a client's thread only.
+   */
+  const widgetsContext =
+    opts?.client && opts.widgets
+      ? await (async () => {
+          const { widgetsBlock } = await import('./client-widgets')
+          return widgetsBlock(opts.widgets!)
+        })().catch(() => '')
+      : ''
+
+  /*
    * The person on the other side of THIS conversation -- not a client the
    * seller is talking about, which is what clientContext is. Absent when the
    * caller sent nothing, and absent is the honest state: a row of "unknown"s
@@ -2465,11 +2618,41 @@ async function* runAgentTurn(
       })
     : ''
 
+  /*
+   * The seller's other products and their live prices (product-catalog.ts).
+   * Only the seller's own: ownership is roles.ts's answer, never this file's.
+   */
+  const products =
+    opts?.surface === 'business'
+      ? await (async () => {
+          const { productsBlock } = await import('./product-catalog')
+          const { botsOwnedBy } = await import('./hive-tools')
+          return productsBlock(opts?.seller, { botsOwnedBy }).catch(() => '')
+        })()
+      : ''
+
+  // This client's own reported faults: open, or fixed and not yet told.
+  const defects =
+    opts?.surface === 'business' && ctx.dmSeller && ctx.pool
+      ? await (async () => {
+          const { defectsBlock } = await import('./client-defects')
+          return defectsBlock(
+            ctx.pool,
+            ctx.dmSeller!,
+            String(ctx.telegramId ?? '')
+          ).catch(() => '')
+        })()
+      : ''
+
   const dmContext =
     dmHistory +
     clientBrief +
     clientContext +
+    widgetsContext +
     personContext +
+    products +
+    defects +
+    (opts?.taskNote ?? '') +
     (opts?.supervisor ? supervisorBlock(opts.agentLog, opts.movesLine) : '')
 
   /*
@@ -2480,7 +2663,11 @@ async function* runAgentTurn(
    * account holder's browser are neither listed nor run -- whoever's session
    * `ctx.telegramId` resolves to. The caller's own denials keep their reasons.
    */
-  const denial0 = clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys())
+  const denial0 = textOnlyDenial(
+    opts?.textOnly,
+    clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys()),
+    TOOLS_BY_NAME.keys()
+  )
   // The Queen has no hands: every tool is denied, so nothing she says can
   // reach a client, a wallet or a browser. She works through the owner.
   const denial = opts?.supervisor
@@ -2759,6 +2946,16 @@ async function* runAgentTurn(
    * the model's call, as it always was.
    */
   const ranThisTurn = new Set<string>()
+  /*
+   * A SWEEP STEP'S WORDS WAIT FOR ITS VERDICT (production 2026-10-04 20:04).
+   *
+   * Under toolsOnly a provider that answers in words before any tool ran is
+   * out of the turn (below), and what it wrote must not reach the caller:
+   * the bot joins every text event, so "I am calling the context now" would
+   * prefix the next model's real answer. Nobody watches a sweep stream, so
+   * holding a step's text until the step ends costs nothing.
+   */
+  let heldStep = ''
   const logEmpty = (action: string, provider: string) =>
     console.warn(
       EMPTY_ANSWER_LOG_PREFIX,
@@ -2813,7 +3010,8 @@ async function* runAgentTurn(
           if (safe && contacts) heldForClient += safe
           else if (safe) {
             said += safe.trim().length
-            yield { тип: 'текст', текст: safe }
+            if (opts?.toolsOnly) heldStep += safe
+            else yield { тип: 'текст', текст: safe }
           }
         } else {
           assistant = ev.message
@@ -2836,7 +3034,8 @@ async function* runAgentTurn(
       heldForClient = ''
       if (tail) {
         said += tail.trim().length
-        yield { тип: 'текст', текст: tail }
+        if (opts?.toolsOnly) heldStep += tail
+        else yield { тип: 'текст', текст: tail }
       }
       noteFabricated()
       await noteWithheld()
@@ -2853,13 +3052,57 @@ async function* runAgentTurn(
         : why
       if (emptyFrom.length) logEmpty('failed', lastProvider ?? 'none')
       logTurnEnd('error', text)
-      yield { тип: 'ошибка', текст: text.slice(0, 500) }
+      yield {
+        тип: 'ошибка',
+        code: emptyFrom.length ? 'no_answer' : 'model_failed',
+        текст: text.slice(0, 500),
+      }
       return
     }
     if (!assistant) {
       logTurnEnd('error', 'model did not return a message')
-      yield { тип: 'ошибка', текст: 'модель не вернула сообщение' }
+      yield {
+        тип: 'ошибка',
+        code: 'model_failed',
+        текст: 'модель не вернула сообщение',
+      }
       return
+    }
+
+    /*
+     * A SWEEP MODEL THAT TALKS INSTEAD OF CALLING GIVES WAY.
+     *
+     * Production 2026-10-04 20:04, the owner's chat: zai-lite/glm-4.5-flash
+     * answered the sweep with "calling the context for the first lead" and
+     * no tool call -- twice, because the bot's retry reached the same model.
+     * A toolsOnly turn exists for its tool calls, so a provider whose answer
+     * ends before any tool ran is out of this turn and the next tool-capable
+     * provider gets the same messages. Its words are dropped (see heldStep).
+     * With nobody left after it, it keeps today's behaviour: the bot sees
+     * the words, files the failure and makes its one retry.
+     */
+    if (
+      opts?.toolsOnly &&
+      !assistant.tool_calls?.length &&
+      toolCallCount === 0 &&
+      answeredBy &&
+      allProviders().some(
+        p => p.tools && p.id !== answeredBy && !excluded.has(p.id)
+      )
+    ) {
+      excluded.add(answeredBy)
+      emptyFrom.push(
+        `${answeredBy}: ответил словами, не вызвав ни одного инструмента` // cyrillic-ok: reason text
+      )
+      logEmpty('talked instead of calling', answeredBy)
+      heldStep = ''
+      said = 0
+      step--
+      continue
+    }
+    if (heldStep) {
+      yield { тип: 'текст', текст: heldStep }
+      heldStep = ''
     }
 
     if (!assistant.tool_calls?.length) {
@@ -2961,5 +3204,6 @@ async function* runAgentTurn(
     тип: 'готово',
     витков: MAX_STEPS,
     обрыв: `достигнут предел ${MAX_STEPS} витков вызова инструментов`,
+    code: 'step_limit',
   }
 }

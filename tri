@@ -27,6 +27,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$ROOT/bin/helpers/rail.sh"  # Railway by explicit ids (tri rail)
 TOOLS="$ROOT/.claude/loop-opus"
 
 # node 20 из nvm: системный 18 ломает Vite и половину прогонов.
@@ -43,6 +44,27 @@ TOOLS="$ROOT/.claude/loop-opus"
 _nvm20="$HOME/.nvm/versions/node/v20.19.0/bin"
 [ -d "$_nvm20" ] && export PATH="$_nvm20:$PATH"
 export PATH="/opt/homebrew/bin:$PATH"
+
+# The NEWEST railway CLI first. On 2026-10-02 /usr/local/bin held an old,
+# logged-out 4.5.4 ahead of nvm's 5.63: every railway call answered
+# "Unauthorized", and the deploy checks here printed "railway did not answer"
+# -- a state unknown that was really a stale binary. Asking each one its
+# version took 23 s on a loaded Mac, so the pick is cached until that binary
+# disappears (rm the cache file to re-pick after an upgrade).
+_tri_railway_pick() {
+  local cache="${XDG_CACHE_HOME:-$HOME/.cache}/tri/railway-bin" b best=''
+  if [ -s "$cache" ]; then
+    best=$(cat "$cache")
+    [ -x "$best" ] && { printf '%s' "$best"; return 0; }
+  fi
+  best=$(type -ap railway | awk '!seen[$0]++' | while IFS= read -r b; do
+    printf '%s\t%s\n' "$("$b" --version 2>/dev/null | awk '{print $2}')" "$b"
+  done | sort -V -r | head -1 | cut -f2)
+  [ -n "$best" ] || return 1
+  mkdir -p "$(dirname "$cache")" && printf '%s' "$best" > "$cache"
+  printf '%s' "$best"
+}
+_rw=$(_tri_railway_pick 2>/dev/null) && export PATH="$(dirname "$_rw"):$PATH"
 
 RENDER="${TRI_RENDER_URL:-https://vibee-render-production.up.railway.app}"
 
@@ -173,6 +195,54 @@ CHECKS THAT EACH COST A CYCLE
         tree, so `bun run verify` runs green immediately instead of false-failing
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
+  tri worktree --pr N
+        The same, on the OWN branch of open PR N, to fix a reviewer's notes in
+        that PR. Refuses a closed or fork PR, a silent gh, and a local branch
+        holding commits origin lacks (they would be dropped).
+  tri worktrees [--apply]
+        Which worktrees are finished, by COMMIT not by branch name: HEAD is a
+        merged PR's head (or inside one), already in origin/main, or every
+        commit is there as the same patch (git cherry). Detached trees count.
+        A named branch with 0 commits ahead and no merged PR of that name is
+        NEW, not finished, until both its branch and its worktree are 6 h old
+        (a bee's fresh tree, or an old branch checked out into one today).
+        --apply removes finished trees that are clean, unlocked, untouched for
+        an hour, with no live process inside, no nested tree, and no ignored
+        file we cannot rebuild (an ignored .env stays). Branches stay.
+
+  tri hooks [--heal]
+        Worktrees whose own core.hooksPath (e.g. <main>/.husky) makes git skip
+        every lefthook gate silently -- the commit passes with nothing run.
+        --heal unsets it per tree. Exit 1 while any tree still skips.
+
+  tri deps [--heal] [--own] [path]
+        For a worktree tri did NOT make (a bee's, the Claude app's, a plain
+        git worktree add): link every node_modules the main checkout has and
+        this tree lacks, then check the binaries the gates call (esbuild,
+        vitest, render tsc). Without them render-types and bundle-boots go
+        red on ENOENT and read like code faults.
+        Never run a root npm ci / bun install in such a tree: npm empties
+        node_modules through the link, i.e. the MAIN checkout's, and every
+        linked tree breaks at once. `tri deps --heal` reinstalls the main
+        checkout when that has happened (it is named EMPTY, DOTFILES-ONLY,
+        DANGLING or ABSENT, and the command exits 1).
+        `tri deps --own` makes every linked node_modules -- root AND per-app,
+        render/player are links too -- this tree's own copy (copy-on-write
+        clone where the disk can: ~70 s and ~100 MB for all four on APFS),
+        after which an install here is safe.
+        It also names every package a tree's package.json declares that its
+        node_modules lacks (root, render, player): a link carries the main
+        checkout's install, made for THAT checkout's branch, so a tree on a
+        newer origin/main can miss `redis` or `@tonconnect/ui` and fail tsc on
+        "Cannot find module" that reads as a code fault. Before anything is
+        missing it notes a linked install whose package.json declares other
+        packages or versions than this tree's (the same fault a day early),
+        and --heal refuses when the main checkout's package.json is not
+        origin/main's: that install would restore an old branch's packages.
+        --heal also installs, in the MAIN checkout, an app whose install
+        there lacks what its package.json declares (bun at the root, npm
+        install where a package-lock.json lives; the lock is put back when
+        nobody was editing it).
 
   tri price <ModeName>
         Print the STATIC base cost of a mode from BASE_COSTS before you treat an
@@ -316,6 +386,24 @@ CHECKS THAT EACH COST A CYCLE
         handler, is the counter a literal. Porting something broken reproduces
         the decoration and records parity with it.
 
+  tri iphone [check|build|sim|off|test|ru|store|state|testflight|testers|metadata|processed]
+        The Trinity S³AI app on the REAL phone: build, install, launch -- one command.
+        `store` asks fastlane what stands between HEAD and TestFlight (offline
+        preflight + read-only App Store Connect state; `state` is the read-only
+        half alone, exit 3 while the app record is missing); `testflight --yes`
+        builds and uploads -- the owner's call, never a loop's -- and ends by
+        putting the account holder in an internal group that gets every new
+        build (`testers --yes` alone repeats that step). `metadata
+        --yes` sends the store page texts from apps/vibee-ios/fastlane/metadata
+        (checked by `store` offline first); review submission stays a click.
+        `processed [--wait MIN]` says when Apple has finished with the upload
+        (0 ready, 1 refused, 4 not yet) and, waiting, notifies on the Mac.
+        `sim` does the same on the simulator, with a deadline on install.
+        Asks devicectl first, so a locked or unplugged phone is named as such
+        instead of xcodebuild's "Unable to find a destination". `check` only
+        answers whether the phone is reachable (exit 0); `build` compiles for
+        the phone without it. VIBEE_DEVICE picks another paired phone.
+
   tri gate
         Run what CI should have run: types, tests, the iOS build, Cyrillic.
         Not an equal substitute -- one machine, one Node, one Xcode -- but
@@ -334,7 +422,7 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
-  tri cyrillic [staged | --unused]
+  tri cyrillic [staged | --unused | msg FILE]
         WHY the Cyrillic gate blocks a line, not just which line. Prints, per
         refusal: which Cyrillic word this commit does not also remove (so the
         reflow exemption cannot apply), and the way out for that SHAPE --
@@ -347,6 +435,10 @@ CHECKS THAT EACH COST A CYCLE
         Reads the same records the gate decides on, so the explanation cannot
         drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
         2 the diff could not be read.
+
+        `msg FILE` checks a commit message with the commit-msg hook's own
+        script BEFORE committing. The hook runs after the slow pre-commit, so a
+        Cyrillic type name in the message cost the whole run twice.
 
         `--unused` is `eslint --report-unused-disable-directives` for this
         marker: every  cyrillic-ok  that no longer guards anything. First run,
@@ -386,6 +478,105 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
+  tri reel-check REEL.mp4|URL [--body body.json] [--words whisper.json] [--voice voice.mp3] [--sheet out.jpg] [--json]
+        Look at a rendered reel the way the owner does. FACE: in every shot,
+        is the face centred in the window it is shown in (the lower half of a
+        split) and is the top of the head inside it? CAPTIONS: the reel's audio
+        is cross-correlated with the voice file, then every caption is matched
+        to the whisper word of the same text -- whisper of the FINAL voice, not
+        of the notes it was cut from. Shots come from the render body's
+        segments; without one, a seam in the picture marks a split.
+        Thresholds live in split-reel.t27 (FACE_OFF_CENTER_MAX_PCT,
+        HEADROOM_MIN_PCT). Exit 0 clean, 1 defects, 2 not measured.
+
+  tri voice [--runs N] | tri голос
+        The voice mode end to end: status, warm-up, a fixed phrase spoken in
+        Russian and English by OUR engine, and each heard back by OUR whisper
+        N times (default 3). The MEDIAN is the verdict -- one sample lied by
+        2.5 s -- and the render's Server-Timing splits it into upload, whisper
+        and the road; the hearing leg is named by the engine that did it
+        (gigaam/parakeet, whisper, or both when they fell back on some runs).
+        Over 3 s to speak or to hear is SLOW (exit 2). Needs a person's key in $AGENT_KEY
+        (the render's AGENT_KEYS, first entry, up to ':'); without it only the
+        public status is read and the exit code says NOT MEASURED (2).
+        Every call goes over ONE kept-alive connection, as in the browser;
+        the handshake and the warm round trip are printed on their own line.
+
+  tri filler | tri пауза
+        The phrases said while the agent thinks ("Let me see.", "Still
+        working on it.", voice.filler.* in the player's dictionary), each
+        synthesised once as the player does, against the lead it has: the
+        audio is asked for at FILLER_PREPARE_MS and played at FILLER_FIRST_MS
+        (FILLER_STILL_MS). Slower than the lead is LATE (exit 2); a phrase
+        our voice cannot say is broken (exit 1). Each phrase is split into
+        engine and road time; one that used over half of the player's
+        speakDeadlineMs is a warning (exit 2). Also part of tri voice.
+        Needs the same key as tri voice.
+
+  tri road | tri дорога
+        Just that road line: which Railway edge answered, what a new
+        connection costs (DNS + TCP/TLS), and the warm round trip every call
+        still pays (median of 5 empty status calls). Over 0.4 s warm is SLOW
+        (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
+        No key needed.
+
+  tri turn | tri ход [--live | --record | --audio file ...] [phrase ...]
+        Whether the words of a pause end the turn (player/src/lib/voice/
+        turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
+        comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
+        No phrases: its own battery, exit 1 on a wrong verdict. --live says
+        six phrases with our mouth, hears them with our ears, judges what
+        came back and prints when the words land in the pause (the "heard"
+        earcon now waits for them).
+        --audio judges recordings by the VOICE (Smart Turn in the ears);
+        --record asks you to say ten phrases into the mic (five finished,
+        five cut off), saves them under ~/.cache/tri/turn-voice/<lang> and
+        runs --audio on them. Interactive; macOS asks for the mic first.
+
+  tri words | tri слова [--lang=ru|en] [phrase ...]
+        Are product words (reels, lipsync, neurophoto, Vibee...) heard as
+        said? Our mouth speaks, our ears hear through the live road, with
+        the render's fix-ups (render/src/voice/hotwords.ts) applied. XX = a
+        new mishearing for that table, or a fix-up firing on a real word;
+        "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
+        any XX. Needs the agent key.
+
+  tri vad | tri шум [--legacy | --ios] [file.wav ...]
+        The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
+        by tick over recordings, as the session runs it. With no files it
+        makes its own battery (say + ffmpeg anoisesrc, 48 kHz mono): ru/en
+        speech, fans, speech over a fan -- and prints onsets, turn ends,
+        "steady room learned" and the flattest 2 s of each (spread vs
+        STEADY_SPREAD). Exit 1 = speech taken for the room, a question over
+        a fan not heard as a turn, or a fan held as a phrase. --legacy runs
+        the gate before cycle 8 (a fan was "speech" for 30 s), unjudged.
+        --ios runs the PHONE's turn judge (vibee-ios TurnJudge.swift, the
+        same rule in Swift) over the same battery or your files, e.g.
+        ~/.cache/tri/turn-voice/ru/*.wav: exit 1 = speech that never ended
+        as a turn, or a fan taken for speech (anything but "nobody spoke").
+        Your own files are judged only if named speech-*, over-fan-*, fan-*,
+        done-*, cut-* (the last two get 1.5 s of quiet: Enter stops them).
+        No key, no network.
+
+  tri loop | tri виток
+        Where the last loop cycle stopped, before this one starts: dirty tree,
+        gates or pushes running IN THIS TREE, this branch's PR, and the newest
+        player/render deploys, and the player's lint ratchet (a push that
+        skipped hooks gets past it; ~25 s, TRI_LOOP_FAST=1 skips it). Exit 1 =
+        work in flight, continue it; a FAILED deploy on main blocks every
+        later merge of that service.
+
+  tri ears [status|deploy] [ru|en|mouth|all] | tri уши   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
+        The fast ears of voice mode, one image (deployment/gigaam) as two
+        services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
+        hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
+        Without arguments: each one's newest deploy and which ears the render
+        routes each language to. `deploy` uploads deployment/gigaam from a
+        CLEAN tree -- neither service is wired to GitHub, so a merge alone
+        does not ship them. `mouth` is the voice's own Kokoro + Piper pool
+        (deployment/mouth, ~0.3 s an English phrase where speaches took
+        1.2-1.7 s); it ships the same way.
+
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
 
@@ -420,7 +611,42 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
-  tri readers [--gate] | tri читатели
+  tri gen-refusal [BASE]
+        Does every generation route name its refusal? Asks image, video,
+        audio and lipsync WITHOUT credentials (refused at the charge, so
+        nothing is spent) and wants a `code` from
+        render/generation-refusal.ts in each answer. Run after a deploy.
+
+  tri pr-billing N
+        Is every failing check on PR N the Actions billing stop? rc 0 only if
+        all are; an empty annotation (dropped connection) is re-asked, then
+        counted UNKNOWN -- never billing. Refuses (rc 1) while a bee's
+        refusal (a comment or review whose first line names a bee and says
+        "not merg..." or "changes requested", or a CHANGES_REQUESTED review)
+        is newer than the head commit; an older one is printed, to be
+        checked against the push.
+
+  tri premerge N [--keep]
+        Would PR N pass the player's deploy gate once it lands on today's
+        main? Merges the PR head into origin/main in a throwaway worktree and
+        runs exactly what the Docker test stage runs: tsc --noEmit and
+        scripts/test-gate.mjs. rc 0 pass, 1 refused or conflict, 2 usage.
+        --keep leaves the worktree for a look.
+
+  tri deploys [--logs] | tri выкладки
+        Is the player on app.t27.ai what main says it is? The serving
+        commit, every later main commit that touches the image with its
+        deploy status, and for a FAILED build: the failing tests, tsc
+        errors, the REFUSED line, and who last touched each failing test.
+        rc 0 live, 1 failed or behind, 2 unknown, 5 building.
+
+  tri board
+        Is the board on app.t27.ai trinity's main? The pinned QUEEN_REF,
+        trinity main's HEAD, the commits between, and every open
+        release(board) PR marked current or stale. rc 0 shipped, 1 behind,
+        2 unknown. A reviewer agent merges the release PR, not its author.
+
+  tri readers [--gate | --run FILE...] | tri читатели
         Tests that read source as TEXT, and the paths they still believe in.
 
         `vitest related` follows the IMPORT graph, and reading a file with fs
@@ -432,6 +658,11 @@ CHECKS THAT EACH COST A CYCLE
         -- and went red when the top-up flow moved into a shared hook. The
         behaviour had not changed; only the file had. It surfaced two days
         later, dragged into a run by an unrelated import.
+
+        `--run FILE...` runs, right now, the tests that name FILE in quotes
+        -- the guards on that one file, not the directory scanners. The same
+        money guard broke the same way a second time on 2026-10-02, found
+        only five minutes into pre-push. Run it before pushing a move.
 
         `--gate` reds when a path no longer exists. A path that exists is not a
         promise: only running the test says whether the string it looks for is
@@ -686,6 +917,22 @@ LOOP TOOLING
                           NOT prove health: a detector that stopped detecting
                           prints exactly the same line. Both defects found in
                           anomalies.mjs on 2026-08-29 had looked green.
+  tri refs                Does every `tri X` in render source AND the loop's own
+                          tooling (.claude/loop-opus) name a real command?
+                          Static, offline. Catches the docstring or LESSONS rule
+                          that points at a command nobody built -- the defect
+                          found by hand four ticks running (tri pod/journal/seal).
+  tri refs-check          Can `tri refs` still fail? Drives its scan over a
+                          fixture with a known phantom and asserts it rings.
+  tri money-map           Repo-wide census of money-mutation CALL SITES. --json
+                          for the machine-readable list.
+  tri repo-hygiene        Flag repo-hygiene leaks a dead CI won't catch
+                          (tracked dumps, stray secrets-shaped files).
+  tri rpc-audit           List supabase RPCs the code CALLS but that are not
+                          defined in the tracked SQL -- a deploy-time 404.
+  tri single-telegram     Find `.single()` on a users query filtered by
+                          telegram_id, which throws on the duplicate rows that
+                          exist in prod. Use maybeSingle or .limit(1).
   tri panel               rebuild the dashboard
   tri tests               the full run
   tri routes              client and server addresses, compared
@@ -709,6 +956,45 @@ AGENT TOOLS ON THE RENDER
                           The key comes from $AGENT_KEY, then
                           $TRI_AGENT_KEY_FILE (default /tmp/.ak.tmp), then
                           Infisical. It is never printed.
+  tri card <n> [text]     a kanban card's conversation, from the terminal --
+                          the SAME thread the app's card sheet and every A2A
+                          agent use (spec gHashTag/t27 kanban-card-chat.t27):
+                          `task:gHashTag/<repo>#<n>`. <n> is 5382 (the board's
+                          repository), t27#5382 or gHashTag/trinity#7. No text:
+                          print the card and its last turns. With text: say it
+                          and stream the agent's answer; both turns land in the
+                          thread, marked surface `agent`. Exit 0 ok, 1 refused,
+                          2 the render has no task threads yet (nothing sent),
+                          3 the render did not answer. Key as for `tri mcp`.
+  tri card-check [n]      is the card chat LIVE (spec kanban-card-chat.t27):
+                          GETs only, nothing written. Four verdicts --
+                          the card's thread is `task:` (render deployed),
+                          /api/card-status answers (404 = not deployed,
+                          503 = no GITHUB_READ_TOKEN: the client reads), and
+                          the PRs that carry it are merged; plus the
+                          server's GraphQL query against live GitHub (local
+                          `gh` login, read-only) compared with the client's
+                          read. <n> (t27#n, repo#n) defaults to 5382, the EPIC. Exit 0 all live, 2 waiting on a
+                          merge, deploy or token, 1 something answered wrong.
+  tri card-drift [n] [--dry]
+                          the nightly half of card-check: the server's
+                          card-status query against live GitHub vs the
+                          client's read (needs only a `gh` login). Drift is
+                          kept in ONE issue in gHashTag/t27 under the EPIC
+                          #5388: opened on the first drifting night,
+                          commented on the next, closed on the first night
+                          they agree; a night measuring nothing touches
+                          nothing. --dry prints the verb, writes nothing.
+  tri hive-nightly [--shots] [--dry]
+                          every card-sheet watch in one night, each with its
+                          own ONE issue in gHashTag/t27 (opened, commented,
+                          closed by the same verbs as card-drift): the drift,
+                          the live card-check (waiting on a merge or deploy
+                          is not a regression), and on Sundays or with
+                          --shots `tri shot all`. A red stand is shot twice:
+                          green the second time = flake, no issue.
+                          Unmeasured touches nothing.
+                          Exit 0 agree, 1 drift, 2 not measured.
   tri browser             can the remote browser ACT, not merely answer.
                           `/json/list` is served by the browser process, so it
                           keeps replying while every renderer is wedged -- which
@@ -718,6 +1004,13 @@ AGENT TOOLS ON THE RENDER
                           evaluated 1 + 1). Exit 0 alive, 1 dead or wedged,
                           2 asked nobody or sitting at the tab cap, 3 the
                           render itself did not answer.
+  tri heal                the action `tri browser` points at: POST the heal.
+                          Safe at ANY time -- the endpoint PROBES FIRST and
+                          refuses to restart a browser that answers, so it can
+                          never take a working browser from the person. Exit 0
+                          healed or nothing to do, 1 restarted and STILL dead
+                          (Chromium must come up inside the pod), 2 no browser
+                          configured to heal, 3 the render did not answer.
   tri browser-check       proves those verdicts against a local socket, because
                           the live pod is alive today and cannot show the three
                           answers that matter. A mutant that calls a wedged pod
@@ -734,6 +1027,27 @@ AGENT TOOLS ON THE RENDER
                           browser HOLDS a login, not that the site still honours
                           it. Exit 0 at least one live login, 2 none (or no
                           browser running), 3 the render did not answer.
+  tri pod                 SINCE WHEN has the browser been well, or not? Reads
+                          the watch row -- the one number missing during the
+                          2026-09-24..26 outage, when nobody could say the pod
+                          had been unreadable for three days. Shows how long it
+                          has held its current state, failures in a row, and how
+                          many reboots the watch has seen (a restart that did not
+                          help still shows). Exit 0 answering, 1 NOT answering
+                          (the heal case), 2 never probed / no pod watched
+                          (nobody looked -- not "broken"), 3 the render did not
+                          answer. `describeWatch` in watch.ts promised this
+                          command; until now it did not exist.
+  tri journal [limit]     the browser's full timeline: every step the agent took
+     [--probes]           (default 50), newest first -- tool, ok/FAILED, ms, and
+                          one line of what it touched. `tri saw` is this reader
+                          narrowed to error moments; this is the whole record its
+                          timings were meant to be read from. --probes folds in
+                          the on-a-clock watch checks (what the docstrings called
+                          `tri eyes`), kept out of the view otherwise. Exit 0
+                          steps shown, 2 none recorded yet (nobody acted -- not
+                          "broken"), 3 the render did not answer. journal.ts
+                          named this command; until now it did not exist.
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
@@ -1282,6 +1596,658 @@ print(n)' 2>/dev/null)
 # паритет. Поэтому перед переносом спрашиваем не «есть ли в вебе кнопка», а
 # «делает ли она что-нибудь».
 # ─────────────────────────────────────────────────────────────────────────
+# tri iphone [check|build|install] — the Trinity S³AI app on the REAL phone, one command.
+#
+# Every step had its own way to fail without saying why:
+#   * a locked or unplugged phone makes xcodebuild print "Unable to find a
+#     destination matching the provided destination specifier" -- nothing
+#     about the phone. devicectl knows (`tunnelState`), so ask it FIRST;
+#   * the phone has TWO ids: xcodebuild wants the hardware udid
+#     (00008110-...), devicectl wants the CoreDevice identifier (BF368496-...).
+#     Passing one where the other belongs fails as "device not found";
+#   * Xcode on this machine has no Apple ID: signing goes through the App
+#     Store Connect API key, and without -authenticationKey* the build stops
+#     at provisioning (memory: ios-device-build-via-asc-key);
+#   * `launch` without --terminate-existing raises the OLD process, and the
+#     screen shows yesterday's build.
+#
+#   tri iphone          build, install, launch
+#   tri iphone check    is the phone reachable right now (exit 0 = yes)
+#   tri iphone build    compile for the phone only (no install)
+#   tri iphone sim      build, install, launch on the SIMULATOR (VIBEE_SIM=udid,
+#                       default: the booted one, else boots the first iPhone
+#                       simulator). `simctl install` once hung for
+#                       11 min and `launch` for 2: the simulator (~10 GB) had
+#                       pushed swap to 5 of 6 GB. Both now have deadlines; an
+#                       install that misses it gets one simulator reboot.
+#   tri iphone off      shut every running simulator down (gives ~10 GB back)
+#   tri iphone test [Class]  unit tests with a 25-min deadline and a one-line
+#                       verdict (Class = one test class, e.g. ConnectivityTests)
+#   tri iphone typecheck  type-check the app AND the tests with swiftc, no
+#                       simulator (~80 s). Proves it compiles, not that the
+#                       tests pass -- when swap rules out `tri iphone test`.
+#   tri iphone ru [File]  native strings still Russian-only (count / lines)
+#   tri iphone ru-diff [ref]  lines a counter change hides vs ref (origin/main)
+#   tri iphone ru-web [file]  ROUGH count of Russian-only literals in the web
+#                       player (the parity reference is not clean either)
+#   tri iphone store    fastlane preflight + state: every blocker offline,
+#                       then what App Store Connect holds (read-only)
+#   tri iphone state    the read-only App Store Connect half alone, seconds;
+#                       exit 3 = the app record is still missing (owner's step)
+#   tri iphone testflight --yes  fastlane beta: build and upload to TestFlight.
+#                       Publishes under the owner's account -- only on their
+#                       "yes", so the flag is required, not a default.
+#   tri iphone testers --yes  fastlane testers: the internal TestFlight group
+#                       every new build reaches, the account holder in it
+#                       (Apple e-mails the invitation; beta runs it too).
+#   tri iphone metadata --yes  fastlane metadata: the store page texts from
+#                       apps/vibee-ios/fastlane/metadata; nothing submitted.
+#   tri iphone processed [--wait MIN] [--build N] [--telegram]  has Apple
+#                       finished with the upload: 0 ready, 1 refused/expired,
+#                       4 not yet (read-only). --telegram: a final answer also
+#                       reaches the owner from @t27ai_bot, once per answer.
+#   VIBEE_DEVICE=name   another paired phone (default: t27_dev)
+# The simulator holds ~10 GB of this 16 GB machine; the pre-push gates and the
+# next build need it back. One word instead of remembering the udid.
+iphone_sim_off() {
+  local booted
+  booted=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p')
+  [ -n "$booted" ] || { good "no simulator is running"; return 0; }
+  local u
+  for u in $booted; do xcrun simctl shutdown "$u" && good "shut down $u"; done
+  echo "  …    swap now: $(sysctl -n vm.swapusage | sed -E 's/.*(used = [^ ]+ +free = [^ ]+).*/\1/')"
+}
+
+# Native strings that only exist in Russian. The tab bar follows the phone's
+# language through say(en, ru); a screen that still hard-codes Russian shows
+# an English phone a mixed app. This counts what is left, so a loop can watch
+# the number go down instead of re-grepping -- a plain grep both missed and
+# double-counted: it saw say( calls that span lines as Russian-only.
+# Not counted: say(...) and l(...) spans, comments, NSLog/print,
+# accessibilityIdentifier, `== "x"` comparisons, generated files (named on
+# stderr with the test that guards them), and lines marked
+# ru-only-ok (data that IS Russian: a server status key, a demo project).
+#   tri iphone ru          count per file and the total
+#   tri iphone ru File     the lines in one file
+iphone_ru() {
+  local ios="$1" only="${2:-}"
+  python3 - "$ios/Vibee" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r'"(?:[^"\\]|\\.)*"')
+# "\(лайков)" is a variable inside an interpolation, not Russian text
+INTERP = re.compile(r'\\\([^)]*\)')
+
+def blank_calls(src, names):
+    # Replace name( ... ) with spaces, matching parens outside strings, so
+    # line numbers survive and a call spread over lines counts as one.
+    out = list(src)
+    for m in re.finditer(r'\b(?:' + '|'.join(names) + r')\(', src):
+        i, depth, instr = m.end(), 1, False
+        while i < len(src) and depth:
+            c = src[i]
+            if instr:
+                if c == '\\': i += 1
+                elif c == '"': instr = False
+            elif c == '"': instr = True
+            elif c == '(': depth += 1
+            elif c == ')': depth -= 1
+            i += 1
+        for k in range(m.start(), i):
+            if out[k] != '\n': out[k] = ' '
+    return ''.join(out)
+
+# Not UI text, each found as a false hit in AgentChatView (iteration 6):
+# o["тип"] is a server JSON key, `case "ход":` matches a server value, and
+# ("from the bot", "из бота") on one line is already a bilingual pair.
+KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
+CASE = re.compile(r'\bcase\s+"(?:[^"\\]|\\.)*"(?:\s*,\s*"(?:[^"\\]|\\.)*")*\s*:')
+PAIR = re.compile(r'("(?:[^"\\]|\\.)*")(\s*,\s*)("(?:[^"\\]|\\.)*")')
+# GenerateScreen (iteration 7): `kind == "видео"` compares a server value --
+# only that literal goes, the UI text on the same line still counts.
+CMP = re.compile(r'[=!]=\s*"(?:[^"\\]|\\.)*"')
+# Iteration 15: КаталогСценария keys its English labels by the Russian value
+# (`"Бизнес": "Business",`) -- the key is data, the value is the UI text.
+# Line start only: a ternary's `? "a" : "b"` never starts a line with a literal.
+DICTKEY = re.compile(r'^(\s*)("(?:[^"\\]|\\.)*")(\s*:)(?!:)')
+# Iteration 15: Animation.swift's 22 hits were precondition messages -- they
+# reach a developer's crash log, never a screen.
+DEV_ONLY = ['precondition', 'preconditionFailure', 'assert', 'assertionFailure', 'fatalError']
+
+def protocol_out(line):
+    line = KEY.sub(lambda m: ' ' * len(m.group()), line)
+    line = CASE.sub(lambda m: ' ' * len(m.group()), line)
+    line = CMP.sub(lambda m: ' ' * len(m.group()), line)
+    line = DICTKEY.sub(lambda m: m.group(1) + ' ' * len(m.group(2)) + m.group(3), line)
+    return PAIR.sub(lambda m: ' ' * len(m.group())
+                    if not CYR.search(m.group(1)) and CYR.search(m.group(3))
+                    else m.group(), line)
+
+def comments_out(src):
+    src = re.sub(r'/\*.*?\*/', lambda m: re.sub(r'[^\n]', ' ', m.group()), src, flags=re.S)
+    lines = []
+    for line in src.split('\n'):
+        # a // outside a string literal starts a comment
+        bare = LIT.sub(lambda m: 'x' * len(m.group()), line)
+        k = bare.find('//')
+        lines.append(line if k < 0 else line[:k])
+    return lines
+
+# Iteration 8: KieModels.swift is written by gen-kie-swift.ts and cannot carry
+# hand marks. The screen shows it through KieModelLabels, and a test fails on
+# any catalogue entry whose English label keeps Cyrillic -- that test, not
+# this counter, is the guard for generated words. `l(en, ru)` is the local
+# pair helper of testable pure functions; a call spread over lines is a pair.
+GENERATED = {'KieModels.swift': 'KieModelLabelTests'}
+
+total, per = 0, []
+for f in sorted(os.listdir(root)):
+    if not f.endswith('.swift') or (only and f != only and f != only + '.swift'):
+        continue
+    raw = open(os.path.join(root, f), encoding='utf-8').read()
+    marks = raw.split('\n')
+    if f in GENERATED:
+        print(f'  skipped {f}: generated, its words are checked by {GENERATED[f]}', file=sys.stderr)
+        continue
+    lines = [protocol_out(l) for l in comments_out(blank_calls(raw, ['say', 'l', 'NSLog', 'print', 'accessibilityIdentifier'] + DEV_ONLY))]
+    hits = [(n + 1, marks[n].strip()) for n, l in enumerate(lines)
+            if 'ru-only-ok' not in marks[n]
+            and any(CYR.search(INTERP.sub('', x)) for x in LIT.findall(l))]
+    if hits:
+        total += len(hits); per.append((len(hits), f, hits))
+for n, f, hits in sorted(per, reverse=True):
+    if only:
+        for ln, text in hits: print(f'  {f}:{ln}  {text[:120]}')
+    else:
+        print(f'  {n:4d}  {f}')
+print(f'  total {total} Russian-only line(s)')
+PY
+}
+
+# What a change to the counter itself hides or adds, on the SAME Swift files.
+# Iterations 6 and 7 did this by hand: a filter that drops 36 lines must have
+# every dropped line read. The old copy has to sit in $ROOT -- `tri` finds the
+# app next to itself, and run from /tmp it counted another tree and printed an
+# empty diff that looked like "no change".
+# The web is the wording reference, and iteration 9 found it printing "· 6/с"
+# and a Russian shortfall sentence in English mode. Before copying web wording,
+# look here. ROUGH on purpose: en/ru pairs split over lines still count, so it
+# ranks files to read, it is not a score to drive to zero.
+iphone_ru_web() {
+  local only="${1:-}"
+  python3 - "$ROOT/apps/vibee-editor/player/src" "$only" <<'PY'
+import os, re, sys
+root, only = sys.argv[1], sys.argv[2]
+CYR = re.compile('[Ѐ-ӿ]')
+LIT = re.compile(r"'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"|`(?:[^`\\]|\\.)*?`")
+# a line that already chooses by language, logs, or is marked by the guard
+SKIP = re.compile(r"lang\s*===?\s*'(?:ru|en)'|isRu|\bru\s*[?:]|Ru\s*:|\bt\(|"
+                  r"console\.|logger\.|cyrillic-ok|ru-only-ok")
+SKIP_FILES = ('language.ts',)
+KEY = re.compile(r"\[\s*'[^'\n]*'\s*\]")
+counts, lines = {}, []
+for d, _, fs in os.walk(root):
+    if 'node_modules' in d or '__tests__' in d or '/harness' in d or '/i18n' in d:
+        continue
+    for f in fs:
+        if not f.endswith(('.ts', '.tsx')) or '.test.' in f or f in SKIP_FILES:
+            continue
+        if only and f != only:
+            continue
+        p = os.path.join(d, f)
+        for n, line in enumerate(open(p, encoding='utf-8'), 1):
+            code = line.split('//')[0] if '://' not in line else line
+            if code.lstrip().startswith(('*', '/*')) or SKIP.search(code):
+                continue
+            # vd['баланс'] is a server JSON key, not text (same filter as `ru`)  # cyrillic-ok: quotes a key
+            code = KEY.sub('', code)
+            if any(CYR.search(m) for m in LIT.findall(code)):
+                rel = os.path.relpath(p, root)
+                counts[rel] = counts.get(rel, 0) + 1
+                lines.append(f"  {rel}:{n}  {line.strip()[:110]}")
+if only:
+    print('\n'.join(lines))
+else:
+    for rel, c in sorted(counts.items(), key=lambda kv: -kv[1])[:25]:
+        print(f"  {c:4d}  {rel}")
+print(f"  total {sum(counts.values())} line(s) with a Russian literal outside a language branch (rough)")
+PY
+}
+
+iphone_ru_diff() {
+  local ios="$1" ref="${2:-origin/main}" old="$ROOT/.tri-ru-diff-old" f b
+  git -C "$ROOT" show "$ref:tri" > "$old" 2>/dev/null || { bad "no tri at $ref"; rm -f "$old"; return 2; }
+  local hidden=0 shown=0 a z
+  a=$(mktemp) z=$(mktemp)
+  for f in "$ios"/Vibee/*.swift; do
+    b=$(basename "$f")
+    bash "$old" iphone ru "$b" 2>/dev/null | grep -v ' total ' > "$a"
+    iphone_ru "$ios" "$b" 2>/dev/null | grep -v ' total ' > "$z"
+    while IFS= read -r l; do echo "  - hidden  ${l#  }"; hidden=$((hidden + 1)); done < <(comm -23 <(sort "$a") <(sort "$z"))
+    while IFS= read -r l; do echo "  + counted ${l#  }"; shown=$((shown + 1)); done < <(comm -13 <(sort "$a") <(sort "$z"))
+  done
+  rm -f "$old" "$a" "$z"
+  good "counter vs $ref: $hidden line(s) newly hidden, $shown newly counted -- read every hidden one"
+}
+
+# The unit tests, with the deadline and the summary every loop iteration
+# typed by hand: under load they take 10+ minutes, and the verdict is one line
+# in a 3000-line log. `tri iphone test FeedHandleTests` runs one class.
+iphone_test() {
+  local ios="$1" only="${2:-}" sim="${VIBEE_SIM:-}"
+  # Same build cache as `tri iphone sim`: a cache of its own made the first
+  # run a cold build, which missed the deadline under load.
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-test-${2:-all}.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  [ "${free_mb:-0}" -lt 2048 ] && { bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1; }
+  local target="VibeeTests${only:+/$only}"
+  echo "  …    $target on $sim, deadline 25 min (log: $log)"
+  ( cd "$ios" && xcodegen generate --quiet && "$deadline" 1500 xcodebuild test -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" -only-testing:"$target" ) >"$log" 2>&1
+  local rc=$?
+  local verdict
+  verdict=$(grep -E "Executed [0-9]+ tests?" "$log" | tail -1 | sed -E 's/^[[:space:]]+//')
+  # A misspelt class runs nothing and xcodebuild still says success.
+  if [ "$rc" -eq 0 ] && grep -qE "Executed 0 tests" <<<"$verdict"; then
+    bad "ran 0 tests -- is there a class named '$only' in VibeeTests?"; return 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    good "${verdict:-tests passed}"
+  elif [ "$rc" -eq 124 ]; then
+    # Say where it stopped, not why: the first such message named a cause
+    # (a starved machine) nobody had measured. Swap is a lead, not a verdict.
+    bad "no verdict in 25 min; swap: $(sysctl -n vm.swapusage | sed -E 's/.*(free = [^ ]+).*/\1/'); the log ends with:"
+    tail -4 "$log" | cut -c1-140 | sed 's/^/       /'
+  else
+    bad "${verdict:-did not build}"
+    grep -E "error: |: error:|failed \(" "$log" | sort -u | head -10 | sed 's/^/       /'
+  fi
+  return "$rc"
+}
+
+# Iteration 15: swap at 9 of 11 GB kept the simulator (and so `iphone test`)
+# out for hours, and Swift edits waited unverified. swiftc can type-check the
+# app and the tests against the simulator SDK with no device at all: emit the
+# app as a testable module, then check the tests against it. XCTest lives
+# outside the SDK proper, hence the platform -I/-F paths.
+iphone_typecheck() {
+  local ios="$1" target="arm64-apple-ios17.0-simulator" t plat rc log
+  plat="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)/Developer" || { bad "no iphonesimulator SDK"; return 2; }
+  t=$(mktemp -d) log="$t/log"
+  echo "  …    app: emit module + type-check ($target)"
+  ( cd "$ios" && xcrun --sdk iphonesimulator swiftc -emit-module -enable-testing \
+      -module-name Vibee -target "$target" -emit-module-path "$t/Vibee.swiftmodule" \
+      Vibee/*.swift ) >"$log" 2>&1
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    bad "the app does not type-check"
+    grep -E ": error:" "$log" | sort -u | head -15 | sed 's/^/       /'
+    rm -rf "$t"; return "$rc"
+  fi
+  good "app type-checks ($(grep -c ': warning:' "$log") warning(s))"
+  echo "  …    tests: type-check against the app module"
+  ( cd "$ios" && xcrun --sdk iphonesimulator swiftc -typecheck -target "$target" \
+      -I "$t" -I "$plat/usr/lib" -F "$plat/Library/Frameworks" VibeeTests/*.swift ) >"$log" 2>&1
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    bad "the tests do not type-check"
+    grep -E ": error:" "$log" | sort -u | head -15 | sed 's/^/       /'
+  else
+    good "tests type-check -- compiled, NOT run: \`tri iphone test\` still owes the verdict"
+  fi
+  rm -rf "$t"; return "$rc"
+}
+
+iphone_sim() {
+  local ios="$1" sim="${VIBEE_SIM:-}"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd-sim" log="${TMPDIR:-/tmp}/tri-iphone-sim.log"
+  local deadline
+  deadline=$(command -v timeout || command -v gtimeout) \
+    || { bad "no timeout(1) -- brew install coreutils"; return 2; }
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-F-]{36})\) \(Booted\).*/\1/p' | head -1)
+  # `xcodebuild test` shuts its simulator down when it finishes, so "nothing
+  # booted" is the normal state right after the tests -- boot one instead of
+  # failing. Same deadline idea as install: a starved machine boots for minutes.
+  [ -n "$sim" ] || sim=$(xcrun simctl list devices available | sed -nE 's/^ +iPhone.*\(([0-9A-F-]{36})\) \(Shutdown\).*/\1/p' | head -1)
+  [ -n "$sim" ] || { bad "no iPhone simulator at all -- create one in Xcode, or set VIBEE_SIM=udid"; return 1; }
+  if ! xcrun simctl list devices booted | grep -q "$sim"; then
+    echo "  …    booting simulator $sim"
+    xcrun simctl boot "$sim" 2>/dev/null
+    "$deadline" 300 xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1 \
+      || { bad "simulator $sim did not finish booting in 300 s"; return 1; }
+  fi
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  # A booted iPhone simulator is ~140 processes and ~10 GB resident; on this
+  # 16 GB machine that pushed swap to 5 of 6 GB and install/launch hung with
+  # no error (2026-10-02). `memory_pressure` still said 38% free, so ask swap.
+  local swap_free
+  swap_free=$(sysctl -n vm.swapusage | sed -E 's/.*free = ([0-9]+)\..*/\1/')
+  [ "${swap_free:-9999}" -lt 1024 ] && warn "swap has ${swap_free} MB left -- the simulator will crawl; close what you can"
+  # Only the simctl process itself: wrappers (xcrun, a tool's launcher) carry
+  # the same command line and would count one stream twice. The simulator
+  # panel keeps a narrow orientation stream of its own; that one is cheap.
+  local stray
+  stray=$(pgrep -fl "bin/simctl spawn $sim log (stream|show)" | grep -v "interface orientation")
+  [ -n "$stray" ] && warn "log stream/show on $sim (each loads the simulator; kill yours):" \
+    && sed -E 's/.*(log (stream|show))/       \1/' <<<"$stray" | cut -c1-120
+  echo "  …    building for simulator $sim (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee \
+      -destination "id=$sim" -derivedDataPath "$dd" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  local app="$dd/Build/Products/Debug-iphonesimulator/Vibee.app"
+  if ! "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1; then
+    warn "install did not finish in 240 s -- rebooting the simulator once"
+    "$deadline" 90 xcrun simctl shutdown "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl boot "$sim" >>"$log" 2>&1
+    "$deadline" 120 xcrun simctl bootstatus "$sim" -b >>"$log" 2>&1
+    "$deadline" 240 xcrun simctl install "$sim" "$app" >>"$log" 2>&1 \
+      || { bad "install failed after a reboot too: tail $log"; return 1; }
+  fi
+  good "installed"
+  local rc
+  "$deadline" 120 xcrun simctl launch --terminate-running-process "$sim" ai.t27.trinity >>"$log" 2>&1
+  rc=$?
+  if [ "$rc" = 124 ]; then
+    bad "launch did not answer in 120 s -- the simulator is starved (swap? tri iphone sim warns), not the app"
+    return 1
+  elif [ "$rc" != 0 ]; then
+    bad "launch failed: tail $log"; return 1
+  fi
+  good "launched the fresh build on simulator $sim"
+}
+
+# The App Store road through apps/vibee-ios/fastlane (the lanes Leela shipped
+# with). fastlane prints a US-ASCII locale warning and then dies on the first
+# Cyrillic byte it reads, so the locale is set here, not left to the shell.
+iphone_store() {
+  local ios="$1" mode="$2" yes="${3:-}"
+  # TRI_FASTLANE: tri puts Homebrew first on PATH, so a stub earlier on PATH
+  # never wins; the tests (and a pinned install) name the binary instead.
+  local fl="${TRI_FASTLANE:-fastlane}"
+  command -v "$fl" >/dev/null || { bad "fastlane is not installed (brew install fastlane)"; return 2; }
+  local log="${TMPDIR:-/tmp}/tri-iphone-$mode.log"
+  local lanes=(preflight state) upload=0
+  if [ "$mode" = "state" ]; then
+    # Only the read-only question, no xcodegen and no offline preflight: what
+    # a loop asks every tick while it waits for the owner's app record.
+    lanes=(state)
+  elif [ "$mode" = "testflight" ]; then
+    [ "$yes" = "--yes" ] || { bad "uploading publishes a build under the owner's account: tri iphone testflight --yes"; return 2; }
+    lanes=(beta) upload=1
+  elif [ "$mode" = "testers" ]; then
+    [ "$yes" = "--yes" ] || { bad "adding testers e-mails them from the owner's account: tri iphone testers --yes"; return 2; }
+    lanes=(testers) upload=1
+  elif [ "$mode" = "metadata" ]; then
+    [ "$yes" = "--yes" ] || { bad "the store page is published under the owner's account: tri iphone metadata --yes"; return 2; }
+    lanes=(metadata) upload=1
+  elif [ "$mode" = "processed" ]; then
+    lanes=(processed)
+  fi
+  local lane rc=0
+  for lane in "${lanes[@]}"; do
+    echo "  …    fastlane $lane (log: $log)"
+    ( cd "$ios" && LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 FASTLANE_SKIP_UPDATE_CHECK=1 \
+        FASTLANE_HIDE_TIMESTAMP=1 FASTLANE_DISABLE_COLORS=1 \
+        VIBEE_UPLOAD_YES="$upload" "$fl" "$lane" ) >"$log" 2>&1 || rc=$?
+    # The lanes' own verdict lines, not fastlane's banner tables.
+    grep -E '^ *(✓|✗)|^(app|app id|testflight|store|group|tester|testers|processed|waiting) |^next build|^\[!\]|^  [12]\. |^Ready|^built|^uploaded|^store page' "$log" | sed 's/^/       /'
+    if [ "$rc" != 0 ]; then
+      # The one blocker no command here can lift gets its own code, so a loop
+      # tells "still waiting on the owner" (3) from "broken" (1) without
+      # reading the log. The probe used to be a scratch Fastfile in /tmp,
+      # which a reboot erases between two ticks.
+      if grep -q "has no app with bundle id" "$log"; then
+        warn "waiting on the owner: the App Store Connect app record does not exist yet (exit 3)"
+        return 3
+      fi
+      bad "fastlane $lane failed (exit $rc): tail $log"
+      return 1
+    fi
+  done
+  [ "$mode" = "processed" ] && { iphone_processed_verdict "$log"; return; }
+  good "fastlane ${lanes[*]}: done"
+}
+
+# tri iphone processed [--wait MIN] [--build N] -- has Apple finished with the
+# upload? `beta` does not wait for processing (minutes to an hour), so this is
+# how the owner and the loop learn that the build is on the phone. Read-only,
+# no --yes. Exit 0 ready in TestFlight, 1 Apple refused it (or it expired),
+# 2 usage, 3 the app record is missing, 4 not yet (still processing, or
+# nothing uploaded). With --wait a final answer also posts a macOS
+# notification (TRI_NOTIFY replaces osascript; the tests record it).
+iphone_processed() {
+  local ios="$1"; shift
+  local wait=0 build="" telegram=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --wait) wait="${2:-}"; shift 2 || { bad "--wait needs minutes"; return 2; } ;;
+      --build) build="${2:-}"; shift 2 || { bad "--build needs a build number"; return 2; } ;;
+      --telegram) telegram=1; shift ;;
+      *) bad "usage: tri iphone processed [--wait MIN] [--build N] [--telegram]"; return 2 ;;
+    esac
+  done
+  case "$wait" in '' | *[!0-9]*) bad "--wait takes whole minutes, not '$wait'"; return 2 ;; esac
+  case "$build" in *[!0-9]*) bad "--build takes a build number, not '$build'"; return 2 ;; esac
+  PROCESSED_WAIT_MIN="$wait" PROCESSED_BUILD="$build" TRI_PROCESSED_NOTIFY="$([ "$wait" -gt 0 ] && echo 1)" \
+    TRI_PROCESSED_TELEGRAM="$telegram" iphone_store "$ios" processed
+}
+
+iphone_processed_verdict() {
+  local log="$1" v what rc
+  v=$(sed -n 's/^processed  \([a-z]*\)  .*/\1/p' "$log" | tail -1)
+  what=$(sed -n 's/^processed  [a-z]*  //p' "$log" | tail -1)
+  case "$v" in
+    ready)   good "in TestFlight: $what -- the phone's TestFlight app can install it"; rc=0 ;;
+    failed)  bad "Apple refused it: $what -- App Store Connect -> TestFlight shows why"; rc=1 ;;
+    expired) bad "expired: $what -- upload a new build"; rc=1 ;;
+    # A state Apple added after build_wait.rb was written: say so, rather
+    # than "the lane printed no verdict", which sends you to read fastlane.
+    unknown) bad "Apple reports a state tri does not know: $what -- App Store Connect -> TestFlight"; rc=1 ;;
+    processing) warn "not yet: $what -- tri iphone processed --wait 60"; rc=4 ;;
+    none)    warn "not yet: $what"; rc=4 ;;
+    *)       bad "the lane printed no verdict: tail $log"; return 1 ;;
+  esac
+  # Every answer to a --wait is worth the banner, "still processing when the
+  # wait ran out" included: the owner who walked away learns it either way.
+  # The text is an argument to the script, never spliced into it, so a quote
+  # in Apple's reply cannot end the AppleScript string.
+  if [ "${TRI_PROCESSED_NOTIFY:-}" = 1 ]; then
+    local n="${TRI_NOTIFY:-osascript}"
+    command -v "$n" >/dev/null 2>&1 &&
+      "$n" -e 'on run argv' \
+        -e 'display notification (item 1 of argv) with title "Trinity S³AI TestFlight"' \
+        -e 'end run' "$v: $what" >/dev/null 2>&1
+  fi
+  [ "${TRI_PROCESSED_TELEGRAM:-}" = 1 ] && processed_telegram "$v" "$what"
+  return "$rc"
+}
+
+# processed --telegram: the owner who went to sleep learns the answer on the
+# phone, not from a banner on a Mac nobody watches. Only FINAL answers go out
+# (ready, refused, expired, a state tri does not know); "still processing" is
+# the loop's business. Each answer goes out once: the last one sent is kept,
+# so a loop calling this every tick does not repeat "ready" every 30 minutes
+# (the desk announce spam, #3467). The token reaches curl on stdin, never in
+# argv, where ps would show it. A failed send warns and leaves the exit code
+# alone: Apple's answer is the result, the message is a courtesy.
+processed_telegram() {
+  local v="$1" what="$2" head
+  case "$v" in
+    ready) head="Trinity S³AI в TestFlight: сборка готова, ставь из приложения TestFlight" ;;  # cyrillic-ok
+    failed) head="Trinity S³AI: Apple отклонил сборку, причина в App Store Connect -> TestFlight" ;;  # cyrillic-ok
+    expired) head="Trinity S³AI: сборка в TestFlight истекла, нужна новая" ;;  # cyrillic-ok
+    unknown) head="Trinity S³AI: Apple сообщает состояние, которого tri не знает" ;;  # cyrillic-ok
+    *) return 0 ;;
+  esac
+  local sent="${TRI_PROCESSED_SENT:-$HOME/.cache/tri/processed-telegram}"
+  if [ "$(cat "$sent" 2>/dev/null)" = "$v: $what" ]; then
+    good "telegram: this answer already reached the owner"
+    return 0
+  fi
+  local tok="${TRI_TG_TOKEN:-}" chat="${TRI_TG_CHAT:-}" vars=""
+  # A STUBBED SENDER NEVER GETS THE REAL TOKEN. The #3500 reviewer stubbed curl,
+  # left TRI_TG_TOKEN unset, and tri fetched BOT_TOKEN_12 from Railway straight
+  # into the stub's log. With TRI_CURL set, only the TRI_TG_* values are used.
+  if [ -n "${TRI_CURL:-}" ] && { [ -z "$tok" ] || [ -z "$chat" ]; }; then
+    warn "telegram: TRI_CURL is a stub, so Railway is not read -- set TRI_TG_TOKEN and TRI_TG_CHAT; nothing sent"
+    return 0
+  fi
+  if [ -z "$tok" ] || [ -z "$chat" ]; then
+    vars=$(rvars vibee-render)
+    [ -n "$tok" ] || tok=$(printf '%s\n' "$vars" | sed -n 's/^BOT_TOKEN_12=//p')
+    # The owner is the first of ADMIN_IDS on the render service.
+    [ -n "$chat" ] || chat=$(printf '%s\n' "$vars" | sed -n 's/^ADMIN_IDS=//p' | cut -d, -f1 | tr -d ' ')
+    vars=""
+  fi
+  # The token goes into a curl config line, so anything beyond a bot token's
+  # own alphabet could add a config line of its own (a newline wrote a file in
+  # the #3500 review). Only <digits>:<[A-Za-z0-9_-]> passes.
+  if ! [[ "$tok" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]]; then
+    tok=""
+    warn "telegram: no bot token of the right shape (BOT_TOKEN_12 on vibee-render), nothing sent"
+    return 0
+  fi
+  case "$chat" in '' | *[!0-9]*) warn "telegram: no owner id (ADMIN_IDS on vibee-render), nothing sent"; return 0 ;; esac
+  local reply
+  reply=$(printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$tok" |
+    "${TRI_CURL:-curl}" -sS --max-time 20 -K - \
+      --data-urlencode "chat_id=$chat" --data-urlencode "text=$head
+$what" 2>&1)
+  tok=""
+  case "$reply" in
+    *'"ok":true'*)
+      if mkdir -p "$(dirname "$sent")" 2>/dev/null && printf '%s' "$v: $what" 2>/dev/null >"$sent"; then
+        good "telegram: the owner has the answer"
+      else
+        warn "telegram: sent, but $sent cannot be written -- the next run sends it again"
+      fi ;;
+    *) warn "telegram: not sent ($(printf '%s' "$reply" | head -c 160))" ;;
+  esac
+  return 0
+}
+
+cmd_iphone() {
+  local mode="${1:-all}" name="${VIBEE_DEVICE:-t27_dev}"
+  local json="${TMPDIR:-/tmp}/tri-iphone-devices.json"
+  local dd="${TMPDIR:-/tmp}/tri-iphone-dd"
+  local ios="$ROOT/apps/vibee-ios"
+  local key="$HOME/.appstoreconnect/private_keys/AuthKey_R3JF4GL93F.p8"
+  local keyjson="$HOME/.appstoreconnect/fastlane-key.json"
+
+  [ "$mode" = "sim" ] && { iphone_sim "$ios"; return; }
+  [ "$mode" = "off" ] && { iphone_sim_off; return; }
+  [ "$mode" = "test" ] && { iphone_test "$ios" "${2:-}"; return; }
+  [ "$mode" = "typecheck" ] && { iphone_typecheck "$ios"; return; }
+  [ "$mode" = "ru" ] && { iphone_ru "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-diff" ] && { iphone_ru_diff "$ios" "${2:-}"; return; }
+  [ "$mode" = "ru-web" ] && { iphone_ru_web "${2:-}"; return; }
+  [ "$mode" = "store" ] && { iphone_store "$ios" store; return; }
+  [ "$mode" = "state" ] && { iphone_store "$ios" state; return; }
+  [ "$mode" = "testflight" ] && { iphone_store "$ios" testflight "${2:-}"; return; }
+  [ "$mode" = "testers" ] && { iphone_store "$ios" testers "${2:-}"; return; }
+  [ "$mode" = "metadata" ] && { iphone_store "$ios" metadata "${2:-}"; return; }
+  [ "$mode" = "processed" ] && { shift; iphone_processed "$ios" "$@"; return; }
+  # An unknown word must not fall through to the device build. It did: the
+  # owner typed `tri iphone testflight --yes` in a checkout older than the
+  # testflight mode, and got a phone install where they expected an upload --
+  # "OK launched" on screen, nothing sent to Apple, nothing said.
+  # `install` is the header's name for the default path; keep it an alias.
+  case "$mode" in
+    all|install|check|build) ;;
+    *)
+      bad "tri iphone: unknown mode '$mode'"
+      echo "       modes: all (default) install check build sim off test typecheck ru ru-diff ru-web store state testflight testers metadata processed"
+      echo "       a mode you expected missing? this checkout may be behind: $(git -C "$ROOT" log -1 --format='%h %cs' 2>/dev/null) (git fetch; compare with origin/main)"
+      return 2 ;;
+  esac
+
+  if ! xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1; then
+    bad "devicectl did not answer (Xcode command line tools?)"; return 2
+  fi
+  local row
+  row=$(python3 - "$json" "$name" <<'PY'
+import json, sys
+devs = json.load(open(sys.argv[1]))["result"]["devices"]
+for d in devs:
+    if d["deviceProperties"].get("name") == sys.argv[2]:
+        c = d.get("connectionProperties", {})
+        print(d["identifier"], d["hardwareProperties"].get("udid", ""),
+              c.get("tunnelState", "?"), c.get("pairingState", "?"))
+        break
+PY
+)
+  if [ -z "$row" ]; then
+    bad "no paired device named '$name' -- set VIBEE_DEVICE, known:"
+    python3 -c "import json,sys;[print('       '+d['deviceProperties'].get('name','?')) for d in json.load(open(sys.argv[1]))['result']['devices']]" "$json"
+    return 2
+  fi
+  local core udid tunnel pairing
+  read -r core udid tunnel pairing <<<"$row"
+  # An idle tunnel closes within seconds, so "disconnected" on a paired
+  # phone usually means asleep, not gone: one request to the device opens
+  # it again (measured 2026-10-02 on t27_dev over Wi-Fi).
+  if [ "$mode" != "build" ] && [ "$tunnel" = "disconnected" ] && [ "$pairing" = "paired" ]; then
+    timeout 60 xcrun devicectl device info details --device "$core" >/dev/null 2>&1 && tunnel=connected
+  fi
+  if [ "$mode" = "build" ]; then
+    : # compiling for the phone does not need the phone
+  elif [ "$tunnel" != "connected" ]; then
+    bad "$name is $tunnel (paired: $pairing) -- unlock it and keep it on the cable or the same Wi-Fi"
+    return 1
+  else
+    good "$name reachable (udid $udid, core $core)"
+  fi
+  [ "$mode" = "check" ] && return 0
+
+  # The iOS build is the largest single eater of disk here (run.sh paid for
+  # this: a full disk left the loop unable even to write). Refuse up front;
+  # the derived-data dir is ONE fixed path, so builds reuse it, not stack.
+  local free_mb
+  free_mb=$(df -m "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')
+  if [ "${free_mb:-0}" -lt 2048 ]; then
+    bad "only ${free_mb} MB free, need 2048 -- see tri disk, or rm -rf $dd"; return 1
+  fi
+  [ -f "$key" ] && [ -f "$keyjson" ] || { bad "App Store Connect key missing: $key / $keyjson"; return 2; }
+  local issuer
+  issuer=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['issuer_id'])" "$keyjson") || return 2
+  local dest="id=$udid"
+  [ "$mode" = "build" ] && dest="generic/platform=iOS"
+  local log="${TMPDIR:-/tmp}/tri-iphone-build.log"
+  echo "  …    building for $dest (log: $log)"
+  if ! ( cd "$ios" && xcodegen generate --quiet && xcodebuild -scheme Vibee -destination "$dest" \
+      -derivedDataPath "$dd" -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+      -authenticationKeyPath "$key" -authenticationKeyID R3JF4GL93F \
+      -authenticationKeyIssuerID "$issuer" build -quiet ) >"$log" 2>&1; then
+    bad "build failed:"; grep -E "error:" "$log" | head -8 | sed 's/^/       /'
+    return 1
+  fi
+  good "built"
+  [ "$mode" = "build" ] && return 0
+
+  local app="$dd/Build/Products/Debug-iphoneos/Vibee.app"
+  xcrun devicectl device install app --device "$core" "$app" >"$log" 2>&1 \
+    || { bad "install failed:"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "installed"
+  xcrun devicectl device process launch --device "$core" --terminate-existing ai.t27.trinity >"$log" 2>&1 \
+    || { bad "launch failed (phone locked?):"; tail -5 "$log" | sed 's/^/       /'; return 1; }
+  good "launched the fresh build on $name"
+}
+
 cmd_real() {
   local name="${1:?нужно имя функции, например like или comment}"
   local web="$ROOT/apps/vibee-editor/player/src"
@@ -1634,8 +2600,16 @@ _mcp_key() {
   local f="${TRI_AGENT_KEY_FILE:-/tmp/.ak.tmp}"
   if [ -s "$f" ]; then tr -d '\r\n' < "$f"; return 0; fi
   local v
-  v=$(infisical secrets get AGENT_KEY --plain 2>/dev/null | tr -d '\r\n')
-  [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  # Logged out, infisical does not fail -- it starts an interactive login and
+  # waits for a person forever, and every command needing the key hung with it
+  # (seen 2026-10-01 under an unattended loop). It gets 20 s and no terminal.
+  command -v infisical > /dev/null 2>&1 || return 1
+  v=$(perl -e 'alarm shift; exec @ARGV' "${TRI_VAULT_TIMEOUT_S:-20}" \
+        infisical secrets get AGENT_KEY --plain < /dev/null 2>/dev/null | tr -d '\r\n')
+  # Logged out, it may also PRINT a notice on stdout (311 characters of prose
+  # on 2026-10-01), which used to go out as the X-Agent-Key header. A key is
+  # one token, so anything else is no key at all.
+  [[ "$v" =~ ^[A-Za-z0-9_.:-]{16,256}$ ]] && { printf '%s' "$v"; return 0; }
   return 1
 }
 
@@ -1805,8 +2779,472 @@ PY
   local rc=$?
   case "$rc" in
     0) good 'the remote browser can act' ;;
-    1) bad 'the remote browser cannot act -- heal it before trusting a round' ;;
+    1) bad 'the remote browser cannot act -- run `tri heal` before trusting a round' ;;
     2) warn 'reachable, but the answer is not proof of a working page' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri card -- a kanban card's conversation without opening the app.
+#
+# One thread, many pilots: the sheet on /game/kanban?card=N, this command and
+# an outside agent over A2A (metadata.task) all read and write the rows of
+# `task:gHashTag/<repo>#<n>`. The server resolves a bare number against the
+# board it reads, so this command never guesses a repository.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_card() {
+  local task="${1:-}"
+  if [ -z "$task" ]; then
+    bad 'needs a card: tri card <n|repo#n|gHashTag/repo#n> [text]'
+    return 1
+  fi
+  shift
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_TEXT="$*" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+
+base, task, text = os.environ['CARD_URL'], os.environ['CARD_TASK'], os.environ['CARD_TEXT'].strip()
+head = {"X-Agent-Key": os.environ['CARD_KEY'], "Content-Type": "application/json"}
+
+def call(path, body=None, timeout=60):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(base + path, data=data, headers=head,
+                                 method='GET' if body is None else 'POST')
+    return urllib.request.urlopen(req, timeout=timeout)
+
+def fail(e):
+    if isinstance(e, urllib.error.HTTPError):
+        try:
+            why = json.loads(e.read()).get('error', '')
+        except Exception:
+            why = ''
+        hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+        print(f'  HTTP {e.code} {why or e.reason}{hint}')
+        sys.exit(1 if 400 <= e.code < 500 else 3)
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+q = urllib.parse.urlencode({'task': task, 'limit': 100})
+try:
+    with call(f'/api/agent/history?{q}') as r:
+        hist = json.loads(r.read())
+except Exception as e:
+    fail(e)
+
+thread = hist.get('thread') or ''
+if not thread.startswith('task:'):
+    # A render that predates task threads ignores ?task= and answers with the
+    # person's OWN thread. Saying anything now would land in the wrong
+    # conversation, so nothing is sent.
+    print(f'  this render answered thread {thread or "(none)"!r}, not a task thread:')
+    print('  task threads are not deployed there yet -- nothing was sent')
+    sys.exit(2)
+card = hist.get('card') or {}
+turns = hist.get('messages') or []
+title = card.get('title') or '(untitled on the board)'
+print(f"  {thread.removeprefix('task:')}  [{card.get('column') or '?'}]  {title}")
+
+if not text:
+    if not turns:
+        print('  no conversation yet -- `tri card <n> "<text>"` starts one')
+    for t in turns[-12:]:
+        who = 'you  ' if t.get('role') == 'user' else 'agent'
+        line = ' '.join(str(t.get('content') or '').split())
+        print(f'  {who} {line[:300]}')
+    sys.exit(0)
+
+history = [{'role': t.get('role'), 'content': t.get('content')}
+           for t in turns[-20:] if t.get('role') in ('user', 'assistant')]
+history.append({'role': 'user', 'content': text})
+try:
+    with call('/api/agent/chat', {'messages': history, 'task': task,
+                                  'surface': 'agent'}, timeout=600) as r:
+        print('  agent ', end='', flush=True)
+        for raw in r:
+            try:
+                ev = json.loads(raw)
+            except Exception:
+                continue
+            kind = ev.get('\u0442\u0438\u043f')        # the stream's own key
+            words = str(ev.get('\u0442\u0435\u043a\u0441\u0442') or '')
+            if kind == '\u0442\u0435\u043a\u0441\u0442':
+                print(words, end='', flush=True)
+            elif kind == '\u043e\u0448\u0438\u0431\u043a\u0430':
+                print(f'\n  error: {words}')
+                sys.exit(1)
+        print()
+except Exception as e:
+    fail(e)
+PY
+}
+
+# tri card-check -- is the kanban card chat live, end to end, after the
+# owner merges and render deploys? Read-only: every request is a GET.
+cmd_card_check() {
+  local task="${1:-5382}"
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+  local merged
+  merged=$(for pr in gHashTag/999-multibots-telegraf#3208 gHashTag/t27#5389; do
+    gh pr view "${pr#*#}" -R "${pr%#*}" --json state -q .state 2>/dev/null \
+      | sed "s|^|$pr |"
+  done)
+  # 5. The Queen's move door (BrowserOS#519) against the spec's flag: the
+  # sheet's move row may light only once the door is merged (spec v5 S16).
+  local door_pr door_flag
+  door_pr=$(gh pr view 519 -R gHashTag/BrowserOS --json state -q .state 2>/dev/null)
+  door_flag=$(grep -o 'MOVE_DOOR_EXISTS = [a-z]*' \
+    "$ROOT/apps/vibee-editor/render/src/spec/kanban-card-chat.gen.ts" | awk '{print $3}')
+  # 4. The server's GraphQL query against LIVE GitHub, with the local `gh`
+  # token (read-only use, never printed), compared with the client's read.
+  # Holds before any merge: a GitHub schema change breaks it here first.
+  local pr_n="${task##*#}" pr_repo="${task%#*}" parity=''
+  [ "$pr_repo" = "$task" ] && pr_repo='gHashTag/t27'
+  case "$pr_repo" in */*) ;; *) pr_repo="gHashTag/$pr_repo" ;; esac
+  if command -v gh >/dev/null && gh auth token >/dev/null 2>&1; then
+    parity=$(cd "$ROOT/apps/vibee-editor/render" \
+      && GH_READ=$(gh auth token) ./node_modules/.bin/tsx \
+        scripts/card-status-parity.ts "$pr_repo" "$pr_n" 2>/dev/null | tail -1)
+  fi
+  CARD_KEY="$key" CARD_URL="$RENDER" CARD_TASK="$task" CARD_MERGED="$merged" \
+    CARD_PARITY="$parity" CARD_DOOR_PR="$door_pr" CARD_DOOR_FLAG="$door_flag" \
+    python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+
+base, task = os.environ['CARD_URL'], os.environ['CARD_TASK']
+head = {"X-Agent-Key": os.environ['CARD_KEY']}
+verdicts = []
+
+def say(kind, what):
+    verdicts.append(kind)
+    print(f'  {kind:<5} {what}')
+
+def get(path):
+    req = urllib.request.Request(base + path, headers=head)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status, json.loads(r.read() or b'null')
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read() or b'null')
+        except Exception:
+            return e.code, None
+    except Exception as e:
+        return 0, str(e)
+
+# 1. The card's thread: a render with task threads answers `task:`.
+code, h = get('/api/agent/history?' + urllib.parse.urlencode({'task': task, 'limit': 1}))
+thread = (h or {}).get('thread', '') if isinstance(h, dict) else ''
+if code == 200 and thread.startswith('task:'):
+    say('ok', f'thread {thread}')
+elif code == 200:
+    say('wait', f'render answers thread {thread!r}: task threads not deployed')
+else:
+    say('fail' if code and code < 500 else 'wait', f'history HTTP {code}')
+
+# 2. The server's status door.
+ref = thread.removeprefix('task:') if thread.startswith('task:') else ''
+repo, _, n = ref.rpartition('#')
+if not ref:
+    repo, n = 'gHashTag/t27', task.rpartition('#')[2]
+code, s = get('/api/card-status?' + urllib.parse.urlencode({'repo': repo, 'n': n}))
+if code == 404:
+    say('wait', '/api/card-status not deployed (the client reads GitHub itself)')
+elif code == 503:
+    say('wait', 'card-status deployed, no GITHUB_READ_TOKEN: the owner\'s call; the client reads')
+elif code == 200 and isinstance(s, dict) and s.get('measured'):
+    st = s.get('status') or {}
+    prs = ', '.join(f"{p['repo'].split('/')[1]}#{p['number']} {p['state']}"
+                    + (f" checks={p['checks']}" if p.get('checks') else '')
+                    for p in st.get('prs', []))
+    say('ok', f"server read: {st.get('kind')} {prs}".rstrip())
+elif code == 200:
+    say('fail', 'card-status configured but GitHub did not answer (token scope or limit?)')
+else:
+    say('fail' if code and code < 500 else 'wait', f'card-status HTTP {code}')
+
+# 3. The pull requests that carry it.
+for line in filter(None, os.environ.get('CARD_MERGED', '').splitlines()):
+    pr, state = line.rsplit(' ', 1)
+    say('ok' if state == 'MERGED' else 'wait', f'{pr} {state.lower()}')
+
+# 4. The server's query against live GitHub, the same card both ways.
+raw = os.environ.get('CARD_PARITY', '')
+try:
+    par = json.loads(raw) if raw else None
+except ValueError:
+    par = None
+if par is None:
+    say('wait', 'query vs live GitHub: not run (no `gh` login or no answer)')
+elif par.get('error'):
+    say('fail' if 'broke' in par['error'] else 'wait', f"query vs live GitHub: {par['error']}")
+elif par.get('client') == 'unmeasured':
+    say('wait', 'query answered; the client read was refused (limit)')
+elif par.get('same'):
+    srv = par.get('server') or {}
+    say('ok', f"query vs live GitHub: server == client ({len(srv.get('prs', []))} shown, +{srv.get('more', 0)})")
+else:
+    say('fail', f"server != client: {json.dumps(par.get('server'))} vs {json.dumps(par.get('client'))}")
+
+# 5. The move door against the flag: a lit row on a missing door is a lie.
+door, flag = os.environ.get('CARD_DOOR_PR', ''), os.environ.get('CARD_DOOR_FLAG', '')
+if flag == 'true' and door != 'MERGED':
+    say('fail', f'MOVE_DOOR_EXISTS is true but BrowserOS#519 is {door.lower() or "unread"}')
+elif flag == 'true':
+    say('ok', 'move door merged and the spec says so')
+elif door == 'MERGED':
+    say('wait', 'BrowserOS#519 merged: once deployed, spec v7 flips MOVE_DOOR_EXISTS')
+else:
+    say('wait', f'move row dark: BrowserOS#519 {door.lower() or "unread"}')
+
+sys.exit(1 if 'fail' in verdicts else 2 if 'wait' in verdicts else 0)
+PY
+}
+
+# tri card-drift -- the nightly drift watch (spec kanban-card-chat.t27 v5,
+# DRIFT_ONE_ISSUE). The verb comes from render's driftAction (bound by the
+# spec test); this function only carries it out with `gh`.
+cmd_card_drift() {
+  local dry=0 task='5382' a
+  for a in "$@"; do
+    case "$a" in --dry) dry=1 ;; *) task="$a" ;; esac
+  done
+  local n="${task##*#}" repo="${task%#*}"
+  [ "$repo" = "$task" ] && repo='gHashTag/t27'
+  case "$repo" in */*) ;; *) repo="gHashTag/$repo" ;; esac
+  local render="$ROOT/apps/vibee-editor/render"
+  if ! gh auth token >/dev/null 2>&1; then
+    warn 'no `gh` login: nothing measured, nothing written'
+    return 2
+  fi
+  local parity
+  parity=$(cd "$render" && GH_READ=$(gh auth token) ./node_modules/.bin/tsx \
+    scripts/card-status-parity.ts "$repo" "$n" 2>/dev/null | tail -1)
+  # The pipeline's status is tail's; ask the JSON instead.
+  local drifted
+  drifted=$(printf '%s' "$parity" | python3 -c '
+import json, sys
+try:
+    p = json.loads(sys.stdin.read() or "null")
+except ValueError:
+    p = None
+if not isinstance(p, dict) or p.get("client") == "unmeasured":
+    print("x")
+elif "same" in p:
+    print("0" if p["same"] else "1")
+elif "broke" in (p.get("error") or "") or "gone" in (p.get("error") or ""):
+    print("1")
+else:
+    print("x")')
+  if [ "$drifted" = x ]; then
+    warn "not measured tonight: ${parity:-no answer} -- the issue is left as it is"
+    return 2
+  fi
+  local body
+  body=$(printf '%s\n\n```json\n%s\n```\n\nCard: %s#%s.' \
+    "$([ "$drifted" = 1 ] && echo 'The server read and the client read of the same card differ (or the query broke).' || echo 'The two reads agree again.')" \
+    "$parity" "$repo" "$n")
+  _one_issue 'card-check drift' \
+    'card-check drift: the server card-status read disagrees with GitHub' \
+    "$drifted" "$body" "$dry"
+}
+
+# One issue per watch (spec kanban-card-chat.t27 v5, DRIFT_ONE_ISSUE): opened
+# on the first bad night, commented on while it stays bad, closed on the first
+# good night; a night that measured nothing (bad=x) touches nothing. The verb
+# is render's driftAction; the issue is found by its title's KEY prefix, not
+# by GitHub's fuzzy search alone. Exit 1 bad, 2 unmeasured, 0 good.
+_one_issue() {
+  local key="$1" title="$2" bad="$3" text="$4" dry="$5"
+  local render="$ROOT/apps/vibee-editor/render"
+  if [ "$bad" = x ]; then
+    warn "$key: not measured tonight -- the issue is left as it is"
+    return 2
+  fi
+  local open_n verb
+  open_n=$(gh issue list -R gHashTag/t27 --state open --limit 10 \
+    --search "in:title \"$key\"" --json number,title \
+    -q "[.[] | select(.title | startswith(\"$key\"))][0].number // empty" 2>/dev/null)
+  verb=$(cd "$render" && ./node_modules/.bin/tsx scripts/card-drift.ts \
+    "$bad" "$([ -n "$open_n" ] && echo 1 || echo 0)")
+  local body
+  body=$(printf '%s\n\nMeasured %s by `tri hive-nightly` (spec kanban-card-chat.t27, DRIFT_ONE_ISSUE). Part of #5388.' \
+    "$text" "$(date -u +%Y-%m-%dT%H:%MZ)")
+  echo "  $key: bad=$bad issue=${open_n:-none} -> $verb"
+  if [ "$dry" != 1 ]; then
+    case "$verb" in
+      open) gh issue create -R gHashTag/t27 --title "$title" --body "$body" ;;
+      comment) gh issue comment "$open_n" -R gHashTag/t27 --body "$body" ;;
+      close) gh issue close "$open_n" -R gHashTag/t27 --comment "$body" ;;
+    esac
+  fi
+  [ "$bad" = 1 ] && return 1 || return 0
+}
+
+# tri hive-nightly -- every watch of the card sheet in one night, each keeping
+# its own ONE issue: the drift (server read vs client read), the live
+# card-check against render, and on Sundays (or --shots) every phone stand.
+# A watch that could not measure (no key, no login, nothing deployed yet)
+# says so and touches nothing. Exit: 1 if any watch is bad, else 2 if any
+# measured nothing, else 0.
+cmd_hive_nightly() {
+  local dry=0 shots=0 a
+  for a in "$@"; do
+    case "$a" in --dry) dry=1 ;; --shots) shots=1 ;; esac
+  done
+  [ "$(date +%u)" = 7 ] && shots=1
+  if ! gh auth token >/dev/null 2>&1; then
+    warn 'no `gh` login: nothing measured, nothing written'
+    return 2
+  fi
+  local worst=0 rc out bad
+  _worse() { [ "$1" = 1 ] && worst=1; [ "$1" = 2 ] && [ "$worst" = 0 ] && worst=2; }
+
+  echo '== drift'
+  cmd_card_drift $([ "$dry" = 1 ] && echo --dry)
+  _worse $?
+
+  echo '== card-check (live)'
+  if _mcp_key >/dev/null 2>&1; then
+    out=$(cmd_card_check 2>&1); rc=$?
+    printf '%s\n' "$out"
+    # Waiting on a merge or a deploy is the normal state, not a regression.
+    case "$rc" in 0) bad=0 ;; 1) bad=1 ;; *) bad=x ;; esac
+    # Our own key refused is not the sheet answering wrong: unmeasured.
+    case "$out" in *'HTTP 401'*) bad=x ;; esac
+  else
+    out='no agent key'; bad=x
+    echo '  no agent key: set $AGENT_KEY or log into Infisical'
+  fi
+  _one_issue 'card-check live' \
+    'card-check live: the deployed card sheet answers wrong' \
+    "$bad" "$(printf 'tri card-check:\n\n```\n%s\n```' "$out")" "$dry"
+  _worse $?
+
+  if [ "$shots" = 1 ]; then
+    echo '== tri shot all'
+    out=$(TRI_BRIDGE=1 "$ROOT/bin/tri" shot all 2>&1); rc=$?
+    # The reason travels with the verdict: a red line without its cut and
+    # small rows cannot be read the morning after.
+    printf '%s\n' "$out" | grep -vE '^ok ' | tail -60
+    if [ "$rc" = 1 ]; then
+      # A stand red once and green on a second shot is a flake, not a
+      # regression: say it, but only a stand that stays red opens the issue.
+      local line stand w lang again still=0
+      while IFS= read -r line; do
+        stand=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\1/')
+        w=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\2/')
+        lang=$(printf '%s' "$line" | sed -E 's/.*RED -- ([^ ]+) at ([0-9]+)px \(([a-z]+)\).*/\3/')
+        again=$(TRI_BRIDGE=1 "$ROOT/bin/tri" shot "$stand" "$w" "$lang" 2>&1)
+        if printf '%s' "$again" | grep -q 'shot green'; then
+          echo "  flake: $stand $w $lang red once, green on a second shot"
+          out=$(printf '%s\n\nflake (green on a second shot): %s %s %s' "$out" "$stand" "$w" "$lang")
+        else
+          still=1
+        fi
+      done < <(printf '%s\n' "$out" | grep -E '== shot RED -- ')
+      [ "$still" = 0 ] && rc=0
+    fi
+    case "$rc" in 0) bad=0 ;; 1) bad=1 ;; *) bad=x ;; esac
+    _one_issue 'phone-shot regression' \
+      'phone-shot regression: a stand is red at phone width' \
+      "$bad" "$(printf 'tri shot all:\n\n```\n%s\n```' "$(printf '%s\n' "$out" | grep -vE '^ok ' | tail -40)")" "$dry"
+    _worse $?
+  fi
+  return "$worst"
+}
+
+cmd_heal() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  # HEAL THE REMOTE BROWSER -- the action `tri browser` kept pointing at.
+  #
+  # `tri browser` ends a wedged verdict with "run `tri heal`", and for four
+  # ticks the only heal was a raw `curl -X POST /api/browser/heal` copied from
+  # a docstring -- observability with no wired way to act. This is that verb.
+  #
+  # Safe to run at ANY time, and that safety is the server's promise, not this
+  # script's: /api/browser/heal PROBES FIRST and REFUSES to restart a browser
+  # that answers (routes.ts, "a restart would take a working browser away from
+  # the person") -- built to stop the exact 2026-09-27 mistake of restarting a
+  # healthy pod on a misread `running: false`. So this reader does not gate
+  # behind a --force or a second probe of its own: the one authority on "is it
+  # well" is the endpoint, and asking twice is just a chance to disagree with it.
+  #
+  # Exit codes match the family: 0 nothing to do or healed, 1 restarted and
+  # STILL dead (Chromium must come up inside the pod -- a different remedy),
+  # 2 no browser of this person configured, 3 the render did not answer.
+  BR_KEY="$key" BR_URL="$RENDER/api/browser/heal" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['BR_URL'],
+    data=b'{}',
+    method='POST',
+    headers={"X-Agent-Key": os.environ['BR_KEY'],
+             "Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(req, timeout=120) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    # 409 is the route saying no browser of this person is configured to heal
+    # -- not an outage. Everything else that carries an HTTP code we surface.
+    body = ''
+    try:
+        body = e.read().decode('utf-8', 'replace')
+    except Exception:
+        pass
+    if e.code == 409:
+        print('  no browser of this person is configured -- none to heal')
+        sys.exit(2)
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    if body:
+        print(f'  {body[:300]}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+why = answer.get('why') or ''
+healed = answer.get('healed')
+rebooted = answer.get('rebooted')
+if why:
+    print(f'  {why}')
+
+# healed is False in TWO worlds: the browser was well and a restart was refused
+# (good -- nothing to do), or a restart was tried and it still does not answer
+# (bad -- a deeper remedy). `why` tells them apart in prose; `rebooted` tells
+# them apart in a field, so gate on the field, not the sentence.
+if healed:
+    sys.exit(0)                                # was down, answers again
+if rebooted is False and 'answers' in why.lower():
+    sys.exit(0)                                # refused: the browser was well
+if rebooted:
+    print('  the pod rebooted but the page is still silent')
+    sys.exit(1)                                # restarted, still dead
+if healed is False and 'still does not answer' in why.lower():
+    sys.exit(1)                                # restart did not take
+sys.exit(0)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the remote browser is well -- healed, or never needed it' ;;
+    1) bad 'restarted and it STILL does not answer -- Chromium must be restarted inside the pod' ;;
+    2) warn 'nothing to heal -- no browser of this person is configured' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -1882,6 +3320,71 @@ PY
   return "$rc"
 }
 
+# The full journal (journal.ts): every step the agent took, newest first, tool
+# + ok + ms + one line of what it touched. cmd_saw is this narrowed to error
+# moments; this is the whole timeline its timings were meant to be read from.
+# `--probes` folds in the on-a-clock watch checks (the doc's "tri eyes"), which
+# are trimmed apart from real work and hidden otherwise. Exit 0 steps shown,
+# 2 none recorded yet (the third outcome: nobody acted, not an outage), 3 the
+# render did not answer -- so a script can tell "empty" from "unreachable".
+# ─────────────────────────────────────────────────────────────────────────
+cmd_journal() {
+  local key limit=50 probes=
+  for a in "$@"; do
+    case "$a" in
+      --probes|--eyes) probes=1 ;;
+      *[!0-9]*|'') : ;;                 # ignore non-numeric args
+      *) limit="$a" ;;
+    esac
+  done
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  local url="$RENDER/api/browser/journal?limit=$limit"
+  [ -n "$probes" ] && url="$url&probes=1"
+
+  JRN_KEY="$key" JRN_URL="$url" JRN_HELPERS="$ROOT/bin/helpers" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+sys.path.insert(0, os.environ['JRN_HELPERS'])
+import journal_line  # one home for how a step reads, shared with bin/tri journal
+
+req = urllib.request.Request(
+    os.environ['JRN_URL'], headers={"X-Agent-Key": os.environ['JRN_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+steps = answer.get('steps') or []
+if not steps:
+    # The third outcome, kept out loud: an empty journal is nobody-acted,
+    # not a broken render. A script gates on this being distinct from exit 3.
+    print('  nothing recorded yet -- the agent has taken no steps')
+    sys.exit(2)
+
+print(journal_line.header(steps))
+for s in steps:
+    print(journal_line.line(s))
+
+sys.exit(0)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the browser has a timeline -- above is the record, newest first' ;;
+    2) warn 'nothing recorded yet -- nobody has driven the browser' ;;
+    *) bad 'could not read the journal -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
 # Which social networks the clone is signed into RIGHT NOW, read from the
 # browser's own cookies -- no page opens, nothing is written, so it runs while
 # the person drives. running:false is the third outcome: no browser to ask, NOT
@@ -1926,6 +3429,58 @@ PY
   case "$rc" in
     0) good 'the clone holds at least one live login' ;;
     2) warn 'no live login (or no browser running) -- above is the full picture' ;;
+    *) bad 'could not tell -- the render itself did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# SINCE WHEN has the browser been a browser? The watch row (watch.ts) keeps the
+# one number the three-day September outage lacked. This reads it -- no probe,
+# no write. A watch that was never written (no pod, or nothing has probed yet)
+# is a THIRD outcome: nobody looked, which is neither "well" nor "wedged". It is
+# never spent as either -- exit 2, the same null-is-a-third-outcome rule that
+# tabs `answers`, cookie `signedIn`, `saw`, and `logins` already hold.
+cmd_pod() {
+  local key
+  key=$(_mcp_key) || {
+    bad 'no agent key: set $AGENT_KEY, or /tmp/.ak.tmp, or log into Infisical'
+    return 1
+  }
+
+  LOG_KEY="$key" LOG_URL="$RENDER/api/browser/watch" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+req = urllib.request.Request(
+    os.environ['LOG_URL'], headers={"X-Agent-Key": os.environ['LOG_KEY']})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        answer = json.loads(r.read())
+except urllib.error.HTTPError as e:
+    hint = ' (looks like the deploy swap: retry in a minute)' if e.code == 502 else ''
+    print(f'  HTTP {e.code} {e.reason}{hint}')
+    sys.exit(3)
+except Exception as e:                        # DNS, TLS, timeout
+    print(f'  the render did not answer at all: {e}')
+    sys.exit(3)
+
+w = answer.get('watch')
+said = answer.get('said') or 'never probed'
+print(f'  {said}')
+
+# No row, or a row that never held a probe: nobody looked. Not broken, not well.
+if not w or not w.get('at'):
+    sys.exit(2)
+
+boots = w.get('boots') or 0
+if boots:
+    print(f'  reboots seen while watching: {boots}')
+sys.exit(0 if w.get('ok') else 1)
+PY
+  local rc=$?
+  case "$rc" in
+    0) good 'the browser is a browser -- and has been, unbroken, for the time above' ;;
+    1) bad 'the browser is NOT answering -- the one wedge a restart cures (run `tri heal`, which probes before acting)' ;;
+    2) warn 'nobody has watched this pod yet -- no verdict to give (not "broken")' ;;
     *) bad 'could not tell -- the render itself did not answer' ;;
   esac
   return "$rc"
@@ -2023,25 +3578,299 @@ cmd_lesson() {
   good 'урок дописан в SKILL.md'
 }
 
+# Link every node_modules the main tree has and the worktree lacks: the root
+# and each app's own (render, player, vibee-atoms...). An existing directory or
+# link is left alone. Prints one line per link made; returns the count.
+link_deps() {
+  local src="$1" wt="$2" rel n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    [ -e "$wt/$rel" ] || [ -L "$wt/$rel" ] && continue
+    [ -d "$wt/$(dirname "$rel")" ] || continue
+    ln -s "$src/$rel" "$wt/$rel" && echo "$rel" && n=$((n + 1))
+  done < <(cd "$src" && { echo node_modules; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/'; })
+  return 0
+}
+
+# What a node_modules path holds, in one word, so the "emptied" trap is named
+# in every shape it takes: npm's emptying can leave only dotfiles behind
+# (.package-lock.json, .bin), a removed target leaves a dangling link, and a
+# half-finished install leaves nothing at all.
+nm_state() {
+  local d="$1"
+  if [ -L "$d" ] && [ ! -e "$d" ]; then echo dangling; return; fi
+  if [ ! -e "$d" ]; then echo absent; return; fi
+  if [ -z "$(ls -A "$d" 2>/dev/null)" ]; then echo empty; return; fi
+  if [ -z "$(ls "$d" 2>/dev/null)" ]; then echo dotfiles-only; return; fi
+  echo ok
+}
+
+# Two paths name the same directory once links are followed.
+same_dir() {
+  [ -d "$1" ] && [ -d "$2" ] && [ "$(cd "$1" && pwd -P)" = "$(cd "$2" && pwd -P)" ]
+}
+
+# Install one directory of the MAIN checkout, the only place an install is
+# safe (a worktree's node_modules is a link into it). Refuses a package.json
+# that is not origin/main's: bun/npm install the package.json in front of
+# them, and an old branch's restores that branch's packages, so every linked
+# tree goes red on TS2307 instead of ENOENT (2026-10-02 23:20). The app trees
+# keep a package-lock.json and their Dockerfiles run npm ci; here it is
+# `npm install`, because ci empties node_modules first and every linked tree
+# would lose its packages for the length of the install. TRI_BUN / TRI_NPM
+# swap the installers in tests (tri puts homebrew first on PATH).
+heal_install() {
+  local main="$1" rel="$2" where="$3" dir lock tool name
+  dir="$main/$rel"
+  if ! git -C "$main" diff --quiet origin/main -- "$rel/package.json" 2>/dev/null; then
+    bad "not healing $rel: the main checkout's package.json is not origin/main's (on $where) -- an install would restore that branch's packages"
+    echo "       whoever holds the main checkout brings it to main first; it is not this tree's to switch"
+    return 1
+  fi
+  if [ "$rel" != . ] && [ -f "$dir/package-lock.json" ]; then
+    lock=package-lock.json; name=npm; tool="${TRI_NPM:-npm} install --no-audit --no-fund"
+  else
+    lock=bun.lock; name=bun; tool="${TRI_BUN:-bun} install --no-summary"
+  fi
+  # The lock drifts on install. Put it back only when nobody was editing the
+  # dependencies: a dirty lock or package.json is someone's work.
+  local dirty
+  dirty="$(git -C "$main" status --porcelain -- "$rel/$lock" "$rel/package.json")"
+  echo "  ...  $name install in $dir"
+  if (cd "$dir" && $tool >/dev/null 2>&1); then
+    if [ -z "$dirty" ]; then
+      git -C "$main" checkout -q -- "$rel/$lock" 2>/dev/null
+    else
+      echo "  note $rel/$lock left as the install wrote it: it or package.json was already edited"
+    fi
+    good "reinstalled $rel in the main checkout"
+  else
+    bad "$name install failed in $dir"
+    return 1
+  fi
+}
+
+cmd_hooks() {
+  # A WORKTREE THAT SKIPS EVERY GATE (2026-10-03). A worktree's own
+  # config.worktree carried core.hooksPath=<main>/.husky, a directory with no
+  # pre-commit left in it. git ran nothing, printed nothing, and the commit
+  # went through without prettier, eslint, tsc or the Cyrillic guard -- 11 of
+  # 63 worktrees, `tri premerge` trees among them. install-hooks.cjs cleared
+  # only the --local setting, so `npm install` never saw this one.
+  # Any hooksPath that is not the shared lefthook hooks directory is flagged;
+  # --heal unsets it (the per-tree setting, never the shared hooks).
+  local heal=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --heal) heal=1 ;;
+      *) bad "unknown flag: $arg (tri hooks [--heal])"; return 1 ;;
+    esac
+  done
+  local common hooks f p name n=0
+  common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
+  hooks="$common/hooks"
+  if ! grep -q lefthook "$hooks/pre-commit" 2>/dev/null; then
+    bad "no lefthook pre-commit in $hooks: node scripts/install-hooks.cjs"
+    return 1
+  fi
+  for f in "$common/config" "$common"/worktrees/*/config.worktree; do
+    [ -f "$f" ] || continue
+    p=$(git config --file "$f" --get core.hooksPath 2>/dev/null) || continue
+    [ -n "$p" ] && [ "$p" != "$hooks" ] || continue
+    n=$((n + 1))
+    name=$(basename "$(dirname "$f")")
+    [ "$f" = "$common/config" ] && name="main checkout"
+    if [ $heal = 1 ]; then
+      git config --file "$f" --unset-all core.hooksPath &&
+        good "$name: hooksPath $p cleared, lefthook runs again"
+    else
+      bad "$name: core.hooksPath=$p -- commits there skip every gate"
+    fi
+  done
+  if [ $n = 0 ]; then
+    good "every worktree runs the lefthook gates ($hooks)"
+  elif [ $heal = 0 ]; then
+    warn "$n tree(s) skip the gates: tri hooks --heal"
+    return 1
+  fi
+}
+
+cmd_deps() {
+  # Worktrees made by `tri worktree` get their node_modules linked; the ones a
+  # bee, the Claude app or a plain `git worktree add` makes do not. Then the
+  # gates fail in ways that read as code faults (2026-10-02, PR #3346):
+  # render-types "tsc not found" summarised as a 240 s red, and bundle-boots
+  # "spawnSync node_modules/.bin/esbuild ENOENT". This links what is missing
+  # from the main checkout and names the binaries the gates call.
+  #
+  # The opposite trap (2026-10-02 23:14): an agent ran a root `npm ci` in a
+  # worktree whose node_modules was such a link. npm empties node_modules
+  # THROUGH the link before replacing it, so the main checkout -- and every
+  # tree linked to it -- lost all its packages at once. When the main root is
+  # empty this says so, and `--heal` reinstalls it there (never here).
+  #
+  # `--own` is the way out for a tree that really must install: it turns each
+  # link (root AND per-app -- render/player links are just as shared) into the
+  # tree's own copy, cloned copy-on-write where the disk can, so an install
+  # there empties only the copy.
+  local heal=0 own=0 arg path=""
+  for arg in "$@"; do
+    case "$arg" in
+      --heal) heal=1 ;;
+      --own) own=1 ;;
+      -*) bad "unknown flag: $arg (tri deps [--heal] [--own] [path])"; return 1 ;;
+      *) path="$arg" ;;
+    esac
+  done
+  local wt main made
+  wt="$(git -C "${path:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" \
+    || { bad "not inside a git tree: ${path:-$PWD}"; return 1; }
+  main="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")"
+  if [ "$wt" = "$main" ]; then
+    good "$wt is the main checkout -- nothing to link"
+    [ "$own" = 1 ] && echo "  note --own does nothing here: the main checkout's node_modules are its own"
+  else
+    made="$(link_deps "$main" "$wt")"
+    if [ -n "$made" ]; then
+      good "linked from $main:"; sed 's/^/       /' <<<"$made"
+    else
+      good "every node_modules the main tree has is already here"
+    fi
+    [ "$own" = 1 ] && { own_deps "$main" "$wt" || return 1; }
+  fi
+  local bin rc=0
+  for bin in node_modules/.bin/esbuild node_modules/.bin/vitest \
+      apps/vibee-editor/render/node_modules/.bin/tsc \
+      apps/vibee-editor/player/node_modules/.bin/vitest; do
+    if [ -x "$wt/$bin" ]; then
+      echo "  ok   $bin"
+    else
+      bad "missing $bin -- the gate that calls it will fail on ENOENT, not on code"; rc=1
+    fi
+  done
+  # A link carries the MAIN checkout's install, and that follows the main
+  # checkout's branch, not this tree's (2026-10-03: the main checkout had sat
+  # since 2026-09-29 on a branch merged 09-23, 2634 commits behind; the --heal
+  # of 2026-10-02 23:20 installed THAT package.json, and every tree on
+  # origin/main failed root typecheck on "Cannot find module 'redis'" -- read
+  # as a code fault). The rule lives in scripts/deps-absent.cjs, which verify
+  # calls too: it resolves upwards the way node does, so a package hoisted to
+  # the root is present, not absent.
+  local on behind
+  on="$(git -C "$main" branch --show-current 2>/dev/null)"
+  behind="$(git -C "$main" rev-list --count HEAD..origin/main 2>/dev/null)"
+  [ "$behind" = 0 ] && behind=
+  local rel label missing drift heal_dirs=()
+  while IFS= read -r rel; do
+    [ -f "$wt/$rel/package.json" ] && [ -d "$wt/$rel/node_modules" ] || continue
+    label="$([ "$rel" = . ] && echo root || echo "$rel")"
+    missing="$(node "$ROOT/scripts/deps-absent.cjs" "$wt/$rel" "$label" 2>/dev/null)"
+    missing="${missing#"$label: "}"
+    drift="$(node "$ROOT/scripts/deps-absent.cjs" --drift "$wt/$rel" "$label" 2>/dev/null)"
+    if [ -n "$missing" ]; then
+      rc=1
+      bad "$label declares packages its node_modules lacks: $missing"
+      if same_dir "$wt/$rel/node_modules" "$main/$rel/node_modules" \
+          && cmp -s "$wt/$rel/package.json" "$main/$rel/package.json"; then
+        # The main checkout's own install, for the package.json this tree
+        # declares too: it is incomplete, not another branch's. Installing
+        # THERE fixes it for every linked tree (2026-10-03: --heal only knew
+        # the emptied root, and redis/jotai/@tonconnect/ui went in by hand).
+        heal_dirs+=("$rel")
+        [ "$heal" = 1 ] || echo "       the main checkout's install is incomplete; fix: tri deps --heal (installs in $main/$rel, never here)"
+      elif [ -L "$wt/$rel/node_modules" ]; then
+        echo "       the link carries $main's install, made for ITS branch (${on:-a detached HEAD}${behind:+, $behind commits behind origin/main}); fix: tri deps --own, then install in this tree"
+      else
+        echo "       install here, in $wt/$rel"
+      fi
+    fi
+    # The early warning: the linked install declares other packages than this
+    # tree, while nothing may be missing yet and every gate is still green.
+    [ -n "$drift" ] && echo "  note the linked install is another branch's -- $drift"
+  done < <(cd "$wt" && { echo .; find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/' | sed 's|/node_modules$||'; })
+  [ "$wt" != "$main" ] && [ -L "$wt/node_modules" ] && \
+    echo "  note no root npm ci / bun install in this tree: node_modules is the main checkout's, and an install empties it (tri deps --own first)"
+  local state
+  state="$(nm_state "$main/node_modules")"
+  if [ "$state" != ok ]; then
+    rc=1
+    bad "the main checkout's node_modules is $(tr "[:lower:]" "[:upper:]" <<<"$state") -- a root install through a linked tree does this (npm empties the link's target first)"
+    [[ " ${heal_dirs[*]-} " == *" . "* ]] || heal_dirs=(. ${heal_dirs[@]+"${heal_dirs[@]}"})
+    [ "$heal" = 1 ] || echo "       restore: tri deps --heal   (runs bun install in $main, never in a worktree)"
+  fi
+  if [ "$heal" = 1 ]; then
+    for rel in ${heal_dirs[@]+"${heal_dirs[@]}"}; do
+      heal_install "$main" "$rel" "${on:-a detached HEAD}${behind:+, $behind commits behind}"
+    done
+    [ "${#heal_dirs[@]}" -gt 0 ] && echo "       run tri deps again to see what the install left"
+  fi
+  return $rc
+}
+
+# Replace every node_modules LINK in the worktree with a real copy of what it
+# points at. Only links into the main checkout are touched; a real directory
+# is already the tree's own. `cp -c` clones on APFS (near-free), `--reflink`
+# does the same on Linux filesystems that can, else it is a plain copy.
+own_deps() {
+  local main="$1" wt="$2" rel target link n=0
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    target="$(readlink "$wt/$rel")"
+    case "$target" in
+      "$main"/*) ;;
+      *) echo "  skip $rel -> $target (not the main checkout's)"; continue ;;
+    esac
+    [ -d "$target" ] || { bad "$rel links to a missing $target -- nothing to copy"; return 1; }
+    # A target that is itself a link would be copied AS a link (cp -R does not
+    # follow it), and the tree would still share an install. Copy what it means.
+    link="$target"
+    target="$(cd -P "$target" && pwd)" || return 1
+    rm -- "$wt/$rel" || return 1
+    # A copy that dies half-way leaves a half tree, and the next cp would nest
+    # into it (cp -R SRC EXISTING_DIR copies INTO the dir). Clear between tries.
+    if cp -Rc "$target" "$wt/$rel" 2>/dev/null \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R --reflink=auto "$target" "$wt/$rel" 2>/dev/null; } \
+        || { rm -rf -- "${wt:?}/${rel:?}"; cp -R "$target" "$wt/$rel"; }; then
+      echo "  own  $rel"; n=$((n + 1))
+    else
+      bad "copy of $rel failed -- relink with: ln -s $link $wt/$rel"; return 1
+    fi
+  done < <(cd "$wt" && { [ -L node_modules ] && echo node_modules; find apps -type l -name node_modules 2>/dev/null | grep -v '/node_modules/'; })
+  if [ "$n" = 0 ]; then
+    good "no linked node_modules here -- the tree's are already its own"
+  else
+    good "$n node_modules now belong to this tree -- an install here empties only them"
+  fi
+}
+
 cmd_worktree() {
   # Why a worktree at all: the loop shares the main tree with sibling sessions,
   # and a plain `git checkout -b` there lets another session take the branch out
   # from under the work. A worktree is a private checkout. Base is origin/main,
   # never local HEAD -- work stands on what is merged.
-  local branch="${1:-}"
+  local branch="${1:-}" pr=""
   if [ -z "$branch" ]; then
-    bad 'нужно имя ветки: tri worktree <branch>'
+    bad 'нужно имя ветки: tri worktree <branch>   (или --pr N)'
     return 1
   fi
   git -C "$ROOT" fetch origin main --quiet 2>/dev/null
   local base wt
   base="$(git -C "$ROOT" rev-parse origin/main)"
+  # --pr N: back onto an open PR's own branch, so a reviewer's notes are fixed
+  # where the conversation is (bin/helpers/prtree.sh says what it refuses).
+  if [ "$branch" = "--pr" ]; then
+    pr="${2:-}"
+    . "$ROOT/bin/helpers/prtree.sh"
+    branch=$(pr_branch "$ROOT" "$pr") || return $?
+  fi
   wt="${TRI_WORKTREE_DIR:-${TMPDIR:-/tmp}}/tri-wt-${branch//\//-}"
   if [ -e "$wt" ]; then
     bad "уже существует: $wt"
     return 1
   fi
-  if ! git -C "$ROOT" worktree add "$wt" -b "$branch" "$base" >/dev/null 2>&1; then
+  local add=(-b "$branch" "$base")
+  [ -n "$pr" ] && add=("$branch")
+  if ! git -C "$ROOT" worktree add "$wt" "${add[@]}" >/dev/null 2>&1; then
     bad "git worktree add не удался (ветка $branch занята?)"
     return 1
   fi
@@ -2051,13 +3880,7 @@ cmd_worktree() {
   # ERR_MODULE_NOT_FOUND (jotai) -- an env-gap that reads exactly like a
   # regression but is one the worktree invented. Symlink the root and every app
   # node_modules from the main tree so the gate measures the code, not the gap.
-  ln -s "$ROOT/node_modules" "$wt/node_modules"
-  local rel
-  while IFS= read -r rel; do
-    [ -z "$rel" ] && continue
-    mkdir -p "$wt/$(dirname "$rel")"
-    ln -s "$ROOT/$rel" "$wt/$rel"
-  done < <(cd "$ROOT" && find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/')
+  link_deps "$ROOT" "$wt" >/dev/null
   # Smoke the tree before handing it over.
   #
   # Some worktrees deterministically break vite-node module resolution: a bare
@@ -2084,11 +3907,18 @@ cmd_worktree() {
       echo "   Это свойство ПУТИ, а не содержимого: тот же коммит рядом собирается."
       echo "   Дерево удалено. Повторите с другим именем ветки, путь изменится."
       git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-      git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+      # --pr checked out a branch that is the PR's, not ours to delete.
+      [ -n "$pr" ] || git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
       return 1
     fi
   fi
   good "worktree готов, node_modules слинкованы (root + apps), проба прошла"
+  if [ -n "$pr" ]; then
+    local behind
+    behind=$(git -C "$ROOT" rev-list --count "$branch..$base" 2>/dev/null)
+    echo "  PR #$pr on its own branch $branch; push lands in the same PR"
+    [ "${behind:-0}" -gt 0 ] && echo "  $behind commit(s) behind origin/main: \`git merge origin/main\` in it before the gates"
+  fi
   # Print ONLY the path on the last line so a caller can:  cd "$(tri worktree x | tail -1)"
   printf '%s\n' "$wt"
 }
@@ -2350,6 +4180,17 @@ cmd_cyrillic() {
   # guessing that on 2026-09-17.
   #   tri cyrillic          the branch range (same window the gate uses)
   #   tri cyrillic staged   what is in the index right now, before committing
+  #   tri cyrillic msg FILE the commit message, by the commit-msg hook's own
+  #                         script -- that hook runs AFTER the slow pre-commit,
+  #                         so a Cyrillic type name in the message cost the
+  #                         whole pre-commit twice (2026-10-02). Check first,
+  #                         then `git commit -F FILE`.
+  if [ "${1:-}" = "msg" ]; then
+    [ -f "${2:-}" ] || { echo "usage: tri cyrillic msg FILE" >&2; return 2; }
+    ( cd "$ROOT" && node "$ROOT/scripts/no-cyrillic-guard.cjs" msg "$2" ) \
+      && echo "  OK   commit message has no Cyrillic: $2"
+    return
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
@@ -2376,7 +4217,7 @@ cmd_turn_log() {
     bad "railway CLI not found -- install it or grep your own log sink for: \"turn\":\"$id\""
     return 1
   fi
-  ( cd "$ROOT" && railway logs -n "$lines" 2>&1 | grep -F "\"turn\":\"$id\"" )
+  ( rlogs vibee-render -n "$lines" 2>&1 | grep -F "\"turn\":\"$id\"" )
 }
 
 cmd_clone() {
@@ -2402,7 +4243,282 @@ cmd_readers() {
   # does not notice: a money guard sat broken for two days that way.
   #   tri readers            the inventory, and any path that no longer exists
   #   tri readers --gate     exit 1 when a target is missing
+  #   tri readers --run FILE...  run the tests that read FILE as text, NOW,
+  #                          not five minutes into pre-push. 2026-10-02 the
+  #                          same money guard broke the same way a second time
+  #                          (top-up sentences moved out of useTokenTopUp.ts).
+  if [ "${1:-}" = "--run" ]; then
+    shift
+    [ $# -gt 0 ] || { echo "usage: tri readers --run FILE..." >&2; return 2; }
+    # By the quoted file NAME, not `--for`: `--for` also lists every scanner
+    # that walks a whole directory (106 tests for one hook) -- too many to run
+    # before a push. A guard on one file names it, as creditedIsNotOk does.
+    # Untracked files count too: the guard being added in this very change is
+    # usually the one that names the file.
+    local tests="" f
+    for f in "$@"; do
+      tests="$tests $(cd "$ROOT" && { git ls-files '*.test.ts' '*.test.tsx'
+        git ls-files --others --exclude-standard '*.test.ts' '*.test.tsx'; } \
+        | xargs /usr/bin/grep -l -F "'$(basename "$f")'" 2>/dev/null)"
+    done
+    tests=$(echo $tests | tr ' ' '\n' | sort -u)
+    if [ -z "$tests" ]; then echo "  --   no test names these files"; return 0; fi
+    echo "$tests" | sed 's/^/  reads it: /'
+    # Each test runs under the vitest config of ITS OWN package. The root
+    # config excludes player/, and a file it excludes, passed by name, is
+    # dropped SILENTLY: "75 passed" for 76 named, 2026-10-02.
+    local groups t d mine rc=0
+    groups=$(echo "$tests" | while read -r t; do
+      d=$(dirname "$t")
+      while [ "$d" != "." ] && ! ls "$ROOT/$d"/vitest.config.* >/dev/null 2>&1; do
+        d=$(dirname "$d")
+      done
+      echo "$d $t"
+    done)
+    for d in $(echo "$groups" | cut -d' ' -f1 | sort -u); do
+      mine=$(echo "$groups" | awk -v d="$d" '$1 == d { print $2 }')
+      [ "$d" = "." ] || mine=$(echo "$mine" | sed "s#^$d/##")
+      echo "  --   $(echo "$mine" | wc -l | tr -d ' ') under $d/vitest.config"
+      # shellcheck disable=SC2086
+      ( cd "$ROOT/$d" && timeout 600 npx vitest run $mine ) || rc=1
+    done
+    return $rc
+  fi
   ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
+}
+
+# The live check for generation refusal codes (render/generation-refusal.ts):
+# every generation route, asked without credentials, must refuse with a
+# `code` the clients translate. Safe by construction -- each route charges
+# before it calls a provider, and an unsigned call is refused at the charge,
+# so nothing is spent. Run it after a render deploy; a route that answers
+# without a code means the stamp is gone or the deploy has not landed.
+cmd_gen_refusal() {
+  local base="${1:-$RENDER}" kind body status code fails=0
+  # The names come from the server's own list, not a copy of it.
+  local known
+  known=" $(sed -n '/^export const GENERATION_REFUSAL_CODES/,/] as const/p' \
+    "$ROOT/apps/vibee-editor/render/generation-refusal.ts" | grep -oE "'[a-z_]+'" | tr -d "'" | tr '\n' ' ')"
+  [ "$known" = " " ] && { bad "no codes read from render/generation-refusal.ts"; return 1; }
+  for kind in image video audio lipsync; do
+    body="$(curl -sS -m 30 -o /tmp/tri-gen-refusal.$$ -w '%{http_code}' \
+      -X POST -H 'Content-Type: application/json' \
+      --data '{"model":"probe","prompt":"probe","text":"probe"}' \
+      "$base/api/generate/$kind" 2>/dev/null)" || body="000"
+    status="$body"
+    code="$(node -e 'try{const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(typeof o.code==="string"?o.code:"")}catch{}' /tmp/tri-gen-refusal.$$ 2>/dev/null)"
+    if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ]; then
+      bad "$kind: answered $status to an unsigned call -- that is not a refusal"
+      fails=$((fails + 1))
+    elif [ -n "$code" ] && [[ "$known" == *" $code "* ]]; then
+      good "$kind: $status $code"
+    elif [ -n "$code" ]; then
+      warn "$kind: $status $code -- a code the clients do not know"
+      fails=$((fails + 1))
+    else
+      bad "$kind: $status without a code ($(head -c 120 /tmp/tri-gen-refusal.$$ 2>/dev/null))"
+      fails=$((fails + 1))
+    fi
+  done
+  rm -f /tmp/tri-gen-refusal.$$
+  [ "$fails" -eq 0 ]
+}
+
+cmd_pr_billing() {
+  # Is every failing check on a PR the Actions billing stop, and nothing else?
+  #   tri pr-billing N    rc 0 only if EVERY failing check run says so
+  #
+  # GitHub Actions has not run a job here since 2026-06-02 (billing), so every
+  # PR shows ~17 red checks and the merge rule is "each one must be billing".
+  # That was checked by hand in a shell loop every time, and on 2026-10-02 a
+  # dropped connection returned an EMPTY annotation list: the loop printed
+  # "NOT BILLING" for a job that had never started. An empty answer is
+  # re-asked (3 tries) and, if still empty, counted as UNKNOWN -- never as
+  # billing, never as a real failure.
+  # TRI_GH: tri puts /opt/homebrew/bin first on PATH, so a stub gh on PATH
+  # is silently bypassed -- the negative control needs a named seam.
+  local gh="${TRI_GH:-gh}"
+  local pr="${1:-}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  [ -n "$pr" ] || { echo "usage: tri pr-billing PR_NUMBER" >&2; return 2; }
+  local sha ids id name msg try billing=0 other=0 unknown=0
+  sha=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  # A reviewer's refusal of THIS head outranks a clean billing count. On
+  # 2026-10-03 PR 3451 was merged 23 s after a push and 70 s after a bee had
+  # posted "not merged" -- and the push did not touch a single note. So a
+  # refusal newer than the head commit blocks (rc 1), and an older one is
+  # printed with its first line: a push is not an answer until someone reads
+  # the notes against it.
+  # What a refusal looks like was read off 200 PRs, not decided: 20 refusals,
+  # and the first version of this check (exact "Reviewer bee: not merged" in a
+  # comment) saw 2. Bees open with "Reviewer bee", "## Bee review", "Reviewed
+  # by bee", "Reviewer bee Z", and say "not merging (yet)", "I am not merging
+  # this", "changes requested"; three refusals sit in a review body, not a
+  # comment. A list of openers missed three even after it was widened once
+  # (#3468's first head), so the rule is about words, not position: the FIRST
+  # line names a bee and says "not merg" or "changes requested". On the same
+  # 200 PRs that is all 20 and none of ~35 approvals. A review in state
+  # CHANGES_REQUESTED refuses whatever it says (bees share the author's
+  # account, so GitHub has never let one be filed here -- but a second account
+  # would). The head's date is looked up by its oid; if the head is not in the
+  # list the date is "", which sorts before every timestamp, so every refusal
+  # counts as new.
+  local refusals kind stamp note
+  refusals=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid,commits,comments,reviews --jq \
+    '.headRefOid as $h
+     | ([.commits[] | select(.oid == $h) | .committedDate][0] // "") as $d
+     | (.comments[] | {at: .createdAt, who: .author.login, b: .body, st: ""}),
+       (.reviews[] | {at: (.submittedAt // ""), who: .author.login, b: .body, st: .state})
+     | (.b | split("\n")[0]) as $f
+     | select(.st == "CHANGES_REQUESTED"
+         or (($f | test("\\bbees?\\b"; "i"))
+             and ($f | test("not merg|changes requested"; "i"))))
+     | (if .at > $d then "NEW" else "OLD" end) + "\t" + .at
+       + " " + .who + "\t" + ($f | .[0:120])') \
+    || { bad "could not read the comments on PR $pr -- a refusal there would be missed"; return 2; }
+  local blocked=0
+  while IFS=$'\t' read -r kind stamp note; do
+    case "$kind" in
+      NEW) bad "a reviewer refused this head ($stamp): $note"
+           skip "fix the notes and push, then review again (a line that only quotes these words is not a refusal -- edit it)"
+           blocked=1 ;;
+      OLD) skip "refused before the last push ($stamp), check each note against it: $note" ;;
+    esac
+  done <<< "$refusals"
+  [ $blocked -eq 0 ] || return 1
+  ids=$("$gh" api "repos/$repo/commits/$sha/check-runs?per_page=100" \
+    --jq '.check_runs[]|select(.conclusion=="failure")|"\(.id)\t\(.name)"') \
+    || { bad "could not list check runs for $sha"; return 2; }
+  if [ -z "$ids" ]; then good "PR $pr: no failing checks"; return 0; fi
+  while IFS=$'\t' read -r id name; do
+    msg=""
+    for try in 1 2 3; do
+      msg=$("$gh" api "repos/$repo/check-runs/$id/annotations" --jq '.[].message' 2>/dev/null) && [ -n "$msg" ] && break
+      sleep 2
+    done
+    if printf '%s' "$msg" | /usr/bin/grep -q "recent account payments have failed"; then
+      billing=$((billing + 1))
+    elif [ -z "$msg" ]; then
+      unknown=$((unknown + 1)); skip "$name ($id): no annotation after 3 tries"
+    else
+      other=$((other + 1)); bad "$name ($id): $(printf '%s' "$msg" | head -1)"
+    fi
+  done <<< "$ids"
+  echo "  --   PR $pr @ ${sha:0:9}: $billing billing, $other other, $unknown unknown"
+  if [ $other -eq 0 ] && [ $unknown -eq 0 ]; then
+    good "every failing check is the billing stop -- merge is allowed"
+    return 0
+  fi
+  bad "not every failure is billing -- read the ones above before merging"
+  return 1
+}
+
+cmd_premerge() {
+  # Would PR N pass the player's deploy gate once it lands on today's main?
+  #   tri premerge N           rc 0 pass, 1 refused/conflict, 2 usage/setup
+  #   tri premerge N --keep    leave the throwaway worktree behind
+  #
+  # Actions are dead (billing), so the only test gate is the Docker `test`
+  # stage, and it runs AFTER the merge, on main. A PR that is green on its own
+  # branch can still break it: 2026-10-02, two PRs each passed alone and the
+  # deploy of their sum failed. This runs the gate on (origin/main + PR head)
+  # BEFORE the merge, so the red lands on the PR, not on app.t27.ai.
+  #
+  # node_modules are not installed (no downloads): each entry is symlinked
+  # from a checkout that has them, except @vibee/*, which must resolve to THIS
+  # worktree's packages -- a symlink into another tree tests the wrong atoms.
+  local gh="${TRI_GH:-gh}" repo="${TRI_GH_REPO:-gHashTag/999-multibots-telegraf}"
+  local pr="" keep=0 a
+  for a in "$@"; do
+    case "$a" in
+      --keep) keep=1 ;;
+      *) pr="$a" ;;
+    esac
+  done
+  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: tri premerge PR_NUMBER [--keep]" >&2; return 2; }
+
+  local src="${TRI_PLAYER_NM:-}" cand
+  if [ -z "$src" ]; then
+    for cand in "$ROOT" $(git -C "$ROOT" worktree list --porcelain | awk '/^worktree /{print $2}'); do
+      if [ -d "$cand/apps/vibee-editor/player/node_modules" ] && [ ! -L "$cand/apps/vibee-editor/player/node_modules" ]; then
+        src="$cand/apps/vibee-editor"; break
+      fi
+    done
+  fi
+  [ -n "$src" ] || { bad "no checkout with a real player/node_modules (set TRI_PLAYER_NM=<dir with player/ and packages/>)"; return 2; }
+
+  local head
+  head=$("$gh" pr view "$pr" --repo "$repo" --json headRefOid --jq .headRefOid) \
+    || { bad "PR $pr not found in $repo"; return 2; }
+  git -C "$ROOT" fetch -q origin main "pull/$pr/head" \
+    || { bad "git fetch of main and pull/$pr/head failed"; return 2; }
+  local main_sha
+  main_sha=$(git -C "$ROOT" rev-parse origin/main)
+
+  local dir
+  dir=$(mktemp -d "/tmp/tri-premerge-$pr.XXXX") || return 2
+  rmdir "$dir"
+  git -C "$ROOT" worktree add -q --detach "$dir" "$main_sha" || { bad "worktree add failed"; return 2; }
+  local rc=0
+  (
+    cd "$dir" || exit 2
+    git -c user.name=tri -c user.email=tri@localhost merge -q --no-edit "$head" >/dev/null 2>&1 || {
+      bad "PR $pr (${head:0:9}) does not merge cleanly into main ${main_sha:0:9}:"
+      git diff --name-only --diff-filter=U | sed 's/^/        /'
+      exit 1
+    }
+    if git diff --name-only "$main_sha" HEAD -- 'apps/vibee-editor/player/package*.json' 'apps/vibee-editor/packages/*/package*.json' | grep -q .; then
+      warn "PR $pr changes a package.json -- node_modules here are the local ones, a pass is not proof"
+    fi
+    local ed="$dir/apps/vibee-editor" e
+    mkdir -p "$ed/player/node_modules/@vibee"
+    for e in "$src/player/node_modules/"* "$src/player/node_modules/".bin "$src/player/node_modules/".vite; do
+      [ -e "$e" ] || continue
+      [ "$(basename "$e")" = "@vibee" ] && continue
+      ln -s "$e" "$ed/player/node_modules/$(basename "$e")"
+    done
+    for e in "$ed"/packages/*/; do
+      e="${e%/}"
+      ln -s "../../../packages/$(basename "$e")" "$ed/player/node_modules/@vibee/$(basename "$e")"
+      [ -d "$src/packages/$(basename "$e")/node_modules" ] && ln -s "$src/packages/$(basename "$e")/node_modules" "$e/node_modules"
+    done
+    # @vibee/atoms is the name the player imports; the directory is vibee-atoms.
+    [ -e "$ed/packages/vibee-atoms" ] && ln -sfn ../../../packages/vibee-atoms "$ed/player/node_modules/@vibee/atoms"
+
+    # The gate runs on the image's Node, not on whatever is first on PATH.
+    # 2026-10-02, first run: Node 26 (tri puts Homebrew first) has its own
+    # global Storage, a spy on Storage.prototype missed jsdom's, and a test
+    # that passes in the image failed here. Nearest installed major wins.
+    local want bin best="" bestd=99 m d
+    want=$(sed -n 's/^FROM node:\([0-9][0-9]*\).* AS build$/\1/p' "$ed/Dockerfile" | head -1)
+    for bin in /opt/homebrew/opt/node@*/bin "$HOME"/.nvm/versions/node/v*/bin; do
+      [ -x "$bin/node" ] || continue
+      m=$("$bin/node" -p 'process.versions.node.split(".")[0]' 2>/dev/null) || continue
+      d=$(( m > ${want:-0} ? m - ${want:-0} : ${want:-0} - m ))
+      [ $d -lt $bestd ] && { best="$bin"; bestd=$d; }
+    done
+    [ -n "$best" ] && PATH="$best:$PATH"
+    [ "$(node -p 'process.versions.node.split(".")[0]')" = "$want" ] \
+      || warn "the image builds on Node ${want:-?}, this runs on $(node -v) -- the nearest installed"
+
+    echo "  --   PR $pr ${head:0:9} on main ${main_sha:0:9}, $(node -v): tsc --noEmit, then test-gate (several minutes)"
+    cd "$ed/player" || exit 2
+    npx tsc --noEmit -p . > "$dir/.premerge-tsc.log" 2>&1 || {
+      bad "tsc refused:"; grep 'error TS' "$dir/.premerge-tsc.log" | head -20 | sed 's/^/        /'; exit 1
+    }
+    node scripts/test-gate.mjs > "$dir/.premerge-gate.log" 2>&1 || {
+      bad "test gate refused:"
+      sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *(❯|×|FAIL)|test gate:' | head -30 | sed 's/^/        /'
+      exit 1
+    }
+    good "PR $pr passes the deploy gate on main ${main_sha:0:9}: $(sed 's/\x1b\[[0-9;]*m//g' "$dir/.premerge-gate.log" | grep -E '^ *Tests ' | tail -1 | sed 's/^ *//')"
+  ) || rc=$?
+  if [ $keep -eq 1 ]; then
+    echo "  --   kept: $dir (logs: .premerge-tsc.log, .premerge-gate.log)"
+  else
+    git -C "$ROOT" worktree remove --force "$dir" 2>/dev/null || { rm -rf "$dir"; git -C "$ROOT" worktree prune; }
+  fi
+  return $rc
 }
 
 cmd_pay() {
@@ -3025,7 +5141,7 @@ cmd_registries() {
 }
 
 cmd_worktrees() {
-  # КАКИЕ ДЕРЕВЬЯ ЗАВЕРШЕНЫ, А КАКИЕ ЕЩЁ ДЕРЖАТ РАБОТУ. НИЧЕГО НЕ УДАЛЯЕТ.
+  # WHICH TREES ARE FINISHED AND WHICH STILL HOLD WORK. DELETES ONLY WITH --apply.
   #
   # Деревья копятся по одному на итерацию, и никто их не убирает. Померено
   # перед первой уборкой: 25 деревьев на 25 веток. Это не просто беспорядок:
@@ -3039,8 +5155,12 @@ cmd_worktrees() {
   # законченную ветку: первая перепись так и сказала про 21 из 22, а вопрос к
   # GitHub о влитых PR перевернул ответ полностью.
   #
-  # Печатает команды удаления, но не исполняет их. Дерево с несохранённой
-  # работой не предлагается НИКОГДА, даже если его PR влит.
+  # Without flags it prints and deletes nothing. A tree holding uncommitted
+  # work is NEVER proposed, even when its PR is merged.
+  #
+  # 03.10.2026: finished is judged by COMMIT, not branch name (a name-match
+  # proposed a tree whose tip was never merged), detached trees are judged too,
+  # and --apply removes only what is provably safe -- see the probe's header.
   ( cd "$ROOT" && node scripts/probe-worktrees.cjs "$@" )
 }
 
@@ -4636,11 +6756,14 @@ cmd_disk() {
   # всегда «полон» и неинформативен); реальное место живёт на DATA-томе.
   paint '1;36' 'DATA-том'
   df -h /System/Volumes/Data | sed -n '1,2p'
+  bash "$ROOT/bin/helpers/disk-floor.sh"
 
   # (2) Мои worktree'ы. prune снимает записи, чей каталог уже исчез (безопасно).
   echo; paint '1;36' 'worktree цикла'
   git -C "$ROOT" worktree prune 2>/dev/null
   git -C "$ROOT" worktree list 2>/dev/null
+  # The list is not a verdict: finished-or-not is judged by commit in one place.
+  echo "  which are finished: tri worktrees   (remove proven-safe: tri worktrees --apply)"
 
   # (3) Scratch сессий. Один прогон lsof, дальше сверяем по пути открытых файлов.
   echo; paint '1;36' 'scratch сессий  (к возврату = 0 хендлов И mtime>суток)'
@@ -4702,10 +6825,10 @@ cmd_player_deploy () {
   # checkout, and this ran from a worktree. A command that hides its own
   # diagnosis makes the next person re-discover it.
   local out
-  if ! out="$(railway redeploy --service vibee-editor --from-source -y 2>&1)"; then
+  if ! out="$(railway redeploy --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service vibee-editor --from-source -y 2>&1)"; then
     bad "railway redeploy failed:"
     printf '%s\n' "$out" | tail -5
-    warn "the Railway link is per-directory; run this from the main checkout, not a worktree"
+    warn "ids come from bin/helpers/rail.sh, not the directory link -- check 'railway whoami'"
     return 1
   fi
   printf '  redeploy requested, waiting for the served bundle to change\n'
@@ -4771,6 +6894,1171 @@ cmd_secrets() {
   node "$ROOT/scripts/scan-secrets-on-disk.cjs" "${roots[@]}"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# tri voice: the voice mode end to end, measured instead of believed.
+#
+# "The voice works" was said four times in one night (2026-10-01) and each
+# time something else was wrong: the models were cold (10 s to the first
+# word), the Russian sentence went to an English voice, the answer read card
+# markup aloud. Each of those is a number this command prints. The round trip
+# (our own TTS -> our own whisper) is the one check that needs no microphone
+# and still proves both ears and mouth are the ones a person gets.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_voice() {
+  local key runs=3
+  case "${1:-}" in --runs) runs="${2:-3}" ;; --runs=*) runs="${1#--runs=}" ;; esac
+  [[ "$runs" =~ ^[1-9][0-9]?$ ]] || { bad "--runs takes 1..99, not '$runs'"; return 2; }
+  key=$(_mcp_key 2>/dev/null) || key=''
+  V_KEY="$key" V_BASE="$RENDER" V_RUNS="$runs" V_ROAD_ONLY="${V_ROAD_ONLY:-}" \
+    V_FILLER="${V_FILLER:-}" V_LANGUAGE="$ROOT/apps/vibee-editor/player/src/atoms/language.ts" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" python3 -u - <<'PY'
+import json, os, re, statistics, sys, time, urllib.error, urllib.request
+
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+RUNS = int(os.environ['V_RUNS'])
+
+# The person's wait is not the round trip alone: first the player judges the
+# pause (END_OF_TURN_MS), and since voice-loop-4 it asks for the words after
+# EAGER_HEAR_MS of it, so that much of the hearing hides inside the pause.
+# Read from the player itself -- a copy here would drift from it.
+def player_ms(name):
+    try:
+        src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        return None
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', src)
+    return int(m.group(1).replace('_', '')) if m else None
+END_MS, EAGER_MS = player_ms('END_OF_TURN_MS'), player_ms('EAGER_HEAR_MS')
+
+last_timing = {}
+def server_timing(h):
+    # 'read;dur=12, hear;dur=2100;desc="gigaam"'
+    #   -> {'read': 12, 'hear': 2100, 'hear.desc': 'gigaam'}
+    # Parameters are split on ';' -- reading "dur=" to the end of the entry
+    # dropped every timing the moment the render added a desc.
+    out = {}
+    for part in (h or '').split(','):
+        name, *params = [p.strip() for p in part.split(';')]
+        for p in params:
+            k, _, v = p.partition('=')
+            if k == 'dur':
+                try:
+                    out[name] = int(float(v))
+                except ValueError:
+                    pass
+            elif k == 'desc':
+                out[name + '.desc'] = v.strip('"')
+    return out
+
+# ONE connection for every call, the way a browser keeps one. urllib opened
+# a new one per request, so every "road" it reported carried a fresh DNS +
+# TCP + TLS (150-400 ms) that a person in the app pays once, not per phrase
+# (cycle 7). The handshake is now measured on its own, below.
+from urllib.parse import urlsplit
+import http.client, socket
+u = urlsplit(base)
+conn = None
+def connect():
+    global conn
+    if conn:
+        conn.close()
+    Conn = http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection
+    conn = Conn(u.hostname, u.port, timeout=240)
+    t = time.monotonic()
+    try:
+        socket.getaddrinfo(u.hostname, u.port or 443)
+        dns = int((time.monotonic() - t) * 1000)
+        conn.connect()
+    except Exception:
+        return None, None
+    return dns, int((time.monotonic() - t) * 1000) - dns
+
+last_timing, last_headers = {}, {}
+def call(path, body=None, ctype='application/json', timeout=90, retry=True):
+    data = body if isinstance(body, (bytes, type(None))) else json.dumps(body).encode()
+    headers = {}
+    if data is not None:
+        headers['Content-Type'] = ctype
+    if key:
+        headers['X-Agent-Key'] = key
+    global last_timing, last_headers
+    last_timing, last_headers = {}, {}
+    if conn is None:
+        connect()
+    conn.timeout = timeout
+    if conn.sock:
+        conn.sock.settimeout(timeout)
+    t = time.monotonic()
+    try:
+        conn.request('POST' if data is not None else 'GET', u.path.rstrip('/') + path, body=data, headers=headers)
+        r = conn.getresponse()
+        out = r.read()
+    except (http.client.RemoteDisconnected, BrokenPipeError, ConnectionResetError, http.client.CannotSendRequest) as e:
+        # The edge closed an idle connection: open a new one and say nothing
+        # -- that is what a browser does too.
+        if retry:
+            connect()
+            return call(path, body, ctype, timeout, False)
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    except Exception as e:
+        connect()
+        return 0, str(e).encode(), int((time.monotonic() - t) * 1000)
+    last_timing = server_timing(r.getheader('Server-Timing'))
+    last_headers = {k.lower(): v for k, v in r.getheaders()}
+    return r.status, out, int((time.monotonic() - t) * 1000)
+
+worst = 0
+def mark(level):
+    global worst
+    worst = max(worst, level)
+
+# THE ROAD, split (cycle 7): the handshake a new connection pays, then the
+# round trip a warm one still pays -- the edge reaching the render and back.
+# On 2026-10-02 the edge was sin1 (Singapore) and the render ran in sfo:
+# ~250 ms warm, on every call, even for this empty status.
+dns, tls = connect()
+code, body, ms = call('/api/voice/status')
+if code != 200:
+    why = body[:120].decode(errors='replace') if code == 0 else f'HTTP {code}'
+    print(f'  status: {why} -- the voice routes did not answer')
+    sys.exit(3)
+st = json.loads(body)
+pings = [ms] + [call('/api/voice/status')[2] for _ in range(4)]
+ping = int(statistics.median(pings))
+edge = last_headers.get('x-railway-edge', '?')
+if dns is not None:
+    print(f'  road: edge {edge}, new connection {dns + tls} ms (dns {dns} + tcp/tls {tls}), '
+          f'warm round trip {ping} ms [{min(pings)}..{max(pings)}] -- every call pays the warm one')
+if ping >= 400:
+    print('  road: SLOW -- the warm round trip alone is 0.4 s; is the render far from this edge? (tri road)')
+    mark(2)
+if os.environ.get('V_ROAD_ONLY'):
+    sys.exit(worst)
+print(f"  status: hear={st.get('hear')} (ru via {st.get('hearRu', 'whisper')}, en via {st.get('hearEn', 'whisper')}) speak={st.get('speak')} (via {st.get('speakVia', 'speaches')}) "
+      f"voices ru={len(st.get('voices', {}).get('ru', []))} en={len(st.get('voices', {}).get('en', []))}")
+if not (st.get('hear') and st.get('speak')):
+    mark(1)
+if not key:
+    print('  no agent key: only the public status was read (NOT MEASURED past it)')
+    sys.exit(2)
+
+code, body, ms = call('/api/voice/warm', {'lang': 'ru'})
+if code == 401:
+    print('  warm: 401 -- this key is not a person; voice routes need one')
+    sys.exit(2)
+print(f'  warm ru: HTTP {code} {body[:80].decode(errors="replace")} in {ms} ms')
+if code != 200:
+    mark(1)
+
+# THE WAIT SAID OUT LOUD (cycle 9). The player asks for a wait phrase's
+# audio FILLER_PREPARE_MS into the thinking and plays it at FILLER_FIRST_MS
+# (FILLER_STILL_MS for "still working"): the synthesis has to fit in between,
+# or "Let me see." arrives late -- or after the answer it was covering for.
+# The phrases are read from the player's dictionary, so a new variant is
+# measured the day it lands. Each is synthesised once, as the player does.
+FIRST, STILL, PREP = (player_ms(n) for n in ('FILLER_FIRST_MS', 'FILLER_STILL_MS', 'FILLER_PREPARE_MS'))
+try:
+    lang_src = open(os.environ['V_LANGUAGE'], encoding='utf-8').read()
+except OSError:
+    lang_src = ''
+ru_at = lang_src.find('const ru: Translations')
+waits = {}
+for m in re.finditer(r"'voice\.filler\.(first|still)':\s*'([^']*)'", lang_src):
+    lang = 'ru' if ru_at >= 0 and m.start() > ru_at else 'en'
+    waits.setdefault((lang, m.group(1)), []).extend(m.group(2).split('|'))
+if not (FIRST and PREP and waits):
+    print('  wait phrases: not found in the player (FILLER_* or voice.filler.*) -- NOT MEASURED')
+    mark(2)
+for (lang, kind), texts in sorted(waits.items()):
+    lead = (FIRST if kind == 'first' else STILL) - PREP
+    times, parts = [], []
+    for text in texts:
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            print(f'  wait {lang} "{text}": HTTP {code} -- the player falls back to the device voice')
+            mark(1)
+            continue
+        times.append(ms)
+        # Where the time went: the engine's own, or the road to it (cycle 10:
+        # a cold first English phrase took 4.4 s -- engine or road?).
+        eng = last_timing.get('speak')
+        parts.append(f"{ms}={last_timing.get('speak.desc', '?')} {eng}+road {ms - eng}" if eng is not None else f'{ms}=?')
+    if not times:
+        continue
+    late = max(times) > lead
+    print(f'  wait {lang} {kind}: {len(times)} phrases, synth {min(times)}..{max(times)} ms, '
+          f'lead {lead} ms -- {"LATE (not ready at its moment: the session skips it)" if late else "ok"}')
+    print(f'      each: {"; ".join(parts)}')
+    # The player gives each sentence speakDeadlineMs(chars) before the
+    # device's voice reads it instead (cycle 10). Read from the source, so a
+    # new deadline is checked the day it lands.
+    try:
+        session_src = open(os.environ['V_SESSION']).read()
+    except OSError:
+        session_src = ''
+    dl = re.search(r'function speakDeadlineMs[^{]*\{\s*return (\d[\d_]*) \+ (\d+) \* chars', session_src)
+    if dl:
+        base, per = int(dl.group(1).replace('_', '')), int(dl.group(2))
+        tight = [t for t, ms in zip(texts, times) if ms * 2 > base + per * len(t)]
+        if tight:
+            print(f'      deadline: {len(tight)} phrase(s) used over half of the player\'s speak deadline -- the device voice is near')
+            mark(2)
+    if late:
+        mark(2)
+if os.environ.get('V_FILLER'):
+    sys.exit(worst)
+
+# The same two phrases every run, so the timings compare across days.
+phrases = {'ru': 'Проверка голоса: раз, два, три, четыре.',  # cyrillic-ok: the phrase IS the probe
+           'en': 'Voice check: one, two, three, four.'}
+audio = {}
+# Speaking gets a median too: in cycle 5 one 4.6 s sample called English
+# TTS "SLOW" when five more measured 2.0-2.5 s with a single 4.4 s tail.
+SPEAK_RUNS = min(RUNS, 3)
+for lang, text in phrases.items():
+    times, engines, engine_ms = [], set(), []
+    for _ in range(SPEAK_RUNS):
+        code, body, ms = call('/api/voice/speak', {'text': text, 'lang': lang})
+        if code != 200 or len(body) <= 1000:
+            break
+        audio.setdefault(lang, []).append(body)
+        times.append(ms)
+        engines.add(last_timing.get('speak.desc', '?'))
+        if 'speak' in last_timing:
+            engine_ms.append(last_timing['speak'])
+    if len(times) == SPEAK_RUNS:
+        med = int(statistics.median(times))
+        verdict = 'ok' if med < 3000 else 'SLOW (the first word waits for this)'
+        inside = f', engine {int(statistics.median(engine_ms))} ms' if engine_ms else ''
+        print(f'  speak {lang}: {len(body)} bytes via {"/".join(sorted(engines))}, '
+              f'median {med} ms{inside} of {len(times)} [{min(times)}..{max(times)}] -- {verdict}')
+        if med >= 3000:
+            mark(2)
+        # The mouth is configured but speaches answered: it is down or
+        # refusing, and every sentence is paying for the fallback (cycle 6).
+        if st.get('speakVia') == 'mouth' and engines != {'mouth'}:
+            print(f'  speak {lang}: ANOMALY -- the mouth is configured but {"/".join(sorted(engines))} spoke (tri ears mouth)')
+            mark(1)
+    else:
+        audio.pop(lang, None)
+        print(f'  speak {lang}: HTTP {code} {body[:100].decode(errors="replace")}')
+        mark(1)
+
+# ONE sample lies. Cycle 1 reported "ru 4.6 s" from a single run; the same
+# phrase then measured 2.3 s and 5.8 s back to back. So: RUNS samples, the
+# median is the verdict, and the server's own Server-Timing splits the wait
+# into upload (read), whisper (hear) and the road (everything else).
+#
+# The same goes for the VOICE: Piper and Kokoro add noise on purpose, so no
+# two clips of one phrase are alike, and cycle 6 called the round trip
+# WRONG because one clip in ~13 swallowed a syllable ("Пверка"). So every  # cyrillic-ok: what was heard
+# clip spoken above is heard in turn: all misheard is broken, some is noted.
+for lang, probe in (('ru', 'провер'), ('en', 'voice')):  # cyrillic-ok: the expected word
+    if lang not in audio:
+        continue
+    clips = audio[lang]
+    times, hears, reads, engines, heard, missed = [], [], [], set(), '', []
+    for i in range(RUNS):
+        code, body, ms = call(f'/api/voice/transcribe?lang={lang}', clips[i % len(clips)], 'audio/mpeg')
+        text = json.loads(body).get('text', '') if code == 200 else body[:100].decode(errors='replace')
+        if not (code == 200 and probe in text.lower()):
+            missed.append(text)
+            if code != 200:
+                break
+            continue
+        heard = text
+        times.append(ms)
+        if 'hear' in last_timing:
+            hears.append(last_timing['hear'])
+            reads.append(last_timing.get('read', 0))
+            engines.add(last_timing.get('hear.desc', 'whisper'))
+    if not times:
+        print(f'  round trip {lang}: "{(missed or [""])[-1][:60]}" -- WRONG')
+        mark(1)
+        continue
+    if missed:
+        # A third or more of the clips misheard is the voice or the ears
+        # going bad, not one unlucky sample.
+        many = len(missed) * 3 >= len(missed) + len(times)
+        print(f'  round trip {lang}: {len(missed)} of {len(missed) + len(times)} clips misheard, '
+              f'e.g. "{missed[0][:50]}" -- {"CHECK the voice and the ears" if many else "one noisy sample, not a fault"}')
+        if many:
+            mark(2)
+    med = int(statistics.median(times))
+    # A four-second phrase heard in three seconds or more is the wait a
+    # person sits through after every question.
+    slow = med >= 3000
+    split = ''
+    if hears:
+        h, r = int(statistics.median(hears)), int(statistics.median(reads))
+        # Which ears heard it: "gigaam"/"parakeet", "whisper", or both when
+        # the fast ears fell back on some runs -- that mix is itself the finding.
+        ears = '/'.join(sorted(engines)) or 'whisper'
+        road = max(0, med - h - r)
+        split = f' = upload {r} + {ears} {h} + road {road} (warm round trip {ping})'
+    else:
+        split = ' (no Server-Timing: render older than voice-loop-2)'
+    print(f'  round trip {lang}: "{heard[:40]}" median {med} ms of {len(times)} '
+          f'[{min(times)}..{max(times)}]{split} -- '
+          f'{"SLOW (the person waits this after speaking)" if slow else "ok"}')
+    mark(2 if slow else 0)
+    if END_MS:
+        hidden = min(med, END_MS - EAGER_MS) if EAGER_MS else 0
+        print(f'    felt after the last word: pause {END_MS} + words {med - hidden}'
+              f' = {END_MS + med - hidden} ms'
+              + (f' (early hearing hides {hidden}; not on Safari mp4)' if hidden else ''))
+
+sys.exit(worst)
+PY
+  local rc=$?
+  if [ -n "${V_FILLER:-}" ]; then
+    case "$rc" in
+      0) good 'every wait phrase is synthesised before its moment' ;;
+      2) warn 'a wait phrase is late, or not measured -- see above' ;;
+      *) bad 'a wait phrase cannot be synthesised -- see above' ;;
+    esac
+    return "$rc"
+  fi
+  if [ -n "${V_ROAD_ONLY:-}" ]; then
+    case "$rc" in
+      0) good 'the road answers, warm round trip under 0.4 s' ;;
+      2) warn 'the road is slow -- see above' ;;
+      *) bad 'the render did not answer' ;;
+    esac
+    return "$rc"
+  fi
+  case "$rc" in
+    0) good 'the voice hears and speaks both languages' ;;
+    1) bad 'part of the voice is broken -- the lines above say which' ;;
+    2) warn 'not fully measured, or slow -- see above' ;;
+    *) bad 'the render did not answer' ;;
+  esac
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri turn: the words of a pause decide when the turn is over (cycle 11).
+#
+# A phrase that stops on "and", "to", "uh", "и", "на" or a trailing comma
+# is mid-thought: the session gives it HANGING_TURN_MS of silence instead of
+# END_OF_TURN_MS (player/src/lib/voice/turnEnd.ts). The battery checks the
+# verdicts; --live speaks phrases with our own mouth, hears them with our
+# own ears, and judges what the ears returned -- the engines decide whether
+# "and" survives ("this week and" came back "this weekend." on 2026-10-02).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_turn() {
+  local bench="$ROOT/apps/vibee-editor/player/scripts/turn-bench.ts" live='' audio='' record='' lang=ru pause=300 a phrases=() key heard
+  for a in "$@"; do
+    case "$a" in
+      --live) live=1 ;;
+      --audio) audio=1 ;;
+      --record) record=1 ;;
+      --lang=*) lang="${a#--lang=}" ;;
+      --pause=*) pause="${a#--pause=}" ;;
+      -*) bad "tri turn [--live | --record | --audio [--lang=ru] [--pause=300] file ...] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  [ -n "$record" ] && { _turn_record "$lang" "$pause"; return $?; }
+  [ -n "$audio" ] && { _turn_audio "$lang" "$pause" ${phrases[@]+"${phrases[@]}"}; return $?; }
+  command -v bun >/dev/null || { bad 'bun is needed to run the judge'; return 2; }
+  if [ -z "$live" ]; then
+    bun "$bench" ${phrases[@]+"${phrases[@]}"}
+    return $?
+  fi
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --live needs the render (AGENT_KEY or the vault)'; return 2; }
+  heard=$(V_KEY="$key" V_BASE="$RENDER" \
+    V_SESSION="$ROOT/apps/vibee-editor/player/src/lib/voice/session.ts" \
+    V_VAD="$ROOT/apps/vibee-editor/player/src/lib/voice/vad.ts" python3 - <<'PY'
+import json, os, re, time, urllib.request
+base, key = os.environ['V_BASE'], os.environ['V_KEY']
+def const(path, name):
+    m = re.search(r'const ' + name + r' = ([0-9_]+)', open(os.environ[path]).read())
+    return int(m.group(1).replace('_', '')) if m else 0
+EAGER, END = const('V_SESSION', 'EAGER_HEAR_MS'), const('V_VAD', 'END_OF_TURN_MS')
+# ONE kept connection, as a browser keeps one: a fresh DNS + TLS per call
+# added 0.3-1 s to every "words at" this printed on its first run.
+from urllib.parse import urlsplit
+import http.client
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    t = time.monotonic()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    resp = conn.getresponse()
+    b = resp.read()
+    if resp.status != 200:
+        raise RuntimeError(f'HTTP {resp.status} {path}')
+    return b, int((time.monotonic() - t) * 1000), resp.getheader('Server-Timing')
+# [lang, text, still going]
+PROBES = (('ru', 'Покажи мне встречи на этой неделе и', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Хочу записаться на', True),  # cyrillic-ok: spoken probe
+          ('ru', 'Сделай рилс про мою кофейню.', False),  # cyrillic-ok: spoken probe
+          ('en', 'Show me my unpaid invoices and', True),
+          ('en', 'I want to book a table for', True),
+          ('en', 'Open my calendar.', False))
+for lang, text, want in PROBES:
+    try:
+        audio, _, _ = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        b, ms, timing = call(f'/api/voice/transcribe?lang={lang}&turn=1', audio, 'audio/mpeg')
+        words = json.loads(b).get('text', '')
+        done = json.loads(b).get('done')
+    except Exception as e:
+        print(f'  {lang}: FAILED {e}', file=os.sys.stderr)
+        continue
+    # The guess is asked for EAGER ms into the pause; before cycle 11 the
+    # "heard" earcon played at END ms, now it waits for these words.
+    late = max(0, EAGER + ms - END)
+    engine = re.search(r'hear;dur=([0-9.]+);desc="?([^",]+)', timing or '')
+    via = f', {engine.group(2)} {int(float(engine.group(1)))} ms' if engine else ''
+    # The voice's own verdict (Smart Turn in the ears); synthesized speech,
+    # so it is a smoke test of the road, not a measure of the model.
+    voice = 'no verdict' if done is None else f"voice {done:.2f} {'agrees' if (done < 0.5) == want else 'DISAGREES'}"
+    print(f'  {lang} said {json.dumps(text, ensure_ascii=False)} -> words at {EAGER + ms} ms of silence (earcon +{late} ms{via}; {voice})', file=os.sys.stderr)
+    print('--want-hang' if want else '--want-over')
+    print(words)
+PY
+  ) || return 2
+  local list=()
+  while IFS= read -r a; do list+=("$a"); done <<< "$heard"
+  [ ${#list[@]} -gt 0 ] && [ -n "${list[0]}" ] || { bad 'nothing heard'; return 1; }
+  bun "$bench" "${list[@]}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri words: are product words heard as said? (cycle 14, weak spot 12)
+#
+# Our mouth speaks each phrase, our ears hear it through the live road --
+# the same /api/voice/transcribe the player calls, so the render's fix-ups
+# (render/src/voice/hotwords.ts) are already applied to what comes back.
+# A row that differs is either a new mishearing to add to that table or a
+# fix-up that fired where it should not. Synthesized speech is not a
+# person: a clean run says the road is right, not that every voice is.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_words() {
+  local lang=ru a phrases=() key
+  for a in "$@"; do
+    case "$a" in
+      --lang=*) lang="${a#--lang=}" ;;
+      -*) bad "tri words [--lang=ru|en] [phrase ...], not '$a'"; return 2 ;;
+      *) phrases+=("$a") ;;
+    esac
+  done
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: tri words needs the render (AGENT_KEY or the vault)'; return 2; }
+  V_KEY="$key" V_BASE="$RENDER" V_LANG="$lang" python3 - ${phrases[@]+"${phrases[@]}"} <<'PY2'
+import json, os, re, sys, http.client
+from urllib.parse import urlsplit
+base, key, lang = os.environ['V_BASE'], os.environ['V_KEY'], os.environ['V_LANG']
+u = urlsplit(base)
+conn = (http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection)(u.hostname, u.port, timeout=60)
+def call(path, body, ctype):
+    data = body if isinstance(body, bytes) else json.dumps(body).encode()
+    conn.request('POST', path, body=data, headers={'Content-Type': ctype, 'X-Agent-Key': key})
+    r = conn.getresponse(); b = r.read()
+    if r.status != 200: raise RuntimeError(f'HTTP {r.status} {path}')
+    return b
+# Each one came back wrong at least once on 2026-10-02 before the fix-ups.
+DEFAULT = {
+    'ru': ['Сделай рилс про мою кофейню.', 'Сделай три рилса на неделю.',  # cyrillic-ok: spoken probe
+           'Пришли рилс в телеграм.', 'Запусти липсинк с моим голосом.',  # cyrillic-ok: spoken probe
+           'Сколько стоит липсинк?', 'Сделай нейрофото.', 'Открой улей.',  # cyrillic-ok: spoken probe
+           'Сделай лид-магнит.', 'Открой Вайби.'],  # cyrillic-ok: spoken probe
+    'en': ['Make a reel about my coffee shop.', 'Run a lipsync with my voice.', 'Open my CRM.'],
+}
+phrases = sys.argv[1:] or DEFAULT.get(lang, [])
+# A brand the ears write in its own alphabet is heard right, not misheard.
+SAME = {'telegram': 'телеграм', 'crm': 'црм'}  # cyrillic-ok: brand spellings
+norm = lambda t: ' '.join(SAME.get(w, w) for w in re.sub(r'[^\w-]+', ' ', t.lower().replace('ё', 'е')).split())  # cyrillic-ok: yo
+same = 0
+for text in phrases:
+    try:
+        audio = call('/api/voice/speak', {'text': text, 'lang': lang}, 'application/json')
+        heard = json.loads(call(f'/api/voice/transcribe?lang={lang}', audio, 'audio/mpeg')).get('text', '')
+    except Exception as e:
+        print(f'  ?  {text}  FAILED {e}'); continue
+    mixed = [w for w in heard.split() if re.search('[а-яё]', w, re.I) and re.search('[a-z]', w, re.I)]  # cyrillic-ok: script check
+    ok = norm(heard) == norm(text) and not mixed
+    same += ok
+    print(f"  {'OK' if ok else 'XX'} {text}  ->  {heard}" + (f'  (two alphabets: {mixed})' if mixed else ''))
+print(f'heard as said: {same}/{len(phrases)}')
+sys.exit(0 if same == len(phrases) else 1)
+PY2
+}
+
+# tri turn --audio: does the VOICE sound finished? (cycle 13, Smart Turn v3.2
+# in the ears, deployment/gigaam/turn.py). Real recordings, through the live
+# road: each file is cut to its last sound, given --pause ms of silence (the
+# player asks 300 ms into a pause) and sent as the eager hearing sends it.
+# Name files done-*.wav / cut-*.wav (finished / stopped mid-thought) and the
+# summary counts what decides switching it on (VoiceDeps.voiceHolds): the
+# finished turns it would HOLD 2.5 s, and the unfinished ones it catches.
+_turn_audio() {
+  local lang="$1" pause="$2" key; shift 2
+  [ $# -gt 0 ] || { bad 'tri turn --audio file ...'; return 2; }
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to cut the recordings'; return 2; }
+  key=$(_mcp_key 2>/dev/null) || key=''
+  [ -n "$key" ] || { bad 'no agent key: --audio needs the render (AGENT_KEY or the vault)'; return 2; }
+  V_KEY="$key" V_BASE="$RENDER" V_LANG="$lang" V_PAUSE="$pause" python3 - "$@" <<'PY'
+import json, os, re, subprocess, sys, urllib.request
+base, key, lang, pause = os.environ['V_BASE'], os.environ['V_KEY'], os.environ['V_LANG'], int(os.environ['V_PAUSE'])
+held = caught = finished = unfinished = 0
+for path in sys.argv[1:]:
+    name = os.path.basename(path)
+    # Trim the file's own trailing quiet (-50 dB), then add exactly ours.
+    wav = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-i', path, '-af',
+        f'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur={pause / 1000}',
+        '-ac', '1', '-ar', '16000', '-f', 'wav', '-'], capture_output=True).stdout
+    if not wav:
+        print(f'  {name}: cannot decode'); continue
+    req = urllib.request.Request(f'{base}/api/voice/transcribe?lang={lang}&turn=1', data=wav,
+        headers={'Content-Type': 'audio/wav', 'X-Agent-Key': key})
+    try:
+        r = urllib.request.urlopen(req, timeout=60)
+        body, timing = json.loads(r.read()), r.headers.get('Server-Timing') or ''
+    except Exception as e:
+        print(f'  {name}: FAILED {e}'); continue
+    done = body.get('done')
+    engine = re.search(r'desc="?([^",]+)', timing)
+    verdict = 'no verdict (ears without the turn model?)' if done is None else f"done {done:.2f} -> {'HOLDS' if done < 0.5 else 'ends'}"
+    print(f"  {name:22s} {engine.group(1) if engine else '?':9s} {verdict}  {json.dumps(body.get('text', ''), ensure_ascii=False)}")
+    if done is None: continue
+    if name.startswith('done'): finished += 1; held += done < 0.5
+    if name.startswith('cut'): unfinished += 1; caught += done < 0.5
+if finished or unfinished:
+    print(f'finished turns held 2.5 s: {held}/{finished}   unfinished caught: {caught}/{unfinished}')
+    print('switch on (VoiceDeps.voiceHolds) only when held is near 0 and caught is real')
+PY
+}
+
+# tri turn --record: the kit for the recordings --audio needs (cycle 15).
+#
+# Smart Turn stays in shadow until a PERSON's voice says it holds finished
+# turns rarely and catches unfinished ones (synthesized speech is not a
+# person). This walks the owner through ten phrases -- five said to the end,
+# five broken off mid-thought -- records each from the Mac's microphone and
+# judges them with --audio. Recordings live in ~/.cache/tri/turn-voice/<lang>
+# and are kept: a second run records only what is missing, and re-judges all.
+# Delete a file to record it again. macOS asks once for microphone access.
+_turn_record() {
+  local lang="$1" pause="$2" dir n=0 kind phrase file pid ans
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to record'; return 2; }
+  [ -t 0 ] || { bad 'tri turn --record is interactive: run it in a terminal'; return 2; }
+  dir="$HOME/.cache/tri/turn-voice/$lang"
+  mkdir -p "$dir" || return 2
+  local -a items
+  if [ "$lang" = ru ]; then
+    items=(  # cyrillic-ok: phrases the owner reads aloud
+      'done|Покажи мои рилсы за эту неделю.'  # cyrillic-ok
+      'done|Сколько у меня токенов?'  # cyrillic-ok
+      'done|Открой календарь на завтра.'  # cyrillic-ok
+      'done|Сделай липсинк из последнего видео.'  # cyrillic-ok
+      'done|Спасибо, это всё.'  # cyrillic-ok
+      'cut|Покажи мне рилсы и'  # cyrillic-ok
+      'cut|Я хочу сделать видео про'  # cyrillic-ok
+      'cut|Открой календарь, а потом'  # cyrillic-ok
+      'cut|Сколько стоит, ну, это'  # cyrillic-ok
+      'cut|Напиши клиенту, что'  # cyrillic-ok
+    )
+  else
+    items=(
+      'done|Show me my reels from this week.'
+      'done|How many tokens do I have?'
+      'done|Open my calendar for tomorrow.'
+      'done|Make a lipsync from the last video.'
+      'done|Thanks, that is all.'
+      'cut|Show me my reels and'
+      'cut|I want to make a video about'
+      'cut|Open the calendar, and then'
+      'cut|How much does it, um, the'
+      'cut|Tell the client that'
+    )
+  fi
+  printf "  recordings: %s\n" "$dir"
+  printf '  %s\n' 'say each phrase as you would to the agent. "cut" phrases: stop where the text stops, as if thinking, then press Enter'
+  # Seen 2026-10-02: from a process macOS has not yet asked about, ffmpeg
+  # sits on the microphone without a word (not even `timeout` ended it).
+  printf '  %s\n' 'the first recording may wait for the macOS "allow microphone" prompt -- answer it, then speak'
+  for phrase in "${items[@]}"; do
+    kind="${phrase%%|*}"; phrase="${phrase#*|}"; n=$((n + 1))
+    file="$dir/$kind-$(printf %02d "$n").wav"
+    [ -s "$file" ] && { printf '  %s  already recorded\n' "$(basename "$file")"; continue; }
+    printf '\n  [%s %d/%d]  %s\n' "$kind" "$n" "${#items[@]}" "$phrase"
+    printf '  Enter to start, then Enter to stop (s = skip, q = quit) '
+    read -r ans; [ "$ans" = q ] && break; [ "$ans" = s ] && continue
+    # Default input device; 16 kHz mono is what the ears take anyway.
+    ffmpeg -nostdin -v error -y -f avfoundation -i ':default' -ac 1 -ar 16000 "$file" &
+    pid=$!
+    printf '  recording... '
+    read -r ans
+    kill -INT "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    [ -s "$file" ] || { bad "nothing recorded (microphone access for this terminal?)"; rm -f "$file"; return 2; }
+  done
+  # An unmatched glob stays literal, so keep only the files that exist:
+  # with no done-* yet, files[0] was the pattern and cut-* recordings
+  # were reported as none at all.
+  local files=() f
+  for f in "$dir"/done-*.wav "$dir"/cut-*.wav; do [ -e "$f" ] && files+=("$f"); done
+  [ ${#files[@]} -gt 0 ] || { warn 'no recordings yet'; return 1; }
+  printf '\n'
+  _turn_audio "$lang" "$pause" "${files[@]}"
+  local rc=$?
+  # The same recordings judge the phone's rule too (cycle 19).
+  printf '  %s\n' "the phone's turn rule on the same voice: tri vad --ios $dir/*.wav"
+  return $rc
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri vad --ios: the PHONE's turn judge (apps/vibee-ios/Vibee/TurnJudge.swift,
+# cycle 19) over the same audio. Unit tests feed it made-up levels; this
+# compiles the real file with a small reader and feeds it 50 ms RMS frames of
+# 16 kHz mono -- what the recorder's meter reads every tick on the phone
+# (averagePower is RMS in dBFS; close, not identical). Judged by file name:
+# speech and speech over a fan end as a turn, a fan alone never does, the
+# owner's done-*/cut-* recordings (tri turn --record) end as a turn.
+# ─────────────────────────────────────────────────────────────────────────
+_vad_ios() {
+  local src="$ROOT/apps/vibee-ios/Vibee/TurnJudge.swift" cache bin f out v at dur rc=0 pad
+  command -v swiftc >/dev/null || { bad 'swiftc is needed (Xcode command line tools)'; return 2; }
+  command -v ffmpeg >/dev/null || { bad 'ffmpeg is needed to read the audio'; return 2; }
+  [ -f "$src" ] || { bad "no $src"; return 2; }
+  cache="$HOME/.cache/tri/ios-judge"; mkdir -p "$cache" || return 2
+  # One build per version of the rule.
+  bin="$cache/judge-$(shasum "$src" | cut -c1-12)"
+  if [ ! -x "$bin" ]; then
+    { cat "$src"; cat <<'SWIFT'
+import Foundation
+let data = FileHandle.standardInput.readDataToEndOfFile()
+let samples = data.withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
+let frame = Int(16_000 * TurnJudge.tick)
+var judge = TurnJudge(at: 0)
+var verdict = TurnJudge.Verdict.going
+var at = 0.0
+var i = 0
+while i + frame <= samples.count {
+  var sum = 0.0
+  for s in samples[i..<(i + frame)] { let x = Double(s) / 32768; sum += x * x }
+  at = Double(i + frame) / 16_000
+  verdict = judge.feed(at: at, level: (sum / Double(frame)).squareRoot())
+  if verdict != .going { break }
+  i += frame
+}
+print(verdict, String(format: "%.2f", at), String(format: "%.2f", Double(samples.count) / 16_000))
+SWIFT
+    } > "$cache/main.swift"
+    swiftc -O "$cache/main.swift" -o "$bin" 2>"$cache/build.log" \
+      || { bad "the judge did not compile: $cache/build.log"; return 2; }
+  fi
+  printf '  %-22s %-12s %8s %8s\n' file verdict 'at, s' 'len, s'
+  for f in "$@"; do
+    # A recording stopped by Enter may end on the last word; on the phone
+    # the room goes quiet after it, so the owner's files get that quiet.
+    pad=()
+    case "$(basename "$f")" in done-*|cut-*) pad=(-af apad=pad_dur=1.5) ;; esac
+    out=$(ffmpeg -nostdin -v error -i "$f" ${pad[@]+"${pad[@]}"} -f s16le -ac 1 -ar 16000 - | "$bin") \
+      || { bad "$(basename "$f"): could not read"; rc=1; continue; }
+    read -r v at dur <<<"$out"
+    printf '  %-22s %-12s %8s %8s\n' "$(basename "$f")" "$v" "$at" "$dur"
+    case "$(basename "$f")" in
+      # Not just "not ended": a fan held as a phrase keeps the mic open to
+      # the 60 s limit (a mutant that never learns the room showed "going").
+      fan-*) [ "$v" = nobodySpoke ] || { bad "$(basename "$f"): a fan was taken for speech ($v)"; rc=1; } ;;
+      speech-*|over-fan-*|done-*|cut-*)
+        [ "$v" = ended ] || { bad "$(basename "$f"): speech never ended as a turn ($v)"; rc=1; } ;;
+    esac
+  done
+  [ $rc -eq 0 ] && good 'the phone hears the end of speech and ignores the fans'
+  return $rc
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri vad: the mic's voice-activity gate over real recordings (cycle 8).
+#
+# A fan that STARTS loud was "speech" for 30 s before cycle 8 -- a question
+# asked over it waited for the utterance cap. Unit tests feed the gate
+# synthetic levels; this feeds it audio, so the STEADY_SPREAD margin is a
+# measured number. TTS is not a person and the browser's own noise
+# suppression is not applied: read it as the gate's worst case.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_vad() {
+  local legacy='' ios='' a files=() dir bench="$ROOT/apps/vibee-editor/player/scripts/vad-bench.ts"
+  for a in "$@"; do
+    case "$a" in
+      --legacy) legacy=--legacy ;;
+      --ios) ios=1 ;;
+      -*) bad "tri vad [--legacy | --ios] [file.wav ...], not '$a'"; return 2 ;;
+      *) files+=("$a") ;;
+    esac
+  done
+  [ -n "$ios" ] || command -v bun >/dev/null || { bad 'bun is needed to run the gate'; return 2; }
+  if [ ${#files[@]} -eq 0 ]; then
+    command -v ffmpeg >/dev/null && command -v say >/dev/null \
+      || { bad 'no files given, and the battery needs ffmpeg and say (macOS)'; return 2; }
+    dir=$(mktemp -d "${TMPDIR:-/tmp}/tri-vad.XXXXXX")
+    local W=(-hide_banner -loglevel error -y -ar 48000 -ac 1 -c:a pcm_s16le)
+    say -v Milena -o "$dir/ru.aiff" 'Открой мой календарь и покажи, какие встречи у меня завтра утром.' \
+      && say -v Samantha -o "$dir/en.aiff" 'Open my calendar and show me what meetings I have tomorrow morning.' \
+      || { bad 'say could not speak (voices Milena and Samantha)'; return 2; }
+    # Each speech file: 1 s of room, the phrase, 2 s of room. The fans sit
+    # at -22..-28 dB RMS, above the quiet threshold (-30 dB), so the old gate
+    # held each as a phrase; under speech the fan is ~8 dB below the voice.
+    for a in ru en; do
+      ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=1' -i "$dir/$a.aiff" -f lavfi -i 'anoisesrc=c=brown:a=0.002:d=2' \
+        -filter_complex '[1]aresample=48000[s];[0][s][2]concat=n=3:v=0:a=1' "${W[@]}" "$dir/speech-$a.wav" || return 2
+      ffmpeg -i "$dir/speech-$a.wav" -f lavfi -i 'anoisesrc=c=brown:a=0.2:d=12' \
+        -filter_complex '[0]adelay=3000[s];[1][s]amix=inputs=2:duration=first:normalize=0' "${W[@]}" "$dir/over-fan-$a.wav" || return 2
+    done
+    ffmpeg -f lavfi -i 'anoisesrc=c=brown:a=0.25:d=10' "${W[@]}" "$dir/fan-brown.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=pink:a=0.3:d=10' "${W[@]}" "$dir/fan-pink.wav" || return 2
+    ffmpeg -f lavfi -i 'anoisesrc=c=white:a=0.08:d=10' "${W[@]}" "$dir/fan-white.wav" || return 2
+    files=("$dir"/speech-*.wav "$dir"/over-fan-*.wav "$dir"/fan-*.wav)
+  fi
+  if [ -n "$ios" ]; then
+    local irc=0
+    _vad_ios "${files[@]}" || irc=$?
+    [ -n "${dir:-}" ] && rm -rf "$dir"
+    return $irc
+  fi
+  local out rc=0
+  out=$(bun "$bench" $legacy "${files[@]}") || { bad 'the bench failed'; return 2; }
+  printf '%s\n' "$out"
+  [ -n "${dir:-}" ] && rm -rf "$dir"
+  [ -n "$legacy" ] && { warn 'the gate before cycle 8, for comparison only -- not judged'; return 0; }
+  # Judged by events, per file name: speech is never the room and ends as a
+  # turn; over a fan, the room is learned first and the phrase still ends as
+  # a turn; a fan alone is learned and never held as a phrase.
+  local verdict
+  verdict=$(printf '%s\n' "$out" | awk '
+    function judge() {
+      if (f == "") return
+      if (f ~ /^speech-/ && (steady || !ended)) print f ": speech taken for the room, or never ended"
+      if (f ~ /^over-fan-/ && !(steady && endedAfter)) print f ": the question over the fan was not heard as a turn"
+      if (f ~ /^fan-/ && (!steady || held)) print f ": the fan was not learned as the room"
+    }
+    /^[^ ]/ { judge(); f = $1; steady = ended = endedAfter = held = 0; next }
+    /steady room learned/ { steady = 1 }
+    /turn end/ { ended = 1; if (steady) endedAfter = 1 }
+    /still "talking"|CAP:/ { held = 1 }
+    END { judge() }')
+  if [ -n "$verdict" ]; then
+    while IFS= read -r a; do bad "$a"; done <<<"$verdict"
+    rc=1
+  fi
+  [ "$rc" = 0 ] && good 'the gate tells speech from a steady room'
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri gigaam: the Russian ears of voice mode (deployment/gigaam).
+#
+# GigaAM is not wired to GitHub: it changes rarely and its image carries a
+# ~1 GB model, so it ships by `railway up` from a CLEAN tree -- a dirty one
+# would put code on the network that no PR has seen. Everything else about it
+# is in deployment/gigaam/server.py and the voice-mode skill.
+#
+#   tri gigaam            newest deploy + whether the render routes ru to it
+#   tri gigaam deploy     upload deployment/gigaam and build it
+# ─────────────────────────────────────────────────────────────────────────
+# One image, two services: deployment/gigaam built with GigaAM v3 for Russian
+# and with Parakeet TDT v2 (int8) for English. Neither is wired to GitHub.
+EARS_SVC_RU=1532ed17-3739-4ece-986a-2732288fdde0   # gigaam
+EARS_SVC_EN=6d9197c7-d467-42bc-8e92-27bc231302a6   # parakeet
+# The mouth (deployment/mouth): Kokoro + Piper on an 8-thread pool, cycle 6.
+# It speaks rather than hears, but it ships and is checked the same way.
+MOUTH_SVC=2455209b-6611-4814-bb55-7d3b5d994656
+cmd_ears() {
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
+  local action=status langs='ru en mouth' a
+  for a in "$@"; do
+    case "$a" in
+      status|deploy) action=$a ;;
+      ru|en|mouth) langs=$a ;;
+      all) langs='ru en mouth' ;;
+      *) bad "tri ears [status|deploy] [ru|en|mouth|all], not '$a'"; return 2 ;;
+    esac
+  done
+  local lang svc name rc=0
+  if [ "$action" = deploy ]; then
+    if [ -n "$(git -C "$ROOT" status --porcelain -- deployment/gigaam deployment/mouth)" ]; then
+      bad 'deployment/gigaam or deployment/mouth has uncommitted changes: commit them first'
+      return 2
+    fi
+    local sha dir
+    sha=$(git -C "$ROOT" rev-parse --short HEAD)
+    for lang in $langs; do
+      _ears_svc "$lang"
+      dir=gigaam; [ "$lang" = mouth ] && dir=mouth
+      railway up "$ROOT/deployment/$dir" --path-as-root -p "$p" -e "$e" \
+        -s "$svc" --detach --json --message "$name from $sha" 2>/dev/null || rc=1
+    done
+    return "$rc"
+  fi
+  for lang in $langs; do
+    _ears_svc "$lang"
+    timeout 30 railway deployment list -p "$p" -e "$e" -s "$svc" \
+      --limit 1 --json 2>/dev/null | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  %s: deploy state unknown (railway did not answer)" % name); sys.exit(2)
+print("  %s: %s %s" % (name, d["status"], (d.get("meta") or {}).get("deploymentMessage") or ""))
+sys.exit(0 if d["status"] == "SUCCESS" else 1)' "$name" || rc=1
+  done
+  curl -s -m 15 "$RENDER/api/voice/status" | python3 -c '
+import json, sys
+try:
+    st = json.load(sys.stdin)
+    via = "ru via %s, en via %s; speaks via %s" % (
+        st.get("hearRu") or "whisper (render older than voice-loop-3)",
+        st.get("hearEn") or "whisper (render older than voice-loop-5)",
+        st.get("speakVia") or "speaches (render older than voice-loop-6)")
+except Exception:
+    via = "unknown (render did not answer)"
+print("  render hears " + via)'
+  return "$rc"
+}
+# Sets svc and name for one of: ru, en, mouth.
+_ears_svc() {
+  case "$1" in
+    ru) svc=$EARS_SVC_RU name=gigaam ;;
+    en) svc=$EARS_SVC_EN name=parakeet ;;
+    mouth) svc=$MOUTH_SVC name=mouth ;;
+  esac
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri board: is the board on app.t27.ai the board trinity's main says it is?
+#
+# The player builds the board from gHashTag/trinity at a pinned QUEEN_REF
+# (apps/vibee-editor/Dockerfile, stage `queen`). A merge in trinity ships
+# nothing until that line moves; trinity's board-release.yml opens a
+# release(board) PR here for each push to its main, and the older ones go
+# stale. Before this the state took four commands and a mental diff.
+#
+# One screen: the pinned SHA on origin/main, trinity main's HEAD, the commits
+# between them, and every open release(board) PR -- stale when its SHA is
+# already inside the pin, current when it is trinity main.
+# A release PR is merged by a reviewer agent, not by the session that
+# authored the trinity change (owner, 2026-10-02; skill
+# continuous-improvement-loop, "The loop ships its green PRs -- through a
+# reviewer, not by its own hand").
+#
+#   tri board    rc 0 the board is trinity main, 1 behind, 2 unknown
+# ─────────────────────────────────────────────────────────────────────────
+cmd_board() {
+  if [ $# -gt 0 ]; then bad "tri board takes no arguments, not '$1'"; return 2; fi
+  timeout 60 git -C "$ROOT" fetch -q origin main 2>/dev/null \
+    || warn 'git fetch origin main failed -- reading a possibly stale origin/main'
+  local pin head
+  pin=$(git -C "$ROOT" show origin/main:apps/vibee-editor/Dockerfile 2>/dev/null \
+    | sed -n 's/^ARG QUEEN_REF=\([0-9a-f]\{40\}\)$/\1/p' | head -1)
+  if [ -z "$pin" ]; then
+    skip 'no 40-hex ARG QUEEN_REF in origin/main:apps/vibee-editor/Dockerfile'
+    return 2
+  fi
+  # gh api prints the error body to stdout on a failed call, so an answer is
+  # only kept when gh exited 0 -- a 404 page is not a SHA.
+  head=$(timeout 30 gh api repos/gHashTag/trinity/commits/main --jq .sha 2>/dev/null) || head=
+  if [ -z "$head" ]; then
+    skip "pinned ${pin:0:7}; trinity main did not answer -- cannot compare"
+    return 2
+  fi
+  good "pinned  ${pin:0:7}  (origin/main QUEEN_REF)"
+  good "trinity ${head:0:7}  (gHashTag/trinity main)"
+  local rc=0
+  if [ "$pin" = "$head" ]; then
+    good 'the pin is trinity main -- nothing to ship'
+  else
+    local ahead
+    ahead=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
+      --jq '.ahead_by' 2>/dev/null) || ahead=
+    warn "the board is ${ahead:-?} commit(s) behind trinity main:"
+    timeout 30 gh api "repos/gHashTag/trinity/compare/$pin...$head" \
+      --jq '.commits[] | "      " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' \
+      2>/dev/null | tail -20
+    rc=1
+  fi
+  local prs
+  # By branch, not by title search: GitHub search drops the parentheses in
+  # "release(board)" and matched nothing while #3304 was open.
+  prs=$(timeout 30 gh pr list --repo gHashTag/999-multibots-telegraf --state open \
+    --limit 200 --json number,title,headRefName \
+    --jq '.[] | select(.headRefName | startswith("release/board-")) | "\(.number) \(.title)"' \
+    2>/dev/null)
+  if [ -z "$prs" ]; then
+    [ "$rc" = 1 ] && warn 'no open release(board) PR -- trinity board-release.yml did not open one'
+    return "$rc"
+  fi
+  local n title sha status
+  while read -r n title; do
+    sha=$(printf '%s' "$title" | sed -n 's/.*ship trinity \([0-9a-f]\{7,40\}\).*/\1/p')
+    if [ -z "$sha" ]; then
+      warn "#$n $title -- no SHA in the title"; continue
+    fi
+    # The pin first: when the pin is already trinity main, a PR for that same
+    # SHA is stale, not "to merge".
+    if [ "${pin#"$sha"}" != "$pin" ]; then
+      warn "#$n ships $sha, already the pin -- stale, close it"
+      continue
+    fi
+    if [ "${head#"$sha"}" != "$head" ]; then
+      good "#$n ships trinity main ($sha) -- for a reviewer agent to review and merge"
+      continue
+    fi
+    status=$(timeout 30 gh api "repos/gHashTag/trinity/compare/$sha...$pin" \
+      --jq .status 2>/dev/null) || status=
+    case "$status" in
+      ahead|identical) warn "#$n ships $sha, already inside the pin -- stale, close it" ;;
+      # An empty status is a 404 (the SHA is gone from trinity) or a timeout:
+      # nothing was compared, so do not tell a reviewer the PR is superseded.
+      '') warn "#$n ships $sha -- trinity did not answer for it, cannot compare; check by hand" ;;
+      *) warn "#$n ships $sha, older than trinity main ($status) -- superseded by a newer release PR" ;;
+    esac
+  done <<<"$prs"
+  return "$rc"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri deploys: is the player on app.t27.ai the code main says it is?
+#
+# 999's GitHub Actions are dead (billing), so the player's tests run in ONE
+# place: the vibee-editor Docker build (tsc + scripts/test-gate.mjs). One
+# failing test there refuses EVERY later deploy, and nothing tells anyone --
+# #3199, #3234 and #3238 all merged "green" and none of them went live.
+# Worse, a test-only commit is SKIPPED by the service's watchPatterns, so the
+# commit that broke a test is never the one whose deploy fails: blame lands
+# on the next innocent source change.
+#
+# This answers it from Railway and git, in one screen:
+#   - the commit actually serving (newest SUCCESS deploy);
+#   - every commit on origin/main since then that touches what the image is
+#     built from (the watchPatterns of apps/vibee-editor/railway.toml), with
+#     its deploy status;
+#   - for the newest FAILED deploy: the failing test files and the vitest
+#     "x" lines, the tsc errors, the gate's REFUSED line, and the commit that
+#     last touched each failing test file.
+#
+#   tri deploys          rc 0 live, 1 failed or behind, 2 unknown, 5 building
+#   tri deploys --logs   also print the raw tail of the failed build log
+# ─────────────────────────────────────────────────────────────────────────
+cmd_deploys() {
+  local p="$RAIL_PROJECT" e="$RAIL_ENV"
+  local s=7aad4834-8ac0-4d6b-a031-44ec694ad8de raw=0 a
+  for a in "$@"; do
+    case "$a" in
+      --logs) raw=1 ;;
+      *) bad "tri deploys [--logs], not '$a'"; return 2 ;;
+    esac
+  done
+  local list
+  list=$(timeout 40 railway deployment list -p "$p" -e "$e" -s "$s" --limit 60 --json 2>/dev/null)
+  if [ -z "$list" ] || ! printf '%s' "$list" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+    skip 'player: railway did not answer -- deploy state unknown'
+    return 2
+  fi
+  timeout 60 git -C "$ROOT" fetch -q origin main 2>/dev/null \
+    || warn 'git fetch origin main failed -- comparing with a possibly stale origin/main'
+
+  # The newest SUCCESS is what serves; REMOVED ones are older replaced images.
+  local live
+  live=$(printf '%s' "$list" | python3 -c '
+import json, sys
+for d in json.load(sys.stdin):
+    if d["status"] == "SUCCESS":
+        print((d.get("meta") or {}).get("commitHash") or ""); break')
+  if [ -z "$live" ] || ! git -C "$ROOT" cat-file -e "$live^{commit}" 2>/dev/null; then
+    skip "player: no SUCCESS deploy with a known commit among the last 60 (${live:-none})"
+    return 2
+  fi
+  good "player serves $(git -C "$ROOT" log -1 --format='%h %s' "$live" | cut -c1-90)"
+  if ! git -C "$ROOT" merge-base --is-ancestor "$live" origin/main; then
+    warn "the serving commit is not on origin/main (a manual 'railway up'?)"
+  fi
+
+  # Same set as watchPatterns in apps/vibee-editor/railway.toml: what the
+  # image is built from. Test files are excluded there, so here too.
+  local behind
+  behind=$(git -C "$ROOT" log --format='%H %s' "$live..origin/main" -- \
+    apps/vibee-editor/player apps/vibee-editor/packages apps/vibee-editor/nginx \
+    apps/vibee-editor/Dockerfile apps/vibee-editor/docker-entrypoint.sh \
+    apps/vibee-editor/railway.toml \
+    ':(glob,exclude)apps/vibee-editor/player/**/*.test.ts' \
+    ':(glob,exclude)apps/vibee-editor/player/**/*.test.tsx')
+  local verdict failed_id
+  verdict=$(printf '%s' "$list" | BEHIND="$behind" python3 -c '
+import json, os, sys
+deps = json.load(sys.stdin)
+by = {}
+for d in deps:  # newest first: keep the newest deploy of each commit
+    h = (d.get("meta") or {}).get("commitHash") or ""
+    by.setdefault(h, d)
+rows = [l.split(" ", 1) for l in os.environ["BEHIND"].splitlines() if l.strip()]
+building = ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING")
+state, failed = "live", ""
+for h, subject in rows:
+    d = by.get(h)
+    st = d["status"] if d else "NO DEPLOY"
+    print("ROW %-9s %s %s" % (st, h[:9], subject[:70]))
+    if st in ("FAILED", "CRASHED") and not failed:
+        failed = d["id"]
+    if st in building and state == "live":
+        state = "building"
+if rows and state == "live":
+    state = "behind"
+if failed:
+    state = "failed"
+print("STATE %s %s %d" % (state, failed or "-", len(rows)))')
+  printf '%s\n' "$verdict" | sed -n 's/^ROW /    /p'
+  local state n
+  read -r _ state failed_id n <<<"$(printf '%s\n' "$verdict" | grep '^STATE ')"
+  case "$state" in
+    live) good 'player: nothing on main since the serving commit touches the image'; return 0 ;;
+    building) warn "player: $n commit(s) not live yet, a deploy is on its way -- check again"; return 5 ;;
+    behind) bad "player: $n commit(s) on main touch the image but are not live (no FAILED deploy found among the last 60)"; return 1 ;;
+  esac
+
+  bad "player: $n commit(s) on main are NOT live -- the deploy $failed_id FAILED"
+  local log
+  log=$(timeout 90 railway logs --project "$RAIL_PROJECT" --environment "$RAIL_ENV" "$failed_id" -b -n 3000 2>/dev/null)
+  if [ -z "$log" ]; then
+    skip 'the build log did not come back -- read it: railway logs '"$failed_id"' -b'
+    return 1
+  fi
+  printf '%s\n' "$log" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+seen, files = set(), []
+for line in text.splitlines():
+    s = line.strip()
+    m = re.match(r"(?:❯|FAIL)\s+(\S+\.test\.tsx?)\b.*?(\d+ failed|\))", s)
+    if m and "failed" in s and m.group(1) not in files:
+        files.append(m.group(1))
+    keep = (
+        s.startswith("×")
+        or "error TS" in s
+        or s.startswith("test gate:")
+        or (m and "failed" in s)
+    )
+    if keep and s not in seen:
+        seen.add(s)
+        print("    " + s[:160])
+for f in files:
+    print("FILE " + f)' > /tmp/tri-deploys-why.$$
+  grep -v '^FILE ' /tmp/tri-deploys-why.$$
+  local f last
+  while read -r _ f; do
+    last=$(git -C "$ROOT" log -1 --format='%h %s' origin/main -- "apps/vibee-editor/player/$f" | cut -c1-80)
+    [ -n "$last" ] && printf '    last touched %s by %s\n' "$f" "$last"
+  done < <(grep '^FILE ' /tmp/tri-deploys-why.$$)
+  if ! grep -q . /tmp/tri-deploys-why.$$; then
+    warn 'no failing test or tsc line found in the build log -- the failure is elsewhere (use --logs)'
+  fi
+  rm -f /tmp/tri-deploys-why.$$
+  [ "$raw" = 1 ] && printf '%s\n' "$log" | tail -40
+  return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# tri loop: where the last cycle stopped, before this one starts.
+#
+# A cron loop fires every 15 minutes whether the previous cycle finished or
+# not. The way a new cycle breaks the old one is not a bad edit, it is a
+# blind start: a second branch over a dirty tree, a second push while a hook
+# run still holds the first, a merge while the deploy of the last one is red.
+# This prints all of it in one screen, and the exit code says whether it is
+# safe to begin something new (0) or there is work in flight to continue (1).
+# ─────────────────────────────────────────────────────────────────────────
+cmd_loop() {
+  local busy=0 branch dirty ahead
+  branch=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null
+  dirty=$(git -C "$ROOT" status --porcelain | grep -v '\.claude/launch\.json$' | wc -l | tr -d ' ')
+  ahead=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo '?')
+  printf '  branch %s: %s uncommitted, %s commits not in main\n' "$branch" "$dirty" "$ahead"
+  [ "$dirty" != 0 ] && { warn 'uncommitted work: finish and commit it before anything new'; busy=1; }
+
+  # Only processes working IN THIS TREE. Every session on this machine pushes
+  # and runs gates; the first version of this check counted another session's
+  # `git push` as ours and would have parked this loop behind it for ever.
+  local pid running=''
+  for pid in $(pgrep -f 'lefthook run|test-gate\.mjs|vitest run|git push' 2>/dev/null); do
+    case "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" in
+      "$ROOT"|"$ROOT"/*) running+="$(ps -o pid=,command= -p "$pid" | cut -c1-130)"$'\n' ;;
+    esac
+  done
+  if [ -n "$running" ]; then
+    warn 'a gate or push is still running in this tree -- wait, do not start a second:'
+    printf '%s' "$running" | sed 's/^/        /'
+    busy=1
+  fi
+
+  if command -v gh >/dev/null; then
+    local mine
+    mine=$(gh pr list --head "$branch" --state all --json number,state,title \
+      --jq '.[0] | select(.) | "#\(.number) \(.state) -- \(.title)"' 2>/dev/null)
+    printf '  this branch PR: %s\n' "${mine:-none yet}"
+    # An OPEN PR here is work in flight: merge it (or close it) before a new
+    # cycle branches -- cycle 7 found this path saying "nothing in flight".
+    case "$mine" in
+      *' OPEN -- '*) warn 'this branch PR is still OPEN -- merge or close it first'; busy=1 ;;
+    esac
+  fi
+
+  # Each service's newest deploy. A FAILED one on main blocks every later
+  # merge of that service: fix it first, or nothing you merge goes live.
+  local svc name
+  for svc in 7aad4834-8ac0-4d6b-a031-44ec694ad8de:player 6339df9c-15b8-4f51-ba26-4af0b55c596a:render; do
+    name=${svc#*:}
+    timeout 30 railway deployment list -p "$RAIL_PROJECT" \
+      -e "$RAIL_ENV" -s "${svc%%:*}" --limit 1 --json 2>/dev/null \
+      | python3 -c '
+import json, sys
+name = sys.argv[1]
+try:
+    d = json.load(sys.stdin)[0]
+except Exception:
+    print("  " + name + ": deploy state unknown (railway did not answer)")
+    sys.exit(2)
+m = d.get("meta") or {}
+msg = (m.get("commitMessage") or "").splitlines()[0][:60]
+print("  %s: %s %s %s" % (name, d["status"], (m.get("commitHash") or "")[:9], msg))
+# 4, not 1: a crash of this very script also exits 1, and must not read as
+# "the deploy failed" -- the first run of this check said exactly that.
+# 5: still on its way. Cycle 4 read "nothing in flight" with the player
+# BUILDING -- a merge whose deploy is unverified IS work in flight.
+if d["status"] in ("FAILED", "CRASHED"):
+    sys.exit(4)
+sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING") else 0)
+' "$name"
+    case "${PIPESTATUS[1]}" in
+      4) bad "$name: the last deploy failed -- fix it before merging more (for the player, tri deploys says why)"; busy=1 ;;
+      5) warn "$name: still deploying -- wait for SUCCESS before the next item"; busy=1 ;;
+    esac
+  done
+
+  # The player's lint ratchet runs on pre-push only, and a push that had to
+  # skip hooks (ssh drops after a long pre-push, so --no-verify) skips it.
+  # Cycle 7 put 4 rules-of-hooks errors on main that way (a plain function
+  # named useRoad) and the NEXT push, cycle 8's, was the one refused. ~25 s.
+  if [ -z "${TRI_LOOP_FAST:-}" ]; then
+    if node "$ROOT/scripts/player-lint-ratchet.cjs" >/tmp/tri-loop-lint.$$ 2>&1; then
+      printf '  player lint: within the ratchet\n'
+    else
+      bad 'player lint is over its ratchet -- a push skipped hooks; fix it first:'
+      sed 's/^/        /' /tmp/tri-loop-lint.$$ | head -5
+      busy=1
+    fi
+    rm -f /tmp/tri-loop-lint.$$
+  fi
+
+  if [ "$busy" = 0 ]; then good 'nothing in flight: safe to start the next item'; fi
+  return "$busy"
+}
+
 case "$action" in
   # English is the primary name; the Russian one stays as an alias because loop
   # scripts, skills and the journal already call it. Renaming without the alias
@@ -4784,6 +8072,8 @@ case "$action" in
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
+  deps)               cmd_deps "$@" ;;
+  hooks|хуки)         cmd_hooks "$@" ;;
   price|цена)         cmd_price "$@" ;;
   money-base|база)     cmd_money_base "$@" ;;
   batch-refunds|возвраты) cmd_batch_refunds ;;
@@ -4804,6 +8094,11 @@ case "$action" in
   watches|сторожа)   cmd_watches "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
+  gen-refusal)       cmd_gen_refusal "$@" ;;
+  pr-billing)        cmd_pr_billing "$@" ;;
+  premerge)          cmd_premerge "$@" ;;
+  deploys|выкладки)  cmd_deploys "$@" ;;
+  board)             cmd_board "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
@@ -4813,7 +8108,7 @@ case "$action" in
   ton-verify)         cmd_ton_verify "$@" ;;
   fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
-  inflight|блокировка) cmd_inflight "@" ;;
+  inflight|блокировка) cmd_inflight "$@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
   replay|повтор)       cmd_replay "$@" ;;
   mint|минт)           cmd_mint "$@" ;;
@@ -4839,25 +8134,46 @@ case "$action" in
   # a person sends TON with the invoice id in the comment and presses "check
   # payment". Nothing else ever looks, so coins can sit on the chain against a
   # PENDING row for ever. Read-only; credits nobody.
-  ton-pending|тон-зависшие) railway run -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
-  reconcile|сверка)   railway run -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
+  ton-pending|тон-зависшие) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
+  reconcile|сверка)   railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
   ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
   first-visit|первый-визит) node "$ROOT/scripts/first-visit.cjs" "$@" ;;
   dashboard|витрина)   node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
-  funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
-  stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
-  events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
-  keys|ключи-провайдеров) railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
+  funnel|воронка)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
+  stuck|платежи)      railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
+  events|события)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
+  keys|ключи-провайдеров) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
   real|живая)          cmd_real "$@" ;;
+  iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
   mcp)                 cmd_mcp "$@" ;;
-  browser|браузер)     cmd_browser ;;
+  # A case word (doctor, tidy, share-check...) lives in bin/tri; this one is
+  # only the health line. It used to swallow the word and answer rc 0, so
+  # `./tri browser doctor` read nothing and looked green (2026-10-03).
+  browser|браузер)     if [ $# -gt 0 ]; then exec "$ROOT/bin/tri" browser "$@"; else cmd_browser; fi ;;
+  voice|голос)         cmd_voice "$@" ;;
+  road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
+  vad|шум)             cmd_vad "$@" ;;
+  turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
+  words|слова)         cmd_words "$@" ;;  # cyrillic-ok: alias, like its neighbours
+  filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
+  ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
+  mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
+  gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
+  loop|виток)          cmd_loop ;;
+  heal|исцели)         cmd_heal ;;
+  card|карточка)       cmd_card "$@" ;;
+  card-check|карточка-проверка) cmd_card_check "$@" ;;
+  card-drift) cmd_card_drift "$@" ;;
+  hive-nightly) cmd_hive_nightly "$@" ;;
   browser-check|браузер-проверка) cmd_browser_selfcheck ;;
   saw|увидел)          cmd_saw "$@" ;;
+  journal|журнал)      cmd_journal "$@" ;;
   logins|входы)        cmd_logins ;;
+  pod|под)             cmd_pod ;;
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
@@ -4928,11 +8244,25 @@ case "$action" in
   # falls through to the directory argument and answers "нет каталога check".
   # A verb that cannot be mistyped into silence is worth the extra dispatch line.
   scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
+  # Does every `tri X` in shipped source name a real command? Static, offline,
+  # sibling to scan/scan-check. refs-check is a top-level verb for the same
+  # reason scan-check is: a verb cannot be mistyped into silence.
+  refs|ссылки)          node "$TOOLS/tri-refs.mjs" ;;
+  refs-check|ссылки-проверка) node "$TOOLS/tri-refs-selftest.mjs" ;;
+  # Four census/audit scripts that already read this tree accurately but had no
+  # human-facing verb -- each header promised a `tri X` that resolved to nothing.
+  # Wiring them is the fix `tri refs` asks for: build the command, don't excuse
+  # the reference. `--json` and other flags pass straight through.
+  money-map|деньги-карта)     ( cd "$ROOT" && node "$TOOLS/money-map.mjs" "$@" ) ;;
+  repo-hygiene|гигиена)       ( cd "$ROOT" && node "$TOOLS/repo-hygiene-audit.mjs" "$@" ) ;;
+  rpc-audit|rpc-аудит)        ( cd "$ROOT" && node "$TOOLS/rpc-audit.mjs" "$@" ) ;;
+  single-telegram|один-телеграм) ( cd "$ROOT" && node "$TOOLS/single-telegram-audit.mjs" "$@" ) ;;
   # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and
   # after so "it cost nothing" is measured rather than claimed.
   kie)                 node "$ROOT/scripts/kie-probe.mjs" "$@" ;;
+  reel-check)          python3 "$ROOT/scripts/reel-check.py" "$@" ;;
   # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
   # how it came to show only my end-of-cycle prose. --quick skips the merge gate
   # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.

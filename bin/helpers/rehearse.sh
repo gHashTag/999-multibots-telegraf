@@ -17,12 +17,13 @@
 #
 # НИЧЕГО НЕ МЕНЯЕТ. Копия одноразовая, ветки и main не трогаются.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 shift || true
 cd "$ROOT" || exit 1
 
 command -v gh >/dev/null 2>&1 || { echo "🛑 нет gh — вывода НЕ делаю."; exit 2; }
-git fetch -q origin 2>/dev/null || true
+tfetch origin || true
 
 # Без аргументов — порядок открытых PR, как их отдаёт gh: снизу вверх по номеру.
 # Это НЕ рекомендация, а отправная точка: свой порядок передайте аргументами.

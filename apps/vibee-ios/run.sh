@@ -22,8 +22,15 @@ cd "$(dirname "$0")"
 
 # Имена переменных ЛАТИНИЦЕЙ: bash не принимает кириллицу в идентификаторах
 # и падает на «command not found», не подсказывая, что дело в имени.
-SIM="${VIBEE_SIM:-iPhone 16 Pro}"
-BUNDLE="ai.t27.vibee"
+# No hardcoded model: Xcode 26 ships iPhone 17 devices, and the old default
+# "iPhone 16 Pro" no longer exists here (2026-10-02). Take the booted iPhone,
+# else the first one available; VIBEE_SIM still picks one by name.
+SIM="${VIBEE_SIM:-$(xcrun simctl list devices booted | sed -nE 's/^ +(iPhone[^(]*[^ (]) \(.*\(Booted\).*/\1/p' | head -1)}"
+[ -n "$SIM" ] || SIM="$(xcrun simctl list devices available | sed -nE 's/^ +(iPhone[^(]*[^ (]) \(.*/\1/p' | head -1)"
+# An empty name would make the lookup below match any device line (an iPad,
+# a watch) and run there quietly; say so instead.
+[ -n "$SIM" ] || { echo "no iPhone simulator -- create one in Xcode, or set VIBEE_SIM"; exit 1; }
+BUNDLE="ai.t27.trinity"
 SDK="$(xcodebuild -showsdks 2>/dev/null | grep -o 'iphonesimulator[0-9.]*' | head -1)"
 [ -n "$SDK" ] || { echo "❌ не нашёл симуляторный SDK"; exit 1; }
 
@@ -49,7 +56,7 @@ if [ -z "$UDID" ]; then
     RUNTIME="$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9-]+' | head -1)"
     echo "   устройств не создано ВООБЩЕ. Создать:"
     echo "   xcrun simctl create '$SIM' \\"
-    echo "     com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro \\"
+    echo "     com.apple.CoreSimulator.SimDeviceType.iPhone-17 \\"
     echo "     ${RUNTIME:-<рантайм из: xcrun simctl list runtimes>}"
   else
     echo "   есть такие:"
@@ -111,15 +118,15 @@ if ! xcodebuild -project Vibee.xcodeproj -target Vibee \
       SYMROOT="$PWD/build2" build > /tmp/vibee-build.log 2>&1; then
   echo "❌ сборка упала:"
   grep -E 'error:' /tmp/vibee-build.log | head -20
-  # Одна ошибка стоит отдельной подсказки: она приходит от actool, говорит
-  # про симуляторные рантаймы и НИКАК не намекает, что дело в иконке.
-  # Появляется, если в project.yml включили «- AppIcon.xcassets», не
-  # установив поддержку платформы.
+  # One error deserves its own hint: it comes from actool, talks about
+  # simulator runtimes and says nothing about the icon. The icon is in the
+  # target (project.yml, "- AppIcon.xcassets"), so a machine without the
+  # simulator runtime matching the SDK fails here.
   if grep -q 'No simulator runtime version' /tmp/vibee-build.log; then
     echo ""
     echo "   Это не про код: actool не может собрать иконку приложения."
     echo "   Либо установите платформу:  xcodebuild -downloadPlatform iOS"
-    echo "   либо снова закомментируйте «- AppIcon.xcassets» в project.yml."
+    echo "   (временно: закомментируйте «- AppIcon.xcassets» в project.yml, не коммитя)"
   fi
   exit 1
 fi

@@ -3,7 +3,7 @@ import { userAtom } from './user'
 import { RENDER_URL } from '../config'
 import { authHeaders } from '../lib/apiFetch'
 import { getTelegramUser } from '../lib/telegram'
-import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { assetsErrorText, assetsRefusal } from '../lib/assetsText'
 import { languageAtom } from './language'
 
 // ===============================
@@ -68,14 +68,13 @@ export const loadBotAssetsAtom = atom(null, async (get, set, kind?: string) => {
     if (!res.ok) {
       // statusText пуст на HTTP/2, а Railway отдаёт всё по h2 — без кода и
       // тела сообщение получилось бы пустым ровно там, где нужна причина.
-      const body = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status} — ${body.slice(0, 160) || 'no body'}`)
+      throw await assetsRefusal(res, get(languageAtom))
     }
 
     const data = await res.json()
     set(botAssetsAtom, Array.isArray(data.assets) ? data.assets : [])
   } catch (e) {
-    set(botAssetsErrorAtom, getErrorMessage(e, get(languageAtom)))
+    set(botAssetsErrorAtom, assetsErrorText(e, get(languageAtom)))
     set(botAssetsAtom, [])
   } finally {
     set(botAssetsLoadingAtom, false)

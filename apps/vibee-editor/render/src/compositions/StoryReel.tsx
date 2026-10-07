@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit'
 import { loadFont as loadJost } from '@remotion/google-fonts/Jost'
 import * as REEL from '../spec/crm-story-reel.gen'
+import { Captions } from '../components/Captions'
 
 /**
  * StoryReel -- a mini-story told by the owner's talking face, scene by scene.
@@ -25,9 +26,14 @@ import * as REEL from '../spec/crm-story-reel.gen'
  * Every scene is a lip-synced clip that already carries its own line (one
  * `image_edit` still in its own setting, one voice line, one
  * `lipsync_generate`). This template only puts them in order with hard cuts,
- * then holds the last frame for the pause, where an optional call to action
- * fades in. Nothing here is spoken or drawn over the face while it talks:
- * the owner's rule is no captions unless asked.
+ * then holds the last frame for the pause, where the call to action fades
+ * in.
+ *
+ * YELLOW CAPTIONS, WORD BY WORD (crm-story-reel v20, the owner on his hook
+ * reel: "where are the yellow subtitles?"). Each scene carries the words of
+ * its OWN clip, timed from that clip's zero, so a scene's captions start and
+ * stop with its Sequence -- no offsets to add across cuts. A scene with no
+ * words heard shows none.
  *
  * The scene lengths come from the clips themselves (Root.tsx measures them in
  * calculateMetadata), so the cuts land exactly where each line ends.
@@ -43,10 +49,11 @@ const { fontFamily: jost } = loadJost('normal', {
 })
 const font = `${outfitLatin}, ${jost}, sans-serif`
 
-// The t27.ai tokens NoirReel uses: black, white, gold only on the call.
+// The t27.ai tokens NoirReel uses: black and white. The call's colour is
+// not one of them: its caller decides it (split-reel v10), so a client's
+// reel never ends in the house's gold by default.
 const BG = '#000000'
 const TEXT = '#FFFFFF'
-const GOLDEN = '#FFD700'
 
 /** The longest story this template is meant for, seconds (the stories cap). */
 export const STORY_MAX_SECONDS = 15
@@ -62,6 +69,17 @@ export const StoryReelSchema = z.object({
         // A scene with no source would crash the whole render minutes in
         // (the NoirReel lesson, a-reel-without-footage-is-refused.test.ts).
         video: z.string().min(1, { message: 'сцена без video' }),
+        /** The clip's own words, ms from the clip's start (v20). */
+        captions: z
+          .array(
+            z.object({
+              text: z.string(),
+              startMs: z.number(),
+              endMs: z.number(),
+              confidence: z.number().optional(),
+            })
+          )
+          .default([]),
       })
     )
     .min(1, { message: 'StoryReel без сцен — это не ролик' })
@@ -178,7 +196,10 @@ export function sceneVolume(frame: number, frames: number): number {
 }
 
 /** A clip's last frame, held still and silent. */
-const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
+export const HeldFrame: React.FC<{ src: string; at: number }> = ({
+  src,
+  at,
+}) => (
   // The clip starts AT its last frame and that frame is frozen: Remotion
   // bounds a video's time by its Sequence, so freezing frame N of a clip
   // inside a shorter Sequence showed the wrong one.
@@ -192,7 +213,15 @@ const HeldFrame: React.FC<{ src: string; at: number }> = ({ src, at }) => (
   </Freeze>
 )
 
-const CallToAction: React.FC<{ text: string }> = ({ text }) => {
+/**
+ * The call in the closing pause. `color` has no default on purpose: the
+ * caller decides whose colour it is (split-reel v10 -- the order's, else
+ * hers, else neutral; the house's gold only on the house's own reel).
+ */
+export const CallToAction: React.FC<{ text: string; color: string }> = ({
+  text,
+  color,
+}) => {
   const frame = useCurrentFrame()
   // In at once (0.2 s) and held for the whole pause: the pause is for
   // reading the call, not for watching it arrive.
@@ -219,7 +248,7 @@ const CallToAction: React.FC<{ text: string }> = ({ text }) => {
           fontFamily: font,
           fontWeight: 700,
           fontSize: 64,
-          color: GOLDEN,
+          color,
           textAlign: 'center',
           lineHeight: 1.15,
           padding: '0 80px',
@@ -241,16 +270,53 @@ const CallToAction: React.FC<{ text: string }> = ({ text }) => {
   )
 }
 
-/** The pause as the client's own card: her colours, her call, her button. */
-const EndCard: React.FC<{
+/**
+ * Whether the pause shows the call card (spec v20 `cta_card_shown`): when
+ * there is a call to say or a card of her own to show.
+ */
+export function ctaCardShown(call: string, hasEndCard: boolean): boolean {
+  return REEL.CTA_CARD_LIKE_WIDGET && (hasEndCard || call.trim().length > 0)
+}
+
+/** The card the call stands on when the person has no palette: the spec's. */
+export const HOUSE_CARD: NonNullable<StoryReelProps['endCard']> = {
+  bg: REEL.END_CARD_DEFAULT_BG,
+  title: REEL.END_CARD_DEFAULT_TITLE,
+  text: REEL.END_CARD_DEFAULT_TEXT,
+  accent: REEL.END_CARD_DEFAULT_ACCENT,
+  button: '',
+}
+
+/**
+ * The widget's pulse on the call (StoryReelPanel.css `story-reel-pulse`,
+ * spec v20 CTA_PULSE_MS): faint and small at the ends of a period, full and
+ * large in its middle.
+ */
+export function ctaPulse(
+  frame: number,
+  fps: number
+): { opacity: number; scale: number } {
+  const t = ((frame / fps) * 1000) / REEL.CTA_PULSE_MS
+  const k = (1 - Math.cos(2 * Math.PI * t)) / 2
+  return { opacity: 0.75 + 0.25 * k, scale: 0.97 + 0.06 * k }
+}
+
+/**
+ * The pause as the card the reel widget draws (spec v20): the call in the
+ * title colour, pulsing, over a round button in the accent colour with the
+ * background's colour on it -- the person's own palette when she has one.
+ */
+export const EndCard: React.FC<{
   card: NonNullable<StoryReelProps['endCard']>
   cta: string
 }> = ({ card, cta }) => {
   const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
   // Fades in over the held last frame, so the cut to the card is not a jump.
   const opacity = interpolate(frame, [0, CTA_IN_FRAMES], [0, 1], {
     extrapolateRight: 'clamp',
   })
+  const pulse = ctaPulse(frame, fps)
   return (
     <AbsoluteFill
       style={{
@@ -265,39 +331,52 @@ const EndCard: React.FC<{
         <div
           style={{
             fontFamily: font,
-            fontWeight: 500,
-            fontSize: 66,
-            lineHeight: 1.2,
+            fontWeight: 700,
+            fontSize: 72,
+            lineHeight: 1.15,
             color: card.title,
             textAlign: 'center',
+            opacity: pulse.opacity,
+            transform: `scale(${pulse.scale})`,
           }}
         >
           {cta}
         </div>
       ) : null}
       <div
+        data-cta-button
         style={{
-          marginTop: 44,
-          width: 180,
-          height: 2,
-          backgroundColor: card.text,
-          opacity: 0.35,
+          marginTop: 56,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 22,
+          padding: card.button ? '0 44px 0 0' : 0,
+          height: 108,
+          borderRadius: 54,
+          backgroundColor: card.button ? card.accent : 'transparent',
+          color: card.bg,
+          fontFamily: font,
+          fontWeight: 700,
+          fontSize: 44,
         }}
-      />
-      {card.button ? (
-        <div
+      >
+        <span
           style={{
-            marginTop: 44,
-            fontFamily: font,
-            fontWeight: 400,
-            fontSize: 44,
-            color: card.accent,
-            textAlign: 'center',
+            width: 108,
+            height: 108,
+            borderRadius: '50%',
+            backgroundColor: card.accent,
+            color: card.bg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 46,
           }}
         >
-          {card.button}
-        </div>
-      ) : null}
+          {'\u25B6'}
+        </span>
+        {card.button ? <span>{card.button}</span> : null}
+      </div>
     </AbsoluteFill>
   )
 }
@@ -331,6 +410,15 @@ export const StoryReel: React.FC<StoryReelProps> = props => {
               volume={f => sceneVolume(f, timeline[i].frames)}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
+            {scene.captions?.length ? (
+              <Captions
+                captions={scene.captions}
+                textColor={REEL.CAPTION_COLOR}
+                maxWords={REEL.CAPTION_MAX_WORDS}
+                topPercent={REEL.CAPTION_TOP_PERCENT}
+                animation="pop"
+              />
+            ) : null}
           </Sequence>
           {timeline[i].breath > 0 ? (
             <Sequence
@@ -351,10 +439,8 @@ export const StoryReel: React.FC<StoryReelProps> = props => {
           name="Pause to decide"
         >
           <HeldFrame src={lastScene.video} at={last.frames - 1} />
-          {props.endCard ? (
-            <EndCard card={props.endCard} cta={props.cta} />
-          ) : props.cta ? (
-            <CallToAction text={props.cta} />
+          {ctaCardShown(props.cta ?? '', !!props.endCard) ? (
+            <EndCard card={props.endCard ?? HOUSE_CARD} cta={props.cta ?? ''} />
           ) : null}
         </Sequence>
       ) : null}

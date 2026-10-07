@@ -9,6 +9,7 @@ import {
   runCode,
   type Exec,
 } from './src/agent/code-run'
+import { sandboxIds } from './src/agent/hdl-run'
 
 /**
  * THE CODING SCIENTIST'S HANDS (owner, 2026-09-26). The code is untrusted:
@@ -211,15 +212,50 @@ describe.skipIf(!has('deno'))('the real sandbox', () => {
   }, 30_000)
 })
 
-describe.skipIf(!has('python3') || !has('unshare'))(
-  'the real python sandbox',
+/**
+ * Can THIS machine give python its sandbox? Asked the way runCode asks it --
+ * `unshare -rn`, as the uid the sandbox runs as -- rather than assumed from
+ * the binary being on PATH. Railway's containers refuse the namespace
+ * (measured 2026-10-05: the check runner AND vibee-render both answer
+ * "unshare: unshare failed: Permission denied", root or nobody), so there the
+ * real-python cases below are skipped BY NAME, with the kernel's own words in
+ * the title -- never passed. Where the namespace is allowed they run.
+ * CODE_RUN_FORCE_SANDBOX=1 runs them regardless: the negative control.
+ */
+function pythonSandboxRefusal(): string | null {
+  if (process.env.CODE_RUN_FORCE_SANDBOX === '1') return null
+  if (!has('python3')) return 'python3 is not installed'
+  if (!has('unshare')) return 'unshare is not installed'
+  try {
+    execFileSync('unshare', ['-rn', 'true'], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      ...(sandboxIds() ?? {}),
+    })
+    return null
+  } catch (e) {
+    const err = String((e as { stderr?: unknown }).stderr ?? '').trim()
+    return `unshare -rn refused here: ${err || String(e)}`
+  }
+}
+const pyRefusal = pythonSandboxRefusal()
+if (pyRefusal)
+  console.warn(
+    `code-run.test: SKIPPED the real python sandbox -- ${pyRefusal}. ` +
+      'This machine cannot make the network namespace; set ' +
+      'CODE_RUN_FORCE_SANDBOX=1 to run the cases anyway.'
+  )
+
+describe.skipIf(pyRefusal !== null)(
+  pyRefusal
+    ? `the real python sandbox (SKIPPED: ${pyRefusal})`
+    : 'the real python sandbox',
   () => {
     it('runs a program and returns exactly what it printed', async () => {
       const r = (await runCode(
         { lang: 'py', code: 'print("".join(reversed("trinity")))' },
         ctx
       )) as { passed: boolean; output: string }
-      expect(r.passed).toBe(true)
+      expect(r.passed, r.output).toBe(true)
       expect(r.output).toBe('ytinirt')
     }, 30_000)
 
@@ -234,7 +270,7 @@ describe.skipIf(!has('python3') || !has('unshare'))(
         },
         ctx
       )) as { passed: boolean; output: string }
-      expect(r.passed).toBe(true)
+      expect(r.passed, r.output).toBe(true)
       expect(r.output).toContain('blocked')
       expect(r.output).not.toContain('NET')
     }, 30_000)
@@ -249,7 +285,9 @@ describe.skipIf(!has('python3') || !has('unshare'))(
         },
         ctx
       )) as { passed: boolean; output: string }
-      expect(r.output).toContain('denied')
+      // Python's own line, not any "denied": "unshare failed: Permission
+      // denied" -- the sandbox never starting -- used to pass this case.
+      expect(r.output).toContain('denied PermissionError')
       expect(r.output).not.toContain('READ')
     }, 30_000)
   }

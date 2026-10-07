@@ -1,0 +1,39 @@
+/*
+ * The agent's repeat buttons stand ABOVE the question starters: they are the
+ * profession's own actions (the configured reel, the portrait), not one of
+ * several questions -- so they carry the accent edge, the starters stay flat.
+ */
+.agent-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.agent-templates__btn {
+  flex: 1 1 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 12px;
+  background: rgba(0, 255, 136, 0.06);
+  color: var(--t27-accent, #00ff88);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.agent-templates__btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.14);
+}
+
+.agent-templates__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Inside the agent panel the buttons already sit on a card; keep them
+ * full-width rows there too -- a template is a row, not a chip. */
+.chat-aside .agent-templates {
+  margin: 0 0 12px;
+}

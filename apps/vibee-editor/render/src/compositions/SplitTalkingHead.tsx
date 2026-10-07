@@ -30,6 +30,10 @@ import {
 import { z } from 'zod'
 import { Captions, type Caption } from '../components/Captions'
 import { resolveMediaPath } from '../shared/mediaPath'
+import * as SPLIT from '../spec/split-reel.gen'
+// The end of a reel is the same in every template: StoryReel's held frame
+// and call (split-reel.t27 v5, CTA_PAUSE_SEC = crm-story-reel PAUSE_SEC).
+import { CallToAction, HeldFrame } from './StoryReel'
 import {
   CAPTION_DEFAULTS,
   DEFAULT_AVATAR_CONFIG,
@@ -273,7 +277,24 @@ export const SplitTalkingHeadSchema = z.object({
   musicVolume: z.number().default(DEFAULT_MUSIC_VOLUME),
   videoVolume: z.number().default(1), // LipSync video volume (0-1)
   ctaText: z.string().optional(),
-  ctaHighlight: z.string().optional(),
+  /**
+   * The call's colour (split-reel.t27 v10), decided by the planner: the
+   * order's, else the client's, else neutral; the house's gold only on the
+   * house's own reel. Absent, the call is drawn neutral, never gold.
+   * It replaces `ctaHighlight`, which nothing drew: the colour is the one
+   * thing about the call a caller decides besides its words.
+   */
+  ctaColor: z.string().optional(),
+  /**
+   * The pause with the call at the end (split-reel.t27 v5): after the voice
+   * the lipsync's last frame is held, silent, while `ctaText` stands on
+   * screen. 0 keeps the old reels as they were; the planner sends 3.
+   */
+  pauseSec: z.number().min(0).max(4).default(0),
+  /** Where the last word ends, seconds; the call starts there. */
+  speechSec: z.number().min(0).optional(),
+  /** Frames of the lipsync itself; filled by calculateMetadata. */
+  lipFrames: z.number().default(0),
   // TikTok-style Captions
   captions: z.array(z.any()).default([]),
   showCaptions: z.boolean().default(true),
@@ -300,6 +321,12 @@ export const SplitTalkingHeadSchema = z.object({
   splitFaceScale: z.number().default(1),
   splitIsCircle: z.boolean().default(true),
   splitBorderRadius: z.number().default(50),
+  // Where the face sits in the source, as CSS object-position ("50% 34%"). A
+  // split shows the lower half of the frame; without this the cover crop aims at
+  // the middle of a 9:16 lipsync and cuts the top of the head at the seam
+  // (split-reel.t27 v3). Undefined keeps the centre crop.
+  splitFacePosition: z.string().optional(),
+  fullscreenFacePosition: z.string().optional(),
   // Fullscreen mode settings (avatar fills screen)
   fullscreenCircleSize: z.number().default(50),
   fullscreenPositionX: z.number().default(0),
@@ -829,6 +856,8 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   splitFaceScale = 1,
   splitIsCircle = true,
   splitBorderRadius = 50,
+  splitFacePosition,
+  fullscreenFacePosition,
   // Fullscreen mode settings
   fullscreenCircleSize = 50,
   fullscreenPositionX = 0,
@@ -851,6 +880,11 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   avatarBorderIntensity = 1.0,
   // Image overlays
   imageOverlays = [],
+  // The call at the end
+  ctaText = '',
+  ctaColor = SPLIT.NEUTRAL_CALL_COLOR,
+  pauseSec = 0,
+  lipFrames = 0,
 }) => {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
@@ -902,6 +936,9 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   const currentRadius = useSplitSettings
     ? splitBorderRadius
     : fullscreenBorderRadius
+  const currentFacePosition = useSplitSettings
+    ? splitFacePosition
+    : fullscreenFacePosition
 
   // For PiP mode
   const isPipMode = layoutDims?.isPip
@@ -913,6 +950,24 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   const brollSegments = segments.filter(
     seg => seg.type === 'split' && seg.bRollUrl
   )
+
+  // The pause with the call: past the voice, nothing but the held last
+  // frame and the call -- no b-roll, no captions, no lipsync run past its end.
+  const pauseFrames = Math.round(pauseSec * fps)
+  if (pauseFrames > 0 && lipFrames > 0 && frame >= lipFrames) {
+    return (
+      <AbsoluteFill style={{ backgroundColor: '#000' }}>
+        <Sequence
+          from={lipFrames}
+          durationInFrames={pauseFrames}
+          name="Pause to decide"
+        >
+          <HeldFrame src={resolveMediaPath(lipSyncVideo)} at={lipFrames - 1} />
+          {ctaText ? <CallToAction text={ctaText} color={ctaColor} /> : null}
+        </Sequence>
+      </AbsoluteFill>
+    )
+  }
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
@@ -1100,6 +1155,9 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
+                    ...(currentFacePosition
+                      ? { objectPosition: currentFacePosition }
+                      : {}),
                     transform: currentIsCircle
                       ? `scale(${currentScale}) translate(${faceOffsetX}%, ${faceOffsetY}%)`
                       : `scale(${(currentSize / 100 + 0.5) * currentScale}) translate(${currentPosX + faceOffsetX}%, ${currentPosY + faceOffsetY}%)`,

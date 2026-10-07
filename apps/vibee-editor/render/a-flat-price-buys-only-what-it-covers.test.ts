@@ -25,6 +25,14 @@ import { KIE_WEB_MODELS } from './src/agent/kie-web-provider'
 import { costCeilingUsd } from './src/agent/billing-shared'
 import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated' // cyrillic-ok: generated table name
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /** Invented id (9000000xx): no real person in the repository. */
 const CALLER = '900000031'
 
@@ -122,70 +130,91 @@ describe('the real handlers: refused means not charged and not asked', () => {
     return t!
   }
 
-  it('image_generate with a Kie model: no charge, no request', async () => {
-    const gen = await tool('image_generate')
-    const pool = recordingPool()
-    const r = (await gen.handler(
-      { prompt: 'кот', model: 'kie/google/imagen4-ultra' },
-      { telegramId: CALLER, pool } as never
-    )) as Record<string, unknown>
-    expect(r['сделано']).toBe(false) // cyrillic-ok: the tool's response field
-    expect(String(r['причина'])).toContain('kie/google/imagen4-ultra') // cyrillic-ok: the tool's response field
-    expect(charged(pool.sqls), 'the wallet moved for a refused model').toEqual(
-      []
-    )
-    expect(calls, 'the route was asked anyway').toEqual([])
-  })
+  it(
+    'image_generate with a Kie model: no charge, no request',
+    async () => {
+      const gen = await tool('image_generate')
+      const pool = recordingPool()
+      const r = (await gen.handler(
+        { prompt: 'кот', model: 'kie/google/imagen4-ultra' },
+        { telegramId: CALLER, pool } as never
+      )) as Record<string, unknown>
+      expect(r['сделано']).toBe(false) // cyrillic-ok: the tool's response field
+      expect(String(r['причина'])).toContain('kie/google/imagen4-ultra') // cyrillic-ok: the tool's response field
+      expect(
+        charged(pool.sqls),
+        'the wallet moved for a refused model'
+      ).toEqual([])
+      expect(calls, 'the route was asked anyway').toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('video_generate with a Kie model: no charge, no request', async () => {
-    const gen = await tool('video_generate')
-    const pool = recordingPool()
-    const r = (await gen.handler(
-      {
-        prompt: 'кот',
-        model: 'kie/kling/v3-turbo-text-to-video',
-        duration: 10,
-      },
-      { telegramId: CALLER, pool } as never
-    )) as Record<string, unknown>
-    expect(r['сделано']).toBe(false) // cyrillic-ok: the tool's response field
-    expect(charged(pool.sqls)).toEqual([])
-    expect(calls).toEqual([])
-  })
+  it(
+    'video_generate with a Kie model: no charge, no request',
+    async () => {
+      const gen = await tool('video_generate')
+      const pool = recordingPool()
+      const r = (await gen.handler(
+        {
+          prompt: 'кот',
+          model: 'kie/kling/v3-turbo-text-to-video',
+          duration: 10,
+        },
+        { telegramId: CALLER, pool } as never
+      )) as Record<string, unknown>
+      expect(r['сделано']).toBe(false) // cyrillic-ok: the tool's response field
+      expect(charged(pool.sqls)).toEqual([])
+      expect(calls).toEqual([])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
   /*
    * THE CONTROL. Without it the two tests above pass on a handler that
    * refuses everything, or on a recording pool that never sees a charge.
    */
-  it('image_generate with a listed FAL model is charged and forwards exactly it', async () => {
-    const gen = await tool('image_generate')
-    const pool = recordingPool()
-    await gen.handler({ prompt: 'кот', model: 'fal-ai/flux/dev' }, {
-      telegramId: CALLER,
-      pool,
-    } as never)
-    expect(charged(pool.sqls).length).toBe(1)
-    const route = calls.find(c => c.url.endsWith('/api/generate/image'))
-    expect(route, 'the route was never asked').toBeDefined()
-    expect((route!.body as { model?: unknown }).model).toBe('fal-ai/flux/dev')
-  })
+  it(
+    'image_generate with a listed FAL model is charged and forwards exactly it',
+    async () => {
+      const gen = await tool('image_generate')
+      const pool = recordingPool()
+      await gen.handler({ prompt: 'кот', model: 'fal-ai/flux/dev' }, {
+        telegramId: CALLER,
+        pool,
+      } as never)
+      expect(charged(pool.sqls).length).toBe(1)
+      const route = calls.find(c => c.url.endsWith('/api/generate/image'))
+      expect(route, 'the route was never asked').toBeDefined()
+      expect((route!.body as { model?: unknown }).model).toBe('fal-ai/flux/dev')
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('video_generate without a model is charged and asks the route', async () => {
-    const gen = await tool('video_generate')
-    const pool = recordingPool()
-    await gen.handler({ prompt: 'кот', duration: 5 }, {
-      telegramId: CALLER,
-      pool,
-    } as never)
-    expect(charged(pool.sqls).length).toBe(1)
-    expect(calls.some(c => c.url.endsWith('/api/generate/video'))).toBe(true)
-  })
+  it(
+    'video_generate without a model is charged and asks the route',
+    async () => {
+      const gen = await tool('video_generate')
+      const pool = recordingPool()
+      await gen.handler({ prompt: 'кот', duration: 5 }, {
+        telegramId: CALLER,
+        pool,
+      } as never)
+      expect(charged(pool.sqls).length).toBe(1)
+      expect(calls.some(c => c.url.endsWith('/api/generate/video'))).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('the schema offers the model the handler takes, and nothing else', async () => {
-    const gen = await tool('image_generate')
-    const model = (
-      gen.parameters as { properties: Record<string, { enum?: string[] }> }
-    ).properties.model
-    expect(model.enum).toEqual([...FAL_IMAGE_MODELS])
-  })
+  it(
+    'the schema offers the model the handler takes, and nothing else',
+    async () => {
+      const gen = await tool('image_generate')
+      const model = (
+        gen.parameters as { properties: Record<string, { enum?: string[] }> }
+      ).properties.model
+      expect(model.enum).toEqual([...FAL_IMAGE_MODELS])
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

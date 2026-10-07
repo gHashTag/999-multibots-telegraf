@@ -31,7 +31,14 @@ if [ "${CHECKS_LOCAL:-}" != "1" ]; then
   said=$(mktemp)
   bash bin/helpers/remote-check.sh "$PWD" "${SUITES[@]}" >"$said" 2>&1 &
   cloud=$!
-  ( sleep "$WAIT"; kill -TERM "$cloud" 2>/dev/null ) &
+  # THE WATCHDOG MUST NOT HOLD THE HOOK'S PIPE (2026-10-03). Its `sleep`
+  # inherited our stdout, and killing the subshell left the sleep alive: lefthook
+  # reads to EOF, so every hook waited the full $WAIT even when the cloud had
+  # answered in a second -- render-types and root-types both "took" 240.0 s.
+  # Measured with a runner that answers at once: 15 of 15 s through a pipe,
+  # 0 s without one. The watchdog now writes nowhere, and its sleep is
+  # killed with it.
+  ( sleep "$WAIT" & s=$!; trap 'kill "$s" 2>/dev/null; exit 0' TERM; wait "$s"; kill -TERM "$cloud" 2>/dev/null ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$cloud"
   code=$?

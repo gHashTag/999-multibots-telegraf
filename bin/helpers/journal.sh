@@ -9,11 +9,12 @@
 #   tri journal [n]      last n steps (default 20)
 # Exit 0 read, 2 could not read.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"; shift
 N="${1:-20}"
 B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
-AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
+AK=$(rvars vibee-render \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 [ -z "$AK" ] && { echo "journal: no agent key (railway login?) -- could not read"; exit 2; }
 # probes=1: this view shows the checks too, marked, since their timings matter here.
@@ -21,8 +22,10 @@ ANSWER=$(curl -s -m 30 "$B/api/browser/journal?limit=$N&probes=1" -H "X-Agent-Ke
 # The answer goes in through the environment and the code through a quoted
 # heredoc: the first version put Python inside a single-quoted bash string,
 # escaped its quotes, and died with SyntaxError on its first real answer.
-ANSWER="$ANSWER" python3 - <<'PY'
+ANSWER="$ANSWER" HELPERS="$(dirname "${BASH_SOURCE[0]}")" python3 - <<'PY'
 import json, os, sys
+sys.path.insert(0, os.environ["HELPERS"])
+import journal_line  # the one home of how a step reads
 try:
     d = json.loads(os.environ.get("ANSWER") or "")
 except Exception:
@@ -32,19 +35,7 @@ if not d.get("ok"):
 steps = d.get("steps") or []
 if not steps:
     print("journal: no steps yet"); sys.exit(0)
+print(journal_line.header(steps))
 for s in steps:
-    det = s.get("detail") or {}
-    if det.get("error"): key = det["error"]
-    elif det.get("seen"): key = det["seen"]
-    elif det.get("seenPending"): key = "(description pending)"
-    elif det.get("url"): key = det["url"]
-    elif det.get("title"): key = det["title"]
-    elif det.get("what"): key = det["what"]
-    elif "chars" in det: key = f"{det['chars']} chars"
-    elif "x" in det: key = f"x={det['x']} y={det['y']}"
-    elif "pages" in det: key = f"pages={det['pages']}"
-    else: key = ""
-    mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
-    at = s["at"][5:19].replace("T", " ")
-    print(f"  {at}  {mark}  {s['tool']:<22} {s['ms']:>6} ms  {str(key)[:90]}")
+    print(journal_line.line(s))
 PY

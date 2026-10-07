@@ -12,21 +12,25 @@
 #   tri logins          # the table
 #   tri logins --json   # the raw answer, for a loop to diff
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
 shift
 cd "$ROOT" || exit 1
 
 KEY="${AGENT_KEY:-}"
 if [ -z "$KEY" ]; then
-  KEY=$( (railway variables --service vibee-render --kv 2>/dev/null) \
+  KEY=$(rvars vibee-render \
          | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 fi
 [ -n "$KEY" ] || { echo "no agent key: export AGENT_KEY or run 'railway login'"; exit 2; }
 BASE="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 
+# A probe (_meta.probe): reading cookie names is a check, not the agent's
+# work. Unmarked, it was a journal step, and two minutes later the owner got
+# an "agent work over the connection" report for it (2026-10-03).
 RESP=$(curl -s --max-time 45 "$BASE/mcp" -H "X-Agent-Key: $KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser_logins","arguments":{}}}')
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser_logins","arguments":{},"_meta":{"probe":true}}}')
 
 # An empty answer is not "signed in nowhere": say so and stop.
 [ -n "$RESP" ] || { echo "the service did not answer -- no verdict"; exit 2; }
@@ -48,13 +52,25 @@ if os.environ.get('JSON') == '--json':
     print(json.dumps(out, ensure_ascii=False))
     sys.exit(0)
 
-if not out.get('running'):
+# The tool answers `reachable` (since #3152); `running` was its old name.
+# Reading only the old one printed "browser is off" for a browser that
+# answered with eight signed-in networks (2026-10-02).
+if not (out.get('reachable') or out.get('running')):
     print('browser is off -- its logins cannot be read (' + str(out.get('hint', '')) + ')')
     sys.exit(3)
 
-MARK = {'signed_in': 'OK ', 'expired': 'EXP', 'signed_out': '-- ', 'unknown': '?? '}
+# REF = the cookie is there, but a desk's gated page landed on the site's
+# sign-in wall with it (login-use.ts, #3477): signed out in fact, until the
+# person signs in again and the cookie's expiry moves.
+MARK = {'signed_in': 'OK ', 'refused': 'REF', 'expired': 'EXP', 'signed_out': '-- ', 'unknown': '?? '}
 for n in out.get('networks', []):
-    print(f"{MARK.get(n.get('state'), '   ')} {n.get('name', ''):<10} {n.get('state', '')}")
+    when = f"  since {n['refusedAt'][:16].replace('T', ' ')} UTC" if n.get('refusedAt') else ''
+    print(f"{MARK.get(n.get('state'), '   ')} {n.get('name', ''):<10} {n.get('state', '')}{when}")
 held = out.get('signedIn') or []
 print(f"\n{len(held)} signed in: {', '.join(held) or 'none'}")
+again = out.get('signInAgain') or []
+if again:
+    print(f"{len(again)} to sign in again (he types, in the Browser tab):")
+    for a in again:
+        print(f"  {a.get('name', '')}: {a.get('door') or 'no known door'}")
 PYBODY
