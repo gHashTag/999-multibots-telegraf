@@ -1,0 +1,63 @@
+[
+  {
+    "name": "the phone width widened",
+    "from": "pub const PHONE_MAX_PX : u16 = 480;",
+    "to": "pub const PHONE_MAX_PX : u16 = 481;"
+  },
+  {
+    "name": "pills reach 320",
+    "from": "pub const PILLS_MIN_PX : u16 = 360;",
+    "to": "pub const PILLS_MIN_PX : u16 = 320;"
+  },
+  {
+    "name": "a phone counted as wide",
+    "from": "return width <= PHONE_MAX_PX;",
+    "to": "return width < PHONE_MAX_PX;"
+  },
+  {
+    "name": "pills ignore the upper bound",
+    "from": "return width >= PILLS_MIN_PX && width <= PHONE_MAX_PX;",
+    "to": "return width >= PILLS_MIN_PX;"
+  },
+  {
+    "name": "AUTO folds while on",
+    "from": "return phone && reachable && !on;",
+    "to": "return phone && reachable;"
+  },
+  {
+    "name": "an unread AUTO folds",
+    "from": "return phone && reachable && !on;",
+    "to": "return phone && !on;"
+  },
+  {
+    "name": "AUTO folds on a wide screen",
+    "from": "return phone && reachable && !on;",
+    "to": "return reachable && !on;"
+  },
+  { "name": "zeros printed", "from": "return n > 0;", "to": "return n >= 0;" },
+  {
+    "name": "the funnel first on a phone",
+    "from": "fn waiting_before_funnel(phone: bool) -> bool {\n        return phone;",
+    "to": "fn waiting_before_funnel(phone: bool) -> bool {\n        return false;"
+  },
+  {
+    "name": "the status bar forgotten",
+    "from": "return TG_DEVICE_TOP_PX + TG_BUTTONS_TOP_PX;",
+    "to": "return TG_BUTTONS_TOP_PX;"
+  },
+  {
+    "name": "Telegram's buttons smaller",
+    "from": "pub const TG_BUTTONS_TOP_PX : u16 = 46;",
+    "to": "pub const TG_BUTTONS_TOP_PX : u16 = 40;"
+  },
+  {
+    "name": "the home indicator forgotten",
+    "from": "return bars_top - TG_HOME_BOTTOM_PX - tg_top();",
+    "to": "return bars_top - tg_top();"
+  },
+  {
+    "name": "the first screen one pixel longer",
+    "from": "return end <= tg_line(bars_top);",
+    "to": "return end <= tg_line(bars_top) + 1;"
+  }
+]
