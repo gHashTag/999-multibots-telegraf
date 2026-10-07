@@ -20,8 +20,8 @@
   {
     "name": "the phone query drifts from the page's phone width",
     "file": "src/lib/crmPhone.ts",
-    "from": "'(max-width: 480px)'",
-    "to": "'(max-width: 400px)'"
+    "from": "`(max-width: ${SPEC.PHONE_MAX_PX}px)`",
+    "to": "`(max-width: ${SPEC.PILLS_MIN_PX}px)`"
   },
   {
     "name": "the press opens nothing",

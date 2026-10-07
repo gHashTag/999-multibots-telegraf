@@ -101,7 +101,12 @@ numbers and the dedupe rule are in the header of
   `position: fixed` in the lower half), counted from the top of the page
   (scrolled ancestors added back). `[selector, minWidth]` asks only from that
   width up. The margin is printed green or red (`ends at 708px of 787px`):
-  2 px above the line is not 200. Added for P31 (07.10.2026): the CRM work
+  2 px above the line is not 200. A state's `foldInsets` ({top, bottom})
+  take off what a host keeps: the CRM's `load` state uses TELEGRAM -- its
+  Close/menu row and the status bar on top, the home indicator below
+  (59 + 46 and 34, read from `crm-first-screen.t27`'s gen, never typed) --
+  so `ends at 617px of 648px (less 105 top, 34 bottom)` is the owner's
+  phone, not the stand. Added for P31 (07.10.2026): the CRM work
   tab passed size, cut and overlap while the first person waiting for an
   answer began at 868 px of a 844 px phone.
 
@@ -403,10 +408,17 @@ import.meta.url)), ...)` and `readFileSync`.
   to one line (on -- the state that acts without the owner -- never does);
   the tester's chips become label + native select; count pills go side by
   side. Each piece is a jsdom guard; the shot holds the sum.
-- **A shot's fold is not the owner's phone.** The stand is 844 px with no
-  Telegram chrome. Telegram fullscreen on an iPhone also takes its own
-  buttons at the top and the home indicator (about 127 px together), so
-  print the margin and say in the report how much of it a real phone eats.
+- **A shot's fold is not the owner's phone -- unless it says whose.** The
+  stand is 844 px with no Telegram chrome; Telegram fullscreen on an iPhone
+  also takes 105 px on top and 34 below. P31 measured the stand and called
+  the name "on the first screen" at 668 of 787 -- on the phone it was at the
+  edge. P32 gave `fold` the insets from the spec; measure against the line
+  the person actually has.
+- **Numbers a tool reads come from the spec's gen, not from the tool.**
+  `shot.mjs` imports `player/src/spec/crm-first-screen.gen.ts` directly
+  (Node 22 strips the types of a .ts import); the binding test greps the
+  tool for the import and for `foldInsets: TELEGRAM`, so a hand-typed 34
+  in the tool is a red test, not a quiet drift.
 - **A width rule that saves a row at 390 can cost one at 320.** Side-by-side
   funnel pills: 126 -> 78 px at 390, but three rows at 320 (as tall as two
   stacked). Measure every width before scoping; scope the rule

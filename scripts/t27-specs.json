@@ -14,6 +14,10 @@
       "specDir": "apps/vibee-editor/render/src/spec"
     },
     {
+      "root": "apps/vibee-editor/player",
+      "specDir": "apps/vibee-editor/player/src/spec"
+    },
+    {
       "root": "apps/vibee-editor/packages/vibee-atoms",
       "specDir": "apps/vibee-editor/packages/vibee-atoms/src/spec"
     },

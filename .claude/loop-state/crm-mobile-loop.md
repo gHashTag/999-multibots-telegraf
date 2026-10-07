@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts src/__tests__/embed-guest-panel.test.tsx src/pages/crmClientThumb.test.ts src/pages/crmInsets.test.ts src/pages/touchTargets.test.ts src/lib/crmPhone.test.ts src/components/Level/__tests__/levelSwitch.test.tsx src/components/Crm/FunnelStrip.test.tsx src/__tests__/a-finger-is-44px-everywhere.test.ts -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts src/__tests__/embed-guest-panel.test.tsx src/pages/crmClientThumb.test.ts src/pages/crmInsets.test.ts src/pages/touchTargets.test.ts src/lib/crmPhone.test.ts src/components/Level/__tests__/levelSwitch.test.tsx src/components/Crm/FunnelStrip.test.tsx src/__tests__/a-finger-is-44px-everywhere.test.ts src/spec/crm-first-screen.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -178,7 +178,14 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       they wrapped to three rows). Name 926 -> 668 px (390 ru). Its 15 guards
       are adopted below and its 4 new test files are in the marker: do not
       unfold AUTO-off or restack the funnel without re-measuring `fold`.
-      Open: Prepare still ends at 807 of 787 (P32 in story-loop.md).
+      Done next (P32, story loop, 07.10.2026): crm-first-screen.t27 (t27
+      issue 7590) holds the widths, Telegram's fullscreen insets, the AUTO
+      fold, zero counts and the phone order -- owner's choice: on a phone
+      the people waiting come before the funnel, the AUTO line above them.
+      Prepare ends at 617 of 648 px on TELEGRAM's line (`tri shot crm`,
+      `foldInsets`). Its 17 guards are adopted; do not move the funnel back
+      above the list on a phone without the owner.
+      Was open: Prepare still ended at 807 of 787 (P32 in story-loop.md).
       Found on the way: guard #46 ("name column may widen past the row") was
       stale since #3244 made the grid `auto minmax(0, 1fr) auto` (the t.me
       column) -- `loop-guard start` would have stopped the next tick.
