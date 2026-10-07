@@ -159,6 +159,52 @@ export function stillFaceAction(hasFace: boolean, redraws: number): number {
   return SPEC.FACE_STOP
 }
 
+/**
+ * Where a gallery preview takes a field of the end card (spec v27:
+ * gallery_preview_field): the panel's card when it holds one, else the
+ * render's default -- the preview never invents a colour of its own.
+ */
+export function galleryPreviewField(panelHas: boolean): number {
+  if (panelHas) return SPEC.FIELD_FROM_SELLER
+  return SPEC.FIELD_FROM_DEFAULT
+}
+
+/**
+ * Where a surface takes an end-card colour (spec v29: brand_kit_field): her
+ * saved palette when she has one, else the render's default -- the same
+ * answer on the gallery preview and the rendered card.
+ */
+export function brandKitField(
+  hasClientPalette: boolean,
+  _surface: number
+): number {
+  if (hasClientPalette) return SPEC.FIELD_FROM_KEPT
+  return SPEC.FIELD_FROM_DEFAULT
+}
+
+/**
+ * How many slots a retry renders (spec v28: slots_to_render): only the empty
+ * ones. More done than total is a broken row and renders nothing.
+ */
+export function slotsToRender(slotsTotal: number, slotsDone: number): number {
+  if (slotsDone >= slotsTotal) return 0
+  return slotsTotal - slotsDone
+}
+
+/** What a retry charges (spec v28: retry_price): the slots it renders, never the made ones. */
+export function retryPrice(
+  slotsTotal: number,
+  slotsDone: number,
+  perSlot: number
+): number {
+  return slotsToRender(slotsTotal, slotsDone) * perSlot
+}
+
+/** Whether one slot is rendered on a retry (spec v28: slot_renders): a done slot never is. */
+export function slotRenders(done: boolean): boolean {
+  return !done
+}
+
 /** Whether a line, as heard, may go on to its lip-sync (spec line_fits). */
 export function lineFits(ms: number): boolean {
   return ms <= SPEC.LINE_MAX_MS
@@ -1328,7 +1374,7 @@ export function makeStoryReelTool(
       // 1. The stills that are missing, all at once, from the one source.
       await Promise.all(
         scenes.map(async (s, i) => {
-          if (stills[i] || clips[i]) {
+          if (!slotRenders(!!(stills[i] || clips[i]))) {
             tasks[i] = null
             return
           }
@@ -1412,7 +1458,7 @@ export function makeStoryReelTool(
       )
       await Promise.all(
         scenes.map(async (s, i) => {
-          if (clips[i]) return
+          if (!slotRenders(!!clips[i])) return
           const v = recorded[i]
             ? outcome({ done: true, url: recorded[i], голос: 'её голосовое' }) // cyrillic-ok: audio_generate's own answer keys
             : outcome(
