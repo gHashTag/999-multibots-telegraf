@@ -35,17 +35,28 @@ export const CHOICE_TTL_MS = 30 * 60_000
  */
 export const MAIN_LANE = 'main'
 
+/**
+ * Who made a choice. The tab strip (tab-strip.ts) records the PERSON's tap
+ * here too, so the agent follows what they look at -- but that tab is not one
+ * the agent is working in, and the strip must not mark it so.
+ */
+export type ChoiceBy = 'agent' | 'person'
+
 /** Whose choice, then which lane's: telegram id -> lane -> the tab. */
-const chosen = new Map<string, Map<string, { id: string; at: number }>>()
+const chosen = new Map<
+  string,
+  Map<string, { id: string; at: number; by: ChoiceBy }>
+>()
 
 export function rememberLaneFront(
   telegramId: string,
   lane: string,
   id: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  by: ChoiceBy = 'agent'
 ): void {
   const lanes = chosen.get(telegramId) ?? new Map()
-  lanes.set(lane, { id, at: now })
+  lanes.set(lane, { id, at: now, by })
   chosen.set(telegramId, lanes)
 }
 
@@ -78,9 +89,10 @@ export function chosenLaneFront(
 export function rememberFront(
   telegramId: string,
   id: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  by: ChoiceBy = 'agent'
 ): void {
-  rememberLaneFront(telegramId, MAIN_LANE, id, now)
+  rememberLaneFront(telegramId, MAIN_LANE, id, now, by)
 }
 
 /**
@@ -109,6 +121,22 @@ export function chosenFrontsOf(
   for (const lane of [...(chosen.get(telegramId)?.keys() ?? [])]) {
     const id = chosenLaneFront(telegramId, lane, now)
     if (id) out.push(id)
+  }
+  return out
+}
+
+/**
+ * The tabs an agent chose and still holds, one per lane: the person's own
+ * taps on the strip are left out. What the strip marks "chat".
+ */
+export function agentChosenFrontsOf(
+  telegramId: string,
+  now: number = Date.now()
+): string[] {
+  const out: string[] = []
+  for (const lane of [...(chosen.get(telegramId)?.keys() ?? [])]) {
+    const id = chosenLaneFront(telegramId, lane, now)
+    if (id && chosen.get(telegramId)?.get(lane)?.by === 'agent') out.push(id)
   }
   return out
 }

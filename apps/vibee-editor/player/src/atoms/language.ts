@@ -134,6 +134,14 @@ const en: Translations = {
   'browser.tabs.close': 'Close tab {title}',
   'browser.tabs.untitled': 'Untitled',
   'browser.tabs.refused': 'The browser did not take it',
+  'browser.tabs.agentDesk': 'The agent is working here on a scheduled run',
+  'browser.tabs.agentChat': 'The agent is working here for your chat',
+  'browser.tabs.confirmDesk':
+    'The agent is working in {title} on a scheduled run. Close it anyway?',
+  'browser.tabs.confirmChat':
+    'The agent is working in {title} for your chat. Close it anyway?',
+  'browser.tabs.closeAnyway': 'Close',
+  'browser.tabs.keep': 'Keep it',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
   'browser.ask.title': '🛡 The agent asks your permission',
@@ -3184,6 +3192,14 @@ const ru: Translations = {
   'browser.tabs.close': 'Закрыть вкладку {title}', // cyrillic-ok
   'browser.tabs.untitled': 'Без названия', // cyrillic-ok
   'browser.tabs.refused': 'Браузер не принял это', // cyrillic-ok
+  'browser.tabs.agentDesk': 'Здесь работает агент по расписанию', // cyrillic-ok
+  'browser.tabs.agentChat': 'Здесь работает агент по вашему чату', // cyrillic-ok
+  'browser.tabs.confirmDesk':
+    'В «{title}» работает агент по расписанию. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.confirmChat':
+    'В «{title}» работает агент по вашему чату. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.closeAnyway': 'Закрыть', // cyrillic-ok
+  'browser.tabs.keep': 'Оставить', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
   'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
