@@ -577,7 +577,7 @@ function install(opt) {
       .status !== 0
   ) {
     console.log(
-      'stands: railway is not logged in under the job PATH -- run railway login; not installed'
+      `stands: ${bins[0]} is not logged in under the job PATH -- run railway login; not installed`
     )
     return 1
   }
@@ -587,6 +587,7 @@ function install(opt) {
     copyFileSync(join(HERE, f), join(lib, f))
   const plist = join(homedir(), 'Library/LaunchAgents', `${JOB}.plist`)
   const log = join(homedir(), 'Library/Logs/t27-stands-after-deploy.log')
+  mkdirSync(dirname(plist), { recursive: true })
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
   writeFileSync(
     plist,
