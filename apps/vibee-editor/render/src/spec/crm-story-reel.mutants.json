@@ -1197,5 +1197,65 @@
     "file": "src/agent/story-reel-tool.ts",
     "from": "...(drawnCard ? { endCard: drawnCard } : {}),",
     "to": "...(endCard ? { endCard } : {}),"
+  },
+  {
+    "name": "a gallery preview with no card draws the host green",
+    "file": "../player/src/components/Crm/StoryTemplateGallery.tsx",
+    "from": "card?.accent ?? SPEC.END_CARD_DEFAULT_ACCENT",
+    "to": "card?.accent ?? '#00ff88'"
+  },
+  {
+    "name": "a gallery preview with no card draws black",
+    "file": "../player/src/components/Crm/StoryTemplateGallery.tsx",
+    "from": "card?.bg ?? SPEC.END_CARD_DEFAULT_BG,\n                    color",
+    "to": "card?.bg ?? '#000000',\n                    color"
+  },
+  {
+    "name": "the gallery preview invents a field with no card",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (panelHas) return SPEC.FIELD_FROM_SELLER\n  return SPEC.FIELD_FROM_DEFAULT",
+    "to": "  if (panelHas) return SPEC.FIELD_FROM_SELLER\n  return SPEC.FIELD_FROM_TEMPLATE"
+  },
+  {
+    "name": "the brand kit ignores her palette",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (hasClientPalette) return SPEC.FIELD_FROM_KEPT",
+    "to": "  if (false && hasClientPalette) return SPEC.FIELD_FROM_KEPT"
+  },
+  {
+    "name": "the brand kit falls to the template with none saved",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (hasClientPalette) return SPEC.FIELD_FROM_KEPT\n  return SPEC.FIELD_FROM_DEFAULT",
+    "to": "  if (hasClientPalette) return SPEC.FIELD_FROM_KEPT\n  return SPEC.FIELD_FROM_TEMPLATE"
+  },
+  {
+    "name": "a broken row wraps around",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  if (slotsDone >= slotsTotal) return 0\n",
+    "to": ""
+  },
+  {
+    "name": "a retry renders every slot again",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return slotsTotal - slotsDone\n",
+    "to": "  return slotsTotal\n"
+  },
+  {
+    "name": "a retry charges for the made slots",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return slotsToRender(slotsTotal, slotsDone) * perSlot",
+    "to": "  return slotsTotal * perSlot"
+  },
+  {
+    "name": "a done slot is rendered again",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "  return !done\n}",
+    "to": "  return true\n}"
+  },
+  {
+    "name": "the day cap counts done stills again",
+    "file": "src/agent/story-template.ts",
+    "from": "  const stills = slotsToRender(scenes, stillsHave)",
+    "to": "  const stills = scenes"
   }
 ]
