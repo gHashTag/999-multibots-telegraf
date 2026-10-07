@@ -3,22 +3,25 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
+import {
+  assertReplicateLive,
+  CLONE_NEEDS_REPLICATE,
+  replicateLive,
+} from './src/replicate-off'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { serviceOwnerFromKey } from './src/auth/service-owner'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
-import {
-  ГОЛОСА_MINIMAX,
-  входМиниМакс,
-  имяДляElevenLabs,
-  isCloneVoiceId,
-  скоростьРечи,
-} from './src/agent/minimax-voices'
+import { входМиниМакс, isCloneVoiceId } from './src/agent/minimax-voices'
+import { speakOnKie, voicesAnswer } from './src/agent/kie-speech'
 import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
   состояниеЗадания as getKieJobState, // cyrillic-ok
+  runKieJob,
+  KieTaskFailed,
+  type RunKieJobOptions,
 } from './src/agent/kie-run'
 import {
   reviewedKieModel,
@@ -59,6 +62,11 @@ import {
   getJobDurable,
   listJobsDurable,
 } from './generate-jobs'
+import {
+  stampRefusalCode,
+  refusalCodeFor,
+  failureAfterCharge,
+} from './generation-refusal'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -92,6 +100,11 @@ import {
   clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
+import {
+  isAgentPackageSalePath,
+  handleAgentPackageSale,
+  sweepAgentPackageSales,
+} from './src/agent/agent-package-sale'
 import {
   isClonePath,
   handleClone,
@@ -135,7 +148,15 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
-import { identityWithSource } from './src/agent/routes'
+import { identityWithSource, personIdentity } from './src/agent/routes'
+import { handleCardStatus } from './src/agent/card-status'
+import { handleCardWork } from './src/agent/card-work'
+import { handleCardMove } from './src/agent/card-move'
+import { handleThreadLive } from './src/agent/thread-live'
+import { isMetaPath } from './src/agent/meta-routes'
+import { isConnectLinkPath } from './src/agent/connect-card'
+import { handleTriWallet } from './src/tri-wallet'
+import { handleTriClaim, liveOutside, type Outside } from './src/tri-claim'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import {
@@ -146,6 +167,14 @@ import {
 } from './src/browser/live-pipe'
 import { telegramName } from './src/browser/telegram-name'
 import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
+import {
+  openWatch,
+  parseWatchPath,
+  watchViewerOf,
+  watchNonce,
+  watchPageHeaders,
+  watchPageHtml,
+} from './src/browser/watch-link'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import { sweepEveryPod, TAB_CAP } from './src/browser/tab-sweep'
 import {
@@ -155,12 +184,37 @@ import {
 } from './src/browser/approvals'
 import { markAllowed, ensureBrowserSessions } from './src/browser/sessions'
 
+/** The claim side's outside world, from env; null (503 on claims) until it is all set. */
+let triOutside: Outside | null | undefined
+function triClaimOutside(): Outside | null {
+  if (triOutside !== undefined) return triOutside
+  const signerUrls = (process.env.TRI_SIGNER_URLS ?? '')
+    .split(',')
+    .map(u => u.trim())
+    .filter(Boolean)
+  const { QUEEN_URL, TRI_MINTER } = process.env
+  triOutside =
+    QUEEN_URL && TRI_MINTER && signerUrls.length
+      ? liveOutside({
+          queenUrl: QUEEN_URL,
+          signerUrls,
+          minter: TRI_MINTER,
+          toncenterKey: process.env.TONCENTER_API_KEY,
+        })
+      : null
+  return triOutside
+}
+
 /** Who asked, so the yes lands on their session and nobody else's. */
 const approvalOwner = async (pool: any, id: string) =>
   (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
-import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
+import {
+  isContributorKeyPath,
+  handleContributorKeys,
+} from './src/hive/contributor-keys-route'
+import { isZaiRelayPath, handleZaiRelay, zaiRelayKey } from './src/zai-relay'
 import {
   isPayOutcomePath,
   handlePayOutcome,
@@ -193,6 +247,7 @@ import path from 'node:path'
 import {
   hasServerKey,
   authenticate,
+  logsRefusal,
   authMode,
   verifyTelegramInitData,
   verifiedTelegramId,
@@ -216,6 +271,7 @@ import {
   imageChainCeilingUsd,
   falEndpointFor,
 } from './src/image-chain'
+import { generateImageViaPollinations } from './src/pollinations-image'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -257,25 +313,14 @@ function assertFetchable(
 async function runExplicitKieJob(
   model: string,
   input: Record<string, unknown>,
-  options: { attempts?: number; intervalMs?: number } = {}
+  options: RunKieJobOptions = {}
 ): Promise<{ url: string; taskId: string }> {
-  const started = await startKieJob(model, input)
-  if (!started.taskId) {
-    throw new Error(started['отказ'] || 'Kie.ai не принял задачу')
-  }
-
-  const attempts = options.attempts ?? 100
-  const intervalMs = options.intervalMs ?? 3_000
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, intervalMs))
-    const state = await getKieJobState(started.taskId)
-    if (state.url) return { url: state.url, taskId: started.taskId }
-    if (state['отказ']) throw new Error(state['отказ'])
-  }
-
-  throw new Error(
-    `Kie.ai ещё выполняет задачу ${started.taskId}; повторная генерация может списать кредиты снова`
-  )
+  // The loop lives in src/agent/kie-run.ts so it can be tested without this
+  // file; a failed task throws KieTaskFailed with Kie's failCode and failMsg.
+  return runKieJob(model, input, options, {
+    start: startKieJob,
+    state: getKieJobState,
+  })
 }
 
 /**
@@ -367,44 +412,8 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  *
  * Возвращает true и САМ отвечает 404, если сегментов больше ожидаемого.
  */
-/**
- * Ключ ElevenLabs — с проверкой формы, а не только наличия.
- *
- * ЧТО СЛУЧИЛОСЬ. В переменной лежал ИДЕНТИФИКАТОР ключа вместо самого ключа.
- * ElevenLabs отвечал на это 400 с внятным текстом:
- *
- *   "API key ID used as API key - only valid API keys can be used.
- *    API keys start with 'sk_' and are shown when the key is created."
- *
- * А наружу уходило «ElevenLabs API error: 400» — тело ответа выбрасывалось.
- * По такому сообщению нельзя понять ни причину, ни что делать; список
- * голосов и озвучка (платная, 6 токенов) просто не работали, и почему —
- * снаружи было не видно.
- *
- * Проверка формы стоит одну строку и отвечает ДО сетевого запроса: ключ,
- * не начинающийся с `sk_`, не заработает никогда.
- */
 /** Ответ /api/providers живёт минуту: за ним пять чужих сервисов. */
 let providersCache: { at: number; data: Record<string, unknown> } | null = null
-
-function elevenLabsKey(): string {
-  const key = process.env.ELEVENLABS_API_KEY
-  if (!key) {
-    throw new Error(
-      'ELEVENLABS_API_KEY не задан. Ключ создаётся в кабинете ElevenLabs ' +
-        '(Profile → API Keys) и начинается с «sk_».'
-    )
-  }
-  if (!key.startsWith('sk_')) {
-    throw new Error(
-      'ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор: настоящий ключ ' +
-        `начинается с «sk_», а этот — с «${key.slice(0, 3)}». ElevenLabs на такой ` +
-        'отвечает 400 (invalid_api_key). Ключ показывается один раз при создании ' +
-        'или ротации в кабинете ElevenLabs — его и нужно положить в переменную.'
-    )
-  }
-  return key
-}
 
 function rejectExtraSegments(
   req: IncomingMessage,
@@ -532,11 +541,6 @@ import {
   type ShelfStore,
 } from './src/lib/shelf-route'
 import { handleCrmMedia } from './src/agent/media-library-route'
-import {
-  captionsFromCharacterAlignment,
-  type CharacterAlignment,
-  type TimedCaption,
-} from './src/lib/timedCaptions'
 /**
  * РАСПОЗНАВАНИЕ ЛИЦА ГРУЗИТСЯ ЛЕНИВО, и это не оптимизация.
  *
@@ -584,7 +588,10 @@ let faceApiНедоступен: string | null = null
 
 /** Почему кадрирование по лицу недоступно, или null если доступно. */
 export function faceCroppingUnavailable(): string | null {
-  return faceApiНедоступен
+  // Two ways to be unavailable: the module failed to import (the old shape,
+  // before faceDetection.ts loaded its engine lazily), or the module loaded
+  // and its engine did not -- tfjs-node is not in the image (#888).
+  return faceApiНедоступен ?? faceApiReady?.faceDetectionUnavailable() ?? null
 }
 
 function faceApi(): Promise<FaceApi> {
@@ -686,7 +693,11 @@ import {
   telegramFileUrlFor,
 } from './src/telegram-api'
 import { rewriteAppUrlsForToken } from './src/app-links'
+import { deliverToBuyer, liveBuyerBotDeps } from './src/buyer-delivery'
 import { renderFeedEntry } from './src/render-feed-entry'
+import * as MEETINGS from './src/spec/meeting-reminders.gen'
+import { TICK_MS as BLOG_SHARE_TICK_MS } from './src/spec/blog-share.gen'
+import { TICK_MS as ENGAGE_TICK_MS } from './src/spec/engage-desk.gen'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -1081,26 +1092,24 @@ const TELEGRAM_RENDERS_GROUP = '-1002737186844'
 // Send text message to Telegram
 async function sendTelegramMessage(
   chatId: string,
-  message: string
+  message: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          // Links to the app open inside Telegram only (src/app-links.ts).
-          text: await rewriteAppUrlsForToken(message, TELEGRAM_BOT_TOKEN),
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        // Links to the app open inside Telegram only (src/app-links.ts).
+        text: await rewriteAppUrlsForToken(message, token),
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendMessage failed:', result)
@@ -1118,31 +1127,29 @@ async function sendTelegramMessage(
 async function sendTelegramVideo(
   chatId: string,
   videoUrl: string,
-  caption: string
+  caption: string,
+  token: string | undefined = TELEGRAM_BOT_TOKEN
 ): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
+  if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set, skipping video notification')
     return false
   }
   try {
-    const response = await fetch(
-      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          video: videoUrl,
-          caption: caption,
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const response = await fetch(`${telegramApiFor(token)}/sendVideo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        video: videoUrl,
+        caption: caption,
+        parse_mode: 'HTML',
+      }),
+    })
     const result = await response.json()
     if (!result.ok) {
       console.error('❌ Telegram sendVideo failed:', result)
       // Fallback to message with link
-      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`)
+      return sendTelegramMessage(chatId, `${caption}\n\n🔗 ${videoUrl}`, token)
     }
     console.log(`📹 Telegram video sent to ${chatId}`)
     return true
@@ -2642,6 +2649,19 @@ setInterval(
                 .join(', ')
           )
         }
+        // Agent package launches nobody verified, and every monthly renewal
+        // Telegram charged by itself (agent-package-sale.ts).
+        const packages = await sweepAgentPackageSales(pool, token)
+        if (packages.length) {
+          console.log(
+            `[agent-packages] sweep booked ${packages.length} period(s): ` +
+              packages
+                .map(
+                  b => `${b.telegramId}:${b.packageId}→${b.until.slice(0, 10)}`
+                )
+                .join(', ')
+          )
+        }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
         const { botsOwnedBy, allBotOwners } = await import(
@@ -2869,6 +2889,29 @@ setTimeout(
 )
 
 /*
+ * MEETING REMINDERS (src/agent/meetings.ts, spec automation/meeting-reminders).
+ * The pace lives in agent_meeting_reminders.fire_at; this tick only asks the
+ * database what is due, so a redeploy loses no reminder and repeats none.
+ * MEETINGS_REMINDERS=0 turns the sending off; the rows wait for it.
+ */
+const meetingsTick = () => {
+  if (process.env.MEETINGS_REMINDERS === '0') return
+  void (async () => {
+    try {
+      const { sweepMeetings } = await import('./src/agent/meetings')
+      const r = await sweepMeetings((await getPool()) as any)
+      if (r.claimed) console.log(`[meetings] ${JSON.stringify(r)}`)
+    } catch (e) {
+      console.error('[meetings] failed:', String(e).slice(0, 300))
+    }
+  })()
+}
+setTimeout(() => {
+  meetingsTick()
+  setInterval(meetingsTick, MEETINGS.TICK_S * 1000)
+}, MEETINGS.FIRST_TICK_S * 1000)
+
+/*
  * EVERY MARKETPLACE AGENT, CHECKED EVERY DAY (src/agent/daily-acceptance.ts;
  * owner, 2026-09-24). The tick only asks the verdict table whether a day has
  * passed since the last run, so a redeploy neither skips a day nor runs
@@ -2910,24 +2953,62 @@ setTimeout(
  * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
  * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
  * cheap -- a database row, and the feed at most once a day -- so it runs
- * every half hour and an answered question is acted on within that.
- * Off unless BLOG_SHARE_ENABLED=1.
+ * every five minutes and an answered question is acted on within that.
+ * Not thirty: the service rarely lives forty-five minutes, so a half-hour
+ * timer restarted by every deploy often never fired at all. The pace (once
+ * a day) lives in blog_shares.asked_at, not here.
+ * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/blog-share.t27).
  */
-setInterval(
-  () => {
-    void (async () => {
-      try {
-        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
-        const said = await runBlogShare(getPool() as any)
-        if (said !== 'off' && said !== 'asked today already')
-          console.log(`[blog-share] ${said}`)
-      } catch (e) {
-        console.error('[blog-share] failed:', String(e).slice(0, 300))
-      }
-    })()
-  },
-  30 * 60 * 1000
-)
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+      const said = await runBlogShare(getPool() as any)
+      if (said !== 'off' && said !== 'asked today already')
+        console.log(`[blog-share] ${said}`)
+    } catch (e) {
+      console.error('[blog-share] failed:', String(e).slice(0, 300))
+    }
+    /* The desk's networks it cannot post to yet: the owner's connect card,
+     * once a week per network until connected (connect-card.t27). */
+    if (process.env.BLOG_SHARE_ENABLED !== '1') return
+    try {
+      const { runConnectCard } = await import('./src/agent/connect-card')
+      const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+      const said = await runConnectCard({
+        pool: (await getPool()) as any,
+        owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+        send: (id, text, markup) => sendToTelegram(id, text, markup),
+        now: Date.now,
+      })
+      if (said.startsWith('carded')) console.log(`[connect-card] ${said}`)
+    } catch (e) {
+      console.error('[connect-card] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, BLOG_SHARE_TICK_MS)
+
+/*
+ * THE ENGAGE DESK: FIND POSTS ON THE OWNER'S TOPICS, DRAFT A COMMENT, ASK
+ * (src/agent/engage-desk.ts; owner's request 2026-10-02). Every comment waits
+ * for the owner's yes, per item. The search pace (every six hours) lives in
+ * agent_strategies, not in this interval; the tick only settles answered
+ * questions and checks whether a search is due. Off unless
+ * ENGAGE_DESK_ENABLED=1. The interval is the spec's TICK_MS
+ * (specs/automation/engage-desk.t27).
+ */
+setInterval(() => {
+  void (async () => {
+    try {
+      const { runEngageDesk } = await import('./src/agent/engage-desk-wiring')
+      const said = await runEngageDesk(getPool() as any)
+      if (said !== 'off' && said !== 'not due') console.log(`[engage] ${said}`)
+    } catch (e) {
+      console.error('[engage] failed:', String(e).slice(0, 300))
+    }
+  })()
+}, ENGAGE_TICK_MS)
 
 /*
  * THE REDDIT DESK: ANSWER THE COMMENTS, POST WHERE IT IS WELCOME
@@ -2954,6 +3035,34 @@ setInterval(
     })()
   },
   5 * 60 * 1000
+)
+
+/*
+ * UNSPENT TOKENS BURN A MONTH AFTER THEY LAND (src/token-burn.ts; the wallet
+ * spec's rule, promised on the welcome screen). Every pass is idempotent -- a
+ * burn is written once per batch, a warning once per threshold -- so the pace
+ * needs no row of its own: ten minutes means a burn lands within ten minutes
+ * of its date. TOKEN_BURN_OFF=1 stops it without a deploy.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      if (process.env.TOKEN_BURN_OFF === '1') return
+      try {
+        const { sweepTokenBurns } = await import('./src/token-burn')
+        const said = await sweepTokenBurns(getPool() as any, {
+          send: (id, text) => sendToTelegram(id, text),
+        })
+        if (said.burned > 0 || said.warned > 0)
+          console.log(
+            `[token-burn] burned ${said.burned} tokens, warned ${said.warned} people`
+          )
+      } catch (e) {
+        console.error('[token-burn] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  10 * 60 * 1000
 )
 
 /*
@@ -3318,6 +3427,7 @@ function startRenderAsync(
 
         if (uploadResult.success && uploadResult.signedUrl) {
           job.publicUrl = uploadResult.signedUrl
+          const signedUrl = uploadResult.signedUrl
           console.log(`📤 Uploaded MP4 to S3 with signed URL`)
 
           // Convert to HLS for smooth streaming (skip for GIFs)
@@ -3386,10 +3496,13 @@ function startRenderAsync(
 
           let deliveredToBuyer = false
           if (buyerChatId) {
-            deliveredToBuyer = await sendTelegramVideo(
+            // The person's own bot first, the house through @t27ai_bot
+            // (crm-story-reel v19, src/buyer-delivery.ts).
+            deliveredToBuyer = await deliverToBuyer(
               buyerChatId,
-              uploadResult.signedUrl,
-              buyerCaption
+              token =>
+                sendTelegramVideo(buyerChatId, signedUrl, buyerCaption, token),
+              liveBuyerBotDeps()
             )
             if (!deliveredToBuyer) {
               console.error(
@@ -3565,6 +3678,28 @@ const server = createServer(async (req, res) => {
   const auth = authenticate(req)
 
   /*
+   * A LINK TO WATCH THE BROWSER, NO WHEEL (src/browser/watch-link.ts). Public
+   * on purpose: the token in the path is the whole permission, and the page
+   * holds no data -- it reads nothing until its socket is let in, and the
+   * socket decides from the token's row. No database read here, so a flood
+   * of guessed addresses costs a template, not a query.
+   */
+  {
+    const watchAt = parseWatchPath((req.url || '').split('?')[0])
+    if (watchAt && !watchAt.frames) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { Allow: 'GET' })
+        res.end()
+        return
+      }
+      const nonce = watchNonce()
+      res.writeHead(200, watchPageHeaders(nonce))
+      res.end(req.method === 'HEAD' ? undefined : watchPageHtml(nonce))
+      return
+    }
+  }
+
+  /*
    * The person's own browser, streamed. This sits BEFORE authenticate()
    * deliberately: a viewer arrives from a plain browser tab carrying nothing
    * but this session's cookie, and it is that cookie -- checked in
@@ -3654,7 +3789,9 @@ const server = createServer(async (req, res) => {
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
   // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
   // Подробности механизмов — в ./auth.ts.
-  if (auth.wouldReject) {
+  // An OAuth discovery probe with no credential gets the same 401 without a
+  // stderr line; see logsRefusal in ./auth.ts. Every other refusal is logged.
+  if (logsRefusal(req, auth)) {
     console.warn(
       `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
@@ -3666,6 +3803,10 @@ const server = createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
+        // The name the clients translate (generation-refusal.ts). This guard
+        // answers before any route, so an expired session -- the most common
+        // failed generation -- never reached the routes' own stamp.
+        code: refusalCodeFor(auth.statusCode ?? 401),
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
@@ -3998,6 +4139,7 @@ const server = createServer(async (req, res) => {
     prompt: string,
     aspectRatio: string
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -4072,6 +4214,7 @@ const server = createServer(async (req, res) => {
       trustedClone?: boolean
     } = {} // cyrillic-ok: existing parameter
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -4237,6 +4380,8 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/image - ordered provider chain, see the handler body
   if (req.url === '/api/generate/image' && req.method === 'POST') {
+    // Every failure below leaves with a `code` the clients translate.
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4361,7 +4506,10 @@ const server = createServer(async (req, res) => {
          * Replicate flux-schnell at about $0.003, then Kie google/nano-banana
          * at 4 credits ($0.02) -- the only purse known to be funded, and the
          * same purse the talking heads spend from at 18 credits a second, which
-         * is why the funded one is last and not first.
+         * is why the funded one is last and not first. Between Replicate and
+         * Kie sits pollinations/flux at $0 (2026-09-29): the rescue leg that
+         * drew nothing while both paid purses had money, and everything the
+         * day both refused -- ordering and prices live in src/image-chain.ts.
          *
          * The ordering and the record-keeping live in src/image-chain.ts, and
          * they live there so that image-chain.test.ts can drive them with fake
@@ -4385,6 +4533,8 @@ const server = createServer(async (req, res) => {
           imageChainLegs(modelEndpoint, {
             fal: () => generateImageViaFal(prompt, aspectRatio, modelEndpoint),
             replicate: () => generateImageViaReplicate(prompt, aspectRatio),
+            pollinations: () =>
+              generateImageViaPollinations(prompt, aspectRatio),
             kie: () => generateImageViaKie(prompt, aspectRatio),
           }),
           {
@@ -4453,6 +4603,7 @@ const server = createServer(async (req, res) => {
     durationSec: ReplicateVideoLength,
     aspectRatio: string
   ): Promise<string> {
+    assertReplicateLive() // src/replicate-off.ts: no balance, Kie only
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -4538,6 +4689,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -4670,6 +4822,7 @@ const server = createServer(async (req, res) => {
               JSON.stringify({
                 success: false,
                 error: `video must be ${MAX_UPSCALE_SECONDS} seconds or shorter`,
+                code: 'too_long',
               })
             )
             return
@@ -5172,8 +5325,9 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
+  // POST /api/generate/audio - Generate TTS on Kie (src/agent/kie-speech.ts)
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     req.on('data', chunk => {
       body += chunk
@@ -5184,7 +5338,7 @@ const server = createServer(async (req, res) => {
       // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание,
       // а `model` объявлена внутри try и из catch не видна.
       let requestedModel: string | undefined
-      // Same charge, two possible providers below (KieAI, then ElevenLabs or
+      // One charge: Kie speaks (a clone, only with REPLICATE_LIVE=1, on
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
       let billedSpendId: number | undefined
@@ -5198,8 +5352,7 @@ const server = createServer(async (req, res) => {
          * A CLONE (the owner's, or a client's from crm_voice_clone) comes only
          * in `clone_voice`, and only the service's own calls may send one --
          * audio_generate fills it from WHO is asking, never from the model's
-         * words. It lives on MiniMax, so the ElevenLabs leg is skipped: it
-         * would answer in some other voice, or not at all.
+         * words. It lives on MiniMax, which Kie cannot speak.
          */
         const cloneVoice =
           authenticate(req).via === 'api-key' && isCloneVoiceId(clone_voice)
@@ -5230,6 +5383,21 @@ const server = createServer(async (req, res) => {
           return
         }
 
+        /*
+         * A CLONE KIE CANNOT SPEAK IS REFUSED BEFORE THE CHARGE, as a plain
+         * 422 -- not a 500 with a stack after a charge and a refund. Kie has
+         * no speech cloning; a MiniMax clone speaks only while Replicate is
+         * switched on (src/replicate-off.ts).
+         */
+        if (cloneVoice && !replicateLive()) {
+          console.warn(`🎤 [Generate] clone refused: ${CLONE_NEEDS_REPLICATE}`)
+          res.writeHead(422, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({ success: false, error: CLONE_NEEDS_REPLICATE })
+          )
+          return
+        }
+
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
@@ -5249,8 +5417,8 @@ const server = createServer(async (req, res) => {
          * запрос без `model` оставлял множитель единицей, и 20 000 знаков
          * стоили 12 токенов вместо 480. Дыру открыл я сам, закрывая соседнюю.
          *
-         * Условие и не нужно: все ноги этого маршрута — KieAI ElevenLabs,
-         * прямой ElevenLabs, Replicate — тарифицируются провайдером за знаки.
+         * No condition is needed: Kie's TTS (and Replicate for a clone)
+         * bills per character.
          */
         оплаченныеТысячи = тысячиЗнаковКОплате(text)
 
@@ -5296,145 +5464,21 @@ const server = createServer(async (req, res) => {
         receipt = billed.receipt
         billedSpendId = billed.spendId
 
-        if (typeof model === 'string' && model.startsWith('kie/')) {
-          /**
-           * ОТКАЗ KIE НЕ ЗАВЕРШАЕТ ЗАПРОС — переходим на запасной путь ниже.
-           *
-           * Раньше `runExplicitKieJob` бросал прямо наружу, и человек получал
-           * 500 «Internal Error, Please try again later» — дословный ответ
-           * KieAI. Замер: единственная разрешённая для звука модель
-           * `elevenlabs/text-to-speech-multilingual-v2` отвечает этой ошибкой
-           * стабильно, а путь ниже (ElevenLabs → Replicate) в ту же секунду
-           * отдаёт готовый mp3. То есть озвучка была технически доступна и
-           * недоступна на практике: приложение всегда шлёт `kie/…`.
-           *
-           * Правило уже сформулировано двумя строками ниже — «провайдер лёг,
-           * идём к следующему, симметрично картинкам». KIE просто в нём не
-           * участвовал.
-           *
-           * ДЕНЬГИ. Списание произошло выше. Отдать результат запасным путём
-           * ЧЕСТНЕЕ, чем вернуть отказ и возврат: человек платил за озвучку,
-           * а не за конкретного подрядчика, и получает именно её. Кто
-           * исполнил на самом деле — сказано в `provider` ответа, не выдумано.
-           */
-          try {
-            const kieModel = reviewedKieModel('audio', model)!
-            const result = await runExplicitKieJob(kieModel, {
-              text,
-              /*
-               * ИМЯ — ТОЛЬКО ТО, ЧТО ЭТОТ ПРОВАЙДЕР УЗНАЕТ.
-               *
-               * Здесь стояло «взять `voice_name` как есть», и это было верно,
-               * пока список голосов был от ElevenLabs. Теперь он от MiniMax:
-               * приходит «Максим — уверенный», а нога ждёт «Rachel». Чужая
-               * строка даёт отказ на ПЕРВОЙ ноге — то есть удлиняет путь до
-               * звука ради имени, которого здесь не поймут.
-               */
-              voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0,
-              speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
-              timestamps: false,
-              previous_text: '',
-              next_text: '',
-              language_code: '',
-            })
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: true,
-                url: result.url,
-                id: result.taskId,
-                provider: model,
-                ...receipt,
-              })
-            )
-            return
-          } catch (kieError) {
-            // Не глушим: причина отказа KieAI должна остаться в логе, иначе
-            // «почему-то всегда Replicate» станет загадкой на месяц.
-            console.warn(
-              `⚠️ Kie.ai TTS отказал (${model}), идём запасным путём:`,
-              kieError instanceof Error ? kieError.message : kieError
-            )
-          }
-        }
-
-        // ElevenLabs is the primary path; if it is unavailable (the key stored
-        // is an identifier, not an sk_ key, OR the API errors) fall back to
-        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
+        /*
+         * KIE SPEAKS (owner rule, kie-only skill). There used to be three
+         * legs: Kie for an explicit `kie/` model, then ElevenLabs directly,
+         * then Replicate or Kie again. The direct ElevenLabs leg could never
+         * work -- the env var holds a key id, not a key -- and every line of
+         * speech paid a failed round trip and an error in the log for it.
+         *
+         * A clone is the one thing Kie cannot speak (no speech cloning on
+         * Kie): it goes to Replicate only when Replicate was switched back on
+         * (REPLICATE_LIVE=1), and is refused before the charge otherwise.
+         */
         let audioBuffer: Buffer
-        let timedCaptions: TimedCaption[] | undefined
-        let audioProvider = 'elevenlabs'
-        try {
-          if (cloneVoice) throw new Error('a MiniMax clone speaks on MiniMax')
-          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
-          const ttsResponse = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
-            {
-              method: 'POST',
-              headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-              body: JSON.stringify({
-                text,
-                model_id: 'eleven_multilingual_v2',
-                /*
-                 * СКОРОСТЬ ПЕРЕДАЁТСЯ И ЗДЕСЬ.
-                 *
-                 * Ползунок терялся на ВСЕХ трёх ногах; две уже починены, а
-                 * эта осталась бы мёртвой ровно до того дня, когда почините
-                 * ключ ElevenLabs, — и слайдер снова перестал бы значить
-                 * что-либо, без единой правки в коде.
-                 *
-                 * Поле документировано провайдером как `speed` внутри
-                 * `voice_settings`: double, по умолчанию 1
-                 * (elevenlabs.io/docs/api-reference/text-to-speech/convert,
-                 * снято 06.09.2026). Границ там НЕ УКАЗАНО, поэтому свои не
-                 * выдумываем, а берём ту же, что умеет породить наш ползунок
-                 * (0.5–2.0 в вебе, три значения в приложении): за её
-                 * пределами значение прийти не может, и обещать провайдеру
-                 * то, чего он не обещал, не приходится.
-                 *
-                 * Единицу не шлём: это и есть значение по умолчанию.
-                 */
-                voice_settings: {
-                  stability: 0.5,
-                  similarity_boost: 0.75,
-                  ...(скоростьРечи(speed) != null && скоростьРечи(speed) !== 1
-                    ? { speed: скоростьРечи(speed) }
-                    : {}),
-                },
-              }),
-            }
-          )
-          if (!ttsResponse.ok) {
-            throw new Error(
-              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
-            )
-          }
-          const timedSpeech = (await ttsResponse.json()) as {
-            audio_base64?: unknown
-            alignment?: CharacterAlignment
-            normalized_alignment?: CharacterAlignment
-          }
-          if (
-            typeof timedSpeech.audio_base64 !== 'string' ||
-            timedSpeech.audio_base64.length === 0
-          ) {
-            throw new Error('ElevenLabs timestamp response has no audio')
-          }
-          audioBuffer = Buffer.from(timedSpeech.audio_base64, 'base64')
-          timedCaptions = captionsFromCharacterAlignment(
-            timedSpeech.normalized_alignment ?? timedSpeech.alignment!
-          )
-        } catch (elevenErr) {
-          console.warn(
-            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
-          )
+        let audioProvider: string
+        let audioTaskId: string | undefined
+        if (cloneVoice) {
           const audioUrl = await generateAudioViaReplicate(text, {
             // `voice_id` — то, что прислал клиент; чужой идентификатор
             // `входМиниМакс` отбросит сам, а не отправит провайдеру.
@@ -5451,6 +5495,28 @@ const server = createServer(async (req, res) => {
           }
           audioBuffer = Buffer.from(await dl.arrayBuffer())
           audioProvider = 'replicate/minimax-speech-02-turbo'
+        } else {
+          const spoken = await speakOnKie(
+            text,
+            {
+              model:
+                typeof model === 'string' && model.startsWith('kie/')
+                  ? (reviewedKieModel('audio', model) ?? undefined)
+                  : undefined,
+              voiceId: voice_id,
+              voiceName: voice_name,
+              speed,
+            },
+            runExplicitKieJob
+          )
+          // Kie's links expire: the file is kept in our own bucket.
+          const got = await fetch(spoken.url)
+          if (!got.ok) {
+            throw new Error(`Kie audio download failed: ${got.status}`)
+          }
+          audioBuffer = Buffer.from(await got.arrayBuffer())
+          audioProvider = spoken.provider
+          audioTaskId = spoken.taskId
         }
         console.log(
           `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
@@ -5474,10 +5540,7 @@ const server = createServer(async (req, res) => {
             success: true,
             url: uploadResult.url,
             provider: audioProvider,
-            id: Date.now().toString(),
-            ...(timedCaptions && timedCaptions.length > 0
-              ? { timed_captions: timedCaptions }
-              : {}),
+            id: audioTaskId ?? Date.now().toString(),
             ...receipt,
           })
         )
@@ -5506,143 +5569,24 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // GET /api/voices - Get available ElevenLabs voices
+  /*
+   * GET /api/voices -- the voices of the TTS we actually use: Kie's
+   * multilingual model (src/agent/kie-speech.ts, list in @vibee/atoms).
+   *
+   * This used to ask ElevenLabs directly, with a key that was never a key:
+   * every call logged an error with a stack, then fell back to MiniMax ids
+   * that the Kie leg could not speak. Now it is a constant answer -- no key,
+   * no network call, nothing to log.
+   */
   if (req.url === '/api/voices' && req.method === 'GET') {
-    try {
-      const ELEVENLABS_API_KEY = elevenLabsKey()
-      console.log(`🎤 [Voices] Fetching ElevenLabs voices...`)
-
-      const response = await fetch('https://api.elevenlabs.io/v1/voices', {
-        method: 'GET',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        // Тело — вместе с кодом. Именно в теле ElevenLabs объясняет, что не
-        // так; без него «error: 400» не говорит ничего и чинить нечего.
-        const detail = await response.text().catch(() => '')
-        throw new Error(
-          `ElevenLabs ответил ${response.status}${detail ? `: ${detail.slice(0, 400)}` : ''}`
-        )
-      }
-
-      const data = await response.json()
-      const voices = data.voices || []
-
-      console.log(`✅ [Voices] Found ${voices.length} voices`)
-
-      // Filter out voices that are not fine-tuned (professional clones need fine-tuning)
-      const readyVoices = voices.filter((voice: any) => {
-        // Premade voices always work
-        if (voice.category === 'premade') {
-          return true
-        }
-
-        // Check fine_tuning status for cloned voices
-        if (voice.fine_tuning) {
-          const state = voice.fine_tuning.fine_tuning_state
-          const isAllowed = voice.fine_tuning.is_allowed_to_fine_tune
-
-          // Log for debugging
-          console.log(
-            `🔍 [Voices] ${voice.name} (${voice.voice_id}): category=${voice.category}, state=${state}, isAllowed=${isAllowed}`
-          )
-
-          // Skip if fine-tuning is required but not complete
-          if (state && state !== 'fine_tuned' && state !== 'not_started') {
-            console.log(
-              `⚠️ [Voices] Skipping ${voice.name}: not fine-tuned (state=${state})`
-            )
-            return false
-          }
-
-          // Skip if not allowed to use (professional voices that need fine-tuning)
-          if (isAllowed === false && state !== 'fine_tuned') {
-            console.log(
-              `⚠️ [Voices] Skipping ${voice.name}: not allowed and not fine-tuned`
-            )
-            return false
-          }
-        }
-        return true
-      })
-
-      console.log(
-        `✅ [Voices] ${readyVoices.length} ready voices (filtered from ${voices.length})`
-      )
-
-      // Map to simplified format
-      const simplifiedVoices = readyVoices.map((voice: any) => ({
-        id: voice.voice_id,
-        name: voice.name,
-        category: voice.category || 'custom',
-        labels: voice.labels || {},
-        preview_url: voice.preview_url,
-      }))
-
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          success: true,
-          voices: simplifiedVoices,
-          provider: 'elevenlabs',
-        })
-      )
-    } catch (error) {
-      console.error('❌ [Voices] Error:', error)
-      /**
-       * ОТКАЗ ElevenLabs НЕ ОСТАВЛЯЕТ ЭКРАН БЕЗ ГОЛОСОВ — потому что звук всё
-       * равно будет сделан, только другим провайдером.
-       *
-       * Здесь стоял 500, и это был не сбой, а ПОСТОЯННОЕ состояние: замер на
-       * боевом сервере даёт «ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его
-       * идентификатор». Веб на отказе подставлял три запасных имени — `sarah`,
-       * `rachel`, `josh`, — которые не являются идентификаторами голоса нигде.
-       * Человек выбирал из трёх выдуманных и получал голос MiniMax по
-       * умолчанию.
-       *
-       * Отдаём голоса ТОЙ ноги, которая доедет: маршрут озвучки падает с
-       * ElevenLabs на Replicate minimax, и её голоса провайдер понимает
-       * дословно. Порядок здесь тот же, что в маршруте, — одна правда о том,
-       * кто озвучивает.
-       *
-       * Починят ключ — первая ветка снова ответит своими голосами, и этот код
-       * менять не придётся.
-       */
-      if (ГОЛОСА_MINIMAX.length > 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            success: true,
-            voices: ГОЛОСА_MINIMAX,
-            provider: 'replicate/minimax-speech-02-turbo',
-            // Причина не прячется: без неё «почему голоса другие» станет
-            // загадкой на месяц, как уже было с «почему всегда Replicate».
-            note:
-              error instanceof Error
-                ? `ElevenLabs недоступен: ${error.message.slice(0, 200)}`
-                : 'ElevenLabs недоступен',
-          })
-        )
-        return
-      }
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          success: false,
-          error:
-            error instanceof Error ? error.message : 'Failed to fetch voices',
-        })
-      )
-    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(voicesAnswer()))
     return
   }
 
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
+    stampRefusalCode(res)
     let body = ''
     let billedTid: string | undefined
     let billedSeconds = 0
@@ -5690,6 +5634,7 @@ const server = createServer(async (req, res) => {
             JSON.stringify({
               success: false,
               error: `lipsync audio must be ${ceilingSeconds} seconds or shorter`,
+              code: 'too_long',
             })
           )
           return
@@ -5815,9 +5760,13 @@ const server = createServer(async (req, res) => {
                 prompt: 'person speaking naturally',
               },
               // The wait grows with the voice (lipsync-voice.ts says why).
+              // A transient Kie failure ("please try again later") gets one
+              // more task of the SAME model inside the same wait; content and
+              // validation failures do not (kie-run.ts isTransientKieFailure).
               {
                 attempts: lipsyncPollAttempts(billedSeconds),
                 intervalMs: LIPSYNC_POLL_INTERVAL_MS,
+                retryTransientOnce: true,
               }
             )
             res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -5927,8 +5876,16 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Lipsync generation timeout')
       } catch (error) {
-        console.error('❌ [Generate] Lipsync error:', error)
-        await refundMiniAppUser(
+        // Kie's own failCode and failMsg, not only its sentence: the message
+        // of KieTaskFailed carries both, and the fields are named again so a
+        // log search by code finds them.
+        console.error(
+          '❌ [Generate] Lipsync error:',
+          error instanceof KieTaskFailed
+            ? `${error.message} [task=${error.taskId} failCode=${error.failCode ?? '-'} transient=${error.transient}]`
+            : error
+        )
+        const refundedOk = await refundMiniAppUser(
           billedTid,
           'lipsync_generate',
           billedSeconds || 1,
@@ -5938,10 +5895,12 @@ const server = createServer(async (req, res) => {
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
-          })
+          JSON.stringify(
+            failureAfterCharge(
+              error instanceof Error ? error.message : 'Generation failed',
+              refundedOk ? (receipt.charged ?? 0) : 0
+            )
+          )
         )
       }
     })
@@ -6146,9 +6105,29 @@ const server = createServer(async (req, res) => {
           mediaUrl.endsWith('.mp4') ||
           mediaUrl.endsWith('.webm') ||
           mediaUrl.endsWith('.mov')
-        const faceBox = isVideo
-          ? await detectFaceInVideo(filePath)
-          : await detectFaceInImage(filePath)
+        let faceBox: Awaited<ReturnType<typeof detectFaceInImage>>
+        try {
+          faceBox = isVideo
+            ? await detectFaceInVideo(filePath)
+            : await detectFaceInImage(filePath)
+        } catch (detectError) {
+          // The engine missing from the process is not this request's fault:
+          // it was said once at startup, and the caller gets the center crop
+          // with the reason instead of a 500 and an error line per request.
+          const unavailable = faceCroppingUnavailable()
+          if (!unavailable) throw detectError
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              faceDetected: false,
+              faceDetectionAvailable: false,
+              cropSettings: { offsetX: 0, offsetY: 0, scale: 1 },
+              message: `Face detection unavailable: ${unavailable}`,
+            })
+          )
+          return
+        }
 
         if (!faceBox) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -6972,10 +6951,17 @@ const server = createServer(async (req, res) => {
                 const projectLine = userInfo?.project_name
                   ? `\n\n📹 ${userInfo.project_name}`
                   : ''
-                deliveredToBuyer = await sendTelegramVideo(
+                // Same bots, same order (src/buyer-delivery.ts).
+                deliveredToBuyer = await deliverToBuyer(
                   buyerChatId,
-                  publicUrl,
-                  `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`
+                  token =>
+                    sendTelegramVideo(
+                      buyerChatId,
+                      publicUrl,
+                      `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`,
+                      token
+                    ),
+                  liveBuyerBotDeps()
                 )
                 if (!deliveredToBuyer) {
                   console.error(
@@ -8771,6 +8757,104 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true })
     }
 
+    /*
+     * VOICE MODE: hear one utterance, speak one sentence. Both go to our own
+     * speaches service on Railway (src/voice/voice.ts says why and how fast).
+     * The words a person said are sent as an ordinary chat message by the
+     * player, so the agent keeps every tool and the transcript keeps the turn.
+     */
+    if (route.startsWith('/api/voice/')) {
+      const voice = await import('./src/voice/voice')
+      if (route === '/api/voice/status' && req.method === 'GET') {
+        return sendJson(res, 200, voice.voiceStatus())
+      }
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      if (route === '/api/voice/transcribe' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'hear'))
+          return sendJson(res, 429, { error: 'too many utterances' })
+        /*
+         * Server-Timing splits the wait a person feels into the upload
+         * (`read`) and whisper itself (`hear`); the rest is the road. One
+         * number from outside (4.6 s, cycle 1) was blamed on whisper, which
+         * measured 1.8-2.8 s inside its own pod -- `tri voice` reads these.
+         */
+        const t0 = Date.now()
+        let bytes: Buffer
+        try {
+          bytes = await voice.readBytes(req)
+        } catch (e) {
+          return sendJson(res, 413, { error: String((e as Error).message) })
+        }
+        const t1 = Date.now()
+        if (bytes.length < 512) return sendJson(res, 200, { text: '' })
+        try {
+          // The player names the language it heard last; a known language
+          // halves whisper's time (voice.ts has the measurement).
+          const asked = new URL(req.url || '', 'http://x').searchParams
+          // turn=1: the player's eager hearing also wants to know whether
+          // the voice sounds finished (Smart Turn, in the same ears).
+          const heard = await voice.hear(
+            bytes,
+            req.headers['content-type'],
+            asked.get('lang'),
+            undefined,
+            asked.get('turn') === '1'
+          )
+          // desc names the engine, so `tri voice` can tell GigaAM from a
+          // fallback to whisper without seeing a single word.
+          res.setHeader(
+            'Server-Timing',
+            `read;dur=${t1 - t0}, hear;dur=${Date.now() - t1};desc="${heard?.engine ?? 'none'}"`
+          )
+          if (heard === null)
+            return sendJson(res, 503, { error: 'no transcriber configured' })
+          return sendJson(res, 200, {
+            text: heard.text,
+            ...(heard.done === undefined ? {} : { done: heard.done }),
+          })
+        } catch (e) {
+          console.warn(`[voice] transcribe failed: ${(e as Error).message}`)
+          return sendJson(res, 502, { error: 'transcriber failed' })
+        }
+      }
+      if (route === '/api/voice/warm' && req.method === 'POST') {
+        // The player calls this as the voice overlay opens, so the models are
+        // in memory before the first phrase is finished.
+        if (!voice.withinBudget(who, 'warm'))
+          return sendJson(res, 429, { error: 'too many warm-ups' })
+        let body: Record<string, unknown> = {}
+        try {
+          body = JSON.parse((await readBody(req, 4 * 1024)) || '{}')
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        return sendJson(res, 200, await voice.warm(body.lang, body.voice))
+      }
+      if (route === '/api/voice/speak' && req.method === 'POST') {
+        if (!voice.withinBudget(who, 'speak'))
+          return sendJson(res, 429, { error: 'too many sentences' })
+        let body: Record<string, unknown>
+        try {
+          body = JSON.parse(await readBody(req, 64 * 1024))
+        } catch {
+          return sendJson(res, 400, { error: 'bad json' })
+        }
+        const t0 = Date.now()
+        const out = await voice.speak(body)
+        if (!out.ok) return sendJson(res, out.status, { error: out.error })
+        res.writeHead(200, {
+          // Which engine spoke and how long it took; `tri voice` reads it.
+          'Server-Timing': `speak;dur=${Date.now() - t0};desc="${out.engine}"`,
+          'Content-Type': out.contentType,
+          'Content-Length': out.audio.length,
+          'Cache-Control': 'no-store',
+        })
+        return res.end(out.audio)
+      }
+      return sendJson(res, 404, { error: 'unknown voice route' })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -8828,6 +8912,18 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // Personal credentials use a full app session or signed Telegram identity.
+  // Game and delegated agent tokens never cross this server-to-server door.
+  if (isContributorKeyPath(req.url?.split('?')[0] || '')) {
+    const out = await handleContributorKeys(req, {})
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   // Another service writing into the hive journal (the seller's sweep).
   // Server key only -- see src/hive/note-route.ts.
   if (isHiveNotePath(req.url?.split('?')[0] || '')) {
@@ -8848,10 +8944,13 @@ const server = createServer(async (req, res) => {
     const out = await handleZaiRelay(req, {
       readBody: r => readBody(r as any),
       bearerOf: r => (r as any).headers?.authorization,
-      apiKey: () => process.env.GLM_API_KEY,
+      apiKey: () => zaiRelayKey(),
       fetchImpl: fetch,
     })
-    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.writeHead(out.status, {
+      'Content-Type': 'application/json',
+      ...out.headers,
+    })
     res.end(out.body)
     return
   }
@@ -8890,6 +8989,19 @@ const server = createServer(async (req, res) => {
       // get the month's tokens through the ledger (kind 'grant').
       grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  // The agent packages' Stars till: the launch, then the monthly
+  // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
+  if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
+    const out = await handleAgentPackageSale(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => clubIdentity(r as any),
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
@@ -8978,6 +9090,33 @@ const server = createServer(async (req, res) => {
    * is the whole credential, it was never given to the agent, and it is spent
    * once (see src/browser/approvals.ts).
    */
+  /*
+   * A meeting's calendar file, for the "add to calendar" button on its card.
+   * BEFORE authenticate(): a phone's calendar app fetches it with no session.
+   * The meeting's own ics_token is the whole key; it is never the tap token.
+   */
+  if (
+    (req.url?.split('?')[0] || '') === MEETINGS.ICS_PATH &&
+    req.method === 'GET'
+  ) {
+    const token = new URL(req.url || '', 'http://x').searchParams.get('t') || ''
+    const { icsByToken } = await import('./src/agent/meetings')
+    const ics = await icsByToken((await getPool()) as any, token).catch(
+      () => null
+    )
+    if (!ics) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="meeting.ics"',
+      'Cache-Control': 'private, no-store',
+    })
+    res.end(ics)
+    return
+  }
   if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
     const url = new URL(req.url || '', 'http://x')
     const id = url.searchParams.get('id') || ''
@@ -9011,7 +9150,10 @@ const server = createServer(async (req, res) => {
      */
     if (state === 'allowed') {
       const who = byToken?.telegramId || (await approvalOwner(pool, subject))
-      if (who) await markAllowed(pool, who)
+      /* Only a question about acting on a page opens the guard, for its host. */
+      const { allowedActHost } = await import('./src/browser/approvals')
+      if (who)
+        await markAllowed(pool, who, await allowedActHost(pool, subject, who))
     }
     const said =
       state === 'allowed'
@@ -9036,6 +9178,69 @@ const server = createServer(async (req, res) => {
         `<body style="font:16px/1.5 system-ui;padding:32px;background:#111;color:#eee">` +
         `<p>${said}</p></body>`
     )
+    return
+  }
+
+  /* A card's one-time link to a consent page (connect-card.t27): person only. */
+  if (isConnectLinkPath(req.url?.split('?')[0] || '')) {
+    const { handleConnectLink } = await import('./src/agent/connect-card')
+    const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+    const out = await handleConnectLink(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => personIdentity(r as any),
+      actor: r =>
+        identityWithSource(r as any, verifiedTelegramId(r as any))?.source ===
+        'agent-key'
+          ? 'agent'
+          : 'person',
+      owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+      now: Date.now,
+    })
+    if ('html' in out) {
+      res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(out.html)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.json))
+    }
+    return
+  }
+
+  if (isMetaPath(req.url?.split('?')[0] || '')) {
+    const { handleMeta } = await import('./src/agent/meta-routes')
+    const { OWNER_TELEGRAM_ID } = await import('./src/agent/telegram-tools')
+    const out = await handleMeta(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      actor: r =>
+        identityWithSource(r as any, verifiedTelegramId(r as any))?.source ===
+        'agent-key'
+          ? 'agent'
+          : 'person',
+      owner: String(process.env.BLOG_SHARE_OWNER || OWNER_TELEGRAM_ID || ''),
+      fetch: (url, init) =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }) as any,
+      now: Date.now,
+      titleOf: async slug => {
+        const { blogTitleOf } = await import('./src/agent/blog-share-wiring')
+        return await blogTitleOf(slug)
+      },
+      drawCard: async title =>
+        (await import('./src/agent/meta-card')).drawCard(title),
+    })
+    if ('jpeg' in out) {
+      res.writeHead(out.status, {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=3600',
+      })
+      res.end(out.jpeg)
+    } else if ('html' in out) {
+      res.writeHead(out.status, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(out.html)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.json))
+    }
     return
   }
 
@@ -9092,6 +9297,38 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify(ответ.тело))
     return
   }
+
+  /*
+   * /api/tri/wallet[/challenge] -- a person binds the TON address their TRI
+   * would be paid to (src/tri-wallet.ts). Only the person's own credential
+   * counts (personIdentity): an agent key, the server key or a game token can
+   * read a name but must not be able to redirect a payout.
+   */
+  if (
+    await handleTriWallet(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
+    })
+  )
+    return
+
+  /*
+   * /api/tri/github*, /api/tri/payee, /api/tri/claim[s] -- a person links the
+   * GitHub account Queen credits, and claims an accepted spec as a mint their
+   * own wallet sends (src/tri-claim.ts). Testnet only; without QUEEN_URL,
+   * TRI_SIGNER_URLS and TRI_MINTER the claim side answers 503.
+   */
+  if (
+    await handleTriClaim(req, res, {
+      getPool,
+      personOf: personIdentity,
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      outside: triClaimOutside(),
+    })
+  )
+    return
 
   /*
    * POST /api/story/next -- the client's own one press for her next story
@@ -9179,6 +9416,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'не удалось определить пользователя',
+          code: 'sign_in',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
         })
@@ -9197,6 +9435,54 @@ const server = createServer(async (req, res) => {
    * поздно один пустит туда, куда второй не пускает.
    */
   /*
+   * GET /api/card-status -- a kanban card's pull requests and checks, read
+   * once by the server for everyone (spec kanban-card-chat.t27 v4). A person
+   * only; without GITHUB_READ_TOKEN it answers 503 and the client reads.
+   */
+  if (req.url?.split('?')[0] === '/api/card-status' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardStatus(req, res)
+    return
+  }
+
+  /*
+   * GET /api/card-work -- the Queen's bee at work on a card, live: its tool
+   * calls, its commands, their outcome (spec kanban-card-chat.t27 v7, S20).
+   * A person only; without TRIOS_API_TOKEN it answers 503.
+   */
+  if (req.url?.split('?')[0] === '/api/card-work' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardWork(req, res, String(who))
+    return
+  }
+
+  /*
+   * /api/card-move -- a keeper moves ONE card through the Queen's door
+   * (spec kanban-card-chat.t27 v5, S16). GET says whether the sheet offers
+   * the button; POST asks her with the token this server holds.
+   */
+  if (req.url?.split('?')[0] === '/api/card-move') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
    * /api/agent/conversations -- several conversations with the agent or a
    * specialist: the list (GET) and a name for one (POST). Identity the same
    * way as the history beside it.
@@ -9209,6 +9495,25 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentConversations(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * GET /api/agent/history/live?task=... -- a card's thread as a stream
+   * (spec kanban-card-chat.t27 v5, S17): the same person and the same gate
+   * as the history, only the rows after ?after=.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history/live' &&
+    req.method === 'GET'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleThreadLive(req, res, String(who), getPool)
     return
   }
 
@@ -9482,6 +9787,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'sign_in',
               error: 'нужна подпись или ключ агента',
             })
           )
@@ -9502,6 +9808,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'cashier_off',
               error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
             })
           )
@@ -9527,8 +9834,17 @@ const server = createServer(async (req, res) => {
             body.tokens != null
               ? Number(body.tokens)
               : PACKS[String(body.pack)]?.tokens
-          if (!запрошено)
-            throw new Error('нужно поле tokens или известный pack')
+          if (!запрошено) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                code: 'bad_amount',
+                error: 'нужно поле tokens или известный pack',
+              })
+            )
+            return
+          }
           /*
            * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
            * the same link for a lead; the price, the payload and the pending
@@ -9588,6 +9904,7 @@ const server = createServer(async (req, res) => {
           res.end(
             JSON.stringify({
               ok: false,
+              code: 'failed',
               error: понятнаяПричина(e),
             })
           )
@@ -9607,7 +9924,11 @@ const server = createServer(async (req, res) => {
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+            JSON.stringify({
+              ok: false,
+              code: 'sign_in',
+              error: 'нужна подпись или ключ',
+            })
           )
           return
         }
@@ -10666,6 +10987,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'не удалось определить пользователя',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
@@ -10678,7 +11000,12 @@ const server = createServer(async (req, res) => {
       body = JSON.parse(await readBody(req))
     } catch {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'тело запроса не разобрано как JSON' }))
+      res.end(
+        JSON.stringify({
+          code: 'bad_body',
+          error: 'тело запроса не разобрано как JSON',
+        })
+      )
       return
     }
     const url: string = String(body.url ?? '')
@@ -10688,7 +11015,10 @@ const server = createServer(async (req, res) => {
     if (!/^https?:\/\//.test(url)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(
-        JSON.stringify({ error: 'нужна http(s)-ссылка на файл в поле url' })
+        JSON.stringify({
+          code: 'bad_url',
+          error: 'нужна http(s)-ссылка на файл в поле url',
+        })
       )
       return
     }
@@ -10716,7 +11046,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[POST /api/assets] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'не удалось сохранить файл' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'не удалось сохранить файл' })
+      )
     }
     return
   }
@@ -10887,6 +11219,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'не удалось определить пользователя',
           detail:
             'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
@@ -10900,7 +11233,9 @@ const server = createServer(async (req, res) => {
     const rawId = parseInt(query.get('id') || '', 10)
     if (!Number.isInteger(rawId) || rawId <= 0) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'нужен корректный id в ?id=' }))
+      res.end(
+        JSON.stringify({ code: 'bad_id', error: 'нужен корректный id в ?id=' })
+      )
       return
     }
     try {
@@ -10924,6 +11259,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(404, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
+            code: 'not_found',
             error:
               'не найдено: можно удалять только свои фото из профиля аватара',
           })
@@ -10935,7 +11271,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[DELETE /api/assets] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'не удалось удалить файл' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'не удалось удалить файл' })
+      )
     }
     return
   }
@@ -10952,7 +11290,7 @@ const server = createServer(async (req, res) => {
     const telegram_id = url.pathname.split('/').pop()
     if (!telegram_id) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
+      res.end(JSON.stringify({ code: 'bad_id', error: 'Invalid telegram_id' }))
       return
     }
     // ЛИЧНАЯ ИСТОРИЯ — только своя. Общий гвард пропускает этот префикс
@@ -10964,6 +11302,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
+          code: 'sign_in',
           error: 'история доступна только её владельцу',
           detail:
             'подпись Telegram или ключ агента должны совпадать с telegram_id в пути',
@@ -11015,7 +11354,9 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('Assets error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Failed to fetch assets' }))
+      res.end(
+        JSON.stringify({ code: 'failed', error: 'Failed to fetch assets' })
+      )
     }
     return
   }
@@ -12055,7 +12396,7 @@ const server = createServer(async (req, res) => {
         имя: 'z.ai',
         url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
         key: process.env.GLM_API_KEY,
-        model: 'glm-5.3',
+        model: 'glm-4.7-flash',
       },
       {
         имя: 'KieAI',
@@ -12132,7 +12473,7 @@ const server = createServer(async (req, res) => {
             имя: 'z.ai',
             url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
             key: process.env.GLM_API_KEY,
-            модели: ['glm-5.3'],
+            модели: ['glm-4.7-flash'],
           },
           {
             имя: 'KieAI',
@@ -12783,6 +13124,31 @@ async function main() {
     // doors is a socket (src/auth/refresh-cookie.ts).
     if (isAuthHost(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
+    /*
+     * A WATCHER'S SOCKET (watch-link.ts): pictures one way, and it reads
+     * nothing back -- there is no input path behind it to reach.
+     */
+    const watchAt = parseWatchPath(path)
+    if (watchAt?.frames) {
+      const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+      framesWss.handleUpgrade(req, socket, head, ws => {
+        ws.on('message', () => ws.close(1008))
+        void (async () => {
+          try {
+            await openWatch(
+              (await getPool()) as any,
+              watchAt.token,
+              watchViewerOf(ws),
+              frameSize(q.get('w'), q.get('h'))
+            )
+          } catch {
+            ws.close(1011)
+          }
+        })()
+      })
+      return
+    }
+    if (watchAt) return refuseUpgrade(socket, 404)
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>
         wss.emit('connection', ws, req)
@@ -12929,7 +13295,8 @@ async function main() {
           if (pod.closed || !toldAboutTabs)
             console.log(
               `🧹 [tabs] ${pod.who}: closed ${pod.closed}, ` +
-                `${pod.left} open of ${TAB_CAP} allowed`
+                `${pod.left} open of ${TAB_CAP} allowed` +
+                (pod.gone ? ` -- ${pod.gone}` : '')
             )
         if (done.length) toldAboutTabs = true
       } catch (e) {
@@ -12983,6 +13350,21 @@ async function main() {
      * disagreement is visible at a glance in the boot log -- instead of a day
      * later, as a channel that quietly received nothing.
      */
+    /*
+     * Voice models are not in memory until asked for (PRELOAD_MODELS only
+     * downloads them), and a cold one costs the first sentence 2-5 s. Load the
+     * transcriber and the default voice of each language now; the whisper
+     * service keeps them for good (STT_MODEL_TTL=-1).
+     */
+    void import('./src/voice/voice').then(async voice => {
+      const [ru, en] = await Promise.all([
+        voice.warm('ru', 'irina'),
+        voice.warm('en', 'af_heart'),
+      ])
+      console.log(
+        `🎙 Voice warm: hear=${ru.hear} ru=${ru.speak} en=${en.speak}`
+      )
+    })
     const chCfg = readChannelConfig()
     console.log(
       `📣 Channel: token=${chCfg.token ? `set (${chCfg.tokenFrom})` : `MISSING (${ENV_NAMES.token.join('|')})`} ` +

@@ -1,0 +1,146 @@
+[
+  {
+    "name": "a no or silence posts anyway",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!postsOnlyOnYes(answer)) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "silence counted as a decline",
+    "file": "src/agent/engage-desk.ts",
+    "from": "const real = declineIsReal(answer)",
+    "to": "const real = true"
+  },
+  {
+    "name": "a press counted as the receipt",
+    "file": "src/agent/engage-desk.ts",
+    "from": "ok = receiptSeen(snippet, seen)",
+    "to": "ok = true"
+  },
+  {
+    "name": "the daily cap ignored",
+    "file": "src/agent/engage-desk.ts",
+    "from": "    askedToday < DAILY_CAP_PER_NETWORK && !seenPost",
+    "to": "    !seenPost"
+  },
+  {
+    "name": "mentions let through",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return /(^|[^\\w])@\\w/.test(text) || /(^|[^\\w/])\\/?u\\/\\w/i.test(text)",
+    "to": "return false"
+  },
+  {
+    "name": "the claim guard skipped",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!mayPropose(asked, seen, hasMention(text), verdict.ok)) {",
+    "to": "if (!mayPropose(asked, seen, hasMention(text), true)) {"
+  },
+  {
+    "name": "9:1 ignored",
+    "file": "src/agent/engage-desk.ts",
+    "from": "promoOk(share.promo, share.total)\n",
+    "to": "true\n"
+  },
+  {
+    "name": "a subreddit banning AI is commented in",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return r.read && !r.bansAi",
+    "to": "return r.read"
+  },
+  {
+    "name": "drafted without reading the thread",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return thread !== null",
+    "to": "return true"
+  },
+  {
+    "name": "a link let through on LinkedIn",
+    "file": "src/agent/engage-desk.ts",
+    "from": "  if (!linkOk && hasLink(text))\n",
+    "to": "  if (false)\n"
+  },
+  {
+    "name": "searches not limited to the tab room",
+    "file": "src/agent/engage-desk.ts",
+    "from": "{ length: Math.max(1, Math.min(limit, jobs.length)) }",
+    "to": "{ length: jobs.length }"
+  },
+  {
+    "name": "replies never looked for",
+    "file": "src/agent/engage-desk.ts",
+    "from": "said.push(...(await checkLeads(d)))",
+    "to": "void checkLeads"
+  },
+  {
+    "name": "the search pace not kept",
+    "file": "src/agent/engage-desk.ts",
+    "from": "if (!searchDue(last, d.now()))",
+    "to": "if (false)"
+  },
+  {
+    "name": "topics per search -> 1",
+    "file": "src/agent/engage-desk.ts",
+    "from": "for (let k = 0; k < Math.min(TOPICS_PER_SEARCH, n); k++)",
+    "to": "for (let k = 0; k < Math.min(1, n); k++)"
+  },
+  {
+    "name": "stale start never reruns",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return !startedOpen || startedSinceMs >= SEARCH_STALE_MS",
+    "to": "return !startedOpen"
+  },
+  {
+    "name": "mark at start, not end",
+    "file": "src/agent/engage-desk.ts",
+    "from": "  await d.markStarted(d.now())\n",
+    "to": "  await d.markStarted(d.now())\n  await d.markSearch(d.now())\n"
+  },
+  {
+    "name": "mark at start only",
+    "file": "src/agent/engage-desk.ts",
+    "from": "  await d.markSearch(d.now())\n  await d.markStarted(0)\n",
+    "to": "  await d.markStarted(0)\n"
+  },
+  {
+    "name": "own posts not skipped",
+    "file": "src/agent/engage-desk.ts",
+    "from": "  if (own.handles.has(handleKey(post.author))) return true\n",
+    "to": "  return false\n"
+  },
+  {
+    "name": "one vague reason",
+    "file": "src/agent/engage-desk.ts",
+    "from": "    : `${network}: nothing asked (${tallySays(t)})`",
+    "to": "    : `${network}: nothing fresh on topic`"
+  },
+  {
+    "name": "search error swallowed",
+    "file": "src/agent/engage-desk.ts",
+    "from": "      t.errors.push(",
+    "to": "      void ("
+  },
+  {
+    "name": "habr needs sign-in",
+    "file": "src/agent/engage-desk.ts",
+    "from": "return isSignedIn || network === 'habr'",
+    "to": "return isSignedIn"
+  },
+  {
+    "name": "no sign-in note dropped",
+    "file": "src/agent/engage-desk.ts",
+    "from": "          noSignIn: askSaysNoSignIn(network, isSignedIn),\n",
+    "to": ""
+  },
+  {
+    "name": "telegram NO_READER back",
+    "file": "src/agent/engage-desk.ts",
+    "from": "export const NO_READER: Record<string, string> = {\n",
+    "to": "export const NO_READER: Record<string, string> = {\n  telegram: 'x',\n"
+  },
+  {
+    "name": "per-search cap ignored",
+    "file": "src/agent/engage-desk.ts",
+    "from": "    madeThisSearch < PER_SEARCH_PER_NETWORK &&\n",
+    "to": ""
+  }
+]

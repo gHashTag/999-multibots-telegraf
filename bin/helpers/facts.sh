@@ -16,11 +16,12 @@
 #
 # Ничего не пишет и ничего не отправляет: только `crm_summary`, только цифры.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 BASE="${2:-https://vibee-render-production.up.railway.app}"
 
 # Ключ агента живёт в переменной и наружу не выходит (скилл mcp-owner-access).
-AK=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) |
+AK=$(rvars vibee-render |
       grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 if [ -z "$AK" ]; then
   echo "нет ключа агента: railway недоступен или AGENT_KEYS пуст"

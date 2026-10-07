@@ -22,6 +22,7 @@
 const { execFileSync } = require('child_process')
 const { readFileSync, existsSync, unlinkSync } = require('fs')
 const { resolve } = require('path')
+const { hookFreeEnv } = require('./lib/hook-free-env.cjs')
 
 const root = resolve(__dirname, '..')
 
@@ -271,8 +272,11 @@ function nodeEnv() {
     'v20.19.0',
     'bin'
   )
-  if (!existsSync(nvm)) return process.env
-  return { ...process.env, PATH: `${nvm}:${process.env.PATH || ''}` }
+  // Tests make their own throwaway repositories; the hook's GIT_DIR must not
+  // follow them there (see lib/hook-free-env.cjs).
+  const env = hookFreeEnv(process.env)
+  if (!existsSync(nvm)) return env
+  return { ...env, PATH: `${nvm}:${process.env.PATH || ''}` }
 }
 
 if (existsSync(OUT)) unlinkSync(OUT)
@@ -415,11 +419,37 @@ const confirm = list => {
   return {
     real: list.filter(f => failedAgain.has(f)),
     flaky: list.filter(f => !failedAgain.has(f)),
+    why: whyFailed(root, again),
   }
 }
 
+/*
+ * The first lines of each failure, by file. On the cloud runner the gate's
+ * output is all there is: the JSON report dies with the job directory, and a
+ * list of names sent 2026-10-03 hours into guessing why one test failed only
+ * under the gate. Bounded, so a wall of stack traces cannot bury the list.
+ */
+function whyFailed(root, results) {
+  const why = new Map()
+  for (const r of results) {
+    if (r.status !== 'failed') continue
+    const lines = []
+    for (const a of r.assertionResults || [])
+      for (const m of a.failureMessages || [])
+        lines.push(
+          `${a.title}: ${String(m).split('\n').slice(0, 4).join(' | ')}`
+        )
+    if (!lines.length && r.message) lines.push(String(r.message).split('\n')[0])
+    why.set(
+      r.name.replace(root + '/', ''),
+      lines.slice(0, 3).map(l => (l.length > 600 ? l.slice(0, 600) + '…' : l))
+    )
+  }
+  return why
+}
+
 console.log('[тесты] проверяю упавшие ещё раз, по одному файлу…')
-const { real, flaky } = confirm(fresh)
+const { real, flaky, why = new Map() } = confirm(fresh)
 
 if (flaky.length) {
   console.error('')
@@ -444,7 +474,10 @@ console.error('')
 console.error(
   '🛑 Упали тесты, которых НЕ было в базе, и упали ПОВТОРНО — это сломала ваша правка:'
 )
-for (const f of real) console.error(`   ${f}`)
+for (const f of real) {
+  console.error(`   ${f}`)
+  for (const l of why.get(f) || []) console.error(`      ${l}`)
+}
 console.error('')
 console.error(
   '   Посмотреть подробности:  npx vitest related --run ' +

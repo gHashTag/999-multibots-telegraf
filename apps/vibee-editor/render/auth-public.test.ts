@@ -145,7 +145,8 @@ describe('достижимость маршрутов аутентификаци
    * this file's history to be written, typed, deployed and unreachable.
    *
    * The relay authenticates harder than the guard would: a timing-safe
-   * digest match against GLM_API_KEY (zai-relay.ts), fail-closed 503 when
+   * digest match against the relay key (ZAI_RELAY_API_KEY, else GLM_API_KEY;
+   * zai-relay.ts), fail-closed 503 when
    * that key is unset. The guard has nothing to add.
    */
   it('Z.AI relay: mounted, and public so its own bearer is the gate', () => {
@@ -257,6 +258,18 @@ describe('the public counters', () => {
     ).toBe(false)
   })
 
+  it('a meeting calendar file opens without a signature, for reading only', async () => {
+    const { isPublic } = await import('./auth')
+    const { ICS_PATH } = await import('./src/spec/meeting-reminders.gen')
+    expect(
+      isPublic({ url: `${ICS_PATH}?token=x`, method: 'GET' } as never)
+    ).toBe(true)
+    expect(isPublic({ url: ICS_PATH, method: 'POST' } as never)).toBe(false)
+    expect(isPublic({ url: `${ICS_PATH}-admin`, method: 'GET' } as never)).toBe(
+      false
+    )
+  })
+
   it('an arrival is counted without a signature; a bot start is not', async () => {
     const { isPublic } = await import('./auth')
     const { TRAFFIC_PATHS } = await import('./src/agent/traffic')
@@ -264,13 +277,43 @@ describe('the public counters', () => {
     expect([...TRAFFIC_PATHS].sort()).toEqual([
       '/api/traffic/arrival',
       '/api/traffic/start',
+      '/api/traffic/welcome',
     ])
     expect(
       isPublic({ url: '/api/traffic/arrival', method: 'POST' } as never)
+    ).toBe(true)
+    expect(
+      isPublic({ url: '/api/traffic/welcome', method: 'POST' } as never)
     ).toBe(true)
     /* The bot process sends starts with the service key; pages never do. */
     expect(
       isPublic({ url: '/api/traffic/start', method: 'POST' } as never)
     ).toBe(false)
+  })
+
+  it('the voice list is public to read; hearing and speaking are not', async () => {
+    const { isPublic } = await import('./auth')
+    const get = (url: string) => isPublic({ url, method: 'GET' } as never)
+    const post = (url: string) => isPublic({ url, method: 'POST' } as never)
+    expect(get('/api/voice/status')).toBe(true)
+    expect(post('/api/voice/status')).toBe(false)
+    expect(post('/api/voice/transcribe')).toBe(false)
+    expect(post('/api/voice/speak')).toBe(false)
+  })
+})
+
+/**
+ * REMOTION FETCHES ITS OWN H.264 COPIES WITH NO KEY.
+ *
+ * preDownloadS3Asset (render-server.ts) turns a /s3/ video into a copy under
+ * /render-temp/ and hands Remotion an http URL to it. With the prefix behind
+ * the guard the render failed with 401 (2026-10-02, the first split reel).
+ */
+describe('the render temp copies', () => {
+  it('are readable by the renderer with no credential', async () => {
+    const { isPublic } = await import('./auth')
+    expect(
+      isPublic({ url: '/render-temp/1-a-h264.mp4', method: 'GET' } as never)
+    ).toBe(true)
   })
 })

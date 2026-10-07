@@ -69,7 +69,7 @@ struct SignInView: View {
        */
       Link(destination: URL(string: "https://t.me/t27ai_bot")!) {
         HStack(spacing: Тема.Отступ.xs) { // cyrillic-ok: pre-existing theme API
-          Text("Открыть @t27ai_bot")
+          Text(say("Open @t27ai_bot", "Открыть @t27ai_bot"))
           Image(systemName: "arrow.up.forward.square")
         }
         .font(Тема.Шрифт.стиль(.callout, .semibold)) // cyrillic-ok: pre-existing theme API
@@ -79,8 +79,11 @@ struct SignInView: View {
 
       // Число цифр НЕ называется: оно задано на сервере и уже менялось.
       // Текст, повторяющий его руками, разошёлся бы молча — и разошёлся.
-      Text("В боте отправьте команду /app и нажмите «🔑 Войти в приложение» — "
-           + "откроется окно с кодом. Введите этот код здесь.")
+      Text(say(
+        "In the bot send /app and tap “🔑 Sign in to the app” — "
+          + "a window with a code opens. Enter that code here.",
+        "В боте отправьте команду /app и нажмите «🔑 Войти в приложение» — "
+          + "откроется окно с кодом. Введите этот код здесь."))
         .font(Тема.Шрифт.стиль(.callout))
         // #a39d8d — первая ступень приглушения в профиле, Profile.css:1667.
         .foregroundStyle(Тема.Профиль.текстВторичный)
@@ -106,7 +109,7 @@ struct SignInView: View {
       // подсказка в нём обрезается — «код из Tele…». Увидел это только на
       // живом запуске: правка текста без запуска даёт другой неверный вид
       // вместо прежнего неверного.
-      TextField("код", text: $код)
+      TextField(say("code", "код"), text: $код)
         .keyboardType(.numberPad)
         .textContentType(.oneTimeCode)
         .font(Тема.Шрифт.моно(Тема.БезИсточника.кегльКодаВхода, .semibold))
@@ -173,7 +176,7 @@ struct SignInView: View {
            */
           if !новое.isEmpty, ошибка != nil { ошибка = nil }
         }
-        .accessibilityLabel("Код из шести цифр")
+        .accessibilityLabel(say("Code from the bot", "Код из бота"))
 
       if let ошибка {
         Label(ошибка, systemImage: "exclamationmark.triangle.fill")
@@ -188,7 +191,7 @@ struct SignInView: View {
       } label: {
         HStack(spacing: Тема.Отступ.sm) {
           if идёт { ProgressView().tint(Тема.Профиль.акцент) }
-          Text(идёт ? "Проверяем…" : "Войти")
+          Text(идёт ? say("Checking…", "Проверяем…") : say("Sign in", "Войти"))
         }
       }
       /**

@@ -281,3 +281,87 @@ describe('a paid quiet client is win-back on the card and the list alike', () =>
     expect(seg(WINBACK_QUIET_DAYS - 1)).not.toBe('winback')
   })
 })
+
+describe('the reason travels as a code as well as words', () => {
+  /*
+   * `because` is Russian prose for the agent and a Russian chat; a screen in
+   * English printed it verbatim (loop tick 12). Each branch now also names
+   * its reason as a code the player translates. Pinned: every branch has
+   * one, and one code never stands for two different sentences.
+   */
+  const base = { noAnswerAfterDays: 3, laterAfterDays: 14, now: NOW }
+  const cases = [
+    {
+      want: 'we_wrote_last',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [],
+        quietDays: 5,
+        lastInboundAt: ago(6),
+        lastOutboundAt: ago(5),
+      }),
+    },
+    {
+      want: 'they_wrote',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [],
+        quietDays: 2,
+        lastInboundAt: ago(2),
+      }),
+    },
+    {
+      want: 'they_replied',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('written', 4)],
+        quietDays: 1,
+        lastInboundAt: ago(1),
+      }),
+    },
+    {
+      want: 'they_replied',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('replied', 0)],
+        quietDays: 1,
+      }),
+    },
+    {
+      want: 'later_due',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('later', 20)],
+        quietDays: 20,
+      }),
+    },
+    {
+      want: 'we_wrote',
+      r: waitingOn({
+        ...base,
+        paid: false,
+        touches: [t('written', 5)],
+        quietDays: 5,
+      }),
+    },
+  ]
+
+  it.each(cases.map(c => [c.want, c.r] as const))('%s', (want, r) => {
+    expect(r?.why).toBe(want)
+  })
+
+  it('one code, one sentence', () => {
+    const said = new Map<string, Set<string>>()
+    for (const { r } of cases) {
+      if (!r) continue
+      said.set(r.why, (said.get(r.why) ?? new Set()).add(r.because))
+    }
+    for (const [code, lines] of said)
+      expect([code, lines.size]).toEqual([code, 1])
+  })
+})

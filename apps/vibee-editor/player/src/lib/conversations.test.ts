@@ -85,11 +85,13 @@ describe('the rail', () => {
 })
 
 describe('the day a conversation belongs to', () => {
-  const now = new Date('2026-09-26T12:00:00Z')
+  // Local times, no Z: the day is the reader's, so a UTC fixture passed only
+  // on machines near UTC (23:00Z on the 25th is already the 26th in +07).
+  const now = new Date('2026-09-26T12:00:00')
   it('is today, yesterday or earlier by the last turn', () => {
-    expect(dayGroup('2026-09-26T09:00:00Z', now)).toBe('today')
-    expect(dayGroup('2026-09-25T23:00:00Z', now)).toBe('yesterday')
-    expect(dayGroup('2026-09-01T10:00:00Z', now)).toBe('earlier')
+    expect(dayGroup('2026-09-26T09:00:00', now)).toBe('today')
+    expect(dayGroup('2026-09-25T23:00:00', now)).toBe('yesterday')
+    expect(dayGroup('2026-09-01T10:00:00', now)).toBe('earlier')
     expect(dayGroup('not a date', now)).toBe('earlier')
   })
 })

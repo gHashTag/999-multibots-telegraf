@@ -22,9 +22,10 @@ export async function runScenarioNow(
   const { runScenario } = await import('./scenarios')
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
-  const { newPage, evaluateOn, clickAt, typeText, frontPage } = await import(
-    '../browser/cdp'
+  const { newDeskPage, deskMayGo, deskClick, deskType } = await import(
+    '../browser/desk-page'
   )
+  const { evaluateOn, frontPage, pageUrl } = await import('../browser/cdp')
   const { findProbe, foundOf } = await import('../browser/find-target')
   const { askForInput, waitForAnswer } = await import(
     '../browser/input-request'
@@ -33,24 +34,30 @@ export async function runScenarioNow(
   const live = async () => {
     let s = await readSession(pool, who)
     if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-      await startBrowserAsAgent(who)
+      await startBrowserAsAgent(who, 'scenarios')
       s = await readSession(pool, who)
     }
     if (!s?.cdpEndpoint) throw new Error('the browser did not start')
     return s.cdpEndpoint
   }
-  /* The tab the run works in: whatever is in front when it starts. */
+  /*
+   * The tab the run works in: whatever is in front when it starts. Its
+   * address is checked against the person's list on EVERY step (#3488, found
+   * by the bee): the run may have started on, or a click may have led to, a
+   * site they blocked, and this desk presses and types over raw CDP.
+   */
   let target: string | null = null
   const where = async () => {
     const cdp = await live()
     if (!target) target = (await frontPage(cdp)).id
+    await deskMayGo({ pool, telegramId: who }, await pageUrl(cdp, target))
     return { cdp, id: target }
   }
 
   return await runScenario(scenario, {
     open: async url => {
       const cdp = await live()
-      target = (await newPage(cdp, url)).id
+      target = (await newDeskPage(cdp, url, { pool, telegramId: who })).id
     },
     press: async words => {
       const { cdp, id } = await where()
@@ -58,12 +65,12 @@ export async function runScenarioNow(
         await evaluateOn(cdp, id, findProbe(words)).catch(() => null)
       )
       if (!found) throw new Error(`nothing says "${words}"`)
-      await clickAt(cdp, id, found.x, found.y)
+      await deskClick({ pool, telegramId: who }, cdp, id, found.x, found.y)
       return found.label
     },
     type: async text => {
       const { cdp, id } = await where()
-      await typeText(cdp, id, text)
+      await deskType({ pool, telegramId: who }, cdp, id, text)
     },
     ask: async (kind, why) => {
       /* The person types it into their own browser; nothing comes back here

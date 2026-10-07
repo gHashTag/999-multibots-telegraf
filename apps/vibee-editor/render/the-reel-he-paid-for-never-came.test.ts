@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * MEASURED ON A LIVE HUMAN, 2026-09-15, lead 1900592465.
  *
@@ -134,183 +142,223 @@ afterEach(() => {
 })
 
 describe('рилс, за который заплатили и не получили', () => {
-  it('упавший рендер возвращает токены', async () => {
-    // Exactly the failure the human got.
-    stubRenderService([
-      { status: 'rendering', progress: 40 },
-      {
-        status: 'failed',
-        progress: 0,
-        error: 'No `src` was passed to <OffthreadVideo>.',
-      },
-    ])
-    const pool = recordingPool()
-    const r = await run(
-      'reel_render',
-      { compositionId: 'TrinityBlogReel' },
-      pool
-    )
+  it(
+    'упавший рендер возвращает токены',
+    async () => {
+      // Exactly the failure the human got.
+      stubRenderService([
+        { status: 'rendering', progress: 40 },
+        {
+          status: 'failed',
+          progress: 0,
+          error: 'No `src` was passed to <OffthreadVideo>.',
+        },
+      ])
+      const pool = recordingPool()
+      const r = await run(
+        'reel_render',
+        { compositionId: 'TrinityBlogReel' },
+        pool
+      )
 
-    expect(r.готово).toBe(false) // cyrillic-ok: result field, the tool's API
-    expect(String(r.причина)).toContain('OffthreadVideo') // cyrillic-ok: same
-    expect(
-      refunds(pool.sql).length,
-      'рендер стартовал и упал — деньги обязаны вернуться'
-    ).toBe(1)
-    expect(r.возвращено).toBe(PRICE) // cyrillic-ok: result field, the tool's API
-  })
+      expect(r.готово).toBe(false) // cyrillic-ok: result field, the tool's API
+      expect(String(r.причина)).toContain('OffthreadVideo') // cyrillic-ok: same
+      expect(
+        refunds(pool.sql).length,
+        'рендер стартовал и упал — деньги обязаны вернуться'
+      ).toBe(1)
+      expect(r.возвращено).toBe(PRICE) // cyrillic-ok: result field, the tool's API
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('возврат по рендеру нельзя провести дважды', async () => {
-    stubRenderService([{ status: 'failed', error: 'boom' }])
-    const pool = recordingPool()
-    await run('reel_render', { compositionId: 'TrinityBlogReel' }, pool)
+  it(
+    'возврат по рендеру нельзя провести дважды',
+    async () => {
+      stubRenderService([{ status: 'failed', error: 'boom' }])
+      const pool = recordingPool()
+      await run('reel_render', { compositionId: 'TrinityBlogReel' }, pool)
 
-    const settle = pool.sql.filter(s =>
-      /UPDATE agent_renders SET owed_tokens = 0/.test(s)
-    )
-    expect(settle.length, 'расчёт идёт одним UPDATE по строке рендера').toBe(1)
-    // The decision to refund and the removal of the amount from the row are
-    // indivisible: a second call finds no row and mints nothing out of air.
-    expect(settle[0]).toMatch(/owed_tokens > 0/)
-    expect(settle[0]).toMatch(/RETURNING owed_tokens/)
-  })
+      const settle = pool.sql.filter(s =>
+        /UPDATE agent_renders SET owed_tokens = 0/.test(s)
+      )
+      expect(settle.length, 'расчёт идёт одним UPDATE по строке рендера').toBe(
+        1
+      )
+      // The decision to refund and the removal of the amount from the row are
+      // indivisible: a second call finds no row and mints nothing out of air.
+      expect(settle[0]).toMatch(/owed_tokens > 0/)
+      expect(settle[0]).toMatch(/RETURNING owed_tokens/)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('та же работа второй раз не списывает: файл побайтово тот же', async () => {
-    const url =
-      'https://bucket-production-8259.up.railway.app/vibee-assets/renders/1789474313203-e0970f9a.mp4'
-    stubRenderService([{ status: 'completed', publicUrl: url }])
-    const pool = recordingPool({
-      twin: { render_id: 'r-old', output_url: url },
-    })
-    const r = await run(
-      'reel_render',
-      { compositionId: 'TrinityBlogReel', props: { title: 'Trinity' } },
-      pool
-    )
+  it(
+    'та же работа второй раз не списывает: файл побайтово тот же',
+    async () => {
+      const url =
+        'https://bucket-production-8259.up.railway.app/vibee-assets/renders/1789474313203-e0970f9a.mp4'
+      stubRenderService([{ status: 'completed', publicUrl: url }])
+      const pool = recordingPool({
+        twin: { render_id: 'r-old', output_url: url },
+      })
+      const r = await run(
+        'reel_render',
+        { compositionId: 'TrinityBlogReel', props: { title: 'Trinity' } },
+        pool
+      )
 
-    expect(r.готово).toBe(true) // cyrillic-ok: result field, the tool's API
-    expect(r.повтор).toBe(true) // cyrillic-ok: result field, the tool's API
-    expect(r.url).toBe(url)
-    expect(
-      charges(pool.sql).length,
-      'за уже собранный и оплаченный файл второй раз не берут'
-    ).toBe(0)
-    expect(sentBodies.length, 'повтор не запускает новый рендер').toBe(0)
-  })
+      expect(r.готово).toBe(true) // cyrillic-ok: result field, the tool's API
+      expect(r.повтор).toBe(true) // cyrillic-ok: result field, the tool's API
+      expect(r.url).toBe(url)
+      expect(
+        charges(pool.sql).length,
+        'за уже собранный и оплаченный файл второй раз не берут'
+      ).toBe(0)
+      expect(sentBodies.length, 'повтор не запускает новый рендер').toBe(0)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('отпечаток не зависит от порядка ключей в props', async () => {
-    // {a,b} and {b,a} are one job. Otherwise the twin is never found.
-    const url = 'https://bucket/x.mp4'
-    stubRenderService([{ status: 'completed', publicUrl: url }])
-    const first = recordingPool({ twin: null })
-    await run(
-      'reel_render',
-      { compositionId: 'C', props: { a: 1, b: 2 } },
-      first
-    )
-    const second = recordingPool({ twin: null })
-    await run(
-      'reel_render',
-      { compositionId: 'C', props: { b: 2, a: 1 } },
-      second
-    )
-    const fp = (p: ReturnType<typeof recordingPool>) =>
-      p.params.find(
-        x =>
-          x.length === 2 &&
-          typeof x[1] === 'string' &&
-          /^[0-9a-f]{64}$/.test(String(x[1]))
-      )?.[1]
-    expect(fp(first)).toBeTruthy()
-    expect(fp(second)).toBe(fp(first))
-  })
+  it(
+    'отпечаток не зависит от порядка ключей в props',
+    async () => {
+      // {a,b} and {b,a} are one job. Otherwise the twin is never found.
+      const url = 'https://bucket/x.mp4'
+      stubRenderService([{ status: 'completed', publicUrl: url }])
+      const first = recordingPool({ twin: null })
+      await run(
+        'reel_render',
+        { compositionId: 'C', props: { a: 1, b: 2 } },
+        first
+      )
+      const second = recordingPool({ twin: null })
+      await run(
+        'reel_render',
+        { compositionId: 'C', props: { b: 2, a: 1 } },
+        second
+      )
+      const fp = (p: ReturnType<typeof recordingPool>) =>
+        p.params.find(
+          x =>
+            x.length === 2 &&
+            typeof x[1] === 'string' &&
+            /^[0-9a-f]{64}$/.test(String(x[1]))
+        )?.[1]
+      expect(fp(first)).toBeTruthy()
+      expect(fp(second)).toBe(fp(first))
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('заявка на рендер называет заказчика', async () => {
-    stubRenderService([
-      { status: 'completed', publicUrl: 'https://bucket/y.mp4' },
-    ])
-    const pool = recordingPool()
-    await run('reel_render', { compositionId: 'TrinityBlogReel' }, pool)
+  it(
+    'заявка на рендер называет заказчика',
+    async () => {
+      stubRenderService([
+        { status: 'completed', publicUrl: 'https://bucket/y.mp4' },
+      ])
+      const pool = recordingPool()
+      await run('reel_render', { compositionId: 'TrinityBlogReel' }, pool)
 
-    expect(sentBodies.length).toBe(1)
-    expect(
-      String(sentBodies[0]?.userInfo?.telegram_id),
-      'без адресата готовое видео уходит только во внутреннюю группу'
-    ).toBe(CUSTOMER)
-  })
+      expect(sentBodies.length).toBe(1)
+      expect(
+        String(sentBodies[0]?.userInfo?.telegram_id),
+        'без адресата готовое видео уходит только во внутреннюю группу'
+      ).toBe(CUSTOMER)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('готовый рендер запоминает ссылку и отдаёт её человеку', async () => {
-    const url = 'https://bucket/ready.mp4'
-    stubRenderService([{ status: 'completed', publicUrl: url }])
-    const pool = recordingPool()
-    const r = await run(
-      'reel_render',
-      { compositionId: 'TrinityBlogReel' },
-      pool
-    )
+  it(
+    'готовый рендер запоминает ссылку и отдаёт её человеку',
+    async () => {
+      const url = 'https://bucket/ready.mp4'
+      stubRenderService([{ status: 'completed', publicUrl: url }])
+      const pool = recordingPool()
+      const r = await run(
+        'reel_render',
+        { compositionId: 'TrinityBlogReel' },
+        pool
+      )
 
-    expect(r.готово).toBe(true) // cyrillic-ok: result field, the tool's API
-    expect(r.url).toBe(url)
-    // The link the agent is told in so many words to hand over: the file does
-    // not appear in the conversation by itself.
-    expect(r.отдать_человеку).toBe(url) // cyrillic-ok: result field, the API
-    expect(
-      pool.sql.some(s => /UPDATE agent_renders SET output_url/.test(s)),
-      'без записи результата близнец не найдётся и работа оплатится дважды'
-    ).toBe(true)
-    expect(refunds(pool.sql).length, 'сделанная работа не возвращается').toBe(0)
-  })
+      expect(r.готово).toBe(true) // cyrillic-ok: result field, the tool's API
+      expect(r.url).toBe(url)
+      // The link the agent is told in so many words to hand over: the file does
+      // not appear in the conversation by itself.
+      expect(r.отдать_человеку).toBe(url) // cyrillic-ok: result field, the API
+      expect(
+        pool.sql.some(s => /UPDATE agent_renders SET output_url/.test(s)),
+        'без записи результата близнец не найдётся и работа оплатится дважды'
+      ).toBe(true)
+      expect(refunds(pool.sql).length, 'сделанная работа не возвращается').toBe(
+        0
+      )
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('не дождались за 6 минут — деньги остаются в долге, а не пропадают', async () => {
-    stubRenderService([{ status: 'rendering', progress: 10 }])
-    const mod = await loadTools()
-    const pool = recordingPool()
-    const tool = mod.TOOLS_BY_NAME.get('reel_render')!
-    vi.useFakeTimers()
-    let r: any
-    try {
-      const p = tool.handler({ compositionId: 'TrinityBlogReel' }, {
-        telegramId: CUSTOMER,
-        pool,
-      } as never)
-      await vi.advanceTimersByTimeAsync(7 * 60 * 1000)
-      r = await p
-    } finally {
-      vi.useRealTimers()
-    }
+  it(
+    'не дождались за 6 минут — деньги остаются в долге, а не пропадают',
+    async () => {
+      stubRenderService([{ status: 'rendering', progress: 10 }])
+      const mod = await loadTools()
+      const pool = recordingPool()
+      const tool = mod.TOOLS_BY_NAME.get('reel_render')!
+      vi.useFakeTimers()
+      let r: any
+      try {
+        const p = tool.handler({ compositionId: 'TrinityBlogReel' }, {
+          telegramId: CUSTOMER,
+          pool,
+        } as never)
+        await vi.advanceTimersByTimeAsync(7 * 60 * 1000)
+        r = await p
+      } finally {
+        vi.useRealTimers()
+      }
 
-    expect(r.готово).toBe(false) // cyrillic-ok: result field, the tool's API
-    expect(String(r.причина)).toContain('6 минут') // cyrillic-ok: same
-    // No refund belongs here: the work may still finish.
-    expect(refunds(pool.sql).length).toBe(0)
-    // But the debt is recorded, and the person is told what closes it.
-    const insert = pool.params.find(p => p.length === 5)
-    expect(insert?.[4], 'в строке рендера записана сумма долга').toBe(PRICE)
-    expect(String(r.подсказка)).toContain('render_status') // cyrillic-ok: same
-  })
+      expect(r.готово).toBe(false) // cyrillic-ok: result field, the tool's API
+      expect(String(r.причина)).toContain('6 минут') // cyrillic-ok: same
+      // No refund belongs here: the work may still finish.
+      expect(refunds(pool.sql).length).toBe(0)
+      // But the debt is recorded, and the person is told what closes it.
+      const insert = pool.params.find(p => p.length === 5)
+      expect(insert?.[4], 'в строке рендера записана сумма долга').toBe(PRICE)
+      expect(String(r.подсказка)).toContain('render_status') // cyrillic-ok: same
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('render_status закрывает счёт по рендеру, который упал позже', async () => {
-    // The outcome arrived after reel_render gave up. The only witness to it is
-    // the status poll. Not settling here means keeping the money silently.
-    stubRenderService([{ status: 'failed', error: 'renderer died' }])
-    const pool = recordingPool()
-    const r = await run('render_status', { renderId: 'r-1' }, pool)
+  it(
+    'render_status закрывает счёт по рендеру, который упал позже',
+    async () => {
+      // The outcome arrived after reel_render gave up. The only witness to it is
+      // the status poll. Not settling here means keeping the money silently.
+      stubRenderService([{ status: 'failed', error: 'renderer died' }])
+      const pool = recordingPool()
+      const r = await run('render_status', { renderId: 'r-1' }, pool)
 
-    expect(refunds(pool.sql).length, 'упал — вернули').toBe(1)
-    expect(r.возвращено).toBe(PRICE) // cyrillic-ok: result field, the tool's API
-  })
+      expect(refunds(pool.sql).length, 'упал — вернули').toBe(1)
+      expect(r.возвращено).toBe(PRICE) // cyrillic-ok: result field, the tool's API
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('render_status по уже рассчитанному рендеру ничего не возвращает', async () => {
-    stubRenderService([{ status: 'failed', error: 'renderer died' }])
-    const pool = recordingPool({ owed: 0 }) // the debt is already closed
-    const r = await run('render_status', { renderId: 'r-1' }, pool)
+  it(
+    'render_status по уже рассчитанному рендеру ничего не возвращает',
+    async () => {
+      stubRenderService([{ status: 'failed', error: 'renderer died' }])
+      const pool = recordingPool({ owed: 0 }) // the debt is already closed
+      const r = await run('render_status', { renderId: 'r-1' }, pool)
 
-    expect(
-      refunds(pool.sql).length,
-      'второй возврат — это чеканка из воздуха'
-    ).toBe(0)
-    expect(r.возвращено).toBeUndefined() // cyrillic-ok: result field, the API
-  })
+      expect(
+        refunds(pool.sql).length,
+        'второй возврат — это чеканка из воздуха'
+      ).toBe(0)
+      expect(r.возвращено).toBeUndefined() // cyrillic-ok: result field, the API
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 /**

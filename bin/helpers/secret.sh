@@ -12,13 +12,15 @@
 #   - the answer names the variable and the value's LENGTH only, then reads
 #     the service's variable NAMES back to prove it landed.
 #
-# Needs the Railway CLI, logged in once (`railway login`) and linked to the
-# project (`railway link`, project 999). Setting a variable redeploys the
+# Needs the Railway CLI, logged in once (`railway login`). The project and
+# environment are passed by id (rail.sh): a linked directory that had drifted
+# to another project would have received the key. Setting a variable redeploys the
 # service, which is how it picks the value up.
 #
 #   tri secret BRAVE_SEARCH_API_KEY
 #   tri secret ZOHO_REFRESH_TOKEN --service vibee-render
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?repo root required}"
 shift
 NAME="${1:-}"
@@ -51,16 +53,20 @@ fi
 VALUE="$(printf '%s' "$VALUE" | tr -d '\r' | sed -e 's/[[:space:]]*$//' -e 's/^[[:space:]]*//')"
 [ -n "$VALUE" ] || { echo "empty value: nothing was set"; exit 2; }
 
-if ! railway variables --service "$SERVICE" --set "$NAME=$VALUE" >/dev/null 2>&1; then
+# The value goes through stdin: an argument (`--set NAME=VALUE`) is readable
+# by every process on the machine via `ps` for as long as the CLI runs.
+# printf is a builtin, so no process ever carries it in its argv.
+if ! printf '%s' "$VALUE" | railway variable set "$NAME" --stdin \
+  --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service "$SERVICE" >/dev/null 2>&1; then
   unset VALUE
-  echo "Railway refused (run 'railway login' and 'railway link' to project 999, then again)"
+  echo "Railway refused (run 'railway login', then again)"
   exit 1
 fi
 LEN=${#VALUE}
 unset VALUE
 
 # Proof it landed: the NAMES of the service's variables, never the values.
-if railway variables --service "$SERVICE" --kv 2>/dev/null | cut -d= -f1 | grep -qx "$NAME"; then
+if rvars "$SERVICE" | cut -d= -f1 | grep -qx "$NAME"; then
   echo "✓ $NAME is set on $SERVICE ($LEN characters). The value was not shown anywhere."
   echo "  Railway redeploys $SERVICE to pick it up; nothing else to do."
 else

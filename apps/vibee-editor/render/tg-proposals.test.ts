@@ -1068,7 +1068,16 @@ describe('a draft is only prepared where it can be confirmed', () => {
     expect(q.pendingCount()).toBe(1)
   })
 
-  for (const surface of ['ios', 'agent', 'unknown', undefined]) {
+  it('the iOS app queues it: its chat draws the same card', async () => {
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const q = await import('./src/agent/tg-proposals')
+    q.forgetProposals()
+    const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+    await send.handler({ chat: '@ivan', text: 'hi' }, owner('ios'))
+    expect(q.pendingCount()).toBe(1)
+  })
+
+  for (const surface of ['agent', 'unknown', undefined]) {
     it(`${surface ?? 'no surface'} does NOT queue it`, async () => {
       const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
       const q = await import('./src/agent/tg-proposals')
@@ -1091,8 +1100,8 @@ describe('a draft is only prepared where it can be confirmed', () => {
     const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
     const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
     const answer = (await send.handler(
-      { chat: '@ivan', text: 'привет' },
-      owner('ios')
+      { chat: '@ivan', text: 'hi' },
+      owner('agent')
     )) as { proposal?: boolean; why?: string }
     expect(answer.proposal).toBe(true)
     expect(answer.why).toContain('чате бота')
@@ -1440,6 +1449,78 @@ describe('the sent message goes into the memory at once', () => {
     )
     expect(r.done).toBe(true)
     expect(mirrorNow).not.toHaveBeenCalled()
+  })
+})
+
+describe("the agent's own send does not pause the AI", () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+    vi.doUnmock('./src/agent/crm-mirror')
+    vi.doMock('./src/agent/crm-mirror', () => ({
+      mirrorNow: async () => ({ fresh: 0, zep: 0 }),
+    }))
+  })
+
+  it('a confirmed send is remembered by its Telegram id for the bot to ask', async () => {
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return { id: 4343, date: 1757348157 }
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const { wasAgentSent } = await import('./src/agent/agent-sent')
+    const r = await exec(
+      {
+        id: 'p11',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@pilot_client',
+        what: 'hello',
+        lead: '900000002',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(true)
+    expect(wasAgentSent('144022504', '900000002', 4343)).toBe(true)
+    expect(wasAgentSent('144022504', '900000002', 4344)).toBe(false)
+  })
+
+  it('every message of an album is remembered', async () => {
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return { id: 1 }
+        },
+        async sendFile() {
+          return [{ id: 501 }, { id: 502 }]
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const { wasAgentSent } = await import('./src/agent/agent-sent')
+    const r = await exec(
+      {
+        id: 'p12',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@pilot_client',
+        what: 'two pictures',
+        lead: '900000003',
+        media: {
+          kind: 'album',
+          urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'],
+        },
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done, JSON.stringify(r)).toBe(true)
+    expect(wasAgentSent('144022504', '900000003', 501)).toBe(true)
+    expect(wasAgentSent('144022504', '900000003', 502)).toBe(true)
   })
 })
 

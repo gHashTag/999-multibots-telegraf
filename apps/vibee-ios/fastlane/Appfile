@@ -1,26 +1,19 @@
-# Кто мы для App Store Connect.
+# Which app, and whose.
 #
-# ЗДЕСЬ НЕТ И НЕ БУДЕТ СЕКРЕТОВ. Этот файл отслеживается git; всё, что в него
-# попало, равносильно опубликованному.
+# NO SECRETS HERE: this file is tracked by git, and anything in it is public.
 #
-# Идентификатор приложения и идентификатор команды — НЕ секреты: первый
-# виден в любой ссылке на App Store, второй уже стоит открытым текстом в
-# project.yml (DEVELOPMENT_TEAM) и вшит в каждый профиль подписи. Держать их
-# здесь значением, а не переменной окружения, — сознательный выбор: без них
-# fastlane спрашивает интерактивно, и на чистой машине сборка встаёт молча,
-# ожидая ввода. Переопределить всё равно можно окружением.
-app_identifier(ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee")
+# The bundle id and the team are not secrets - the first is in every App Store
+# link, the second is already in project.yml and in every signing profile. They
+# are values, not environment variables, on purpose: without them fastlane asks
+# interactively, and on a clean machine the build stalls silently waiting for
+# input. The environment still overrides both. Same team as Leela
+# (gHashTag/leela fastlane/Appfile).
+app_identifier(ENV["VIBEE_BUNDLE_ID"] || "ai.t27.trinity")
 team_id(ENV["FASTLANE_TEAM_ID"] || "5EM4M85VSQ")
 
-# А ВОТ ЭТИ ДВА — ТОЛЬКО ИЗ ОКРУЖЕНИЯ.
-#
-# apple_id — это почта живого человека: персональные данные, которым не
-# место в репозитории. Он нужен только при входе по паролю; при работе
-# ключом App Store Connect API (наш случай) не требуется вовсе.
+# ONLY FROM THE ENVIRONMENT. apple_id is a person's e-mail - personal data with
+# no place in a repository - and the API key flow (ours) never needs it.
 apple_id(ENV["FASTLANE_APPLE_ID"])
 
-# itc_team_id обычно совпадает с team_id, но НЕ всегда: у аккаунтов, где
-# одна и та же команда заведена и как developer team, и как несколько
-# сущностей в App Store Connect, они расходятся. Угадывать здесь нечего —
-# либо задано, либо fastlane спросит.
+# Usually equal to team_id, but not always; there is nothing to guess here.
 itc_team_id(ENV["FASTLANE_ITC_TEAM_ID"])

@@ -15,11 +15,12 @@
 # посчитанные по числу из головы, — ровно та ошибка, ради которой писалась
 # форма 70. Здесь считаются ШТУКИ, а цену пусть назовёт тот, кто её видит.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="${1:?нужен корень репозитория}"
 LIMIT="${2:-200}"
 cd "$ROOT" || exit 1
 
-KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+KEY=$(rvars vibee-render \
        | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
 if [ -z "$KEY" ]; then
   echo "🛑 не прочитал ключ рендера — вывода НЕ делаю."

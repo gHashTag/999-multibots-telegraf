@@ -14,12 +14,13 @@
 # «сколько процентов добавленного уже на main», и решение принимает человек.
 # Ни один PR эта команда не закрывает.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 shift || true
 cd "$ROOT" || exit 1
 
 command -v gh >/dev/null 2>&1 || { echo "🛑 нет gh — вывода НЕ делаю."; exit 2; }
-git fetch -q origin main 2>/dev/null || true
+tfetch origin main || true
 
 LIST="$*"
 if [ -z "$LIST" ]; then

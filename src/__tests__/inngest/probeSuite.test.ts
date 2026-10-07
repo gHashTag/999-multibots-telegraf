@@ -78,7 +78,11 @@ describe('the plan', () => {
     // -5 on 2026-09-17 (training-model-v2-start, instagram-reels-analyze,
     // instagram-competitors-find, render-avatar-video-run, neuro-image-generate
     // withdrawn: control code-only/unregistered, see manifest notes[]).
-    expect(plans).toHaveLength(28)
+    // +mail-push-sweep and +mail-push-heartbeat on 2026-09-29 (#3193): the
+    // sweep messages the owner and calls the render, but both return at the
+    // safe-mode guard before their only step, so a probe COMPLETES having
+    // touched nothing.
+    expect(plans).toHaveLength(30)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 

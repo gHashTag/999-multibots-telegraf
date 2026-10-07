@@ -1,0 +1,397 @@
+#!/bin/bash
+# DO THE NEW TESTS BITE THE OLD CODE?
+#
+# A test written next to a fix proves something only if it goes red on the
+# code before the fix. Done by hand three times in one night (2026-10-03, the
+# tee-pipefail gate of trinity-fpga #828): copy the tree, put the checker's
+# previous revision back, run the new self-test, count the failures -- 16 of
+# 45, then 27 of 77. `tri mutate` breaks one string in place; this puts a whole
+# earlier version of the module back, and never touches the working tree: each
+# run happens in its own throwaway copy.
+#
+#   tri bite <rev> <file>... -- <test command>
+#   BITE_LINES=N        output lines kept from each run (default 15)
+#
+# Two runs, the command in the same subdirectory you call from:
+#   1. a copy of the tree as it is now (tracked + untracked-not-ignored,
+#      uncommitted edits included -- the new test usually is one) -- must be
+#      GREEN, or the second run proves nothing;
+#   2. a FRESH copy with each <file> as it was at <rev>, mode and symlinks
+#      included (a file absent at <rev> is removed) -- should be RED. Fresh,
+#      because a test that caches its result in the tree would otherwise read
+#      the first run's answer (review of #3462).
+# node_modules is linked into each copy, not copied: the root's and each
+# tracked package's (apps/*/node_modules). A test that writes a cache there
+# (vitest, babel) writes it into the real tree's node_modules through the link.
+#
+# One file, one name: a module renamed after <rev> (letter case or Unicode
+# form included) is "absent at <rev>", removed in the second copy, and the run
+# says so on its own line -- name both spellings if the rename is the point.
+#
+# Exit 0 the tests bite (red on <rev>), 1 they do not (green on <rev> too),
+# 2 cannot tell (bad arguments, unknown rev, red already on the current tree,
+# interrupted).
+set -uo pipefail
+
+KEEP="${BITE_LINES:-15}"
+REV="${1:-}"; shift 2>/dev/null || true
+FILES=()
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do FILES+=("$1"); shift; done
+[ "${1:-}" = "--" ] && shift
+if [ -z "$REV" ] || [ ${#FILES[@]} -eq 0 ] || [ $# -eq 0 ]; then
+  echo 'tri bite <rev> <file>... -- <test command>'
+  echo 'example: tri bite origin/main tools/check.py -- python3 tools/test_check.py'
+  exit 2
+fi
+
+TOP=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "bite: not inside a git repository"; exit 2; }
+SUB=$(git rev-parse --show-prefix)
+git rev-parse --verify --quiet "$REV^{commit}" >/dev/null || { echo "bite: unknown revision: $REV"; exit 2; }
+
+# Paths are taken relative to where you stand. Normalised by python, not by
+# git: `git ls-files` quotes any name with a non-ASCII byte, a quote or a
+# backslash, and a quoted name used as a path swaps nothing -- a false
+# "does not bite" (review of #3462). Names travel NUL-separated.
+REL=()
+while IFS= read -r -d '' r; do REL+=("$r"); done < <(
+  python3 - "$SUB" "${FILES[@]}" <<'PY'
+import os, sys
+sub = sys.argv[1]
+for f in sys.argv[2:]:
+    sys.stdout.write(os.path.normpath(os.path.join(sub, f)) + "\0")
+PY
+)
+[ ${#REL[@]} -eq ${#FILES[@]} ] || { echo "bite: could not read the file names"; exit 2; }
+# Exactly this name, as git spells it -- tracked or untracked-not-ignored, and
+# on disk. Not `[ -e ]`: that answers for lib/add.sh through a link lib -> src,
+# and for lib/Add.sh on a case-blind disk, and the swap below then removes the
+# real module in the copy -- a false BITES (review 2 of #3462).
+present_now() {
+  local hit
+  hit=$(git -C "$TOP" ls-files -z --cached --others --exclude-standard -- ":(literal)$1" \
+    | python3 -c 'import sys; n = sys.argv[1]; print("y" if n in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0") else "")' "$1")
+  [ -n "$hit" ] && { [ -e "$TOP/$1" ] || [ -L "$TOP/$1" ]; }
+}
+
+# Every part of the name that exists on disk is spelled there exactly so. A
+# case-blind disk opens LIB/add.sh as lib/add.sh, and git then lists LIB/add.sh
+# as an untracked file of its own -- the exact-name check below passes, and
+# the swap removes the real module (review 3 of #3462).
+spelled_on_disk() {
+  python3 - "$TOP" "$1" <<'PY'
+import os, sys
+top, rel = sys.argv[1], sys.argv[2]
+p = top
+for part in rel.split("/"):
+    q = os.path.join(p, part)
+    if not os.path.lexists(q):
+        break
+    if part not in os.listdir(p):
+        sys.exit(1)
+    p = q
+PY
+}
+
+for r in "${REL[@]}"; do
+  case "$r" in ..|../*|/*) echo "bite: $r is outside the repository"; exit 2 ;; esac
+  spelled_on_disk "$r" || { echo "bite: $r is spelled otherwise on disk (letter case?) -- use the exact name"; exit 2; }
+  # No directory on the way may be a link: git does not look through one, the
+  # filesystem does, so the name would mean two different files.
+  d=$(dirname "$r")
+  while [ "$d" != . ]; do
+    if [ -L "$TOP/$d" ]; then echo "bite: $r goes through the symlink $d -- name the file it points at"; exit 2; fi
+    d=$(dirname "$d")
+  done
+  # One file, not a directory -- now or at <rev>. A directory would let the
+  # swap below write a tree listing, or swap nothing at all.
+  if [ -d "$TOP/$r" ] && [ ! -L "$TOP/$r" ]; then echo "bite: $r is a directory -- name the files"; exit 2; fi
+  t=$(git -C "$TOP" cat-file -t "$REV:$r" 2>/dev/null) || t=
+  [ -z "$t" ] || [ "$t" = blob ] || { echo "bite: $r is a $t at $REV, not a file"; exit 2; }
+  if ! present_now "$r" && { [ -e "$TOP/$r" ] || [ -L "$TOP/$r" ]; }; then
+    echo "bite: $r on disk is not a file git knows by exactly that name (letter case? ignored?) -- use the exact name"; exit 2
+  fi
+  [ -n "$t" ] || present_now "$r" \
+    || { echo "bite: $r is neither in the tree now nor at $REV"; exit 2; }
+done
+
+# The old files are written by the attributes of <rev> (--attr-source), but
+# that came with git 2.40, and the check-runner's Debian git is 2.39: there
+# every restore failed. Without it today's attributes are used -- right only
+# when .gitattributes is the same as at <rev>, so otherwise "cannot tell".
+# _BITE_NO_ATTR_SOURCE=1 takes the old-git road; it exists for the tests.
+ATTR=(--attr-source="$REV")
+if [ "${_BITE_NO_ATTR_SOURCE:-}" = 1 ] || ! git -C "$TOP" --attr-source="$REV" version >/dev/null 2>&1; then
+  ATTR=()
+  if ! git -C "$TOP" diff --quiet "$REV" -- ':(glob)**/.gitattributes' 2>/dev/null; then
+    echo "bite: .gitattributes changed since $REV and this git has no --attr-source -- cannot write the old files as a checkout would"
+    exit 2
+  fi
+  # git diff does not see an untracked .gitattributes, and cat-file --filters
+  # reads it all the same (review 1 of #3479). Only those over a named file.
+  for r in "${REL[@]}"; do
+    d=$(dirname "$r")
+    while :; do
+      a="$d/.gitattributes"; [ "$d" = . ] && a=.gitattributes
+      if [ -e "$TOP/$a" ] && ! git -C "$TOP" ls-files --error-unmatch -- "$a" >/dev/null 2>&1; then
+        echo "bite: $a is not tracked and this git has no --attr-source -- cannot write the old files as a checkout would"
+        exit 2
+      fi
+      [ "$d" = . ] && break
+      d=$(dirname "$d")
+    done
+  done
+fi
+
+# Every node_modules the tree installs: the root's and each tracked package's.
+# Ignored, so the copy has none of them; each is linked in, not copied. Found
+# from the tracked package.json files -- a find would also walk into the
+# worktrees kept inside the tree. Without the nested ones a test of a package
+# with its own node_modules was red in the first copy: always "cannot tell"
+# (review 5 of #3462).
+NMS=()
+while IFS= read -r -d '' d; do NMS+=("$d"); done < <(python3 - "$TOP" <<'PY'
+import os, subprocess, sys
+top = sys.argv[1]
+out = subprocess.run(["git", "-C", top, "ls-files", "-z", "--", ":(glob)**/package.json"],
+                     capture_output=True).stdout
+seen = []
+for d in ["."] + [os.path.dirname(p.decode("utf-8", "surrogateescape")) or "." for p in out.split(b"\0") if p]:
+    nm = os.path.normpath(os.path.join(d, "node_modules"))
+    if nm not in seen and os.path.isdir(os.path.join(top, nm)):
+        seen.append(nm)
+sys.stdout.write("".join(nm + "\0" for nm in seen))
+PY
+)
+
+# The copies link those node_modules. A workspace link in one
+# (node_modules/pkg -> ../packages/pkg, or straight to a file) still resolves
+# into the REAL tree, so a file under it is never swapped in the run that loads
+# it -- a false "does not bite" (reviews 4 and 5 of #3462). HIT: a named file
+# lies under such a link, refused now. BACK: any link back into the tree; a
+# file it reaches may import a named one by a relative path, so a green on
+# <rev> is "cannot tell", not "does not bite".
+#
+# "The tree" is not only this checkout. In a worktree node_modules itself is a
+# link to the main checkout's, and its workspace links land in THAT checkout's
+# packages: same files, never swapped (review 1 of #3479). So a link counts by
+# where it really ends: under a directory named node_modules (within the
+# checkout it lands in) it is an installed package; anywhere else it is some
+# checkout's own code. A named
+# file is compared by its path within the checkout the link lands in.
+# This checkout's own git dirs, asked once with the caller's env: the only
+# places under it that hold no code (review 2 of #3489).
+GITDIRS=$(git -C "$TOP" rev-parse --path-format=absolute --git-dir --git-common-dir) \
+  || { echo "bite: could not find this checkout's git dir -- cannot tell"; exit 2; }
+ws=$(python3 - "$TOP" "$GITDIRS" "${#NMS[@]}" ${NMS[@]+"${NMS[@]}"} "${REL[@]}" <<'PY'
+import os, subprocess, sys
+top, gitdirs, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+nms, rels = sys.argv[4:4 + n], sys.argv[4 + n:]
+real_top = os.path.realpath(top)
+own_git = {os.path.realpath(g) for g in gitdirs.split("\n") if g}
+
+
+# A hook exports GIT_DIR and friends; left in, they would make every
+# directory look like this checkout (review 1 of #3485). git's own list of
+# repository-local variables, the ones it clears itself on entering another
+# repository -- minus GIT_CONFIG*: `-c` settings such as safe.directory hold
+# in any checkout, and without them a root scan over another user's repo
+# would fail every call (review 1 of #3489).
+LOCAL = set(subprocess.run(["git", "rev-parse", "--local-env-vars"],
+                           capture_output=True, text=True).stdout.split())
+GIT_ENV = {k: v for k, v in os.environ.items()
+           if k not in LOCAL or k.startswith("GIT_CONFIG")}
+
+
+def git_in(d, *args):
+    return subprocess.run(["git", "-C", d, *args], capture_output=True,
+                          text=True, env=GIT_ENV)
+
+
+def checkout_rel(t):
+    """t's path within the git checkout it lies in, as git spells it, or None.
+
+    git's own prefix, not a relpath against --show-toplevel: on a
+    case-insensitive disk realpath keeps the case it was given and git the
+    case on disk, so the relpath went up through `..` and out of the checkout
+    (review 1 of #3485)."""
+    d = t if os.path.isdir(t) else os.path.dirname(t)
+    r = git_in(d, "rev-parse", "--is-inside-work-tree", "--show-prefix")
+    lines = r.stdout.split("\n")
+    # Inside .git/ or a bare repo the prefix is empty with rc 0: not the
+    # checkout's root, and not a checkout at all (review 1 of #3489).
+    if r.returncode != 0 or lines[0] != "true":
+        return None
+    rel = lines[1].rstrip("/") if len(lines) > 1 else ""
+    if d != t:
+        rel = os.path.join(rel, os.path.basename(t))
+    return os.path.normpath(rel) if rel else "."
+
+
+def tracked(t):
+    """Is t, or anything under it, part of the tree -- tracked, or untracked
+    and not ignored, as present_now() reads it? Then it is code, whatever the
+    directory is called (`packages/node_modules/x` kept in git, or not yet
+    added). :(literal): a file named `:add.sh` is a name, not pathspec magic
+    (review 1 of #3489)."""
+    d, what = (t, ".") if os.path.isdir(t) else (os.path.dirname(t), os.path.basename(t))
+    return bool(git_in(d, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                       "--", ":(literal)" + what).stdout)
+
+
+back = []
+for nm in nms:
+    base = os.path.join(top, nm)
+    links = []
+    for e in os.listdir(base):
+        p = os.path.join(base, e)
+        if e.startswith("@") and os.path.isdir(p) and not os.path.islink(p):
+            links += [os.path.join(p, x) for x in os.listdir(p)]
+        else:
+            links.append(p)
+    for p in links:
+        if not os.path.islink(p):
+            continue
+        t = os.path.realpath(p)
+        tr = checkout_rel(t)
+        # Within the checkout only: a repo kept under /x/node_modules/ is
+        # still code, its workspace links are not installed packages (review
+        # 2 of #3479). Outside any checkout the whole path is all there is.
+        if "node_modules" in (t if tr is None else tr).split(os.sep) and not tracked(t):
+            continue
+        # Into this checkout's own git storage (.git/hooks), which the copies
+        # leave out, so no run can load the real file through it. Asked by
+        # place, not by "git could not answer": a failed git call (a ceiling,
+        # a separate GIT_DIR) or a bare repo kept as files is not storage
+        # (review 2 of #3489). Only where git placed the target in no work
+        # tree: a bare clone with worktrees inside it has the clone itself
+        # as its common dir, and its worktrees are code (review 3 of #3489).
+        if tr is None and any(t == g or t.startswith(g + os.sep) for g in own_git):
+            continue
+        shown = os.path.relpath(t, real_top) if t.startswith(real_top + os.sep) else t
+        name = f"{os.path.relpath(p, top)} -> {shown}"
+        for r in rels:
+            r = os.path.normpath(r)
+            f = os.path.join(real_top, r)
+            if f == t or f.startswith(t + os.sep) or (
+                    tr is not None and (tr in (".", r) or r.startswith(tr + os.sep))):
+                print(f"HIT {r} ({name})")
+                sys.exit(0)
+        back.append(name)
+if back:
+    print("BACK " + ", ".join(back[:3]) + (f" and {len(back) - 3} more" if len(back) > 3 else ""))
+PY
+) || { echo "bite: could not read the node_modules links -- cannot tell"; exit 2; }
+case "$ws" in
+  HIT\ *) echo "bite: ${ws#HIT } -- a workspace link would load the real file, not the old one"; exit 2 ;;
+esac
+
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/tri-bite.XXXXXX")
+# INT and TERM must END the run, not only clean up: a trap that only deleted
+# the copies let the script go on and print BITES (review of #3462). bash runs
+# the trap after the foreground command returns, so the verdict line is never
+# reached.
+trap 'rm -rf "$WORK"' EXIT
+trap 'echo "  interrupted -- cannot tell"; exit 2' INT TERM HUP QUIT
+
+# A copy of the tree as it is on disk: tracked and untracked-not-ignored files
+# that exist (a file deleted in the working tree is still listed by ls-files).
+copy() {
+  local dest="$1"
+  mkdir -p "$dest"
+  ( cd "$TOP" && git ls-files -z --cached --others --exclude-standard \
+      | while IFS= read -r -d '' p; do
+          if [ -e "$p" ] || [ -L "$p" ]; then printf '%s\0' "$p"; fi
+        done \
+      | tar --null -T - -cf - ) | tar -xf - -C "$dest" \
+    || { echo "bite: could not copy the tree"; exit 2; }
+  local nm
+  for nm in ${NMS[@]+"${NMS[@]}"}; do
+    if [ -d "$dest/$(dirname "$nm")" ] && [ ! -e "$dest/$nm" ] && [ ! -L "$dest/$nm" ]; then
+      ln -s "$TOP/$nm" "$dest/$nm"
+    fi
+  done
+}
+
+# Run in a copy, outside it the output: a file inside it is one more untracked
+# file for any test that counts them.
+run() {
+  local dir="$1"; shift
+  ( cd "$dir/$SUB" && "$@" ) >"$WORK/out" 2>&1 </dev/null
+  local rc=$?
+  tail -n "$KEEP" "$WORK/out" | sed 's/^/    /'
+  return $rc
+}
+
+# A test killed by a hang-up, Ctrl-C or TERM did not judge anything.
+interrupted() { case "$1" in 129|130|131|143) return 0 ;; esac; return 1; }
+
+dirty=$(git -C "$TOP" status --porcelain --untracked-files=normal 2>/dev/null | head -1)
+echo "  now ($(git -C "$TOP" rev-parse --short HEAD)${dirty:+ + uncommitted})"
+copy "$WORK/now"
+run "$WORK/now" "$@"; now=$?
+if interrupted $now; then echo "  interrupted (exit $now) -- cannot tell"; exit 2; fi
+if [ $now -ne 0 ]; then
+  echo "  red already on the current tree (exit $now) -- a red on $REV would prove nothing"
+  exit 2
+fi
+echo "  green"
+
+OLD="$WORK/old"
+copy "$OLD"
+for r in "${REL[@]}"; do
+  dest="$OLD/$r"
+  # Never write through a link: the copy keeps the tree's symlinks, and one
+  # pointing back into the repository would carry the old version into the
+  # real working tree (review of #3462). No directory on the way is a link
+  # (checked above), and the file itself goes before the new one is written.
+  # Checked again in the copy: node_modules is a link there and a directory in
+  # the tree, so a file under it at <rev> was written into the real tree
+  # (review 3 of #3462).
+  d=$(dirname "$r")
+  while [ "$d" != . ]; do
+    if [ -L "$OLD/$d" ]; then echo "bite: $r goes through the link $d in the copy -- cannot restore it there"; exit 2; fi
+    d=$(dirname "$d")
+  done
+  mkdir -p "$(dirname "$dest")"
+  rm -f "$dest"
+  mode=$(git -C "$TOP" ls-tree "$REV" -- ":(literal)$r" 2>/dev/null | awk '{ print $1; exit }')
+  case "$mode" in
+    "")
+      # Absent, by the object store -- not by an empty ls-tree, which would
+      # also be empty if ls-tree failed, and then the module would vanish.
+      if git -C "$TOP" cat-file -e "$REV:$r" 2>/dev/null; then
+        echo "bite: cannot read the mode of $r at $REV"; exit 2
+      fi
+      echo "  $r removed (absent at $REV)" ;;
+    120000)
+      # A symlink at <rev> comes back as a symlink, not as a file holding the
+      # target's path.
+      ln -s "$(git -C "$TOP" cat-file blob "$REV:$r")" "$dest" \
+        || { echo "bite: cannot restore the link $r at $REV"; exit 2; }
+      echo "  $r <- $REV (symlink)" ;;
+    100644|100755)
+      # As a checkout of <rev> writes it: LFS, `filter=` and `eol=` applied,
+      # by the attributes of <rev>, not of today's tree. The raw blob of an
+      # LFS file is a pointer, and the run said BITES even against HEAD itself
+      # (reviews 4 and 5 of #3462).
+      git -C "$TOP" ${ATTR[@]+"${ATTR[@]}"} cat-file --filters "$REV:$r" >"$dest" \
+        || { echo "bite: cannot read $r at $REV"; exit 2; }
+      [ "$mode" = 100755 ] && chmod +x "$dest"
+      echo "  $r <- $REV" ;;
+    *)
+      echo "bite: $r has mode $mode at $REV (a submodule?) -- cannot restore it"; exit 2 ;;
+  esac
+done
+
+run "$OLD" "$@"; old=$?
+if interrupted $old; then echo "  interrupted (exit $old) -- cannot tell"; exit 2; fi
+if [ $old -ne 0 ]; then
+  echo "  BITES: red on $REV (exit $old), green now"
+  exit 0
+fi
+if [ -n "$ws" ]; then
+  echo "  green on $REV as well, but node_modules links back into the tree (${ws#BACK }) -- the run may have loaded the real files: cannot tell"
+  exit 2
+fi
+echo "  DOES NOT BITE: green on $REV as well -- the tests do not tell the two apart"
+exit 1

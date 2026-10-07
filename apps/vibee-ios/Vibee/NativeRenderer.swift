@@ -133,19 +133,25 @@ enum NativeRenderError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .пустаяКомпозиция:
-      return "Композиция пуста: длительность 0 кадров"
+      return say(
+        "The composition is empty: 0 frames long",
+        "Композиция пуста: длительность 0 кадров")
     case .нетВидеоисточника:
-      return """
-        В композиции нет ни одной видеодорожки-источника. AVFoundation не умеет \
-        рендерить видео из одного дерева CALayer — ему нужен кадровый поток, \
-        который эти слои постобрабатывают.
-        """
+      return say(
+        "The composition has no video track to render from. AVFoundation "
+          + "cannot render video from a CALayer tree alone: it needs a frame "
+          + "stream for those layers to post-process.",
+        "В композиции нет ни одной видеодорожки-источника. AVFoundation не умеет "
+          + "рендерить видео из одного дерева CALayer — ему нужен кадровый поток, "
+          + "который эти слои постобрабатывают.")
     case .экспортНеПоддерживается(let пресет):
-      return "Пресет \(пресет) не применим к этой композиции"
+      return say(
+        "Preset \(пресет) does not fit this composition",
+        "Пресет \(пресет) не применим к этой композиции")
     case .экспортПровалился(let текст):
-      return "Экспорт не удался: \(текст)"
+      return say("Export failed: ", "Экспорт не удался: ") + текст
     case .экспортОтменён:
-      return "Экспорт отменён"
+      return say("Export cancelled", "Экспорт отменён")
     }
   }
 }
@@ -661,7 +667,7 @@ final class NativeRenderer {
         case .cancelled:
           продолжение.resume(throwing: NativeRenderError.экспортОтменён)
         default:
-          let текст = сессия.error?.localizedDescription ?? "статус \(сессия.status.rawValue)"
+          let текст = сессия.error?.localizedDescription ?? say("status ", "статус ") + "\(сессия.status.rawValue)"
           продолжение.resume(throwing: NativeRenderError.экспортПровалился(текст))
         }
       }

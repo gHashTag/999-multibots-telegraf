@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { crmErrorText } from '@/lib/crmErrorText'
 import { checkStoryPalette, keepStoryPalette, type StoryReady } from '@/lib/crm'
 import {
   END_CARD_COLOURS,
@@ -76,7 +77,7 @@ export function StoryPalette({
   /** The card was kept or taken off: the panel reads the tool again. */
   onChanged: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const card = ready.endCard
   const kept = ready.endCardKept
   const [open, setOpen] = useState(false)
@@ -118,7 +119,9 @@ export function StoryPalette({
     setBusy(true)
     const r = await checkStoryPalette(clientId, next)
     setBusy(false)
-    const why = r.data ? (r.data.endCardWhy ?? '') : (r.error ?? '?')
+    const why = r.data
+      ? (r.data.endCardWhy ?? '')
+      : crmErrorText(r, lang, t) || '?'
     setChecked({
       key: cardKey(next),
       why,
@@ -146,7 +149,7 @@ export function StoryPalette({
     setBusy(true)
     const r = await keepStoryPalette(clientId, next)
     setBusy(false)
-    setNote(r.data?.note ?? r.error ?? null)
+    setNote(r.data?.note ?? (crmErrorText(r, lang, t) || null))
     if (r.data?.saved) {
       setOpen(false)
       onChanged()
@@ -217,7 +220,15 @@ export function StoryPalette({
               data-from={fieldSource('button', kept, card)}
             >
               <span>{t('crm.client.story.field.button')}</span>
-              <code>{card.button}</code>
+              <code
+                className="crm-client__palette-pill"
+                style={{
+                  background: card.accent ?? '#00ff88',
+                  color: card.bg ?? '#000000',
+                }}
+              >
+                {card.button}
+              </code>
             </li>
           ) : null}
         </ul>

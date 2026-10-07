@@ -65,8 +65,8 @@ struct TimelineView: View {
 
       Spacer()
 
-      Text("\(склонение(composition.tracks.count, "дорожка", "дорожки", "дорожек")) · "
-           + склонение(composition.durationInFrames, "кадр", "кадра", "кадров"))
+      Text(trackCountLabel(composition.tracks.count) + " · "
+           + framesLabel(composition.durationInFrames))
         .font(Тема.Шрифт.стиль(.caption2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }

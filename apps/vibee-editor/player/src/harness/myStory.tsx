@@ -10,6 +10,7 @@
  */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import '../index.css'
 import '../styles/design-system.css'
 import '../styles/telegram.css'
@@ -20,6 +21,10 @@ const root = document.getElementById('root')
 if (root)
   createRoot(root).render(
     <StrictMode>
-      <StoryPage />
+      {/* The page links to /chat (#3297), and a Link outside a router throws:
+          the stand saw a blank page and measured nothing. */}
+      <MemoryRouter initialEntries={['/story']}>
+        <StoryPage />
+      </MemoryRouter>
     </StrictMode>
   )

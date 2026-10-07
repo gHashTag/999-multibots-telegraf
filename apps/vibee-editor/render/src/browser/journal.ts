@@ -18,18 +18,19 @@
  * The last KEEP_STEPS per person are kept; older rows go on the next write.
  */
 import type { Queryable } from './sessions'
+import { MAIN_LANE } from './front-page'
 
 export const KEEP_STEPS = 200
 export const READ_STEPS = 50
 /*
  * PROBES ARE NOT THE AGENT'S WORK.
  *
- * On 2026-09-22 every row of the owner's journal was a `tri eyes` check --
+ * On 2026-09-22 every row of the owner's journal was a watch check --
  * "checked tabs, looked" every hour of the night -- and a person opening the
  * panel would have read steps nobody asked for, while real ones were pushed
  * toward the 200-row limit. A caller marks a probe (MCP _meta.probe); probes
  * are kept apart (the last KEEP_PROBES), hidden from the person's view, and
- * shown to `tri journal`, where their timings are the point.
+ * shown only to `tri journal --probes`, where their timings are the point.
  */
 export const KEEP_PROBES = 20
 
@@ -157,16 +158,24 @@ export function resetJournalCacheForTests(): void {
 /**
  * Write one step. Never throws: a journal that cannot be written must not
  * turn a working click into a failed one.
+ *
+ * A step taken in a lane other than main (lanes.ts) carries `lane` in its
+ * detail, so two chats working at once read as two, not as one agent
+ * jumping between windows. A main step is written as it always was.
  */
 export async function recordStep(
   q: Queryable,
   telegramId: string,
   step: Step,
-  opts: { probe?: boolean } = {}
+  opts: { probe?: boolean; lane?: string } = {}
 ): Promise<void> {
   try {
     await ensureJournal(q)
-    const detail = opts.probe ? { ...step.detail, probe: true } : step.detail
+    const laned =
+      opts.lane && opts.lane !== MAIN_LANE
+        ? { ...step.detail, lane: opts.lane }
+        : step.detail
+    const detail = opts.probe ? { ...laned, probe: true } : laned
     await q.query(
       `INSERT INTO browser_journal (telegram_id, tool, ok, ms, detail) VALUES ($1, $2, $3, $4, $5)`,
       [telegramId, step.tool, step.ok, step.ms, JSON.stringify(detail)]
@@ -222,4 +231,26 @@ export async function readJournal(
         ? JSON.parse(r.detail)
         : ((r.detail ?? {}) as Record<string, unknown>),
   }))
+}
+
+/**
+ * When a desk's start last told the person, in ms; null if never or if the
+ * journal cannot be read -- an unreadable journal errs toward telling them.
+ */
+export async function lastAnnouncedDeskStart(
+  q: Queryable,
+  telegramId: string
+): Promise<number | null> {
+  try {
+    await ensureJournal(q)
+    const { rows } = await q.query(
+      `SELECT max(at) AS at FROM browser_journal WHERE telegram_id = $1 AND tool = 'browser_start' AND (detail->>'announced') = 'true'`,
+      [telegramId]
+    )
+    const at = (rows as Array<{ at?: unknown }>)[0]?.at
+    const ms = at ? new Date(String(at)).getTime() : NaN
+    return Number.isFinite(ms) ? ms : null
+  } catch {
+    return null
+  }
 }

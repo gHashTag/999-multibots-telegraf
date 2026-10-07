@@ -90,6 +90,8 @@ export const CLIENT_SURFACE_TOOLS: ReadonlySet<string> = new Set([
   'leela_plan',
   'web_search',
   'web_read',
+  // Files THIS client's fault under the owner of this chat; reads nobody.
+  'report_defect',
 ])
 
 /**
@@ -127,6 +129,56 @@ export function clientSurfaceDenial(
     if (!closedToClients(name) || deny.has(name)) continue
     deny.add(name)
     reasons.set(name, CLIENT_SURFACE_DENY_REASON)
+  }
+  return { denyTools: deny, denyReasons: reasons }
+}
+
+/**
+ * THE TOOLS A TEXT-ONLY AGENT KEEPS -- THE MANAGER AGENT.
+ *
+ * The Manager Agent package is a text model for the CRM: it answers clients
+ * and brings the leads, and makes no pictures, voice, video or reels (owner,
+ * 2026-09-30). The card says so; this makes the agent say so too. An
+ * allowlist for the same reason as CLIENT_SURFACE_TOOLS: a media tool added
+ * to the registry next month stays closed here without anybody remembering.
+ *
+ * `text_only` only ever REMOVES tools, so routes.ts accepts it from any
+ * caller: nobody gains anything by asking for less.
+ */
+export const TEXT_ONLY_TOOLS: ReadonlySet<string> = new Set([
+  'crm_offer',
+  'crm_touch',
+  'tokens_invoice',
+  'my_balance',
+  'pricing',
+  'web_search',
+  'web_read',
+])
+
+export const TEXT_ONLY_DENY_REASON =
+  'this agent is the Manager Agent, a text model for the CRM: it makes no pictures, voice, video or reels. Answer in words; if the person wants media, say the owner can add the Blogger Agent'
+
+/** The turn's denial, narrowed to TEXT_ONLY_TOOLS when the turn is text only. */
+export function textOnlyDenial(
+  textOnly: boolean | undefined,
+  base: {
+    denyTools?: ReadonlySet<string>
+    denyReasons?: ReadonlyMap<string, string>
+  } = {},
+  toolNames: Iterable<string> = []
+): {
+  denyTools?: ReadonlySet<string>
+  denyReasons?: ReadonlyMap<string, string>
+} {
+  if (textOnly !== true) {
+    return { denyTools: base.denyTools, denyReasons: base.denyReasons }
+  }
+  const deny = new Set(base.denyTools ?? [])
+  const reasons = new Map(base.denyReasons ?? [])
+  for (const name of toolNames) {
+    if (TEXT_ONLY_TOOLS.has(name) || deny.has(name)) continue
+    deny.add(name)
+    reasons.set(name, TEXT_ONLY_DENY_REASON)
   }
   return { denyTools: deny, denyReasons: reasons }
 }

@@ -213,14 +213,46 @@ describe('the browser tells the two apart', () => {
     expect(flow).toContain('/api/tokens/verify')
   })
 
+  /*
+   * The sentences moved to `lib/topUpText.ts` (2026-10-02) so an English
+   * reader is told in English; the hook now names an EVENT. The order is
+   * checked on the events, and the failed-credit sentence where it lives,
+   * in both languages -- the move must not lose the "not credited" words.
+   */
+  const text = fs.readFileSync(
+    path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'lib',
+      'topUpText.ts'
+    ),
+    'utf8'
+  )
+
   it('a failed credit stops the retries and says so', () => {
     expect(flow).toContain("vd['зачисление_провалено']")
-    expect(flow).toContain('токены не зачислены')
     // The retry promise must not be what a failed credit reaches.
     const failedBranch = flow.indexOf("vd['зачисление_провалено']")
-    const retryPromise = flow.indexOf('проверяю зачисление ещё пару раз')
+    const saysFailed = flow.indexOf("kind: 'creditFailed'")
+    const retryPromise = flow.indexOf("kind: 'paidRetrying'")
     expect(failedBranch).toBeGreaterThan(-1)
-    expect(retryPromise).toBeGreaterThan(failedBranch)
+    expect(saysFailed).toBeGreaterThan(failedBranch)
+    expect(retryPromise).toBeGreaterThan(saysFailed)
+  })
+
+  it('the failed-credit sentence says "not credited" in both languages', () => {
+    const start = text.indexOf("case 'creditFailed':")
+    const end = text.indexOf('case ', start + 1)
+    expect(start).toBeGreaterThan(-1)
+    const sentence = text.slice(start, end)
+    expect(sentence).toContain('токены не зачислены')
+    expect(sentence).toContain('the tokens were not added')
   })
 
   /*

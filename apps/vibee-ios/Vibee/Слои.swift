@@ -157,7 +157,7 @@ final class Слои: ObservableObject {
     try? FileManager.default.url(
       for: .applicationSupportDirectory, in: .userDomainMask,
       appropriateFor: nil, create: true
-    ).appendingPathComponent("vibee-история.json")
+    ).appendingPathComponent("vibee-история.json")  // ru-only-ok: file name, renaming loses history
   }
 
   private func сохранить() {
@@ -177,13 +177,17 @@ final class Слои: ObservableObject {
   func очистить() { слои.removeAll() }
 
   /// Человеческое имя дорожки. Порядок тот же, что в `дорожки`.
-  static func имяДорожки(_ т: String) -> String {
+  /// Display only (the timeline label): nothing keys on it, so it follows the
+  /// phone's language. Same words as the demo tracks in VibeeApp.swift.
+  nonisolated static func имяДорожки(_ т: String, russian: Bool = speaksRussian) -> String {
+    let (en, ru): (String, String)
     switch т {
-    case "video": return "Видео"
-    case "image": return "Картинки"
-    case "audio": return "Звук"
-    default: return "Текст"
+    case "video": (en, ru) = ("Video", "Видео")
+    case "image": (en, ru) = ("Images", "Картинки")
+    case "audio": (en, ru) = ("Sound", "Звук")
+    default: (en, ru) = ("Text", "Текст")
     }
+    return russian ? ru : en
   }
 
   /// Порядок дорожек сверху вниз — как в любом монтажном столе:

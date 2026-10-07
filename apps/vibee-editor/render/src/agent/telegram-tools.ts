@@ -31,9 +31,12 @@
 
 import crypto from 'node:crypto'
 import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
+import { keepers } from '../hive/roles'
 import { hangUp } from './hang-up'
+import { isDeadSession, shortTelegramCode } from './tg-errors'
 import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
+import { ToolRefusal } from './tool-refusal'
 import { remember } from './tg-proposals'
 import { assistantMayReach, type Reach } from './assistant-opt-out'
 import { resolvingPeer, EXECUTABLE_ACTIONS } from './tg-proposals'
@@ -83,6 +86,23 @@ const OWNER_TELEGRAM_ID = (
   process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK
 ).trim()
 
+/** The platform owner alone (not a keeper). */
+export function isPlatformOwner(who: string | null | undefined): boolean {
+  const id = String(who ?? '').trim()
+  return !!id && id === OWNER_TELEGRAM_ID
+}
+
+/**
+ * The platform owner, or a keeper (HIVE_KEEPERS). One home for the check:
+ * cash months (club-cash.ts) and voice cloning (voice-clone-speak.ts, and the
+ * owner's reel lines in tools.ts) both ask exactly this.
+ */
+export function isOwnerOrKeeper(who: string | null | undefined): boolean {
+  const id = String(who ?? '').trim()
+  if (!id) return false
+  return isPlatformOwner(id) || keepers().includes(id)
+}
+
 /**
  * Throwing, not returning a value: a refusal must not be mistakable for data.
  * The dispatchers already turn a thrown tool error into an error result, which
@@ -131,7 +151,8 @@ export async function isSeller(ctx?: ToolContext): Promise<boolean> {
 export async function requireSeller(ctx?: ToolContext): Promise<void> {
   requireIdentity(ctx)
   if (await isSeller(ctx)) return
-  throw new Error(
+  throw new ToolRefusal(
+    'no_seller_session',
     'CRM работает с вашим собственным Telegram-аккаунтом, а он не подключён. ' +
       'Подключите аккаунт в приложении — после этого лиды, сводка и подарки ' +
       'заработают от вашего имени.'
@@ -158,7 +179,8 @@ export async function requireSeller(ctx?: ToolContext): Promise<void> {
  */
 function requireIdentity(ctx?: ToolContext): void {
   if (ctx && String(ctx.telegramId ?? '').trim()) return
-  throw new Error(
+  throw new ToolRefusal(
+    'no_identity',
     'Не знаю, кто спрашивает: инструменты Telegram работают только от имени ' +
       'подтверждённого пользователя.'
   )
@@ -318,9 +340,12 @@ const EXECUTABLE = EXECUTABLE_ACTIONS
  * same /api/tg/proposal/confirm and /cancel the bot's buttons use. Until this
  * line it was drawn and never fed: the draft was refused here, so the owner
  * working a client in the app (a portrait for Farisha) had no card to press.
- * iOS still has no screen for it and stays out.
+ *
+ * `ios` since 2026-10-01: the native chat reads the same `proposal` event and
+ * draws the card with Send / Cancel (Vibee/AgentChatView.swift), answering
+ * through the same two routes with the app's Bearer session.
  */
-const CAN_CONFIRM = new Set(['bot', 'miniapp'])
+const CAN_CONFIRM = new Set(['bot', 'miniapp', 'ios'])
 
 /** Whether a draft made on this surface can be confirmed there. */
 export function canConfirmOn(surface: unknown): boolean {
@@ -627,10 +652,16 @@ export async function client(ctx?: ToolContext): Promise<unknown> {
     throw new Error(unavailableReason)
   }
 
-  const { TelegramClient } = await import('telegram')
+  const { TelegramClient, Api } = await import('telegram')
   const { StringSession } = await import('telegram/sessions')
   const c = new TelegramClient(new StringSession(session), apiId, apiHash, {
     connectionRetries: 3,
+    /*
+     * gramjs sleeps through any FLOOD_WAIT up to this many seconds without a
+     * word. The default 60 meant a pressed button could hang a full minute;
+     * past 5 s the wait surfaces as an error inPlainWords says in Russian.
+     */
+    floodSleepThreshold: 5,
   })
   await c.connect()
 
@@ -651,8 +682,27 @@ export async function client(ctx?: ToolContext): Promise<unknown> {
    * Соседняя ветка выше уже разделяет «не настроено» и «настроено неверно» —
    * это третий случай: «настроено, но вход истёк».
    */
-  const вошли = await c.checkAuthorization()
-  if (!вошли) {
+  /*
+   * Not `checkAuthorization()`: it is this very request wrapped in a catch
+   * that returns false on ANY error (telegram/client/auth.js), so a network
+   * timeout used to tell the owner his session had expired and send him to
+   * log in again for nothing. Only a code that means the login is gone
+   * (`isDeadSession`) earns that answer; anything else is a blip.
+   */
+  let probeError: unknown = null
+  try {
+    await c.invoke(new Api.updates.GetState())
+  } catch (e) {
+    probeError = e
+  }
+  if (probeError && !isDeadSession(probeError)) {
+    await hangUp(c)
+    throw new Error(
+      'Telegram сейчас не ответил — это временно, попробуйте через минуту ' +
+        `(${shortTelegramCode(probeError)}).`
+    )
+  }
+  if (probeError) {
     // Разрыв не важен: мы всё равно отказываем, и падение здесь только
     // подменило бы настоящую причину.
     await hangUp(c)
@@ -906,6 +956,13 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    * big-context agent connecting the clone, not for a DM with a client.
    */
   'browser_logins',
+  /* Closing litter tabs on the owner's yes (tab-tidy.ts): housekeeping, not a DM. */
+  'browser_tidy',
+  /*
+   * The person's site list (site-rules.ts): asked for rarely, and enforced by
+   * the guard whether or not a small model can see the tool.
+   */
+  'browser_sites',
   /* Traffic by channel (#2974): the owner's dashboard question, not a DM's. */
   'crm_traffic',
   'agent_avatars_make',
@@ -924,6 +981,8 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
    */
   'tg_forward',
   'tg_read',
+  /* Creating a bot (managed-bot-create.ts): rare, and the kit is at its budget. */
+  'tg_create_bot',
   /*
    * Bulk and files are the same call: rare, deliberate, worth a big-context
    * model's attention. Voice and video stay -- "here is the clip about the

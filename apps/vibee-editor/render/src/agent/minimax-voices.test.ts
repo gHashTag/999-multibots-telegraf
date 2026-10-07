@@ -95,12 +95,11 @@ describe('проводка, а не только помощник', () => {
     )
   })
 
-  it('/api/voices не отвечает 500, когда озвучить всё равно есть кем', () => {
-    // Отказ ElevenLabs — не сбой, а постоянное состояние: ключ в переменной
-    // хранит идентификатор, а не ключ. 500 оставлял экран с тремя выдуманными
-    // именами вместо голосов того, кто действительно читает.
-    expect(СЕРВЕР).toContain('voices: ГОЛОСА_MINIMAX')
-    expect(СЕРВЕР).toContain("provider: 'replicate/minimax-speech-02-turbo'")
+  it('/api/voices answers with the voices of the TTS that speaks: Kie', () => {
+    // Was ElevenLabs directly, then MiniMax ids on its refusal -- neither of
+    // which the Kie leg could speak (src/agent/kie-speech.ts).
+    expect(СЕРВЕР).toContain('JSON.stringify(voicesAnswer())')
+    expect(СЕРВЕР).not.toContain('voices: ГОЛОСА_MINIMAX')
   })
 })
 
@@ -121,27 +120,18 @@ describe('имя голоса уходит тому, кто его узнает'
     expect(имяДляElevenLabs('Russian_ReliableMan')).toBeUndefined()
   })
 
-  it('нога KieAI берёт имя через отбор, а не как есть', () => {
-    expect(СЕРВЕР).toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
-    expect(СЕРВЕР).not.toMatch(/voice:\s*\n\s*typeof voice_name === 'string'/)
+  it('the Kie leg maps the choice through kieVoiceFor, not a fixed name', () => {
+    // The old leg sent every voice as 'Rachel' (kie-speech.test.ts).
+    expect(СЕРВЕР).not.toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
+    expect(СЕРВЕР).toMatch(
+      /speakOnKie\(\s*text,[\s\S]{0,300}?voiceId: voice_id,/
+    )
   })
 })
 
-describe('скорость доходит до КАЖДОЙ ноги, а не до одной', () => {
-  it('нога ElevenLabs кладёт скорость в voice_settings', () => {
-    /*
-     * Ползунок терялся на всех трёх ногах. Две починены; эта осталась бы
-     * мёртвой ровно до того дня, когда починят ключ ElevenLabs, — и слайдер
-     * снова перестал бы значить что-либо, без единой правки в коде.
-     */
-    expect(СЕРВЕР).toMatch(
-      /voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/
-    )
-  })
-
-  it('единица не шлётся ни одной ноге: это и есть значение по умолчанию', () => {
-    // Лишнее поле в теле — лишняя причина для отказа.
-    expect(СЕРВЕР).toMatch(/скоростьРечи\(speed\) !== 1/)
+describe('the speed reaches every leg that is left', () => {
+  it('the Kie leg passes the slider to speakOnKie (clamped there)', () => {
+    expect(СЕРВЕР).toMatch(/speakOnKie\([\s\S]{0,400}?speed,/)
   })
 })
 
@@ -208,6 +198,51 @@ describe("the owner's MiniMax clone", () => {
     )
     // The model's own voice_id never carries a clone to the route.
     expect(tools).toMatch(/clone_voice: cloneVoice/)
+  })
+
+  /*
+   * "Why doesn't the reel the bot sends me use my voice?" (owner,
+   * 2026-10-03). The MiniMax clone lives on Replicate, which is off, so the
+   * route refused every owner line. With Replicate off, the owner's line goes
+   * to our own voice-clone service instead -- BEFORE the route is asked.
+   */
+  it("with Replicate off, the owner's line goes to our voice-clone service before the route", () => {
+    const tools = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    const ours = tools.search(
+      /if \(cloneVoice === OWNER_MINIMAX_CLONE && !replicateLive\(\)\) \{\s*const ours = await ownerVoiceViaOurClone\(/
+    )
+    const route = tools.indexOf('`${base}/api/generate/audio`')
+    expect(ours).toBeGreaterThan(-1)
+    expect(route).toBeGreaterThan(ours)
+    // It speaks the brand as one word, like the route does.
+    expect(tools.slice(ours, ours + 300)).toMatch(
+      /ownerVoiceViaOurClone\(\s*spokenBrand\(String\(args\.text\)\)/
+    )
+    // Our service is free: whatever the line, the charge goes back.
+    const branch = tools.slice(
+      ours,
+      tools.indexOf('if (!voiceId && !cloneVoice)', ours)
+    )
+    expect(branch.match(/refundTokens\(/g)?.length).toBe(2)
+    // Exactly what was taken, both times (refundTokens' `exact`).
+    expect(branch.match(/charge\['потрачено'\]\s*\)/g)?.length).toBe(2) // cyrillic-ok: existing field
+    // And the answer names no spend: the receipt is for 0, not the table price.
+    expect(branch).toMatch(/withTokens\([\s\S]*?\},\s*0\s*\)/)
+    expect(tools).toMatch(/TOOLS\.find\(t => t\.name === 'voice_clone_speak'\)/)
+    // story_reel voices its scenes at once; the CPU service takes one line
+    // at a time, so the lines queue instead of meeting 503; a line that
+    // still meets "busy" backs off until one overall deadline.
+    expect(tools).toMatch(/const turn = ourCloneQueue\.then\(/)
+    expect(tools).toMatch(/ourCloneQueue = turn\.catch\(/)
+    expect(tools).toMatch(/speakWithBusyRetry\([\s\S]*?OUR_CLONE_BUSY_RETRY/)
+    // Locked to the owner and keepers BEFORE the line joins the queue.
+    const helper = tools.slice(
+      tools.indexOf('async function ownerVoiceViaOurClone('),
+      tools.indexOf('const turn = ourCloneQueue.then(')
+    )
+    expect(helper).toMatch(
+      /if \(!isOwnerOrKeeper\(String\(ctx\?\.telegramId \?\? ''\)\)\)\s*return \{ done: false, reason: VOICE_CLONE_LOCKED_REASON \}/
+    )
   })
 })
 

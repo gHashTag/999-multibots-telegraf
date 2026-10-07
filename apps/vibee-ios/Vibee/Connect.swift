@@ -41,7 +41,7 @@ enum Connect {
   private static func разобрать(_ d: Data, _ http: HTTPURLResponse) throws -> [String: Any] {
     let тело = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
     if http.statusCode != 200 || (тело["ok"] as? Bool) == false {
-      throw Отказ(причина: (тело["error"] as? String) ?? "сервер ответил \(http.statusCode)")
+      throw Отказ(причина: (тело["error"] as? String) ?? serverAnswered(http.statusCode))
     }
     return тело
   }
@@ -70,7 +70,7 @@ enum Connect {
     let о = try await запрос("api/tg/connect/status", "GET", nil)
     let номер = о["phone"] as? String
     return (
-      подключено: (о["подключено"] as? Bool) ?? false,
+      подключено: (о["подключено"] as? Bool) ?? false,  // ru-only-ok cyrillic-ok: server JSON key
       phone: (номер?.isEmpty ?? true) ? nil : номер
     )
   }
@@ -89,7 +89,7 @@ enum Connect {
   static func код(handle: String, код: String) async throws -> Bool {
     let о = try await запрос(
       "api/tg/connect/code", "POST", ["handle": handle, "code": код])
-    return (о["нужен_пароль"] as? Bool) ?? false
+    return (о["нужен_пароль"] as? Bool) ?? false  // ru-only-ok cyrillic-ok: server JSON key
   }
 
   /// Шаг 3: пароль двухфакторной защиты. Не сохраняется — уходит в Telegram.

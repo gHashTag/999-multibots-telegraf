@@ -137,6 +137,15 @@ export type EventKind =
    * never with their words, which live in Postgres and Zep and stay there.
    */
   | 'client-unanswered'
+  /**
+   * A CLIENT SAID SOMETHING IS BROKEN, AND IT IS NOW A NUMBERED DEFECT.
+   * Written by report_defect (agent/client-defects.ts) with the owner, the
+   * lead and `#id` -- never the words, which stay in client_defects and
+   * crm_messages under the owner's id.
+   */
+  | 'client-defect'
+  /** The owner closed one of those defects; the client hears it in the DM. */
+  | 'defect-fixed'
   | 'payment-forged'
   | 'tokens-spent'
   | 'tokens-refunded'
@@ -149,6 +158,8 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /** A busy provider: the seller deferred the client to the next tick. */
+  | 'sweep-deferred'
   /**
    * THE SELLER SAYING IT IS ALIVE WHILE IT DELIBERATELY DOES NOTHING.
    *

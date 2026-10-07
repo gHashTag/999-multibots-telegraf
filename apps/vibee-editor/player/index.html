@@ -3,7 +3,9 @@
   <head>
     <!-- deploy-probe: overflow-fix-715 -->
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!-- The t27 triangle (public/favicon.svg), not the VIBEE wordmark: the tab
+         showed a bee beside "AI Video Editor" on every page, the game included. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Браузеры всё равно запрашивают /favicon.ico, если он не объявлен явно —
          в логах это давало ровный поток 404. -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -68,11 +70,18 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <!-- Primary Meta Tags -->
-    <title>Trinity S³AI - AI Video Editor | Powered by V5 Ultra-Minimal Language</title>
-    <meta name="title" content="Trinity S³AI - AI Video Editor | Powered by V5 Ultra-Minimal Language" />
-    <meta name="description" content="Create stunning videos with AI-powered editing. Built on Trinity S³AI V5 - 75% less boilerplate, 100x faster compilation, ML/RL integration. Generate avatars, add captions, and produce professional content in minutes." />
-    <meta name="keywords" content="AI video editor, video creation, talking avatar, AI captions, video generator, content creation, Trinity S³AI V5, parallel computing, ML/RL, Gleam, BEAM, functional programming" />
-    <meta name="author" content="Trinity S³AI" />
+    <!-- The title is app.title in src/atoms/language.ts, the one the Header
+         writes once the brand is known; src/__tests__/head-meta.test.ts fails
+         if this copy and that one part. A link preview reads three lines --
+         site name, title, description -- and they are the owner's three
+         (2026-10-04), the motto t27.ai states in gHashTag/trinity
+         apps/website/src/lib/motto.ts and GameHero.tsx. "Powered by V5
+         Ultra-Minimal Language", "100x faster compilation" and "Gleam, BEAM"
+         stood here until 2026-10-04: nothing in this app is any of them. -->
+    <title>TRINITY S³AI — AGI game — play, direct, earn</title>
+    <meta name="title" content="TRINITY S³AI — AGI game — play, direct, earn" />
+    <meta name="description" content="Play, direct, earn: the core is a game, and the board is public" />
+    <meta name="author" content="TRINITY S³AI" />
     <meta name="robots" content="index, follow" />
     <!-- No canonical, og:url or twitter:url in the shell: this one index.html is
          served for every route (/feed, /blog, /<username>, legal pages), so a
@@ -80,18 +89,18 @@
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Trinity S³AI - AI Video Editor | Powered by V5 Ultra-Minimal Language" />
-    <meta property="og:description" content="Create stunning videos with AI-powered editing. Built on Trinity S³AI V5 with 75% less boilerplate, 100x faster compilation, and ML/RL integration." />
+    <meta property="og:title" content="AGI game — play, direct, earn" />
+    <meta property="og:description" content="Play, direct, earn: the core is a game, and the board is public" />
     <meta property="og:image" content="https://app.t27.ai/icons/icon-512x512.png" />
-    <meta property="og:site_name" content="Trinity S³AI" />
+    <meta property="og:site_name" content="TRINITY S³AI" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="ru_RU" />
 
     <!-- Twitter -->
     <!-- "summary", not "summary_large_image": the only preview image is the square 512px icon. -->
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Trinity S³AI - AI Video Editor" />
-    <meta name="twitter:description" content="Create stunning videos with AI-powered editing. Generate avatars, add captions, and produce professional content in minutes." />
+    <meta name="twitter:title" content="AGI game — play, direct, earn" />
+    <meta name="twitter:description" content="Play, direct, earn: the core is a game, and the board is public" />
     <meta name="twitter:image" content="https://app.t27.ai/icons/icon-512x512.png" />
 
     <!-- Theme Color -->
@@ -103,7 +112,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Trinity S³AI" />
+    <meta name="apple-mobile-web-app-title" content="TRINITY S³AI" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
 
     <!-- Preconnect to external resources -->
@@ -133,35 +142,11 @@
          belongs on the editor route, where only the people who opened the
          editor pay for it. -->
 
-    <!-- JSON-LD Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Trinity S³AI",
-      "description": "AI-powered video editor for creating professional videos with talking avatars and automatic captions",
-      "url": "https://app.t27.ai/",
-      "applicationCategory": "MultimediaApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "creator": {
-        "@type": "Organization",
-        "name": "Trinity S³AI",
-        "url": "https://app.t27.ai/"
-      },
-      "featureList": [
-        "AI Avatar Generation",
-        "Automatic Captions",
-        "Video Templates",
-        "B-Roll Integration",
-        "Multi-language Support"
-      ]
-    }
-    </script>
+    <!-- No JSON-LD. The block that stood here described the app in schema.org
+         words and claimed what it could not back: "offers": {"price": "0"} on
+         an app that sells token packs for Telegram Stars (landing/Pricing.tsx),
+         a feature list nobody kept in step with the product. A missing description is more honest than a wrong one; the
+         title and description above are the whole claim. -->
   </head>
   <body>
     <!--

@@ -228,6 +228,33 @@ export interface PodSweep {
   who: string
   closed: number
   left: number
+  /** What was closed, by `namesOfClosed`; empty when nothing was. */
+  gone: string
+}
+
+/**
+ * WHERE A CLOSED TAB WAS, for a log line. Host only: a path can carry a
+ * one-time token (Instagram's two-step URL does), and the log is read by more
+ * people than the browser is. Pure.
+ *
+ * Why a log names it at all: on 2026-10-03 the line said "closed 0" and
+ * nothing more, so whether the sweep -- or room-making before an open -- had
+ * closed the composer a desk was typing in could not be told from the log.
+ */
+export function whereItWas(url: string): string {
+  try {
+    const u = new URL(url)
+    if (u.host)
+      return /^https?:$/.test(u.protocol) ? u.host : `${u.protocol}//${u.host}`
+    return `${u.protocol}${u.pathname.slice(0, 24)}`
+  } catch {
+    return '(unreadable address)'
+  }
+}
+
+/** "x.com (duplicate), chrome://newtab (over cap)". Pure. */
+export function namesOfClosed(closed: readonly Doomed[]): string {
+  return closed.map(d => `${whereItWas(d.url)} (${d.why})`).join(', ')
 }
 
 /**
@@ -310,25 +337,33 @@ export async function podsToSweep(
       WHERE state = 'live' AND cdp_endpoint IS NOT NULL`,
     []
   )
-  const { chosenFront } = await import('./front-page')
+  const { chosenFrontsOf } = await import('./front-page')
+  /*
+   * A tab a desk is working in is not a duplicate yet: the composer on
+   * x.com/compose/post beside x.com/home was closed mid-thread by this clock
+   * (desk-page.ts). Target ids are unique, so every job may carry them all.
+   */
+  const { deskTabsHeld } = await import('./desk-page')
+  const desks = deskTabsHeld()
   const jobs: PodJob[] = rows.map(row => {
     const telegramId = String(row.telegram_id)
-    const chosen = chosenFront(telegramId)
+    /* Every lane's chosen tab (lanes.ts): a lane's window is working too. */
     return {
       who: telegramId,
       cdp: String(row.cdp_endpoint),
-      keep: chosen ? [chosen] : [],
+      keep: [...chosenFrontsOf(telegramId), ...desks],
     }
   })
   /*
-   * No `keep` for the unclaimed pod: with no row, no agent holds a session on
-   * it, so there is no chosen tab to spare. The person's own tabs are still
-   * protected by the oldest-of-each-origin rule, which is the protection that
-   * matters when we cannot tell whose tab is whose.
+   * No chosen tab for the unclaimed pod: with no row, no agent holds a session
+   * on it, so there is none to spare -- only what a desk is working in. The
+   * person's own tabs are still protected by the oldest-of-each-origin rule,
+   * which is the protection that matters when we cannot tell whose tab is
+   * whose.
    */
   const named = (alsoCdp || '').trim()
   if (named && !jobs.some(j => sameEndpoint(j.cdp, named)))
-    jobs.push({ who: UNCLAIMED, cdp: named, keep: [] })
+    jobs.push({ who: UNCLAIMED, cdp: named, keep: desks })
   return jobs
 }
 
@@ -363,7 +398,7 @@ export interface PodTabView {
  *
  * The wedge was a number nobody could see: 27 tabs looked exactly like 9 from
  * outside, and the first sign of trouble was a signed-in account that behaved
- * like a broken login. This is that number, on demand (`tri tabs`), so it can
+ * like a broken login. This is that number, on demand (`tri browser`), so it can
  * be read before it becomes an outage rather than after.
  *
  * AND A LIST THAT ANSWERS IS NOT A BROWSER THAT WORKS. `/json/list` is served
@@ -449,7 +484,12 @@ export async function sweepEveryPod(
   for (const job of jobs) {
     try {
       const done = await sweepPodTabs(job.cdp, job.keep, io, cap)
-      out.push({ who: job.who, closed: done.closed.length, left: done.left })
+      out.push({
+        who: job.who,
+        closed: done.closed.length,
+        left: done.left,
+        gone: namesOfClosed(done.closed),
+      })
     } catch {
       /* Not a browser right now. Nothing to tidy, nothing to say. */
     }

@@ -29,6 +29,7 @@ import {
 import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import type { IncomingMessage } from 'node:http'
 import { editorialAccess, type AgentScope } from './editorial-key-scope'
+import { ICS_PATH as MEETING_ICS_PATH } from './src/spec/meeting-reminders.gen'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
@@ -311,8 +312,8 @@ const PUBLIC_EXACT = new Set([
    * relay's own check ran, so the freshly deployed route was unreachable.
    *
    * Not a relaxation: the relay (src/zai-relay.ts) refuses every caller whose
-   * bearer does not timing-safe-match GLM_API_KEY, fails closed without that
-   * key, and rebuilds the upstream Authorization from OUR env so it can never
+   * bearer does not timing-safe-match the relay key (ZAI_RELAY_API_KEY, else
+   * GLM_API_KEY), fails closed without that key, and rebuilds the upstream Authorization from OUR env so it can never
    * proxy a caller-chosen key. The guard would only add a credential the one
    * legitimate caller is technically unable to send.
    */
@@ -334,6 +335,11 @@ const PUBLIC_EXACT = new Set([
   '/api/club/invoice',
   '/api/club/status',
   '/api/club/verify',
+  // The agent packages' Stars till (agent-package-sale.ts), same principle:
+  // the person by their own proof, or the bot with the server key.
+  '/api/agents/packages/invoice',
+  '/api/agents/packages/status',
+  '/api/agents/packages/verify',
   // Which pieces of a person's digital clone exist (clone-readiness.ts). Same
   // principle: the handler refuses without an identity rather than answering a
   // default, because "no voice" read as a fact would ask somebody to redo work
@@ -352,6 +358,11 @@ const PUBLIC_EXACT = new Set([
    * counted. The handler keeps no person and limits each address per minute.
    */
   '/api/traffic/arrival',
+  /*
+   * A step on the welcome screen (the screen's heatmap), sent the same way
+   * and bounded the same way: a closed list of steps, no person.
+   */
+  '/api/traffic/welcome',
 ])
 
 /*
@@ -364,9 +375,30 @@ const PUBLIC_EXACT = new Set([
  * a verdict (POST) stays behind the guard and then a keeper check.
  */
 const PUBLIC_GET_EXACT = new Set([
+  /*
+   * Meta's OAuth redirect (src/agent/meta-routes.ts). The browser arriving
+   * here carries no key; the single-use, ten-minute state is the proof.
+   */
+  '/api/social/meta/callback',
   '/api/agents/acceptance',
   // The catalogue agents' faces (agent-avatars.ts): shown on every rail.
   '/api/agents/avatars',
+  /*
+   * A meeting's calendar file (src/agent/meetings.ts). A phone calendar fetches
+   * it with no Telegram and no key, so behind the guard the link in every
+   * reminder card answered 401 (measured on the first deploy, 2026-10-01).
+   * The handler reveals nothing without the meeting's own ics token and
+   * answers a wrong token exactly like a missing one.
+   */
+  MEETING_ICS_PATH,
+  /*
+   * Which voices voice mode can speak with: model names, nobody's data. The
+   * player reads it with a bare fetch, so behind the guard it answered 401 on
+   * the first deploy (2026-10-01) and the voice picker never appeared.
+   * Hearing, speaking and warming (/api/voice/transcribe, /speak, /warm)
+   * stay signed.
+   */
+  '/api/voice/status',
 ])
 
 const PUBLIC_PREFIXES = [
@@ -374,6 +406,13 @@ const PUBLIC_PREFIXES = [
   '/hls/',
   '/public/',
   '/s3/',
+  /*
+   * Remotion's own Chrome fetches /render-temp/ with no key: preDownloadS3Asset
+   * turns every /s3/ video in a render's props into an H.264 copy there. Behind
+   * the guard each such render failed with 401 (measured 2026-10-02, the first
+   * split reel). The files are copies of /s3/ objects, which are public already.
+   */
+  '/render-temp/',
   '/proxy/image',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
   // проверяет личность сам. POST/DELETE — через подпись или ключ агента;
@@ -409,6 +448,8 @@ const PUBLIC_PREFIXES = [
 const НЕ_ПУБЛИЧНЫЕ = ['/api/feed/pending']
 
 const PUBLIC_GET_PREFIXES = [
+  // The blog card Instagram fetches by URL (src/agent/meta-card.ts).
+  '/api/social/card/',
   '/api/feed',
   // Пакеты токенов публичны (цены — витрина); покупка /api/tokens/invoice
   // проверяет личность сама, вебхук — секретом в пути.
@@ -595,6 +636,56 @@ export function hasServerKey(req: IncomingMessage): boolean {
   const a = Buffer.from(given)
   const b = Buffer.from(expected)
   return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/**
+ * A STRANGER LOOKING FOR AN OAUTH SERVER IS NOT AN INTRUDER.
+ *
+ * MCP clients follow the MCP authorization spec on connect: GET
+ * /.well-known/oauth-protected-resource[/...], GET
+ * /.well-known/oauth-authorization-server[/...], then dynamic client
+ * registration at POST /register; crawlers fetch /robots.txt. We run no OAuth
+ * server, so the guard's 401 is the right answer and stays. What was wrong is
+ * the log: each probe printed a refusal on stderr, which Railway files as an
+ * error, and a handful per client connect buried real refusals.
+ *
+ * Exact paths and methods only -- every other refusal is still logged. Used
+ * for the LOG decision only, never for the allow decision.
+ */
+export function isDiscoveryProbe(
+  method: string | undefined,
+  url: string | undefined
+): boolean {
+  const m = (method || '').toUpperCase()
+  const p = (url || '').split('?')[0].split('#')[0]
+  if (m === 'GET' || m === 'HEAD') {
+    if (p === '/robots.txt') return true
+    for (const doc of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-authorization-server',
+    ])
+      if (p === doc || p.startsWith(`${doc}/`)) return true
+    return false
+  }
+  return m === 'POST' && p === '/register'
+}
+
+/**
+ * Whether the guard's refusal of this request is written to the log. Every
+ * refusal is, except an OAuth discovery probe that offered no credential at
+ * all (isDiscoveryProbe): a 403, or a credential that was offered and failed,
+ * is still logged on any path.
+ */
+export function logsRefusal(
+  req: { method?: string; url?: string },
+  auth: Pick<AuthResult, 'wouldReject' | 'via' | 'statusCode' | 'reason'>
+): boolean {
+  if (!auth.wouldReject) return false
+  const noCredential =
+    auth.via === 'none' &&
+    auth.statusCode !== 403 &&
+    /^no X-Api-Key and no Telegram initData$/.test(auth.reason ?? '')
+  return !(noCredential && isDiscoveryProbe(req.method, req.url))
 }
 
 export function authenticate(req: IncomingMessage): AuthResult {

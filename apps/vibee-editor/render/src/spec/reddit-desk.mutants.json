@@ -1,0 +1,26 @@
+[
+  {
+    "name": "a skip never expires",
+    "file": "src/agent/reddit.ts",
+    "from": "  return ageMs < SPEC.SKIP_MS\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "a quarantined community is not closed",
+    "file": "src/agent/reddit.ts",
+    "from": "    state === 'quarantined' ||\n",
+    "to": ""
+  },
+  {
+    "name": "the owner is told on every tick",
+    "file": "src/agent/reddit.ts",
+    "from": "  return !alreadySkipped\n",
+    "to": "  return true\n"
+  },
+  {
+    "name": "the skip is written over the owner's list",
+    "file": "src/agent/reddit-wiring.ts",
+    "from": "      await writeStrategy(pool, SPEC.SKIP_KEY, { skips })\n",
+    "to": "      await writeStrategy(pool, SPEC.LIST_KEY, { skips })\n"
+  }
+]

@@ -199,7 +199,7 @@ struct PreviewView: View {
           .lineLimit(1)
           .foregroundStyle(Тема.Цвет.предупреждение)
       } else if !естьМедиа {
-        Text("без медиа — только слои")
+        Text(say("no media — layers only", "без медиа — только слои"))
           .font(Тема.Шрифт.стиль(.caption2))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
@@ -796,7 +796,7 @@ final class PreviewCoordinator: NSObject {
     for дорожка in composition.tracks where дорожка.visible {
       for клип in дорожка.items {
         части.append(
-          "\(клип.url ?? "-")|\(клип.startFrame)|\(клип.durationInFrames)|\(дорожка.muted)"
+          "\(клип.url ?? "-")|\(клип.startFrame)|\(клип.durationInFrames)|\(дорожка.muted)"  // ru-only-ok: cache signature, no text
         )
       }
     }

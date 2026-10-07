@@ -217,6 +217,41 @@ bun run typecheck     # Type checking
 bun run build         # Полная сборка (typecheck + tsc + alias)
 ```
 
+## Newer Bot API Features in Proactive Messages
+
+Proactive cards (meeting reminders in `apps/vibee-editor/render/src/agent/meetings.ts`)
+use Bot API 9.5+: the `<tg-time unix="..." format="wDT">` entity, button `style`
+(success / primary / danger) and `copy_text`.
+
+- Our bot talks to its own Bot API server, which can be older than the public
+  changelog. An unknown entity fails the whole send with a parse/entity 400, so
+  every new entity needs a degraded resend (see `sendCard`). Unknown button fields
+  are ignored by old hosts and need no fallback.
+- A callback that changes someone's data is honoured only for its owner: the bot
+  relays `ctx.from.id` as the presser and the render checks ownership. A token in
+  `callback_data` identifies the row, it never authorises the tap.
+- The meeting rules (offsets, callback prefix, sweep cadence) live in the spec of
+  record `src/spec/meeting-reminders.t27`; import the gen module, do not restate numbers.
+
+## Groups: Who the Bot Answers
+
+In a group, `isAddressedToUs` (`src/navigation/helpers/groupAddressing.ts`) keeps
+the bot silent unless the message is a reply to it, an @mention or a command. A
+room listed in `GROUP_CONCIERGE_CHATS` (variable on service `999-multibots-telegraf`,
+`groupConcierge.ts`) is answered in full. This is the owner's rule: the shared
+client room stays quiet by design.
+
+- **Resolve the id with `getChat` before adding it.** Telegram Desktop shows a
+  peer id with no sign. A basic group is `-<id>`, a supergroup `-100<id>`, and a
+  guessed prefix opens nothing and fails silently. On 2026-10-03 a VIP client's
+  brief went unanswered for four days this way.
+- Messages sent before the room was opened are **not** redelivered. Someone has
+  to answer the backlog: draft it to the owner, and post into the client's room
+  only after the owner's "да".
+- A silent room with at most 3 members reports itself to the admins present in
+  it, once per room per process (`silentRoomNotice.ts`). The notice carries the
+  exact id to paste. Silence that tells nobody is a bug.
+
 ## Usage Guidelines
 
 When working with this codebase:

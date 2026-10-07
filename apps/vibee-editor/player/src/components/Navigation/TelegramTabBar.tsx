@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, User, Users, Sparkles, Hexagon, Globe } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { revealInStrip } from '@/components/Profile/revealInStrip'
 import { haptic } from '@/lib/telegram'
 import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
+import { TAB_GLYPHS } from '@/lib/tabGlyphs'
 import { IS_EMBED } from '@/lib/embed'
+import { chatTabHref, readChatTabMemory } from '@/lib/chatTabMemory'
 import './TelegramTabBar.css'
 
 // ===============================
@@ -36,26 +38,16 @@ interface TabItem {
  * tab, in the same order as native iOS, with the editor as its final stage.
  * Agent remains the second product tab as requested by the owner.
  */
-const TAB_ICONS: Record<PrimaryTabId, React.ReactNode> = {
-  feed: <Home size={20} />,
-  chat: <Users size={20} />,
-  // The person's own browser. A globe: it is the open web, not a tool.
-  browser: <Globe size={20} />,
-  ai: <Sparkles size={20} />,
-  // The hive. A hexagon because the comb is her own metaphor for the board.
-  hive: <Hexagon size={20} />,
-  profile: <User size={20} />,
-}
-
 const TABS: TabItem[] = PRIMARY_NAV_ITEMS.map(item => ({
   ...item,
-  icon: TAB_ICONS[item.id],
+  icon: TAB_GLYPHS[item.icon],
 }))
 
 /** Pages that own the full screen and must not be overlapped. */
 const HIDDEN_EXACT = new Set([
   '/', // transient — redirects to /feed
   '/home', // marketing landing
+  '/welcome', // first-launch screen, has its own way out
   '/privacy-policy',
   '/terms-service',
   '/terms-of-service',
@@ -173,7 +165,11 @@ export function TelegramTabBar() {
       : undefined)
 
   return (
-    <nav ref={tabbarRef} className="tma-tabbar" aria-label="Primary">
+    <nav
+      ref={tabbarRef}
+      className={`tma-tabbar${location.pathname.startsWith('/game') ? ' tma-tabbar--game' : ''}`}
+      aria-label="Primary"
+    >
       <div
         ref={scrollRef}
         className={`tma-tabbar__scroll${edges.start ? ' has-start' : ''}${edges.end ? ' has-end' : ''}`}
@@ -181,10 +177,14 @@ export function TelegramTabBar() {
         {TABS.map(tab => {
           // ProfileRedirect resolves /profile to /:username, but linking
           // straight there avoids a redirect hop when the profile is loaded.
+          // The agents tab returns to the chat left last; the market only
+          // until it has been seen once (lib/chatTabMemory.ts).
           const to =
             tab.id === 'profile' && myProfile?.username
               ? `/${myProfile.username}`
-              : tab.route
+              : tab.id === 'chat'
+                ? chatTabHref(location, readChatTabMemory())
+                : tab.route
 
           return (
             <Link
@@ -200,6 +200,23 @@ export function TelegramTabBar() {
           )
         })}
       </div>
+      {/*
+        Keys & XP comes LAST (owner, 2026-10-02): it is the game's account
+        page, not a destination, and leading the bar it pushed the shared
+        tabs right and took the thumb's first reach.
+      */}
+      {location.pathname.startsWith('/game') && (
+        <Link
+          to="/game/account"
+          className="tma-tabbar__account"
+          aria-current={
+            location.pathname === '/game/account' ? 'page' : undefined
+          }
+        >
+          <KeyRound size={20} aria-hidden="true" />
+          <span>{t('hiveAccount.short')}</span>
+        </Link>
+      )}
     </nav>
   )
 }

@@ -53,14 +53,23 @@ import SwiftUI
  * Отсюда форма: свой тип, строки в отдельных `private var`, фон и рамка тоже
  * вынесены. Это не украшение кода, а условие его компиляции.
  */
+/// The pack's spoken label. It read "1 токенов" style Russian on every phone;
+/// both languages now agree in number. `russian` is a parameter so a test can
+/// check both sides without changing the phone's language.
+func packLabel(tokens: Int, stars: Int, russian: Bool = speaksRussian) -> String {
+  guard russian else {
+    return "\(tokens) token\(tokens == 1 ? "" : "s") for \(stars) Star\(stars == 1 ? "" : "s")"
+  }
+  return склонение(tokens, "токен", "токена", "токенов") + " за "  // ru-only-ok cyrillic-ok: the Russian side of the choice
+    + склонение(stars, "звезду", "звезды", "звёзд")  // ru-only-ok cyrillic-ok: the Russian side of the choice
+}
+
 private struct ПлиткаПакета: View {
   let пакет: API.TokenPack
 
   private var числоТокенов: String { String(пакет.токенов) }
   private var цена: String { String(пакет.звёзд) + " ★" }
-  private var подпись: String {
-    String(пакет.токенов) + " токенов за " + String(пакет.звёзд) + " звёзд"
-  }
+  private var подпись: String { packLabel(tokens: пакет.токенов, stars: пакет.звёзд) }  // cyrillic-ok: pre-existing names
 
   var body: some View {
     VStack(spacing: 2) {
@@ -121,6 +130,8 @@ struct ProfileScreen: View {
   @State private var ошибкаПлана: String?
   /// Всё сгенерированное — то, за что уже заплачено токенами.
   @State private var файлы: [API.Файл] = []
+  @StateObject private var purchase = TokenPurchase()
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     ScrollView {
@@ -187,12 +198,23 @@ struct ProfileScreen: View {
             сетка
           }
         }
+
+        // The web screens this app has no native form of, opened as the web's
+        // own pages (AppWebView.swift). For guests too: the blog, the lessons
+        // and the agents are readable without an account.
+        WebSectionsList(username: профиль?.username)  // cyrillic-ok: existing state
       }
-      .padding(Тема.Отступ.md)
+      .padding(Тема.Отступ.md)  // cyrillic-ok: existing theme token
+      .scrollsToTopOnReselect()
     }
     // #050505, а не #000000 общей темы: Profile.css:1114 и :1122.
     .background(Тема.Профиль.фон)
-    .task(id: версия) { await загрузить() }
+    .taskWhileShown(id: версия) { await загрузить() }  // cyrillic-ok: existing state
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active else { return }
+      // cyrillic-ok-next-line
+      Task { await purchase.checkAfterReturn { остаток = $0 } }
+    }
   }
 
   // MARK: - Куски
@@ -207,7 +229,7 @@ struct ProfileScreen: View {
   @ViewBuilder private var доступ: some View {
     if Identity.hasSession {
       HStack {
-        Label("Вы вошли", systemImage: "checkmark.shield")
+        Label(say("Signed in", "Вы вошли"), systemImage: "checkmark.shield")
           .font(Тема.Шрифт.стиль(.subheadline, .medium))
           // Золото вместо зелёного: акцент нового профиля — Profile.css:555.
           .foregroundStyle(Тема.Профиль.акцент)
@@ -215,12 +237,15 @@ struct ProfileScreen: View {
         Button {
           Task {
             await Identity.logout()
+            // Sign the pages inside the app out too, or a second session
+            // would outlive the one the person just ended.
+            await WebHosts.renewAll()
             профиль = nil
             ролики = []
             версия += 1
           }
         } label: {
-          Text("Выйти")
+          Text(say("Sign out", "Выйти"))
         }
         /**
          * Тёплый #ff6b6b, а не общий #ef4444 — почему именно так, расписано
@@ -235,7 +260,7 @@ struct ProfileScreen: View {
       }
     } else {
       VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
-        Label("Нужен вход", systemImage: "exclamationmark.shield")
+        Label(say("Sign-in needed", "Нужен вход"), systemImage: "exclamationmark.shield")
           .font(Тема.Шрифт.стиль(.subheadline, .medium))
           /**
            * ЗОЛОТО, А НЕ `Цвет.предупреждение` #eab308.
@@ -249,7 +274,10 @@ struct ProfileScreen: View {
            * держу второй жёлтый ради статусной семантики.
            */
           .foregroundStyle(Тема.Профиль.акцент)
-        SignInView { версия += 1 }
+        SignInView {
+          версия += 1  // cyrillic-ok: existing state
+          Task { await WebHosts.renewAll() }
+        }
       }
     }
   }
@@ -263,7 +291,7 @@ struct ProfileScreen: View {
     if !пакеты.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .firstTextBaseline) {
-          Text("Токены")
+          Text(say("Tokens", "Токены"))
             .font(Тема.Шрифт.стиль(.subheadline, .semibold))
             .foregroundStyle(Тема.Профиль.текст)
           Spacer()
@@ -280,18 +308,24 @@ struct ProfileScreen: View {
            * «у вас пусто», то есть враньё на секунду раньше правды.
            */
           if let б = остаток {
-            Text("есть \(б)")
+            Text(say("have \(б)", "есть \(б)"))
               .font(Тема.Шрифт.стиль(.subheadline, .semibold))
               .foregroundStyle(Тема.Цвет.акцент)
-              .accessibilityIdentifier("профиль.баланс")
+              .accessibilityIdentifier("профиль.баланс")  // ru-only-ok: UI test id
           } else {
             ProgressView().controlSize(.mini)
           }
         }
         HStack(spacing: Тема.Профиль.просветСетки) {
           ForEach(пакеты) { пакет in
-            ПлиткаПакета(пакет: пакет)
+            // cyrillic-ok-next-line
+            TokenPackButton(pack: пакет.id, purchase: purchase) { ПлиткаПакета(пакет: пакет) }
           }
+        }
+        if let note = purchase.note {
+          Text(note)
+            .font(Typeface.style(.footnote))
+            .foregroundStyle(Palette.textMuted)
         }
       }
     }
@@ -367,11 +401,11 @@ struct ProfileScreen: View {
    */
   @ViewBuilder private func счётчики(_ p: API.Profile) -> some View {
     HStack(spacing: 0) {
-      счётчик(p.followers_count, "ПОДПИСЧИКИ")
-      счётчик(p.following_count, "ПОДПИСКИ")
-      счётчик(p.templates_count, "ВИДЕО")
-      счётчик(p.total_views, "ПРОСМОТРЫ")
-      счётчик(p.total_likes, "ЛАЙКИ")
+      счётчик(p.followers_count, say("FOLLOWERS", "ПОДПИСЧИКИ"))
+      счётчик(p.following_count, say("FOLLOWING", "ПОДПИСКИ"))
+      счётчик(p.templates_count, say("VIDEOS", "ВИДЕО"))
+      счётчик(p.total_views, say("VIEWS", "ПРОСМОТРЫ"))
+      счётчик(p.total_likes, say("LIKES", "ЛАЙКИ"))
     }
   }
 
@@ -439,7 +473,7 @@ struct ProfileScreen: View {
           Button {
             withAnimation(.easeInOut(duration: 0.2)) { soulРазвёрнут.toggle() }
           } label: {
-            Text(soulРазвёрнут ? "Свернуть" : "Читать целиком")
+            Text(soulРазвёрнут ? say("Collapse", "Свернуть") : say("Read in full", "Читать целиком"))
               .font(Тема.Шрифт.стиль(.footnote, .medium))
               .foregroundStyle(Тема.Профиль.акцент)
           }
@@ -490,10 +524,10 @@ struct ProfileScreen: View {
   @ViewBuilder private var ждутОдобрения: some View {
     if !ожидают.isEmpty {
       VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
-        Text("Ждут одобрения · \(ожидают.count)")
+        Text(say("Awaiting approval · \(ожидают.count)", "Ждут одобрения · \(ожидают.count)"))
           .font(Тема.Шрифт.стиль(.subheadline, .semibold))
           .foregroundStyle(Тема.Профиль.текст)
-        Text("Это сделал агент. В ленту попадёт только то, что вы одобрите.")
+        Text(say("The agent made these. Only what you approve goes to the feed.", "Это сделал агент. В ленту попадёт только то, что вы одобрите."))
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Профиль.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
@@ -502,7 +536,7 @@ struct ProfileScreen: View {
           HStack(alignment: .top, spacing: Тема.Отступ.xs) {
             обложкаОжидающего(п)
             VStack(alignment: .leading, spacing: 2) {
-              Text(п.name ?? "Без названия")
+              Text(п.name ?? say("Untitled", "Без названия"))
                 .font(Тема.Шрифт.стиль(.footnote, .medium))
                 .foregroundStyle(Тема.Профиль.текст)
                 .lineLimit(2)
@@ -514,7 +548,7 @@ struct ProfileScreen: View {
               }
             }
             Spacer(minLength: 0)
-            Button(публикую == п.id ? "Публикую…" : "Опубликовать") {
+            Button(публикую == п.id ? say("Publishing…", "Публикую…") : say("Publish", "Опубликовать")) {
               Task { await одобрить(п.id) }
             }
             .disabled(публикую != nil)
@@ -561,7 +595,7 @@ struct ProfileScreen: View {
       try await API.одобрить(id: id)
       ожидают.removeAll { $0.id == id }
     } catch {
-      ошибкаОдобрения = "Не опубликовалось: \(error.localizedDescription)"
+      ошибкаОдобрения = say("Not published: \(error.localizedDescription)", "Не опубликовалось: \(error.localizedDescription)")
     }
   }
 
@@ -580,7 +614,7 @@ struct ProfileScreen: View {
   @ViewBuilder private var карточкаПлана: some View {
     if !план.isEmpty {
       VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
-        Text("План")
+        Text(say("Plan", "План"))
           .font(Тема.Шрифт.стиль(.subheadline, .semibold))
           .foregroundStyle(Тема.Профиль.текст)
 
@@ -632,8 +666,8 @@ struct ProfileScreen: View {
   /** Цвет по статусу: вышло — зелёный, в работе — акцент, замысел — тихий. */
   private func цветСтатуса(_ с: String) -> Color {
     switch с {
-    case "вышло": return Тема.Цвет.акцент
-    case "в работе": return Тема.Профиль.акцент
+    case "вышло": return Тема.Цвет.акцент  // ru-only-ok cyrillic-ok: server status
+    case "в работе": return Тема.Профиль.акцент  // ru-only-ok cyrillic-ok: server status
     default: return Тема.Профиль.текстПриглушённый
     }
   }
@@ -653,7 +687,7 @@ struct ProfileScreen: View {
       try await API.планОтметить(id: к.id, статус: API.следующийСтатус(к.статус))
       план = (try? await API.планПрочитать()) ?? план
     } catch {
-      ошибкаПлана = "Не изменилось: \(error.localizedDescription)"
+      ошибкаПлана = say("Not changed: \(error.localizedDescription)", "Не изменилось: \(error.localizedDescription)")
     }
   }
 
@@ -670,7 +704,7 @@ struct ProfileScreen: View {
   @ViewBuilder private var карточкаФайлов: some View {
     if !файлы.isEmpty {
       VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
-        Text("Файлы · \(файлы.count)")
+        Text(say("Files · \(файлы.count)", "Файлы · \(файлы.count)"))
           .font(Тема.Шрифт.стиль(.subheadline, .semibold))
           .foregroundStyle(Тема.Профиль.текст)
 
@@ -725,9 +759,9 @@ struct ProfileScreen: View {
 
   @ViewBuilder private var сетка: some View {
     if ролики.isEmpty {
-      подпись("Пока ни одного ролика")
+      подпись(say("No videos yet", "Пока ни одного ролика"))
     } else {
-      Text("Ролики · \(ролики.count)")
+      Text(say("Videos · \(ролики.count)", "Ролики · \(ролики.count)"))
         .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .foregroundStyle(Тема.Профиль.текстПриглушённый)
 
@@ -793,7 +827,7 @@ struct ProfileScreen: View {
                 Тема.Профиль.граница, lineWidth: Тема.Профиль.толщинаГраницы
               )
           )
-          .accessibilityLabel("\(р.name), просмотров \(р.viewsCount)")
+          .accessibilityLabel(say("\(р.name), \(р.viewsCount) views", "\(р.name), просмотров \(р.viewsCount)"))
         }
       }
     }
@@ -847,7 +881,7 @@ struct ProfileScreen: View {
       if let своя = error as? API.ПрофильError {
         ошибка = своя.errorDescription
       } else {
-        ошибка = "Профиль не загрузился: \(error.localizedDescription)"
+        ошибка = say("The profile did not load: \(error.localizedDescription)", "Профиль не загрузился: \(error.localizedDescription)")
       }
     }
     грузим = false

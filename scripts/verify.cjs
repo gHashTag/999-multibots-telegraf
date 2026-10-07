@@ -38,6 +38,17 @@ const STEPS = [
   ['test:player', 'bun', ['run', 'test:player']],
   ['test:vitest', 'bun', ['run', 'test:vitest']],
   ['test-gate', 'node', ['scripts/test-gate.cjs']],
+  // Every phone stand in a real Chromium at 390 ru/en and 320 ru (tri shot
+  // all). jsdom has no layout: a list 478px wide in a 390px screen, a 20px
+  // link and a palette nobody could open all passed every step above. Exit 2
+  // ("not measured" -- no browser, a stand that never reached its state) is
+  // a FAIL here, not a skip: the story-palette stand measured nothing for
+  // days after #3242 hid its panel, and no run said so (2026-10-02).
+  ['phone-shots', 'node', ['bin/helpers/shot.mjs', 'all']],
+  // Every browser_* tool in the agent registry has a `tri browser` case. No
+  // key, no network: it reads two files. On 2026-10-03 four of thirteen tools
+  // had none, and the only way to try them by hand was a raw JSON call.
+  ['browser-cover', 'bash', ['bin/helpers/b.sh', '.', 'cover']],
 ]
 
 // One step is a known flake, not a code signal: test:bun runs its files under a
@@ -55,7 +66,11 @@ const STEPS = [
 // non-zero — observed once mid-session, then passing in 0.4s with 0 critical on
 // the immediate re-run. Same treatment: retry once. A real critical advisory is
 // persistent and still fails the re-run, so nothing is masked.
-const FLAKY_RETRY = new Set(['test:bun', 'audit'])
+//
+// `phone-shots` starts a Vite server and a browser per stand; on a loaded
+// machine (load ~675 on 8 cores, measured) a page can miss its 30s goto and
+// read as "not measured". Retry once: a real red is the same pixels twice.
+const FLAKY_RETRY = new Set(['test:bun', 'audit', 'phone-shots'])
 
 // Preflight: a node_modules that has become a symlink to itself makes every
 // step below fail to spawn (exit -1 in 0.0s) — thirteen false failures for one
@@ -119,6 +134,50 @@ if (uninstalled.length) {
   process.exit(3)
 }
 
+/*
+ * Preflight: DECLARED, BUT NOT INSTALLED.
+ *
+ * A worktree's node_modules is usually a link to the main checkout's, which is
+ * installed for whatever branch THAT checkout is on. On 2026-10-03 it sat on a
+ * branch 2634 commits behind main: four declared packages were absent, and
+ * typecheck failed on TS2307 'redis' in every linked tree -- read as a debt of
+ * main when it was neither main nor the code. This WARNS and runs on: steps
+ * that do not touch the absent packages still say something true. The same
+ * names are repeated next to the failures at the end.
+ */
+const { absentFrom, installDrift, driftLine } = require('./deps-absent.cjs')
+const TREES = ['.', ...SUBPROJECTS.map(([dir]) => dir)]
+const absent = TREES.map(dir => [
+  dir,
+  absentFrom(path.join(process.cwd(), dir)),
+]).filter(([, names]) => names.length)
+// The same fault a day earlier: the linked install declares other packages
+// or versions than this tree, while nothing is absent and every gate is green.
+const drift = TREES.map(dir => [
+  dir,
+  installDrift(path.join(process.cwd(), dir)),
+]).filter(([, d]) => d)
+const absentReport = () => {
+  if (absent.length) {
+    console.error(
+      'Declared but not installed (an install fault, not the code):'
+    )
+    for (const [dir, names] of absent)
+      console.error(`  ${dir}: ${names.join(' ')}`)
+  }
+  if (drift.length) {
+    console.error("Linked install is another checkout's package.json:")
+    for (const [dir, d] of drift) console.error(`  ${dir}: ${driftLine(d)}`)
+  }
+  console.error(
+    "  A linked node_modules follows the main checkout's branch: `tri deps` names it.\n"
+  )
+}
+if (absent.length || drift.length) {
+  console.error('')
+  absentReport()
+}
+
 const results = []
 const runStep = (cmd, args) => {
   const r = spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' })
@@ -156,6 +215,7 @@ if (failed.length) {
     console.error(f.out.split('\n').filter(Boolean).slice(-12).join('\n'))
     console.error('')
   }
+  if (absent.length || drift.length) absentReport()
   process.exit(1)
 }
 

@@ -18,6 +18,7 @@
 # нельзя» и «работа на один виток», то есть ровно то решение, ради которого
 # считают. Разбор здесь останавливается на первой пустой строке.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"  # tfetch: a failed fetch says so
 ROOT="${1:?нужен корень репозитория}"
 BASE="${2:-origin/main}"
 cd "$ROOT" || exit 1
@@ -27,11 +28,9 @@ echo "── ветка: $BR ──"
 
 # Свежесть базы. Без fetch числа описывают вчерашний main и врут в сторону
 # «всё хорошо» — а ошибаться надо в другую.
-if git fetch --quiet origin "${BASE#origin/}" 2>/dev/null; then
+if tfetch origin "${BASE#origin/}"; then
   echo "  база обновлена: $BASE"
-else
-  echo "  ⚠️  fetch не прошёл — числа ниже по локальной копии $BASE, возможно вчерашней"
-fi
+fi  # on failure tfetch has warned, with the age of the copy
 
 git rev-parse --verify --quiet "$BASE" >/dev/null || {
   echo "  нет такой базы: $BASE"

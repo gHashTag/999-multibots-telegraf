@@ -15,6 +15,7 @@
 # what it opened (logins are kept either way). Keys stay in variables.
 # Exit 0 sees, 1 does not see (or no tabs), 2 could not check.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/rail.sh"  # rvars: Railway by explicit ids
 ROOT="$1"
 B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 
@@ -22,7 +23,7 @@ B="${RENDER_BASE:-https://vibee-render-production.up.railway.app}"
 # `railway variables` answers nothing there. Ask from the main checkout, and
 # name the service with --service instead of re-linking it back and forth.
 MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
-AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
+AK=$(rvars vibee-render \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 if [ -z "$AK" ]; then echo "eyes: no agent key (railway login?) -- could not check"; exit 2; fi
 

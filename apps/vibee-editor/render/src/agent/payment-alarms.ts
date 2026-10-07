@@ -37,10 +37,10 @@ import { telegramApiFor } from '../telegram-api'
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<any> }
 
-export type PaySurface = 'club' | 'tokens' | 'feed'
+export type PaySurface = 'club' | 'tokens' | 'feed' | 'agents'
 export type PayOutcome = 'cancelled' | 'failed' | 'pending' | 'unsupported'
 
-const SURFACES: readonly PaySurface[] = ['club', 'tokens', 'feed']
+const SURFACES: readonly PaySurface[] = ['club', 'tokens', 'feed', 'agents']
 const OUTCOMES: readonly PayOutcome[] = [
   'cancelled',
   'failed',
@@ -52,6 +52,7 @@ const SURFACE_RU: Record<PaySurface, string> = {
   club: 'клуб', // cyrillic-ok: journal text
   tokens: 'токены', // cyrillic-ok: journal text
   feed: 'звёзды за пост', // cyrillic-ok: journal text
+  agents: 'пакет агента', // cyrillic-ok: journal text
 }
 
 export function isPayOutcomePath(path: string): boolean {

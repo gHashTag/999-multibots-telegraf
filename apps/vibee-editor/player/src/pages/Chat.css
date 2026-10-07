@@ -65,6 +65,19 @@ html[data-keyboard='open'] .chat-page {
   color: var(--t27-text);
   text-decoration: none;
 }
+/* The agent panel's toggle: the client nav's card button, for the agent's
+ * own panel (AgentAside). Same pill so both cards open the same way. */
+.chat-specialist__panel {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 .chat-specialist span {
   color: var(--t27-accent);
 }
@@ -162,8 +175,10 @@ html[data-keyboard='open'] .chat-page {
   margin-bottom: 4px;
   align-self: flex-start;
 }
-.thinking-toggle:hover {
-  color: var(--t27-accent);
+@media (hover: hover) {
+  .thinking-toggle:hover {
+    color: var(--t27-accent);
+  }
 }
 .thinking-body {
   font-size: 12px;
@@ -249,9 +264,11 @@ html[data-keyboard='open'] .chat-page {
     border-color 0.15s ease,
     background 0.15s ease;
 }
-.suggestion-btn:hover {
-  border-color: var(--t27-accent);
-  background: rgba(0, 255, 136, 0.06);
+@media (hover: hover) {
+  .suggestion-btn:hover {
+    border-color: var(--t27-accent);
+    background: rgba(0, 255, 136, 0.06);
+  }
 }
 
 /* Поле ввода. */
@@ -289,6 +306,18 @@ html[data-keyboard='open'] .chat-page {
 .attach-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+.voice-btn {
+  flex: 0 0 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 10px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--t27-accent);
+  cursor: pointer;
 }
 .chat-attachment-tray {
   display: flex;
@@ -353,8 +382,10 @@ html[data-keyboard='open'] .chat-page {
   cursor: pointer;
   transition: filter 0.15s ease;
 }
-.send-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .send-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
 }
 .send-btn:disabled {
   opacity: 0.5;
@@ -420,9 +451,11 @@ html[data-keyboard='open'] .chat-page {
   }
 }
 
-.chat-reset:hover {
-  color: var(--vibee-cream, #f2ede1);
-  border-color: #3a3830;
+@media (hover: hover) {
+  .chat-reset:hover {
+    color: var(--vibee-cream, #f2ede1);
+    border-color: #3a3830;
+  }
 }
 
 .chat-topup {
@@ -455,8 +488,10 @@ html[data-keyboard='open'] .chat-page {
   transition: border-color 0.2s;
 }
 
-.chat-topup__pack:hover {
-  border-color: var(--vibee-gold);
+@media (hover: hover) {
+  .chat-topup__pack:hover {
+    border-color: var(--vibee-gold);
+  }
 }
 
 .chat-topup__pack span {
@@ -507,6 +542,52 @@ html[data-keyboard='open'] .chat-page {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* It gives way, not the page. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* NO SIDEWAYS PAGE (CRM mobile loop, tick 6). At 390px the row was 490px
+   wide -- the title could not shrink inside a row that could not shrink --
+   and the whole page scrolled sideways to 502px, the Queen off the screen.
+   The row now stops at the screen and the title takes the cut. */
+.chat-client {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+/* A phone: the arrow says "back", the name is the title (Telegram's own
+   chat header), and every control is a 44px target. */
+@media (max-width: 560px) {
+  .chat-client__back-text {
+    display: none;
+  }
+}
+/* Card and Queen share a class, so both took `margin-left: auto` and split
+   the free space: the pair stood apart in the middle of the row. Only the
+   first of them pushes; at 1100px+ the card is hidden and the Queen pushes. */
+@media (max-width: 1099px) {
+  /* Two classes: the plain rule is later in this file. */
+  .chat-client__card.chat-client__queen {
+    margin-left: 0;
+  }
+}
+@media (pointer: coarse) {
+  .chat-client__back,
+  .chat-client__card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+  /* The target reaches into the row's 6px gap and padding above and below
+     instead of pushing the conversation down; no neighbour is overlapped. */
+  .chat-client__back,
+  .chat-client__card {
+    margin-block: -6px;
+  }
+  .chat-client__back {
+    min-width: 44px;
+  }
 }
 
 /* ── THE CLIENT'S CARD BESIDE THE CONVERSATION ─────────────────────────────
@@ -834,6 +915,83 @@ html[data-keyboard='open'] .chat-page {
   flex-direction: column;
   gap: 6px;
 }
+/* The gifts section owns its rows (the reel panel brings its own). A gift
+   row is NOT a move: no tone, no re-ranking, always on the card. */
+/* The agent panel's client rows and its door (AgentAside). */
+.chat-aside__agent-clients {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-aside__agent-client {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: var(--t27-text);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+@media (hover: hover) {
+  .chat-aside__agent-client:hover {
+    border-color: rgba(0, 255, 136, 0.4);
+  }
+}
+
+.chat-aside__door {
+  display: block;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  color: var(--t27-accent, #00ff88);
+  text-decoration: none;
+  font-size: 13px;
+  text-align: center;
+}
+
+.chat-aside__gifts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Kept mounted behind another open widget (its typed topic survives); the
+   display above would otherwise beat the `hidden` attribute. */
+.chat-aside__gifts[hidden] {
+  display: none;
+}
+.chat-aside__gift {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--t27-border, rgba(255, 255, 255, 0.1));
+}
+.chat-aside__gift span {
+  flex: 1;
+}
+.chat-aside__gift small {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.chat-aside__gift button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t27-accent, #00ff88);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
 .chat-aside__move {
   display: flex;
   align-items: center;
@@ -895,15 +1053,19 @@ html[data-keyboard='open'] .chat-page {
   overflow: hidden;
 }
 
-.chat-aside__tabs {
-  display: flex;
+/* ONE MENU OF WIDGETS (owner, 2026-10-03): the client's entries, then the
+   chosen specialist's in gold. A grid, not a row of tabs: eight entries do
+   not fit one line of a 360px column, and a menu that scrolls sideways
+   hides the very widget the specialist just brought. */
+.chat-aside__menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
 }
-.chat-aside__tabs button {
-  flex: 1;
+.chat-aside__menu button {
   padding: 6px 4px;
   border: 0;
   border-radius: 8px;
@@ -912,10 +1074,20 @@ html[data-keyboard='open'] .chat-page {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.chat-aside__tabs button.is-active {
+.chat-aside__menu button:not([data-owner='client']) {
+  color: var(--t27-golden, #ffd700);
+}
+.chat-aside__menu button.is-active {
   background: rgba(255, 255, 255, 0.1);
   color: var(--t27-text, #fff);
+}
+.chat-aside__menu button.is-active:not([data-owner='client']) {
+  background: rgba(255, 215, 0, 0.14);
+  color: var(--t27-golden, #ffd700);
 }
 .chat-aside__pane {
   display: flex;
@@ -1178,15 +1350,24 @@ html[data-keyboard='open'] .chat-page {
   font-size: 11px;
   color: var(--text-muted, #9aa);
 }
+/* Copy / retry under a message. Visible by default: a phone has no hover, so
+   actions that wait for one are actions a phone never sees (measured at 390px,
+   CRM mobile loop, 01.10.2026 -- the row was there at opacity 0). Only a real
+   mouse gets the quiet version that appears on hover or keyboard focus. */
 .message-actions {
   display: flex;
   gap: 4px;
   margin-top: 4px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
-.message:hover .message-actions {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .message-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .message:hover .message-actions,
+  .message:focus-within .message-actions {
+    opacity: 1;
+  }
 }
 .message-action {
   border: 0;
@@ -1197,9 +1378,11 @@ html[data-keyboard='open'] .chat-page {
   padding: 2px 6px;
   border-radius: 6px;
 }
-.message-action:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
+@media (hover: hover) {
+  .message-action:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+  }
 }
 /* On a wide screen the rail sits beside the conversation as a column. */
 @media (min-width: 901px) {
@@ -1216,8 +1399,10 @@ html[data-keyboard='open'] .chat-page {
   font-size: 13px;
   cursor: pointer;
 }
-.chat-conv-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+  .chat-conv-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 
 /* The client's group on the card (components/Crm/ClientGroup.tsx). */
@@ -1351,4 +1536,21 @@ html[data-keyboard='open'] .chat-page {
 .chat-aside__event-text {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+/* Fingers, not cursors: the small controls of the chat grow to the touch
+   tokens on a coarse pointer (index.css --touch-target*). The aside's close
+   was 32x32 and the message actions 20px tall -- both under Apple's 44pt. */
+@media (pointer: coarse) {
+  .chat-aside__close {
+    width: var(--touch-target, 44px);
+    height: var(--touch-target, 44px);
+  }
+  .message-action {
+    min-height: var(--touch-target-sm, 36px);
+    padding: 6px 10px;
+  }
+  .chat-aside__menu button {
+    min-height: var(--touch-target-sm, 36px);
+  }
 }

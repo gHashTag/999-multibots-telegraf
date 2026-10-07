@@ -1,0 +1,603 @@
+/**
+ * THE TOPIC-TAB ENGINE, SHARED BY THE BOT AND THE RENDER SERVER.
+ *
+ * Spec: bot-topic-tabs.t27 (gHashTag/t27#7388, v2 in #7451). The bot makes a
+ * person's tabs on /start; the render server makes the same tabs when an
+ * agent calls tabs_setup. Both write the same `bot_topic_tabs` rows under the
+ * same claim protocol, so the protocol must be ONE piece of code.
+ *
+ * This file is kept byte-identical in two places, because the render image
+ * is built from apps/vibee-editor and cannot import the bot's src/:
+ *   src/navigation/topics/engine.ts               (the bot)
+ *   apps/vibee-editor/render/src/topic-tabs-engine.ts  (the render server)
+ * src/__tests__/navigation/topicTabsEngineParity.test.ts fails on any drift.
+ * That is why it imports nothing: the spec's numbers, the database, the log
+ * and the topic-name rule are handed in by each host.
+ *
+ * IDEMPOTENT ACROSS DEPLOYS, RACES AND PROCESSES: before createForumTopic a
+ * CLAIM row (a negative thread id, random per attempt) is inserted under the
+ * unique key (bot, person, kind); only the insert that landed makes the tab.
+ * The claim is turned into the tab only if that very row is still there: a
+ * maker slower than CLAIM_STALE_MS whose claim was dropped and taken by
+ * another keeps nothing and deletes the topic it made.
+ *
+ * /tabs asks Telegram about each stored tab with an edit that changes
+ * nothing (PROBE_METHOD) and forgets only the ones Telegram says are gone.
+ * Known limit: the Bot API does not document the answer for a deleted topic;
+ * an answer other than "thread not found" keeps the tab.
+ */
+
+export interface Db {
+  query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>
+}
+
+/** The part of bot-topic-tabs.gen.ts the engine reads. */
+export interface TopicTabsSpec {
+  readonly TAB_KEYS: readonly string[]
+  readonly TAB_TITLES_EN: readonly string[]
+  readonly TAB_EMOJI: readonly number[]
+  readonly TAB_COLORS: readonly number[]
+  readonly TAB_ROUTES: readonly string[]
+  readonly ICON_COLORS: readonly number[]
+  readonly TOPIC_NAME_MAX: number
+  readonly CLAIM_STALE_MS: number
+  readonly TAB_CACHE_MAX: number
+  readonly PROBE_METHOD: string
+}
+
+export interface TopicTabsLog {
+  warn(message: string, meta?: Record<string, unknown>): void
+}
+
+export interface TopicTabsDeps {
+  spec: TopicTabsSpec
+  /** The database, or null when none is configured (then nothing is made). */
+  db: () => Db | null
+  log: TopicTabsLog
+  /** A topic's name from its first message; '' for a command. */
+  titleFrom?: (text: string | undefined) => string
+  /** A fresh negative claim id; injectable for tests. */
+  newClaimId?: () => number
+}
+
+export interface TabSpec {
+  kind: string
+  ru: string
+  en: string
+  /** One of the colours Telegram accepts for a topic icon (spec ICON_COLORS). */
+  color: number
+  /** The mini-app screen the tab's first message opens. */
+  route: string
+  introRu: string
+  introEn: string
+}
+
+export interface TabRow {
+  /** Negative while a claim is being made into a tab. */
+  thread_id: number
+  kind: string
+  title: string | null
+  created_at?: Date | null
+}
+
+/** The part of a Telegram client the engine uses. */
+export interface TopicApi {
+  callApi(method: string, payload: any): Promise<any>
+}
+
+export interface EnsureOptions {
+  /** /tabs: ask Telegram about every stored tab and remake the gone ones. */
+  probe?: boolean
+  now?: number
+}
+
+/** Interface text only; key, emoji, colour and route come from the spec. */
+export const TAB_TEXT: Record<
+  string,
+  { ru: string; introRu: string; introEn: string }
+> = {
+  agent: {
+    ru: 'Агент',
+    introRu:
+      'Здесь главный разговор с агентом. Пишите или говорите голосом — он видит все свои инструменты.',
+    introEn:
+      'Your main conversation with the agent. Write or send a voice note; every tool is here.',
+  },
+  reels: {
+    ru: 'Рилсы',
+    introRu:
+      'Рилсы, липсинк, фото. Пришлите фото или опишите ролик — агент сделает его в этой вкладке.',
+    introEn:
+      'Reels, lip-sync, photos. Send a photo or describe the video; the agent makes it in this tab.',
+  },
+  browser: {
+    ru: 'Браузер',
+    introRu:
+      'Ваш браузер на сервере. Скажите, что открыть и сделать; пароли вводите только сами.',
+    introEn:
+      'Your own browser on the server. Say what to open and do; passwords are typed by you only.',
+  },
+  mybot: {
+    ru: 'Мой бот',
+    introRu:
+      'Ваш собственный бот-агент. Кнопка ниже откроет окно Telegram для создания бота, или попросите агента здесь — он сделает это сам. /mybot покажет ваших ботов.',
+    introEn:
+      "Your own agent bot. The button below opens Telegram's bot creation sheet, or ask the agent here and it will do it. /mybot lists your bots.",
+  },
+  wallet: {
+    ru: 'Баланс и клуб',
+    introRu:
+      'Баланс токенов, пополнение и клуб. Спросите «какой у меня баланс?» или нажмите /club.',
+    introEn:
+      'Token balance, top-up and the club. Ask "what is my balance?" or send /club.',
+  },
+  hive: {
+    ru: 'Улей',
+    introRu: 'Улей: задачи, доска и пчёлы. Спросите, что сейчас в работе.',
+    introEn:
+      'The Hive: tasks, the board and the bees. Ask what is in progress.',
+  },
+}
+
+export const TOPIC_TABS_TABLE = `CREATE TABLE IF NOT EXISTS bot_topic_tabs (
+  bot_username text NOT NULL,
+  telegram_id bigint NOT NULL,
+  thread_id bigint NOT NULL,
+  kind text NOT NULL,
+  title text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (bot_username, telegram_id, thread_id)
+)`
+
+/**
+ * The unique keys, declared here so a table copied without its indexes gets
+ * them back on the first query: one row per thread (ON CONFLICT needs it),
+ * and one row per fixed tab -- the key the claim lands on.
+ */
+export const TOPIC_TABS_INDEXES = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS bot_topic_tabs_thread
+  ON bot_topic_tabs (bot_username, telegram_id, thread_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS bot_topic_tabs_fixed_kind
+  ON bot_topic_tabs (bot_username, telegram_id, kind) WHERE kind <> 'chat'`,
+] as const
+
+/** Telegram's own word that a thread is gone (not a network error). */
+export function threadMissing(error: unknown): boolean {
+  const e = error as any
+  const said = String(
+    e?.response?.description ?? e?.description ?? e?.message ?? ''
+  )
+  return /thread not found|topic_id_invalid|topic_deleted|topic not found/i.test(
+    said
+  )
+}
+
+/** A short, token-free line for a log: never a URL, never a payload. */
+export function errorText(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e)
+  return raw.replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot<token>').slice(0, 200)
+}
+
+/** A random negative id: two attempts at the same tab never share a claim. */
+export function randomClaimId(): number {
+  return -(1 + Math.floor(Math.random() * 2 ** 47))
+}
+
+export function createTopicTabs(deps: TopicTabsDeps) {
+  const SPEC = deps.spec
+  const newClaimId = deps.newClaimId ?? randomClaimId
+
+  /** Order is the order of the tab column (the spec's order). */
+  const TABS: readonly TabSpec[] = SPEC.TAB_KEYS.map((kind, i) => {
+    const emoji = String.fromCodePoint(SPEC.TAB_EMOJI[i])
+    const text = TAB_TEXT[kind]
+    return {
+      kind,
+      ru: `${emoji} ${text.ru}`,
+      en: `${emoji} ${SPEC.TAB_TITLES_EN[i]}`,
+      color: SPEC.TAB_COLORS[i],
+      route: SPEC.TAB_ROUTES[i],
+      introRu: text.introRu,
+      introEn: text.introEn,
+    }
+  })
+
+  /** Every fixed title, in both languages: a topic so named is never renamed. */
+  const FIXED_NAMES: ReadonlySet<string> = new Set(
+    TABS.flatMap(t => [t.ru, t.en])
+  )
+
+  // ---- the spec's rules, one function each (bot-topic-tabs.t27) ----
+
+  const colorAllowed = (c: number): boolean => SPEC.ICON_COLORS.includes(c)
+  const tableColorsAllowed = (
+    table: readonly { color: number }[] = TABS
+  ): boolean => table.every(t => colorAllowed(t.color))
+  const tableColorsDistinct = (
+    table: readonly { color: number }[] = TABS
+  ): boolean => new Set(table.map(t => t.color)).size === table.length
+  /** Characters of a name as Telegram counts them (code points). */
+  const nameChars = (name: string): number => [...name].length
+  const nameFits = (chars: number): boolean =>
+    chars > 0 && chars <= SPEC.TOPIC_NAME_MAX
+  const makeTab = (stored: boolean, alive: boolean): boolean =>
+    !stored || !alive
+  const forgetRow = (probeFailed: boolean, missing: boolean): boolean =>
+    probeFailed && missing
+  const claimWon = (insertedRows: number): boolean => insertedRows === 1
+  const settleWon = (updatedRows: number): boolean => updatedRows === 1
+  const claimStale = (ageMs: number): boolean => ageMs >= SPEC.CLAIM_STALE_MS
+  const mayRename = (
+    known: boolean,
+    fixedName: boolean,
+    isCommand: boolean,
+    claimPending: boolean
+  ): boolean => !known && !fixedName && !isCommand && !claimPending
+  const maySetUp = (own: boolean, keeper: boolean): boolean => own || keeper
+  const readsDb = (cached: boolean): boolean => !cached
+  const evicts = (entries: number): boolean => entries >= SPEC.TAB_CACHE_MAX
+
+  // ---- the database ----
+
+  let schemaReady: Promise<void> | null = null
+
+  /** Create the table and its keys once per process; a failure is retried. */
+  async function ensureSchema(): Promise<boolean> {
+    const d = deps.db()
+    if (!d) return false
+    if (!schemaReady) {
+      schemaReady = (async () => {
+        await d.query(TOPIC_TABS_TABLE)
+        for (const index of TOPIC_TABS_INDEXES) await d.query(index)
+      })().catch(e => {
+        schemaReady = null
+        throw e
+      })
+    }
+    await schemaReady
+    return true
+  }
+
+  async function run(sql: string, params: unknown[]): Promise<any[] | null> {
+    const d = deps.db()
+    if (!d) return null
+    await ensureSchema()
+    return (await d.query(sql, params)).rows ?? []
+  }
+
+  function toRow(r: any): TabRow {
+    return {
+      thread_id: Number(r.thread_id),
+      kind: String(r.kind),
+      title: r.title ?? null,
+      created_at: r.created_at ? new Date(r.created_at) : null,
+    }
+  }
+
+  /** The person's rows, straight from the database. */
+  async function tabsOf(bot: string, telegramId: number) {
+    const rows = await run(
+      'SELECT thread_id, kind, title, created_at FROM bot_topic_tabs WHERE bot_username = $1 AND telegram_id = $2',
+      [bot, telegramId]
+    )
+    return rows?.map(toRow) ?? null
+  }
+
+  /** The person's rows under every bot: what tabs_status reports. */
+  async function rowsOf(
+    telegramId: number
+  ): Promise<(TabRow & { bot: string })[] | null> {
+    const rows = await run(
+      'SELECT bot_username, thread_id, kind, title, created_at FROM bot_topic_tabs WHERE telegram_id = $1 ORDER BY bot_username, created_at',
+      [telegramId]
+    )
+    return (
+      rows?.map(r => ({ ...toRow(r), bot: String(r.bot_username) })) ?? null
+    )
+  }
+
+  // ---- the in-memory copy: a message in a known tab costs no read ----
+
+  /** bot:person -> rows, oldest first (a Map keeps insertion order). */
+  const cache = new Map<string, TabRow[]>()
+  const keyOf = (bot: string, telegramId: number) => `${bot}:${telegramId}`
+
+  function keep(key: string, rows: TabRow[]): void {
+    cache.delete(key)
+    while (evicts(cache.size)) {
+      const oldest = cache.keys().next().value
+      if (oldest === undefined) break
+      cache.delete(oldest)
+    }
+    cache.set(key, rows)
+  }
+
+  /** The person's rows from memory when held; `fresh` when just read. */
+  async function held(
+    bot: string,
+    telegramId: number
+  ): Promise<{ rows: TabRow[]; fresh: boolean } | null> {
+    const key = keyOf(bot, telegramId)
+    const have = cache.get(key)
+    if (!readsDb(have !== undefined)) {
+      keep(key, have!)
+      return { rows: have!, fresh: false }
+    }
+    const rows = await tabsOf(bot, telegramId)
+    if (rows === null) return null
+    keep(key, rows)
+    return { rows, fresh: true }
+  }
+
+  async function knownTabs(bot: string, telegramId: number) {
+    return (await held(bot, telegramId))?.rows ?? null
+  }
+
+  const drop = (bot: string, telegramId: number) =>
+    cache.delete(keyOf(bot, telegramId))
+
+  /** Insert a row unless a unique key says it exists; true when it landed. */
+  async function claimRow(
+    bot: string,
+    telegramId: number,
+    threadId: number,
+    kind: string,
+    title: string
+  ): Promise<boolean> {
+    const rows = await run(
+      `INSERT INTO bot_topic_tabs (bot_username, telegram_id, thread_id, kind, title)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT DO NOTHING
+     RETURNING thread_id`,
+      [bot, telegramId, threadId, kind, title]
+    )
+    drop(bot, telegramId)
+    return claimWon(rows?.length ?? 0)
+  }
+
+  async function forgetRowAt(
+    bot: string,
+    telegramId: number,
+    threadId: number
+  ): Promise<void> {
+    await run(
+      'DELETE FROM bot_topic_tabs WHERE bot_username = $1 AND telegram_id = $2 AND thread_id = $3',
+      [bot, telegramId, threadId]
+    )
+    drop(bot, telegramId)
+  }
+
+  /** Turn OUR claim into the tab; false when the claim is no longer ours. */
+  async function settleClaim(
+    bot: string,
+    telegramId: number,
+    claimId: number,
+    threadId: number,
+    title: string
+  ): Promise<boolean> {
+    const rows = await run(
+      `UPDATE bot_topic_tabs SET thread_id = $4, title = $5
+     WHERE bot_username = $1 AND telegram_id = $2 AND thread_id = $3
+     RETURNING thread_id`,
+      [bot, telegramId, claimId, threadId, title]
+    )
+    drop(bot, telegramId)
+    return settleWon(rows?.length ?? 0)
+  }
+
+  /** Is the stored tab still there? Only Telegram's "thread not found" says no. */
+  async function stillThere(
+    api: TopicApi,
+    chatId: number,
+    threadId: number
+  ): Promise<boolean> {
+    try {
+      // No name, no icon: an edit that changes nothing, so it must find the topic.
+      await api.callApi(SPEC.PROBE_METHOD, {
+        chat_id: chatId,
+        message_thread_id: threadId,
+      })
+      return true
+    } catch (e) {
+      return !forgetRow(true, threadMissing(e))
+    }
+  }
+
+  /** A fresh claim of the person's: a tab is being made right now. */
+  const claimPending = (rows: readonly TabRow[], now: number) =>
+    rows.some(
+      r =>
+        r.thread_id < 0 && !claimStale(now - (r.created_at?.getTime() ?? now))
+    )
+
+  /**
+   * Make every fixed tab this person does not have yet. Returns the kinds made.
+   * Without a database nothing is made: a tab nobody remembers would be made
+   * again on the next /start, which is the duplication this engine prevents.
+   * A tab that fails to be made is logged and skipped; the rest still go.
+   */
+  async function ensureTabs(
+    api: TopicApi,
+    bot: string,
+    chatId: number,
+    isRu: boolean,
+    /** Extra markup for a tab's first message (the route button, /mybot). */
+    markupFor: (tab: TabSpec) => unknown = () => undefined,
+    opts: EnsureOptions = {}
+  ): Promise<string[]> {
+    const have = await tabsOf(bot, chatId)
+    if (have === null) {
+      deps.log.warn('[topic-tabs] no database, tabs not made', { bot })
+      return []
+    }
+    const now = opts.now ?? Date.now()
+    const made: string[] = []
+    for (const tab of TABS) {
+      const name = isRu ? tab.ru : tab.en
+      try {
+        let row = have.find(r => r.kind === tab.kind)
+        if (row && row.thread_id < 0) {
+          // Somebody's claim: respected while it is fresh, dropped when dead.
+          const age = now - (row.created_at?.getTime() ?? now)
+          if (!claimStale(age)) continue
+          await forgetRowAt(bot, chatId, row.thread_id)
+          row = undefined
+        }
+        let alive = true
+        if (row && opts.probe) {
+          alive = await stillThere(api, chatId, row.thread_id)
+          if (!alive) await forgetRowAt(bot, chatId, row.thread_id)
+        }
+        if (!makeTab(row !== undefined, alive)) continue
+
+        const claimId = newClaimId()
+        if (!(await claimRow(bot, chatId, claimId, tab.kind, name))) continue
+        let threadId = NaN
+        try {
+          const topic = await api.callApi('createForumTopic', {
+            chat_id: chatId,
+            name,
+            icon_color: tab.color,
+          })
+          threadId = Number(topic?.message_thread_id)
+        } finally {
+          if (!Number.isInteger(threadId) || threadId <= 0) {
+            // Ours only: a claim under our own id, never another attempt's.
+            await forgetRowAt(bot, chatId, claimId)
+          }
+        }
+        if (!Number.isInteger(threadId) || threadId <= 0) continue
+        if (!(await settleClaim(bot, chatId, claimId, threadId, name))) {
+          // Our claim went stale and another attempt took the tab: the topic
+          // we just made is a duplicate. Take it away, write nothing into it.
+          deps.log.warn('[topic-tabs] claim lost, duplicate topic deleted', {
+            bot,
+            kind: tab.kind,
+          })
+          await api
+            .callApi('deleteForumTopic', {
+              chat_id: chatId,
+              message_thread_id: threadId,
+            })
+            .catch(e =>
+              deps.log.warn('[topic-tabs] duplicate not deleted', {
+                bot,
+                kind: tab.kind,
+                error: errorText(e),
+              })
+            )
+          continue
+        }
+        made.push(tab.kind)
+        const markup = markupFor(tab)
+        await api.callApi('sendMessage', {
+          chat_id: chatId,
+          message_thread_id: threadId,
+          text: isRu ? tab.introRu : tab.introEn,
+          ...(markup ? { reply_markup: markup } : {}),
+        })
+      } catch (e) {
+        deps.log.warn('[topic-tabs] tab not made', {
+          bot,
+          kind: tab.kind,
+          error: errorText(e),
+        })
+      }
+    }
+    return made
+  }
+
+  /**
+   * A topic the person opened: name it from its first message, once.
+   * Returns the new name, or '' when nothing was done (a known topic, a topic
+   * named like a fixed tab, a command, a tab being made, no database, a lost
+   * race, or Telegram refusing the edit).
+   */
+  async function nameFreshTopic(
+    api: TopicApi,
+    bot: string,
+    chatId: number,
+    threadId: number,
+    firstText: string | undefined,
+    /** The topic's current name, when the update carries it. */
+    topicName?: string,
+    now: number = Date.now()
+  ): Promise<string> {
+    const title = deps.titleFrom ? deps.titleFrom(firstText) : ''
+    const isCommand = title === ''
+    const fixedName = topicName !== undefined && FIXED_NAMES.has(topicName)
+    if (isCommand || fixedName) return ''
+    let got = await held(bot, chatId)
+    if (got === null) return ''
+    let known = got.rows.some(r => r.thread_id === threadId)
+    if (!known && !got.fresh) {
+      // An unknown thread is rare (once per topic): read again, because the
+      // copy in memory misses tabs another process (tabs_setup) is making.
+      drop(bot, chatId)
+      got = await held(bot, chatId)
+      if (got === null) return ''
+      known = got.rows.some(r => r.thread_id === threadId)
+    }
+    const have = got.rows
+    if (!mayRename(known, fixedName, isCommand, claimPending(have, now)))
+      return ''
+    // Remember first: a refused edit must not be retried on every message,
+    // and of two messages at once only the one whose row landed renames.
+    if (!(await claimRow(bot, chatId, threadId, 'chat', title))) return ''
+    // The row is ours: keep it in memory too, so the next message reads nothing.
+    // (A stale copy is harmless: a known thread's insert conflicts and lands not.)
+    keep(keyOf(bot, chatId), [
+      ...have,
+      { thread_id: threadId, kind: 'chat', title, created_at: null },
+    ])
+    try {
+      await api.callApi('editForumTopic', {
+        chat_id: chatId,
+        message_thread_id: threadId,
+        name: title,
+      })
+      return title
+    } catch (e) {
+      deps.log.warn('[topic-tabs] topic not renamed', {
+        bot,
+        error: errorText(e),
+      })
+      return ''
+    }
+  }
+
+  /** Tests only: forget the schema promise and the cache. */
+  function resetForTests(): void {
+    schemaReady = null
+    cache.clear()
+  }
+
+  return {
+    TABS,
+    FIXED_NAMES,
+    colorAllowed,
+    tableColorsAllowed,
+    tableColorsDistinct,
+    nameChars,
+    nameFits,
+    makeTab,
+    forgetRow,
+    claimWon,
+    settleWon,
+    claimStale,
+    mayRename,
+    maySetUp,
+    readsDb,
+    evicts,
+    ensureSchema,
+    tabsOf,
+    rowsOf,
+    knownTabs,
+    ensureTabs,
+    nameFreshTopic,
+    tabCacheSize: () => cache.size,
+    resetForTests,
+  }
+}
+
+export type TopicTabs = ReturnType<typeof createTopicTabs>

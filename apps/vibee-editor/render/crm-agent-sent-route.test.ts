@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Readable } from 'node:stream'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * POST /api/crm/agent-sent: the bot asks whether an outgoing business
  * message was the agent's confirmed proposal (so it does not pause the AI
@@ -76,47 +84,55 @@ describe('agent-sent registry', () => {
 })
 
 describe('handleCrmAgentSent', () => {
-  it('answers agent:true only for a remembered send of the verified owner', async () => {
-    const { recordAgentSent } = await import('./src/agent/agent-sent')
-    const { handleCrmAgentSent } = await import('./src/agent/routes')
-    recordAgentSent(OWNER, '504608015', 4242)
+  it(
+    'answers agent:true only for a remembered send of the verified owner',
+    async () => {
+      const { recordAgentSent } = await import('./src/agent/agent-sent')
+      const { handleCrmAgentSent } = await import('./src/agent/routes')
+      recordAgentSent(OWNER, '504608015', 4242)
 
-    const yes = res()
-    await handleCrmAgentSent(
-      req({ lead: '504608015', msg_id: 4242 }),
-      yes as never,
-      OWNER
-    )
-    expect(yes.out.code).toBe(200)
-    expect(yes.out.body).toEqual({ ok: true, agent: true })
+      const yes = res()
+      await handleCrmAgentSent(
+        req({ lead: '504608015', msg_id: 4242 }),
+        yes as never,
+        OWNER
+      )
+      expect(yes.out.code).toBe(200)
+      expect(yes.out.body).toEqual({ ok: true, agent: true })
 
-    const other = res()
-    await handleCrmAgentSent(
-      req({ lead: '504608015', msg_id: 4242 }),
-      other as never,
-      '1'
-    )
-    expect(other.out.body).toEqual({ ok: true, agent: false })
+      const other = res()
+      await handleCrmAgentSent(
+        req({ lead: '504608015', msg_id: 4242 }),
+        other as never,
+        '1'
+      )
+      expect(other.out.body).toEqual({ ok: true, agent: false })
 
-    const no = res()
-    await handleCrmAgentSent(
-      req({ lead: '504608015', msg_id: 7 }),
-      no as never,
-      OWNER
-    )
-    expect(no.out.body).toEqual({ ok: true, agent: false })
-  })
+      const no = res()
+      await handleCrmAgentSent(
+        req({ lead: '504608015', msg_id: 7 }),
+        no as never,
+        OWNER
+      )
+      expect(no.out.body).toEqual({ ok: true, agent: false })
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 
-  it('rejects a bad lead, a bad msg_id and a non-JSON body', async () => {
-    const { handleCrmAgentSent } = await import('./src/agent/routes')
-    for (const body of [
-      { lead: 'abc', msg_id: 1 },
-      { lead: '504608015', msg_id: 'x' },
-      '{not json',
-    ]) {
-      const r = res()
-      await handleCrmAgentSent(req(body), r as never, OWNER)
-      expect(r.out.code).toBe(400)
-    }
-  })
+  it(
+    'rejects a bad lead, a bad msg_id and a non-JSON body',
+    async () => {
+      const { handleCrmAgentSent } = await import('./src/agent/routes')
+      for (const body of [
+        { lead: 'abc', msg_id: 1 },
+        { lead: '504608015', msg_id: 'x' },
+        '{not json',
+      ]) {
+        const r = res()
+        await handleCrmAgentSent(req(body), r as never, OWNER)
+        expect(r.out.code).toBe(400)
+      }
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })

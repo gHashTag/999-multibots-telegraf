@@ -63,14 +63,16 @@ const CITE = /specs\/([a-z0-9_-]+(?:\/[a-z0-9_.-]+)+)\.t27/g
 export function specConsts(text) {
   const out = new Map()
   // A string literal is read whole: a `;` inside it does not end the const.
+  // An array const (`: [6]str = ["a", "b"]`) is read whole too: its literal
+  // is JSON, and a `;` inside one of its strings does not end it either.
   const re =
-    /^\s*pub const (\w+)\s*:\s*(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|[^;]+?)\s*;/gm
+    /^\s*pub const (\w+)\s*:\s*(\[\d+\]\w+|\w+)\s*=\s*("(?:[^"\\]|\\.)*"|\[(?:"(?:[^"\\]|\\.)*"|[^\]";])*\]|[^;]+?)\s*;/gm
   for (const [, name, type, raw] of text.matchAll(re)) {
     const v = raw.trim()
     let value
     try {
       value =
-        type === 'str'
+        type === 'str' || type.startsWith('[')
           ? JSON.parse(v)
           : type === 'bool'
             ? v === 'true'
@@ -109,6 +111,11 @@ export function genModule(text) {
   const consts = new Map()
   const re = /^export const (\w+) = (.+?) satisfies \w+;$/gm
   for (const [, name, raw] of text.matchAll(re))
+    consts.set(name, JSON.parse(raw))
+  // gen-ts prints an array const as `[...] as const satisfies readonly [...]`.
+  const arrays =
+    /^export const (\w+) = (\[.*\]) as const satisfies readonly \[.*\];$/gm
+  for (const [, name, raw] of text.matchAll(arrays))
     consts.set(name, JSON.parse(raw))
   const list = name => {
     const m = new RegExp(
@@ -226,7 +233,7 @@ export function checkSpec({
     for (const [name, value] of consts) {
       if (!g.consts.has(name))
         say('gen-values', `${name} is missing from the generated module`)
-      else if (g.consts.get(name) !== value)
+      else if (JSON.stringify(g.consts.get(name)) !== JSON.stringify(value))
         say(
           'gen-values',
           `${name} is ${JSON.stringify(g.consts.get(name))} there, ${JSON.stringify(value)} in the spec`

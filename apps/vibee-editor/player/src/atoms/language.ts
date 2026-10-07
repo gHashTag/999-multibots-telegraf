@@ -18,6 +18,94 @@ export interface Translations {
 // ===============================
 
 const en: Translations = {
+  'hiveAccount.title': 'My keys and contribution',
+  'hiveAccount.short': 'Keys & XP',
+  'hiveAccount.back': 'Back to the game',
+  'hiveAccount.lead':
+    'Manage the API keys you lend to the Queen and see the work credited to you.',
+  'hiveAccount.refresh': 'Refresh',
+  'hiveAccount.loading': 'Loading your contribution…',
+  'hiveAccount.signin': 'Sign in',
+  'hiveAccount.retry': 'Try again',
+  'hiveAccount.working': 'Saving…',
+  'hiveAccount.progress': 'Checking keys: {done} of {total}',
+  'hiveAccount.saved': 'Key saved. Check it before using it.',
+  'hiveAccount.checked': 'Check finished. The result is shown beside the key.',
+  'hiveAccount.checkedAll':
+    'All checks finished. Review the result beside each key.',
+  'hiveAccount.updated': 'Key updated.',
+  'hiveAccount.attribution': 'Contribution owner',
+  'hiveAccount.attributionNote':
+    'Ownership is confirmed by the server. Keys and XP are shown only for your account.',
+  'hiveAccount.unlinked': 'GitHub is not linked to this account yet.',
+  'hiveAccount.xp': 'XP earned',
+  'hiveAccount.accepted': 'Accepted tasks',
+  'hiveAccount.specs': '.t27 specs',
+  'hiveAccount.hours': 'Bee hours',
+  'hiveAccount.scoring':
+    '{accepted} XP per accepted task, {spec} additional XP per .t27 spec, and {hour} XP per bee hour. These are game points, not a payment balance.',
+  'hiveAccount.keys': 'Your keys · {n}',
+  'hiveAccount.probeAll': 'Check all keys',
+  'hiveAccount.probe': 'Check API',
+  'hiveAccount.probeNote':
+    'A check makes a small model request and uses provider quota. A successful check proves this model answered at the stated time.',
+  'hiveAccount.empty':
+    'No keys are linked to your account yet. Add a key below to start contributing.',
+  'hiveAccount.never': 'Not checked yet',
+  'hiveAccount.fingerprintUnavailable': 'Fingerprint unavailable',
+  'hiveAccount.enabled': 'Enabled for the swarm',
+  'hiveAccount.disabled': 'Disabled for the swarm',
+  'hiveAccount.keyWork': 'Accepted tasks: {n}',
+  'hiveAccount.enable': 'Enable',
+  'hiveAccount.disable': 'Disable',
+  'hiveAccount.add': 'Add a key',
+  'hiveAccount.secretNote':
+    'The key goes to the server and is never shown again. Only its fingerprint is listed here. Use a key with a spending limit.',
+  'hiveAccount.provider': 'Provider',
+  'hiveAccount.label': 'Name (optional)',
+  'hiveAccount.secret': 'API key',
+  'hiveAccount.save': 'Save key',
+  'hiveAccount.health.ok': 'Model answered',
+  'hiveAccount.health.invalid': 'Key rejected',
+  'hiveAccount.health.rate_limited': 'Quota or rate limit',
+  'hiveAccount.health.unavailable': 'Provider unavailable',
+  'hiveAccount.health.not_checked': 'Not checked',
+  'hiveAccount.error.signin':
+    'Sign in to manage your own keys and contribution.',
+  'hiveAccount.error.attribution':
+    'This account is not linked to a contribution owner. Ask the operator to verify your account and GitHub identity.',
+  'hiveAccount.error.duplicate':
+    'This key is already registered. Refresh the list or use another key.',
+  'hiveAccount.error.rate': 'Too many checks. Wait a moment and try again.',
+  'hiveAccount.error.setup':
+    'Key management is not connected on the server yet. The operator must configure the Queen connection and your verified owner mapping.',
+  'hiveAccount.error.input':
+    'The key could not be saved. Check the provider, key and name, then enter the key again.',
+  'hiveAccount.error.network':
+    'The service did not answer. Try again; after saving a key, refresh the list before adding it again.',
+  'hiveAccount.checkedSome':
+    'Checked {done} of {total} keys. {skipped} could not be checked right now (one check per key per minute, or the provider is busy); try them again in a minute.',
+  'hiveAccount.models': 'Model for all keys',
+  'hiveAccount.modelsNote':
+    "Pick one model for every key of a provider. Before switching, the Queen asks the model to call a tool through one of your keys: a model that cannot call tools cannot do a bee's work. Bees already running finish on their old model.",
+  'hiveAccount.modelCurrent': 'Now: {model} · keys: {n}',
+  'hiveAccount.modelDefault': 'Default: {model}',
+  'hiveAccount.modelLabel': 'Model',
+  'hiveAccount.modelsLoading': 'Loading the provider’s models…',
+  'hiveAccount.modelsUnavailable':
+    'The provider’s model list did not load; the current and default models are offered. Refresh to try again.',
+  'hiveAccount.modelApply': 'Apply to all {n} keys',
+  'hiveAccount.modelChecking':
+    'Checking the model through one of your keys. A slow model can take up to three minutes.',
+  'hiveAccount.modelSaved':
+    '{model} now runs on all {n} keys of this provider. New bees start on it.',
+  'hiveAccount.error.modelUnavailable':
+    'The provider does not serve this model. Pick one from the list.',
+  'hiveAccount.error.modelTools':
+    "The model answered but did not call a tool, so it cannot do a bee's work. Nothing was changed.",
+  'hiveAccount.error.modelCheck':
+    'The model could not be checked: your keys were busy or out of quota. Nothing was changed; try again in a minute.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Browser',
   'browser.title': 'My browser',
@@ -41,6 +129,19 @@ const en: Translations = {
   'browser.choice.done': '✓ Done',
   'browser.choice.cannot': 'Cannot',
   'browser.keys.label': 'Keys for the page',
+  'browser.tabs.label': 'Open tabs',
+  'browser.tabs.new': 'New tab',
+  'browser.tabs.close': 'Close tab {title}',
+  'browser.tabs.untitled': 'Untitled',
+  'browser.tabs.refused': 'The browser did not take it',
+  'browser.tabs.agentDesk': 'The agent is working here on a scheduled run',
+  'browser.tabs.agentChat': 'The agent is working here for your chat',
+  'browser.tabs.confirmDesk':
+    'The agent is working in {title} on a scheduled run. Close it anyway?',
+  'browser.tabs.confirmChat':
+    'The agent is working in {title} for your chat. Close it anyway?',
+  'browser.tabs.closeAnyway': 'Close',
+  'browser.tabs.keep': 'Keep it',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
   'browser.ask.title': '🛡 The agent asks your permission',
@@ -107,6 +208,28 @@ const en: Translations = {
     'Closing keeps you signed in. “Forget everything” wipes the logins for good.',
   'browser.forget': 'Forget everything',
   'browser.forget.sure': 'Yes, wipe it',
+  'browser.sites.open': 'My sites',
+  'browser.sites.title': 'Where the agent asks first, or never goes',
+  'browser.sites.how':
+    'Ask first: the agent may open and read the site, but every click, typing or script there needs your yes, as on a bank. Never: the agent does not open, read or take a picture of it at all. Banks, mail and payment pages are already guarded for everyone. The agent can add a site or make a rule stricter; only you can remove one or soften it.',
+  'browser.sites.placeholder': 'bank.com or yandex.ru/mail',
+  'browser.sites.ask': 'Ask first',
+  'browser.sites.block': 'Never',
+  'browser.sites.toAsk': 'Allow with a yes',
+  'browser.sites.toBlock': 'Make it never',
+  'browser.sites.remove': 'Remove',
+  'browser.sites.byAgent': 'added by the agent',
+  'browser.sites.loading': 'Reading your list…',
+  'browser.sites.empty': 'No sites of your own yet.',
+  'browser.sites.unreadable':
+    'Your list could not be read right now, so the agent opens and reads nothing until it can.',
+  'browser.sites.fail': 'Not saved: {error}',
+  'browser.sites.readFail': 'Could not load your list: {error}',
+  'browser.sites.badSite':
+    'Not saved: that is not one web address. Write it like bank.com or yandex.ru/mail.',
+  'browser.sites.full': 'Not saved: the list is full. Remove a site first.',
+  'browser.sites.unreadableNow':
+    'Not saved: your list cannot be read right now. Try again in a minute.',
   'browser.import.open': 'Bring my logins',
   'browser.round': 'Walk my accounts',
   'browser.desks': 'The agent s desks',
@@ -147,6 +270,8 @@ const en: Translations = {
   'crm.sections': 'CRM sections',
   'crm.section.work': 'Work',
   'crm.section.map': 'Map',
+  'crm.section.contacts': 'Contacts',
+  'crm.contacts.find': 'Find a contact',
   'crm.summary.paid': 'Paid',
   'crm.summary.paid.yes': 'yes',
   'crm.summary.paid.no': 'not yet',
@@ -222,6 +347,31 @@ const en: Translations = {
   'crm.refresh': 'Refresh',
   'crm.refreshing': 'Refreshing…',
   'crm.unreachable': 'Could not load',
+  // Why a CRM tool call failed before any tool spoke (lib/crmErrorText.ts).
+  'crm.error.http': 'the server answered {status}',
+  'crm.error.refused': 'the server refused',
+  'crm.error.empty': 'empty answer',
+  'crm.error.network': 'no connection to the server',
+  'crm.error.badReply': 'the answer could not be read',
+  // The server named its refusal (error.data.code; render crm-tool-codes.test.ts).
+  'crm.error.code.tool_failed':
+    'the server hit an error — try again in a minute',
+  'crm.error.code.no_identity':
+    'the server does not know who you are — open the app from Telegram',
+  'crm.error.code.no_bots':
+    'the CRM shows the audience of your bots, and no bot is registered to you',
+  'crm.error.code.no_seller_session':
+    'connect your Telegram account in the app — the CRM works from your own account',
+  'crm.error.code.not_your_lead':
+    'no such person: you have not written to each other',
+  'crm.error.code.unknown_tool':
+    'the server does not have this yet — try again after the update',
+  'crm.error.code.bad_tool_name':
+    'the request was damaged on the way — try again',
+  'crm.error.code.unknown_method': 'the server did not understand the request',
+  'crm.error.code.editorial_scope': 'this key may not open the CRM',
+  'crm.error.code.game_token_scope':
+    'the game sign-in does not open the CRM — open the app from Telegram',
   'sendCard.previewBroken':
     '⚠️ The preview did not open — check the attachment before sending:',
   'sendCard.previewOpen': 'open the file',
@@ -274,6 +424,29 @@ const en: Translations = {
     'Draft a warm return message to {name}, a former buyer who has been quiet for {days} days. Lead with what is new since their last purchase, not a reminder of us. Make it a send card — I will press Send myself.',
   'crm.wait.theirs': 'awaiting reply',
   'crm.wait.due': 'time to return',
+  // A bare number on the waiting line said nothing about its unit.
+  'crm.wait.days': '{n} d',
+  // Why somebody is in "waiting" and why that next step (render
+  // crm-stages.ts WaitWhy, sales-playbook.ts NextWhy). The server's Russian
+  // words stay the fallback for a code missing here -- see reasonLine.
+  'crm.why.we_wrote_last': 'we wrote last, no answer',
+  'crm.why.they_wrote': 'they wrote, nobody answered',
+  'crm.why.they_replied': 'they replied, we are silent',
+  'crm.why.later_due': 'asked for later — later is here',
+  'crm.why.we_wrote': 'we wrote, no answer',
+  'crm.why.refused': 'said no — write only if they write first',
+  'crm.why.promise_late': 'promised, and the date has passed: {what}',
+  'crm.why.promise_today': 'promised, due today: {what}',
+  'crm.why.waits_days': 'waiting for an answer for {days} d',
+  'crm.why.they_spoke_last': 'they spoke last, no answer yet',
+  'crm.why.later_until': 'asked to come back later: {date}',
+  'crm.why.paid_serve': 'paid — there is something to deliver, nothing to sell',
+  'crm.why.paid_quiet': 'paid before and went quiet',
+  'crm.why.no_talk_yet': 'no conversation yet',
+  'crm.why.warm_offer': 'a warm talk, they saw a result, no offer yet',
+  'crm.why.silence_after_us': 'silent {days} d after our message',
+  'crm.why.we_wrote_days': 'we wrote {days} d ago, no answer',
+  'crm.why.just_answered': 'we just answered — their turn',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Clients',
   'crm.clients.none': 'No clients with a profile or a conversation yet.',
@@ -298,6 +471,9 @@ const en: Translations = {
   'crm.clients.profile': 'profile',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'duets: {n}',
+  'crm.clients.tasks': 'plan: {done}/{n}',
+  'crm.clients.faults': 'open faults: {n}',
+  'crm.clients.bots': 'owns bots:',
   'crm.clients.paid': 'paid',
   'crm.clients.paidUnknown': 'payments unavailable — stage from touches only',
   'crm.clients.filter.all': 'all',
@@ -415,6 +591,15 @@ const en: Translations = {
   'crm.aside.portrait.ready': 'ready — not sent yet',
   'crm.aside.portrait.drawing': 'being drawn',
   'crm.aside.portrait.none': 'not yet',
+  'crm.aside.gifts': 'Gifts',
+  'crm.aside.gift.portrait.give': 'Give',
+  'crm.aside.gift.portrait.send': 'Send',
+  'crm.aside.menu': 'Widgets',
+  'crm.aside.widget.moves': 'Moves',
+  'crm.aside.widget.group': 'Group',
+  'crm.aside.widget.content': 'Content',
+  'crm.aside.widget.templates': 'Templates',
+  'crm.aside.moves.none': 'No move to suggest right now.',
   'crm.aside.package.none': 'No client package: no rules written yet.',
   'crm.aside.plan.none': 'No content plan yet.',
   'crm.aside.note.placeholder': 'A note about this client…',
@@ -490,7 +675,7 @@ const en: Translations = {
   'crm.auto.chosen.some': '{n} picked',
   'crm.auto.hint':
     'Prepared cards go out by themselves; each send is reported with a stop button.',
-  'crm.filter.search': 'Search by name or id',
+  'crm.filter.search': 'Name, @username or id',
   'crm.filter.segment': 'Segment',
   'crm.vip.title': 'Under way',
   'crm.vip.note': 'Paid, or with a package, or touched this week',
@@ -503,6 +688,12 @@ const en: Translations = {
   'crm.row.dropped': 'Removed from the CRM',
   'crm.row.restore': 'Bring back',
   'crm.row.open': 'Open',
+  'crm.row.more': 'Details and removal',
+  'crm.filter.clear': 'Clear the search',
+  'crm.clients.searching': 'Searching all contacts…',
+  'crm.clients.notFound': 'Nobody found for “{q}”',
+  'crm.clients.rest': 'Everyone else',
+  'crm.clients.recent': 'Recent',
   'crm.client.empty': 'nothing yet',
   'crm.client.profile.title': 'Profile / SOUL / skills',
   'crm.client.profile.profile': 'profile',
@@ -518,7 +709,43 @@ const en: Translations = {
   'crm.client.story.vip': 'VIP',
   'crm.client.story.topic': 'Topic: any. Empty = next plan card or a fresh one',
   'crm.client.story.start': 'Make a reel',
+  'crm.client.story.framesShort': '{n} frames + call',
+  'crm.client.story.frames': 'Frames',
+  'crm.client.story.frames.less': 'One frame fewer',
+  'crm.client.story.frames.more': 'One frame more',
+  'crm.client.story.frames.hint':
+    '{n} × her face in a new setting, then the call',
+  'crm.client.story.board.cta': 'Call to action',
+  'crm.client.story.more': 'Settings: call, look, end card',
+  'crm.client.story.cta': 'Call on the last frame',
+  'crm.client.story.style': 'Look of the frames (light, tone)',
+  'crm.client.story.quick': 'Quick topics',
+  'crm.client.story.toDm': 'Send the finished reel to their DM',
+  'crm.client.story.photo.avatar': 'Photo: their avatar',
+  'crm.client.story.photo.own': 'Photo: your own',
+  'crm.client.story.photo.avatarSelf': 'Photo: your avatar',
+  'crm.client.story.photo.replace': '📷 Replace photo',
+  'crm.client.story.photo.reset': '↺ Back to avatar',
+  'crm.client.story.photo.uploading': 'Uploading…',
+  'crm.client.story.photo.failed': 'The photo did not upload, try another',
+  'crm.client.story.tips':
+    'The agent writes it by the rules of a good reel: a hook in the first 2 s, one idea from problem to result, her face close up, one call at the end.',
+  'crm.client.story.quick.1': 'A day in my work',
+  'crm.client.story.quick.2': 'How I help clients',
+  'crm.client.story.quick.3': 'Before and after',
+  'crm.client.story.quick.4': 'Why people choose me',
   'crm.client.story.price': 'About {n} tokens a reel, from your balance',
+  'crm.client.story.gallery': 'Ready scripts',
+  'crm.client.story.gallery.hint':
+    'Tap a script: its lines, frames and call fill the fields below.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Hook: my voice, my AI',
+  'crm.client.story.gallery.price': '≈ {n} tokens',
+  'crm.client.story.gallery.noPrice': 'price on press',
+  'crm.client.story.gallery.chosen': 'Chosen',
+  'crm.client.story.gallery.clear': 'Without a script',
+  'crm.client.story.gallery.line': 'Line {n}',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
     'Started: «{topic}». It comes to you in the bot in 5–10 minutes: check it and forward it to the client.',
@@ -555,6 +782,7 @@ const en: Translations = {
   'crm.client.story.checkFirst':
     'Check the palette first: only a checked card can be kept',
   'story.title': 'My reels',
+  'story.toChat': 'Ask the agent',
   'story.lead':
     'Three scenes with your face in a new setting each, in your own voice, about 15 seconds, with your call to action at the end. The finished reel comes to your bot in 5–10 minutes.',
   'story.face': 'your face',
@@ -712,6 +940,11 @@ const en: Translations = {
   'crm.card.note':
     'Who wrote and is waiting, who is warm, the content plan and the launch tasks.',
   'crm.card.open': 'Open CRM',
+  // The person's own story reels, own profile only (components/Profile/StoryCard.tsx)
+  'story.card.title': '🎬 My story reels',
+  'story.card.note':
+    'My face, my voice, any topic: a reel in one press, when both halves are set.',
+  'story.card.open': 'Open story reels',
   // The clone's networks, own profile only (components/Profile/CloneNetworksCard.tsx)
   'clone.networks.title': "🌐 My clone's networks",
   'clone.networks.note':
@@ -725,12 +958,77 @@ const en: Translations = {
   'clone.networks.ask':
     'To connect the rest, tell the agent: "connect my networks". You type passwords yourself.',
   'clone.networks.open': 'Open the browser',
+  // The Meta API connector, owner only (components/Profile/MetaConnectCard.tsx)
+  'meta.card.title': '🔗 Threads, Instagram, Facebook, LinkedIn, X by API',
+  'meta.card.note':
+    "Connect each network once through its own login, and the blog desk posts there by the API, with the post's id as a receipt. The token stays on the server.",
+  'meta.card.connect': 'Connect',
+  'meta.card.again': 'Reconnect',
+  'meta.card.out': 'not connected',
+  'meta.card.noApp': 'the app is not set on the server yet',
+  'meta.card.days': '{n} days left',
+  'meta.card.soon': 'LinkedIn ends in {n} days -- reconnect',
+  'meta.card.renews': 'renews itself',
+  'meta.card.waiting':
+    'Waiting for {name} to confirm -- this line updates by itself',
+  // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
+  'tri.wallet.title': '💎 TRI wallet',
+  'tri.wallet.note':
+    "The TON address your TRI is paid to, proved by your wallet's own signature. TRI exists on TON testnet only; there is no mainnet TRI yet.",
+  'tri.wallet.bind': 'Bind a TON wallet',
+  'tri.wallet.rebind': 'Bind another TON wallet',
+  'tri.wallet.unbind': 'Unbind',
+  'tri.wallet.testnet': 'TON testnet',
+  'tri.wallet.err.elsewhere':
+    'This wallet is already bound to another account. Unbind it there first.',
+  'tri.wallet.err.expired': 'The request expired. Press bind again.',
+  'tri.wallet.err.domain':
+    'The wallet signed for a different site. Open app.t27.ai and try again.',
+  'tri.wallet.err.workchain':
+    'Only ordinary (workchain 0) wallets can be bound.',
+  'tri.wallet.err.signin': 'Sign in with Telegram to bind a wallet.',
+  'tri.wallet.err.busy': 'Too many open requests. Wait a few minutes.',
+  'tri.wallet.err.noproof':
+    'The wallet connected without signing the proof, so nothing was bound.',
+  'tri.wallet.err.generic': 'The wallet could not be bound. Try again.',
+  // Claiming TRI for accepted specs, own profile only (components/Profile/TriClaimCard.tsx)
+  'tri.claim.title': '🪙 TRI for accepted specs',
+  'tri.claim.status':
+    'TON testnet only. V1, signer quorum, NOT trustless: independent attestors check each spec and co-sign the mint; your wallet sends it and pays the gas.',
+  'tri.claim.github.why':
+    'Link the GitHub account your accepted .t27 specs are credited to.',
+  'tri.claim.github.link': 'Link GitHub',
+  'tri.claim.github.enter':
+    'Open the page below, sign in to GitHub and enter this code:',
+  'tri.claim.github.as': 'GitHub: @{login}',
+  'tri.claim.github.unlink': 'Unlink',
+  'tri.claim.needWallet': 'Bind a TON testnet wallet above to withdraw.',
+  'tri.claim.empty': 'No accepted specs are credited to this account yet.',
+  'tri.claim.withdraw': 'Withdraw',
+  'tri.claim.working': 'Waiting for the wallet…',
+  'tri.claim.sent': 'Sent',
+  'tri.claim.sentNote':
+    'Sent from your wallet. The minter credits the TRI within a minute; the TON it did not use comes back.',
+  'tri.claim.err.github': 'Link GitHub first.',
+  'tri.claim.err.wallet': 'Bind a TON testnet wallet first.',
+  'tri.claim.err.notyours':
+    'This spec is credited to a different GitHub account.',
+  'tri.claim.err.minted': 'This spec has already been minted.',
+  'tri.claim.err.notmerged':
+    'The attestors could not find this spec in a merged pull request.',
+  'tri.claim.err.revoked': 'This acceptance was revoked.',
+  'tri.claim.err.denied': 'GitHub access was denied, so nothing was linked.',
+  'tri.claim.err.expired': 'The code expired. Press Link GitHub again.',
+  'tri.claim.err.unavailable':
+    'Not enough attestors answered. Try again in a few minutes.',
+  'tri.claim.err.generic': 'Something went wrong. Try again.',
   // Skills the agent in this chat carries (components/Chat/AgentSkillsPanel.tsx)
   'chat.agentSkills.on': 'Skills connected: {own} · plus {general} general',
   'chat.agentSkills.none':
     'No rules of yours for it yet: write one below, and it applies from your next message (saved as "{prefix}: ...").',
   // One agent's own dashboard (pages/AgentDashboard.tsx)
   'agents.dash.market': 'All agents',
+  'agents.dash.switch': 'Switch agent',
   'agents.dash.clientsTitle': 'With your clients',
   'agents.dash.clientRow': 'Client {id} · turns: {n} — call it in again →',
   'agents.dash.noClients':
@@ -739,6 +1037,27 @@ const en: Translations = {
     'Draw its avatar from my photo (GPT Image 2.5, 12 tokens)',
   'agents.dash.face.drawing': 'Drawing…',
   'chat.specialist.dashboard': 'Dashboard',
+  /*
+   * The agent's own repeat buttons (owner, 2026-09-29) and its panel beside
+   * the conversation: the configured work back in one press, its clients,
+   * the door to the full dashboard.
+   */
+  'chat.templates.reel': 'Repeat my reel by template',
+  'chat.templates.photo': 'Neuro-photo by my template',
+  'chat.templates.gift': 'Gift a client again',
+  'chat.templates.reply': 'Repeat my reply template',
+  'chat.templates.recruiters': 'Recruiters awaiting my reply',
+  'chat.templates.demand': 'Repeat the demand analysis',
+  'chat.templates.hook': 'Repeat my best hook',
+  'chat.templates.claim': 'Check by my checklist',
+  'chat.templates.build': 'Repeat the build route',
+  'chat.templates.module': 'A module by my template',
+  'chat.templates.fix': 'Repeat my fix recipe',
+  'chat.agentAside.label': 'Agent panel',
+  'chat.agentAside.open': 'Panel',
+  'chat.agentAside.clients': 'Clients of this agent',
+  'chat.agentAside.noClients': 'No client work through this agent yet',
+  'chat.agentAside.dash': 'Full dashboard',
   'agents.dash.status.live': 'live',
   'agents.dash.status.training': 'in training',
   'agents.dash.status.earned': 'hireable by evidence',
@@ -783,6 +1102,15 @@ const en: Translations = {
   'crm.revenue.top': 'Top clients',
   'crm.revenue.stars': '{n} ⭐',
   'crm.revenue.none': 'No purchases from your clients yet.',
+  'crm.social.title': 'Social networks',
+  'crm.social.connected': 'connected',
+  'crm.social.expired': 'token expired: reconnect',
+  'crm.social.noApp': 'app keys missing on the server',
+  'crm.social.off': 'not connected',
+  'crm.social.days': '{n} days left',
+  'crm.social.connect': 'Connect networks',
+  'crm.social.hint':
+    'Your agent posts only to connected networks, and only after you tap Allow.',
   'chat.agentSkills.add.placeholder':
     'A rule for it, e.g. "answer briefly, with numbers"',
   'chat.agentSkills.add.button': 'Add rule',
@@ -890,7 +1218,8 @@ const en: Translations = {
   'pricing.tokens.feature2': 'One balance for everything, no seats',
   'pricing.tokens.feature3':
     'The price of each action is shown before you press',
-  'pricing.tokens.feature4': 'Tokens do not expire and are not billed monthly',
+  'pricing.tokens.feature4':
+    'Unspent tokens burn 30 days after they arrive; we remind you 7, 3 and 1 day before',
   'pricing.tokens.note':
     'First tokens on sign-up, no card. An invoice for any amount is written by the agent in the bot.',
 
@@ -1027,6 +1356,11 @@ const en: Translations = {
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
+  // The agent chat's door: /api/agent/chat answers 401 to a browser with no
+  // session, and the chat itself is free (render/src/agent/pricing.ts).
+  'login.chatTitle': 'Sign in to talk to the agent',
+  'login.chatBody':
+    'The agent answers people it knows. Sign in with Telegram — chatting is free.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -1232,6 +1566,58 @@ const en: Translations = {
   'chat.messagePlaceholder': 'Message the agent…',
   'chat.attachAny': 'Attach a file: photo, video, voice, PDF, document',
   'chat.send': 'Send',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Talk to the agent by voice',
+  'voice.title': 'Voice mode',
+  'voice.close': 'Close voice mode',
+  'voice.end': 'End',
+  'voice.expand': 'Full screen',
+  'voice.toChat': 'Back to the chat',
+  'voice.mute': 'Mute the microphone',
+  'voice.unmute': 'Unmute the microphone',
+  'voice.muted': 'Microphone is off',
+  'voice.phase.off': 'Off',
+  'voice.phase.starting': 'Starting...',
+  'voice.phase.listening': 'Listening',
+  'voice.phase.hearing': 'Hearing you',
+  'voice.phase.thinking': 'Thinking',
+  'voice.phase.speaking': 'Speaking. Talk over it or tap Stop',
+  'voice.phase.error': 'Voice mode stopped',
+  'voice.error.mic':
+    'No access to the microphone. Allow it in the browser and tap the logo.',
+  'voice.error.mic.denied':
+    'The microphone is blocked for this site. Tap the lock icon next to the address, allow the microphone, then tap the logo.',
+  'voice.error.mic.none': 'No microphone found. Connect one and tap the logo.',
+  'voice.error.mic.busy':
+    'The microphone is busy in another app (a call, a recorder). Close it and tap the logo.',
+  'voice.error.mic.unsupported':
+    'This window cannot use the microphone. Open voice mode in your browser.',
+  'voice.mic.inTelegram':
+    'Telegram may not pass the microphone to the app. Allow Telegram to use the microphone in the phone settings, or open voice mode in the browser.',
+  'voice.openBrowser': 'Open in browser',
+  'voice.retry': 'Try again',
+  'voice.type.label': 'Type instead — the agent answers aloud',
+  'voice.type.placeholder': 'Ask the agent…',
+  'voice.type.send': 'Send',
+  'voice.stop': 'Stop',
+  'voice.options': 'You can choose: {list}.',
+  // Said when the agent is silent for a while; variants split by '|'.
+  'voice.filler.first': 'Let me see.|Hmm, let me think.|Let me look into that.',
+  'voice.filler.still': 'Still working on it.|Still on it.',
+  'voice.error.recorder': 'This browser cannot record audio.',
+  'voice.error.hear': 'Could not make out the words. Please say it again.',
+  'voice.you': 'You',
+  'voice.agent': 'Agent',
+  'voice.mode': 'Visual',
+  'voice.mode.pulse': 'Pulse',
+  'voice.mode.spectrum': 'Spectrum',
+  'voice.mode.orbit': 'Orbit',
+  'voice.mode.hologram': 'Hologram',
+  'voice.mode.shatter': 'Shatter',
+  'voice.voice': 'Voice',
+  'voice.deviceVoice':
+    'Our voice server is unreachable, so your device is reading the answer.',
+  'voice.orb': 'Tap to interrupt the agent',
   'chat.welcome':
     "Hi! I'm your Trinity S³AI AI assistant. I can help you create and edit video templates. What would you like to build today?",
   'chat.cleared': 'Chat cleared. How can I help?',
@@ -1393,7 +1779,7 @@ const en: Translations = {
   'feed.remixBasedOn': 'Based on another template',
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
-  'app.title': 'Trinity S³AI — reels on autopilot',
+  'app.title': 'TRINITY S³AI — AGI game — play, direct, earn',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -1707,6 +2093,8 @@ const en: Translations = {
   'profile.no_templates_desc': 'Create your first AI video to share',
   'profile.create_first_video': 'Create First Video',
   'profile.load_more': 'Load More',
+  'profile.templates_failed': 'Could not load the templates',
+  'profile.retry': 'Try again',
   'profile.loading': 'Loading profile...',
   'profile.not_found': 'User not found',
   'soul.title': 'My SOUL — the agent writes in my voice',
@@ -1886,10 +2274,80 @@ const en: Translations = {
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
   'nav.agents': 'Agents',
-  'nav.hive': 'Hive',
+  'nav.hive': 'Game',
+  'nav.tasks': 'Tasks',
+  'cardChat.label': 'Card #{n} -- conversation with the agent',
+  'cardChat.untitled': 'Card #{n} (untitled on the board)',
+  'cardChat.close': 'Close the card',
+  'cardChat.loading': "Reading this card's history…",
+  'cardChat.empty':
+    'No conversation on this card yet. Ask the agent to carry it on.',
+  'cardChat.starter.state': 'Where does this task stand?',
+  'cardChat.starter.continue': 'Carry this task on',
+  'cardChat.starter.lacks': 'What does the issue still lack?',
+  'cardChat.placeholder': 'Write to the agent about this card…',
+  'cardChat.send': 'Send',
+  'cardChat.stop': 'Stop the agent',
+  'cardChat.busy': 'working…',
+  'cardChat.thinking': 'Thinking…',
+  'cardChat.viaA2A': 'via another agent',
+  'cardChat.verdict': 'The Queen sets the column from her registry',
+  'cardChat.status.label': 'The work on this task',
+  'cardChat.move.dropped': 'Not doing',
+  'cardChat.move.backlog': 'Back to backlog',
+  'cardChat.move.confirm': 'Tap again: {label}',
+  'cardChat.move.sending': 'Asking the Queen…',
+  'cardChat.move.failed': 'The Queen did not answer — nothing moved',
+  'cardChat.col.backlog': 'Backlog',
+  'cardChat.col.blocked': 'Blocked',
+  'cardChat.col.running': 'In progress',
+  'cardChat.col.review': 'In review',
+  'cardChat.col.done': 'Done',
+  'cardChat.col.dropped': 'Not doing',
+  'cardChat.work.thinking': 'The agent is thinking…',
+  'cardChat.work.tool': 'The agent is using {name}…',
+  'cardChat.work.toolUnnamed': 'The agent is using a tool…',
+  'cardChat.work.writing': 'The agent is writing the answer…',
+  'cardChat.status.reading': 'Looking for pull requests…',
+  'cardChat.status.none': 'No pull request names this issue yet',
+  'cardChat.status.unmeasured':
+    'GitHub did not answer: pull requests not checked',
+  'cardChat.status.retryAt':
+    "GitHub's limit: pull requests not checked, again after {time}",
+  'cardChat.status.more': '+{n} on GitHub',
+  'cardChat.status.moreAtLeast': 'at least {n} more on GitHub',
+  'cardChat.status.moreUnread': 'more history on GitHub',
+  'cardChat.pr.open': 'open',
+  'cardChat.pr.draft': 'draft',
+  'cardChat.pr.merged': 'merged',
+  'cardChat.pr.closed': 'closed',
+  'cardChat.checks.pass': 'checks passed',
+  'cardChat.checks.fail': 'a check failed',
+  'cardChat.checks.pending': 'checks running',
+  'cardChat.checks.none': 'no checks',
+  'cardChat.checks.unknown': 'checks not read',
+  'cardChat.tab.label': 'What the card shows',
+  'cardChat.tab.chat': 'Chat',
+  'cardChat.tab.bee': 'Bee at work',
+  'cardChat.bee.label': "The bee's log on this card",
+  'cardChat.bee.running': 'The bee is working',
+  'cardChat.bee.finished': 'The bee finished: {outcome}',
+  'cardChat.bee.finishedBare': 'The bee finished',
+  'cardChat.bee.calls': '{n} calls',
+  'cardChat.bee.since': 'since {time}',
+  'cardChat.bee.reading': "Reading the bee's log…",
+  'cardChat.bee.off': "The bee's log is not connected on this server yet",
+  'cardChat.bee.unmeasured': 'The Queen did not answer, asking again shortly',
+  'cardChat.bee.stale': 'Connection lost: showing the last seen',
+  'cardChat.bee.none': 'No bee has taken this card yet',
+  'cardChat.bee.empty': 'The bee has started; its first steps are coming',
+  'cardChat.bee.thinking': 'thinking…',
+  'cardChat.bee.lines': '+{n} lines',
+  'cardChat.bee.jump': 'To the latest',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
+  'hive.stuck': 'The board did not open here.',
   'hive.insideGame':
     'You are already inside the game: the hive is the page around this frame.',
   // Sign-in inside the game's TRI frame on t27.ai (LoginModal).
@@ -2617,6 +3075,95 @@ types:
 }
 
 const ru: Translations = {
+  'hiveAccount.title': 'Мои ключи и вклад',
+  'hiveAccount.short': 'Ключи и XP',
+  'hiveAccount.back': 'Вернуться в игру',
+  'hiveAccount.lead':
+    'Управляйте API-ключами, переданными Королеве, и смотрите, какая работа засчитана вам.',
+  'hiveAccount.refresh': 'Обновить',
+  'hiveAccount.loading': 'Загружаем ваш вклад…',
+  'hiveAccount.signin': 'Войти',
+  'hiveAccount.retry': 'Повторить',
+  'hiveAccount.working': 'Сохраняем…',
+  'hiveAccount.progress': 'Проверяем ключи: {done} из {total}',
+  'hiveAccount.saved': 'Ключ сохранён. Проверьте его перед использованием.',
+  'hiveAccount.checked': 'Проверка завершена. Результат указан рядом с ключом.',
+  'hiveAccount.checkedAll':
+    'Все проверки завершены. Посмотрите результат каждого ключа.',
+  'hiveAccount.updated': 'Ключ обновлён.',
+  'hiveAccount.attribution': 'Кому засчитывается вклад',
+  'hiveAccount.attributionNote':
+    'Владение подтверждает сервер. Здесь видны только ключи и XP вашего аккаунта.',
+  'hiveAccount.unlinked': 'GitHub ещё не привязан к этому аккаунту.',
+  'hiveAccount.xp': 'Заработано XP',
+  'hiveAccount.accepted': 'Принято задач',
+  'hiveAccount.specs': 'Спецификации .t27',
+  'hiveAccount.hours': 'Часы работы пчёл',
+  'hiveAccount.scoring':
+    '{accepted} XP за принятую задачу, ещё {spec} XP за спецификацию .t27 и {hour} XP за час работы пчёл. Это игровые очки, а не платёжный баланс.',
+  'hiveAccount.keys': 'Ваши ключи · {n}',
+  'hiveAccount.probeAll': 'Проверить все ключи',
+  'hiveAccount.probe': 'Проверить API',
+  'hiveAccount.probeNote':
+    'Проверка делает короткий запрос к модели и расходует квоту провайдера. Успех означает, что эта модель ответила в указанное время.',
+  'hiveAccount.empty':
+    'К вашему аккаунту пока не привязаны ключи. Добавьте ключ ниже, чтобы участвовать в работе роя.',
+  'hiveAccount.never': 'Проверки ещё не было',
+  'hiveAccount.fingerprintUnavailable': 'Отпечаток недоступен',
+  'hiveAccount.enabled': 'Включён для роя',
+  'hiveAccount.disabled': 'Отключён от роя',
+  'hiveAccount.keyWork': 'Принято задач: {n}',
+  'hiveAccount.enable': 'Включить',
+  'hiveAccount.disable': 'Отключить',
+  'hiveAccount.add': 'Добавить ключ',
+  'hiveAccount.secretNote':
+    'Ключ отправляется на сервер и больше не показывается. В списке остаётся только его отпечаток. Используйте ключ с лимитом расходов.',
+  'hiveAccount.provider': 'Провайдер',
+  'hiveAccount.label': 'Название (необязательно)',
+  'hiveAccount.secret': 'API-ключ',
+  'hiveAccount.save': 'Сохранить ключ',
+  'hiveAccount.health.ok': 'Модель ответила',
+  'hiveAccount.health.invalid': 'Ключ отклонён',
+  'hiveAccount.health.rate_limited': 'Лимит запросов или квоты',
+  'hiveAccount.health.unavailable': 'Провайдер недоступен',
+  'hiveAccount.health.not_checked': 'Не проверен',
+  'hiveAccount.error.signin':
+    'Войдите, чтобы управлять своими ключами и видеть свой вклад.',
+  'hiveAccount.error.attribution':
+    'Аккаунт пока не связан с владельцем вклада. Попросите оператора подтвердить привязку вашего аккаунта и GitHub.',
+  'hiveAccount.error.duplicate':
+    'Этот ключ уже зарегистрирован. Обновите список или используйте другой ключ.',
+  'hiveAccount.error.rate':
+    'Слишком много проверок. Немного подождите и повторите.',
+  'hiveAccount.error.setup':
+    'Управление ключами ещё не подключено на сервере. Оператору нужно настроить связь с Королевой и подтверждённую привязку владельца.',
+  'hiveAccount.error.input':
+    'Ключ не удалось сохранить. Проверьте провайдера, ключ и название, затем введите ключ заново.',
+  'hiveAccount.error.network':
+    'Сервис не ответил. Повторите запрос; после сохранения ключа сначала обновите список, прежде чем добавлять его ещё раз.',
+  'hiveAccount.checkedSome':
+    'Проверено {done} из {total}. {skipped} сейчас проверить не удалось (одна проверка ключа в минуту или провайдер занят) — повторите через минуту.',
+  'hiveAccount.models': 'Модель для всех ключей',
+  'hiveAccount.modelsNote':
+    'Одна модель для всех ключей провайдера. Перед сменой Королева просит модель вызвать инструмент через один из ваших ключей: модель, которая не вызывает инструменты, не сделает работу пчелы. Уже работающие пчёлы доработают на прежней модели.',
+  'hiveAccount.modelCurrent': 'Сейчас: {model} · ключей: {n}',
+  'hiveAccount.modelDefault': 'По умолчанию: {model}',
+  'hiveAccount.modelLabel': 'Модель',
+  'hiveAccount.modelsLoading': 'Загружаем модели провайдера…',
+  'hiveAccount.modelsUnavailable':
+    'Список моделей провайдера не загрузился; доступны текущая модель и модель по умолчанию. Обновите страницу, чтобы повторить.',
+  'hiveAccount.modelApply': 'Применить ко всем ({n})',
+  'hiveAccount.modelChecking':
+    'Проверяем модель через один из ваших ключей. Медленная модель может отвечать до трёх минут.',
+  'hiveAccount.modelSaved':
+    'Теперь {model} работает на всех ключах этого провайдера ({n}). Новые пчёлы стартуют на ней.',
+  'hiveAccount.error.modelUnavailable':
+    'Провайдер не обслуживает эту модель. Выберите модель из списка.',
+  'hiveAccount.error.modelTools':
+    'Модель ответила, но не вызвала инструмент, поэтому работу пчелы она не сделает. Ничего не изменено.',
+  'hiveAccount.error.modelCheck':
+    'Модель не удалось проверить: ключи заняты или исчерпали квоту. Ничего не изменено; повторите через минуту.',
+
   // ── Remote browser ────────────────────────────────────────────────────────
   'nav.browser': 'Браузер',
   'browser.title': 'Мой браузер',
@@ -2640,6 +3187,19 @@ const ru: Translations = {
   'browser.choice.done': '✓ Готово', // cyrillic-ok
   'browser.choice.cannot': 'Не получается', // cyrillic-ok
   'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
+  'browser.tabs.label': 'Открытые вкладки', // cyrillic-ok
+  'browser.tabs.new': 'Новая вкладка', // cyrillic-ok
+  'browser.tabs.close': 'Закрыть вкладку {title}', // cyrillic-ok
+  'browser.tabs.untitled': 'Без названия', // cyrillic-ok
+  'browser.tabs.refused': 'Браузер не принял это', // cyrillic-ok
+  'browser.tabs.agentDesk': 'Здесь работает агент по расписанию', // cyrillic-ok
+  'browser.tabs.agentChat': 'Здесь работает агент по вашему чату', // cyrillic-ok
+  'browser.tabs.confirmDesk':
+    'В «{title}» работает агент по расписанию. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.confirmChat':
+    'В «{title}» работает агент по вашему чату. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.closeAnyway': 'Закрыть', // cyrillic-ok
+  'browser.tabs.keep': 'Оставить', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
   'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
@@ -2706,6 +3266,29 @@ const ru: Translations = {
     'Закрытие сохраняет ваши входы. «Стереть всё» удаляет их насовсем.',
   'browser.forget': 'Стереть всё',
   'browser.forget.sure': 'Да, стереть',
+  'browser.sites.open': 'Мои сайты',
+  'browser.sites.title': 'Где агент спрашивает или не бывает вовсе',
+  'browser.sites.how':
+    'Спрашивать: агент может открыть и прочитать сайт, но каждое нажатие, ввод или код там — только с вашего «да», как в банке. Никогда: агент не открывает, не читает и не снимает этот сайт вовсе. Банки, почта и страницы оплаты уже под защитой для всех. Агент может добавить сайт или сделать правило строже; убрать или смягчить — только вы.',
+  'browser.sites.placeholder': 'bank.com или yandex.ru/mail',
+  'browser.sites.ask': 'Спрашивать',
+  'browser.sites.block': 'Никогда',
+  'browser.sites.toAsk': 'Разрешить с «да»',
+  'browser.sites.toBlock': 'Сделать «никогда»',
+  'browser.sites.remove': 'Убрать',
+  'browser.sites.byAgent': 'добавил агент',
+  'browser.sites.loading': 'Читаю список…',
+  'browser.sites.empty': 'Своих сайтов пока нет.',
+  'browser.sites.unreadable':
+    'Список сейчас не прочитать, поэтому агент ничего не открывает и не читает, пока не получится.',
+  'browser.sites.fail': 'Не сохранилось: {error}',
+  'browser.sites.readFail': 'Не удалось загрузить список: {error}',
+  'browser.sites.badSite':
+    'Не сохранилось: это не один адрес сайта. Пишите так: bank.com или yandex.ru/mail.',
+  'browser.sites.full':
+    'Не сохранилось: список полон. Сначала уберите какой-нибудь сайт.',
+  'browser.sites.unreadableNow':
+    'Не сохранилось: список сейчас не читается. Попробуйте через минуту.',
   'browser.import.open': 'Перенести входы',
   'browser.round': 'Обойти мои аккаунты',
   'browser.desks': 'Кабинеты агента',
@@ -2746,6 +3329,8 @@ const ru: Translations = {
   'crm.sections': 'Разделы CRM',
   'crm.section.work': 'Работа',
   'crm.section.map': 'Карта',
+  'crm.section.contacts': 'Контакты',
+  'crm.contacts.find': 'Найти контакт',
   'crm.summary.paid': 'Платил',
   'crm.summary.paid.yes': 'да',
   'crm.summary.paid.no': 'пока нет',
@@ -2821,6 +3406,27 @@ const ru: Translations = {
   'crm.refresh': 'Обновить',
   'crm.refreshing': 'Обновляю…',
   'crm.unreachable': 'Не удалось загрузить',
+  'crm.error.http': 'сервер ответил {status}',
+  'crm.error.refused': 'отказ',
+  'crm.error.empty': 'пустой ответ',
+  'crm.error.network': 'нет связи с сервером',
+  'crm.error.badReply': 'ответ не разобран',
+  'crm.error.code.tool_failed': 'на сервере ошибка — попробуйте через минуту',
+  'crm.error.code.no_identity':
+    'сервер не знает, кто вы — откройте приложение из Telegram',
+  'crm.error.code.no_bots':
+    'CRM показывает аудиторию ваших ботов, а за вами не записано ни одного бота',
+  'crm.error.code.no_seller_session':
+    'подключите свой Telegram в приложении — CRM работает от вашего аккаунта',
+  'crm.error.code.not_your_lead': 'такого человека нет: вы не переписывались',
+  'crm.error.code.unknown_tool':
+    'на сервере этого ещё нет — попробуйте после обновления',
+  'crm.error.code.bad_tool_name':
+    'запрос испортился по дороге — попробуйте ещё раз',
+  'crm.error.code.unknown_method': 'сервер не понял запрос',
+  'crm.error.code.editorial_scope': 'этим ключом CRM не открыть',
+  'crm.error.code.game_token_scope':
+    'вход из игры не открывает CRM — откройте приложение из Telegram',
   'sendCard.previewBroken':
     '⚠️ Превью не открылось — проверьте вложение перед отправкой:', // cyrillic-ok
   'sendCard.previewOpen': 'открыть файл', // cyrillic-ok
@@ -2873,6 +3479,26 @@ const ru: Translations = {
     'Подготовь тёплое сообщение-возвращение для {name}: раньше покупал(а), молчит {days} дней. Начни с того, что нового появилось с последней покупки, а не с напоминания о нас. Сделай карточкой на отправку — «Отправить» нажму сам.',
   'crm.wait.theirs': 'ждём ответа',
   'crm.wait.due': 'пора вернуться',
+  'crm.wait.days': '{n} дн.',
+  'crm.why.we_wrote_last': 'мы написали последними, ответа нет',
+  'crm.why.they_wrote': 'написал, а ответа не было',
+  'crm.why.they_replied': 'ответил, а мы молчим',
+  'crm.why.later_due': 'просил позже — позже настало',
+  'crm.why.we_wrote': 'написали, ответа нет',
+  'crm.why.refused': 'человек отказался — пишем только если напишет сам',
+  'crm.why.promise_late': 'обещано и срок прошёл: {what}',
+  'crm.why.promise_today': 'обещано, срок сегодня: {what}',
+  'crm.why.waits_days': 'ждёт ответа {days} дн.',
+  'crm.why.they_spoke_last': 'написал последним, ответа нет',
+  'crm.why.later_until': 'просил вернуться позже: {date}',
+  'crm.why.paid_serve': 'оплатил — есть что доставить, нечего продавать',
+  'crm.why.paid_quiet': 'платил раньше и замолчал',
+  'crm.why.no_talk_yet': 'разговора ещё не было',
+  'crm.why.warm_offer':
+    'разговор тёплый, человек видел результат, предложения не было',
+  'crm.why.silence_after_us': 'молчание {days} дн. после нашего сообщения',
+  'crm.why.we_wrote_days': 'мы написали {days} дн. назад, ответа нет',
+  'crm.why.just_answered': 'мы ответили только что — очередь за человеком',
   // ── CRM: client list and per-client workspace ────────────────────────────
   'crm.clients.title': 'Клиенты',
   'crm.clients.none': 'Пока нет клиентов с профилем или перепиской.',
@@ -2896,6 +3522,9 @@ const ru: Translations = {
   'crm.clients.profile': 'профиль',
   'crm.clients.soul': 'SOUL',
   'crm.clients.duets': 'дуэтов: {n}',
+  'crm.clients.tasks': 'план: {done}/{n}',
+  'crm.clients.faults': 'открытых ошибок: {n}',
+  'crm.clients.bots': 'владеет ботами:',
   'crm.clients.paid': 'оплатил',
   'crm.clients.paidUnknown': 'платежи недоступны — стадия только по касаниям',
   'crm.clients.filter.all': 'все',
@@ -3011,6 +3640,15 @@ const ru: Translations = {
   'crm.aside.portrait.ready': 'готов — ещё не отправлен',
   'crm.aside.portrait.drawing': 'рисуется',
   'crm.aside.portrait.none': 'ещё нет',
+  'crm.aside.gifts': 'Подарки',
+  'crm.aside.gift.portrait.give': 'Подарить',
+  'crm.aside.gift.portrait.send': 'Отправить',
+  'crm.aside.menu': 'Виджеты',
+  'crm.aside.widget.moves': 'Ходы',
+  'crm.aside.widget.group': 'Группа',
+  'crm.aside.widget.content': 'Контент',
+  'crm.aside.widget.templates': 'Шаблоны',
+  'crm.aside.moves.none': 'Сейчас ходов не предложено.',
   'crm.aside.package.none': 'Пакета нет: правила не записаны.',
   'crm.aside.plan.none': 'Контент-плана пока нет.',
   'crm.aside.note.placeholder': 'Заметка о клиенте…',
@@ -3084,7 +3722,7 @@ const ru: Translations = {
   'crm.auto.chosen.some': 'выбрано {n}',
   'crm.auto.hint':
     'Подготовленные карточки уходят сами; о каждой отправке приходит отчёт с кнопкой «Выключить».',
-  'crm.filter.search': 'Поиск по имени или id',
+  'crm.filter.search': 'Имя, @username или id',
   'crm.filter.segment': 'Сегмент',
   'crm.vip.title': 'В работе',
   'crm.vip.note': 'Оплатившие, с пакетом или с касанием на этой неделе',
@@ -3096,6 +3734,12 @@ const ru: Translations = {
   'crm.row.dropped': 'Убран из CRM',
   'crm.row.restore': 'Вернуть',
   'crm.row.open': 'Открыть',
+  'crm.row.more': 'Подробнее и удаление',
+  'crm.filter.clear': 'Очистить поиск',
+  'crm.clients.searching': 'Ищу по всем контактам…',
+  'crm.clients.notFound': 'По запросу «{q}» никого нет',
+  'crm.clients.rest': 'Остальные',
+  'crm.clients.recent': 'Недавние',
   'crm.client.empty': 'пока пусто',
   'crm.client.profile.title': 'Профиль / SOUL / скилы',
   'crm.client.profile.profile': 'профиль',
@@ -3112,7 +3756,42 @@ const ru: Translations = {
   'crm.client.story.topic':
     'Тема — любая. Пусто = следующий пункт плана или новая',
   'crm.client.story.start': 'Сделать рилс',
+  'crm.client.story.framesShort': 'кадров: {n} + призыв',
+  'crm.client.story.frames': 'Кадры',
+  'crm.client.story.frames.less': 'На кадр меньше',
+  'crm.client.story.frames.more': 'На кадр больше',
+  'crm.client.story.frames.hint': '{n} × лицо в новой обстановке, затем призыв',
+  'crm.client.story.board.cta': 'Призыв к действию',
+  'crm.client.story.more': 'Настройки: призыв, стиль, концовка',
+  'crm.client.story.cta': 'Призыв на последнем кадре',
+  'crm.client.story.style': 'Стиль кадров (свет, тон)',
+  'crm.client.story.quick': 'Быстрые темы',
+  'crm.client.story.toDm': 'Готовый рилс — сразу клиенту в личку',
+  'crm.client.story.photo.avatar': 'Фото: аватарка клиента',
+  'crm.client.story.photo.own': 'Фото: своё',
+  'crm.client.story.photo.avatarSelf': 'Фото: ваша аватарка',
+  'crm.client.story.photo.replace': '📷 Заменить фото',
+  'crm.client.story.photo.reset': '↺ Вернуть аватарку',
+  'crm.client.story.photo.uploading': 'Загружаю…',
+  'crm.client.story.photo.failed': 'Фото не загрузилось, попробуйте другое',
+  'crm.client.story.tips':
+    'Агент пишет по правилам сильного рилса: крючок в первые 2 с, одна мысль от проблемы к результату, лицо крупно, один призыв в конце.',
+  'crm.client.story.quick.1': 'Мой день в работе',
+  'crm.client.story.quick.2': 'Как я помогаю клиентам',
+  'crm.client.story.quick.3': 'До и после',
+  'crm.client.story.quick.4': 'Почему выбирают меня',
   'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
+  'crm.client.story.gallery': 'Готовые сценарии',
+  'crm.client.story.gallery.hint':
+    'Нажмите сценарий: его строки, кадры и призыв заполнят поля ниже.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Хук: мой голос, моя нейросеть',
+  'crm.client.story.gallery.price': '≈ {n} токенов',
+  'crm.client.story.gallery.noPrice': 'цена при запуске',
+  'crm.client.story.gallery.chosen': 'Выбран',
+  'crm.client.story.gallery.clear': 'Без сценария',
+  'crm.client.story.gallery.line': 'Строка {n}',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
     'Запущен: «{topic}». Придёт тебе в бот через 5–10 минут — проверь и перешли клиенту.',
@@ -3148,6 +3827,7 @@ const ru: Translations = {
   'crm.client.story.checkFirst':
     'Сначала проверьте: запомнить можно только проверенную палитру',
   'story.title': 'Мои рилсы',
+  'story.toChat': 'Спросить агента',
   'story.lead':
     'Три сцены с вашим лицом — каждая в новой обстановке, вашим голосом, около 15 секунд, в конце — ваш призыв. Готовый рилс придёт в бот через 5–10 минут.',
   'story.face': 'ваше лицо',
@@ -3298,6 +3978,10 @@ const ru: Translations = {
   'crm.card.note':
     'Кто написал и ждёт, кто горячий, контент-план и задачи запуска.',
   'crm.card.open': 'Открыть CRM',
+  'story.card.title': '🎬 Мои рилсы-истории',
+  'story.card.note':
+    'Моё лицо, мой голос, любая тема: рилс одним нажатием, когда обе половины готовы.',
+  'story.card.open': 'Открыть рилсы',
   'clone.networks.title': '🌐 Сети моего клона',
   'clone.networks.note':
     'Где ваш браузер уже вошёл — по его входам. Пароли не видит никто, даже агент.',
@@ -3310,10 +3994,73 @@ const ru: Translations = {
   'clone.networks.ask':
     'Чтобы подключить остальные, скажите агенту: «подключи мои сети». Пароли вводите вы сами.',
   'clone.networks.open': 'Открыть браузер',
+  'meta.card.title': '🔗 Threads, Instagram, Facebook, LinkedIn, X через API',
+  'meta.card.note':
+    'Подключите каждую сеть один раз через её собственный вход — и блог будет публиковаться там через API, с номером поста как квитанцией. Токен остаётся на сервере.',
+  'meta.card.connect': 'Подключить',
+  'meta.card.again': 'Переподключить',
+  'meta.card.out': 'не подключено',
+  'meta.card.noApp': 'приложение на сервере ещё не задано',
+  'meta.card.days': 'осталось дней: {n}',
+  'meta.card.soon': 'LinkedIn закончится через {n} дн. — переподключите',
+  'meta.card.renews': 'продлевается сам',
+  'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
+  'tri.wallet.title': '💎 Кошелёк TRI',
+  'tri.wallet.note':
+    'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
+  'tri.wallet.bind': 'Привязать TON-кошелёк',
+  'tri.wallet.rebind': 'Привязать другой TON-кошелёк',
+  'tri.wallet.unbind': 'Отвязать',
+  'tri.wallet.testnet': 'TON testnet',
+  'tri.wallet.err.elsewhere':
+    'Этот кошелёк уже привязан к другому аккаунту. Сначала отвяжите его там.',
+  'tri.wallet.err.expired': 'Запрос устарел. Нажмите «привязать» ещё раз.',
+  'tri.wallet.err.domain':
+    'Кошелёк подписал запрос для другого сайта. Откройте app.t27.ai и попробуйте снова.',
+  'tri.wallet.err.workchain':
+    'Привязать можно только обычный кошелёк (workchain 0).',
+  'tri.wallet.err.signin': 'Войдите через Telegram, чтобы привязать кошелёк.',
+  'tri.wallet.err.busy':
+    'Слишком много открытых запросов. Подождите несколько минут.',
+  'tri.wallet.err.noproof':
+    'Кошелёк подключился, но не подписал подтверждение, поэтому ничего не привязано.',
+  'tri.wallet.err.generic': 'Не удалось привязать кошелёк. Попробуйте ещё раз.',
+  'tri.claim.title': '🪙 TRI за принятые спеки',
+  'tri.claim.status':
+    'Только тестовая сеть TON. V1, кворум подписантов, НЕ trustless: независимые аттесторы проверяют каждую спеку и подписывают выпуск; отправляет его ваш кошелёк и платит газ.',
+  'tri.claim.github.why':
+    'Привяжите GitHub-аккаунт, на который засчитаны ваши принятые .t27-спеки.',
+  'tri.claim.github.link': 'Привязать GitHub',
+  'tri.claim.github.enter':
+    'Откройте страницу ниже, войдите в GitHub и введите этот код:',
+  'tri.claim.github.as': 'GitHub: @{login}',
+  'tri.claim.github.unlink': 'Отвязать',
+  'tri.claim.needWallet':
+    'Чтобы вывести, привяжите выше TON-кошелёк тестовой сети.',
+  'tri.claim.empty': 'На этот аккаунт пока не засчитано ни одной спеки.',
+  'tri.claim.withdraw': 'Вывести',
+  'tri.claim.working': 'Ждём кошелёк…',
+  'tri.claim.sent': 'Отправлено',
+  'tri.claim.sentNote':
+    'Отправлено с вашего кошелька. Минтер начислит TRI в течение минуты; неизрасходованные TON вернутся.',
+  'tri.claim.err.github': 'Сначала привяжите GitHub.',
+  'tri.claim.err.wallet': 'Сначала привяжите TON-кошелёк тестовой сети.',
+  'tri.claim.err.notyours': 'Эта спека засчитана другому GitHub-аккаунту.',
+  'tri.claim.err.minted': 'За эту спеку TRI уже выпущены.',
+  'tri.claim.err.notmerged':
+    'Аттесторы не нашли эту спеку в смёрженном pull request.',
+  'tri.claim.err.revoked': 'Принятие этой спеки отозвано.',
+  'tri.claim.err.denied':
+    'Доступ в GitHub не подтверждён, ничего не привязано.',
+  'tri.claim.err.expired': 'Код устарел. Нажмите «Привязать GitHub» ещё раз.',
+  'tri.claim.err.unavailable':
+    'Ответило недостаточно аттесторов. Попробуйте через несколько минут.',
+  'tri.claim.err.generic': 'Что-то пошло не так. Попробуйте ещё раз.',
   'chat.agentSkills.on': 'Навыки подключены: {own} · и общих: {general}',
   'chat.agentSkills.none':
     'Ваших правил для него пока нет: напишите правило ниже — оно подключится со следующего сообщения (сохранится как «{prefix}: …»).',
   'agents.dash.market': 'Все агенты',
+  'agents.dash.switch': 'Сменить агента',
   'agents.dash.clientsTitle': 'С вашими клиентами',
   'agents.dash.clientRow': 'Клиент {id} · ходов: {n} — позвать снова →',
   'agents.dash.noClients':
@@ -3322,6 +4069,22 @@ const ru: Translations = {
     'Сделать аватар из моего фото (GPT Image 2.5, 12 токенов)',
   'agents.dash.face.drawing': 'Рисую…',
   'chat.specialist.dashboard': 'Дашборд',
+  'chat.templates.reel': 'Повторить мой рилс по шаблону',
+  'chat.templates.photo': 'Нейро-фото по моему шаблону',
+  'chat.templates.gift': 'Снова подарок клиенту',
+  'chat.templates.reply': 'Повторить мой отклик по шаблону',
+  'chat.templates.recruiters': 'Кто ждёт моего ответа',
+  'chat.templates.demand': 'Повторить анализ спроса',
+  'chat.templates.hook': 'Повторить мой лучший хук',
+  'chat.templates.claim': 'Проверить по моему чек-листу',
+  'chat.templates.build': 'Повторить маршрут сборки',
+  'chat.templates.module': 'Модуль по моему шаблону',
+  'chat.templates.fix': 'Повторить мой рецепт фикса',
+  'chat.agentAside.label': 'Панель агента',
+  'chat.agentAside.open': 'Панель',
+  'chat.agentAside.clients': 'Клиенты этого агента',
+  'chat.agentAside.noClients': 'Через этого агента с клиентами ещё не работали',
+  'chat.agentAside.dash': 'Полный дашборд',
   'agents.dash.status.live': 'работает',
   'agents.dash.status.training': 'учится',
   'agents.dash.status.earned': 'нанимается по доказательствам',
@@ -3364,6 +4127,15 @@ const ru: Translations = {
   'crm.revenue.top': 'Лучшие клиенты',
   'crm.revenue.stars': '{n} ⭐',
   'crm.revenue.none': 'Покупок от ваших клиентов пока нет.',
+  'crm.social.title': 'Соцсети',
+  'crm.social.connected': 'подключено',
+  'crm.social.expired': 'токен истёк: переподключите',
+  'crm.social.noApp': 'на сервере нет ключей приложения',
+  'crm.social.off': 'не подключено',
+  'crm.social.days': 'осталось {n} дн.',
+  'crm.social.connect': 'Подключить соцсети',
+  'crm.social.hint':
+    'Агент публикует только в подключённые сети и только после вашего «Разрешить».',
   'chat.agentSkills.add.placeholder':
     'Правило для него, например «отвечай коротко, с цифрами»',
   'chat.agentSkills.add.button': 'Добавить',
@@ -3470,7 +4242,8 @@ const ru: Translations = {
   'pricing.tokens.feature1': 'Картинки, озвучка, видео, сборка рилса',
   'pricing.tokens.feature2': 'Один баланс на всё, без мест и участников',
   'pricing.tokens.feature3': 'Цена каждого действия видна до нажатия',
-  'pricing.tokens.feature4': 'Токены не сгорают и не списываются ежемесячно',
+  'pricing.tokens.feature4':
+    'Неистраченные токены сгорают через 30 дней; напомним за 7, 3 и 1 день',
   'pricing.tokens.note':
     'Первые токены — при входе, без карты. Счёт на любое количество выпишет агент в боте.',
 
@@ -3584,6 +4357,9 @@ const ru: Translations = {
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
+  'login.chatTitle': 'Войдите, чтобы поговорить с агентом',
+  'login.chatBody':
+    'Агент отвечает тем, кого знает. Войдите через Telegram — переписка бесплатна.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
@@ -3788,6 +4564,59 @@ const ru: Translations = {
   'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.attachAny': 'Прикрепить файл: фото, видео, голос, PDF, документ',
   'chat.send': 'Отправить',
+  // -- Voice mode -------------------------------------------------------------
+  'voice.open': 'Говорить с агентом голосом',
+  'voice.title': 'Голосовой режим',
+  'voice.close': 'Закрыть голосовой режим',
+  'voice.end': 'Завершить',
+  'voice.expand': 'На весь экран',
+  'voice.toChat': 'Вернуться в чат',
+  'voice.mute': 'Выключить микрофон',
+  'voice.unmute': 'Включить микрофон',
+  'voice.muted': 'Микрофон выключен',
+  'voice.phase.off': 'Выключено',
+  'voice.phase.starting': 'Запускаю...',
+  'voice.phase.listening': 'Слушаю',
+  'voice.phase.hearing': 'Слышу вас',
+  'voice.phase.thinking': 'Думаю',
+  'voice.phase.speaking': 'Говорю. Перебейте голосом или нажмите «Остановить»',
+  'voice.phase.error': 'Голосовой режим остановлен',
+  'voice.error.mic':
+    'Нет доступа к микрофону. Разрешите его в браузере и нажмите на логотип.',
+  'voice.error.mic.denied':
+    'Микрофон запрещён для этого сайта. Нажмите на замок рядом с адресом, разрешите микрофон и нажмите на логотип.',
+  'voice.error.mic.none':
+    'Микрофон не найден. Подключите его и нажмите на логотип.',
+  'voice.error.mic.busy':
+    'Микрофон занят другим приложением (звонок, диктофон). Закройте его и нажмите на логотип.',
+  'voice.error.mic.unsupported':
+    'В этом окне микрофон недоступен. Откройте голосовой режим в браузере.',
+  'voice.mic.inTelegram':
+    'Telegram может не передавать микрофон приложению. Разрешите Telegram доступ к микрофону в настройках телефона или откройте голосовой режим в браузере.',
+  'voice.openBrowser': 'Открыть в браузере',
+  'voice.retry': 'Попробовать снова',
+  'voice.type.label': 'Напишите — агент ответит голосом',
+  'voice.type.placeholder': 'Спросите агента…',
+  'voice.type.send': 'Отправить',
+  'voice.stop': 'Остановить',
+  'voice.options': 'Можно выбрать: {list}.',
+  'voice.filler.first':
+    'Сейчас посмотрю.|Так, дайте подумать.|Сейчас разберусь.',
+  'voice.filler.still': 'Ещё работаю над этим.|Всё ещё занимаюсь этим.',
+  'voice.error.recorder': 'Этот браузер не умеет записывать звук.',
+  'voice.error.hear': 'Не разобрал слова. Повторите, пожалуйста.',
+  'voice.you': 'Вы',
+  'voice.agent': 'Агент',
+  'voice.mode': 'Визуал',
+  'voice.mode.pulse': 'Пульс',
+  'voice.mode.spectrum': 'Спектр',
+  'voice.mode.orbit': 'Орбита',
+  'voice.mode.hologram': 'Голограмма',
+  'voice.mode.shatter': 'Осколки',
+  'voice.voice': 'Голос',
+  'voice.deviceVoice':
+    'Наш голосовой сервер недоступен, ответ читает голос устройства.',
+  'voice.orb': 'Нажмите, чтобы перебить агента',
   'chat.welcome':
     'Привет! Я Trinity S³AI AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
   'chat.cleared': 'Чат очищен. Чем могу помочь?',
@@ -3951,7 +4780,7 @@ const ru: Translations = {
   'feed.ageMonth': ' мес',
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
-  'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'app.title': 'TRINITY S³AI — AGI-игра — играй, управляй, зарабатывай',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
@@ -4266,6 +5095,8 @@ const ru: Translations = {
   'profile.no_templates_desc': 'Создайте своё первое AI-видео',
   'profile.create_first_video': 'Создать видео',
   'profile.load_more': 'Загрузить ещё',
+  'profile.templates_failed': 'Не удалось загрузить шаблоны',
+  'profile.retry': 'Повторить',
   'profile.loading': 'Загрузка профиля...',
   'profile.not_found': 'Пользователь не найден',
   'soul.title': 'Мой SOUL — агент пишет моим голосом',
@@ -4444,10 +5275,79 @@ const ru: Translations = {
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
   'nav.agents': 'Агенты',
-  'nav.hive': 'Улей',
+  'nav.hive': 'Игра', // cyrillic-ok
+  'nav.tasks': 'Задачи', // cyrillic-ok
+  'cardChat.label': 'Карточка #{n} — разговор с агентом',
+  'cardChat.untitled': 'Карточка #{n} (на доске без названия)',
+  'cardChat.close': 'Закрыть карточку',
+  'cardChat.loading': 'Читаем историю карточки…',
+  'cardChat.empty':
+    'По этой карточке ещё не говорили. Попросите агента продолжить.',
+  'cardChat.starter.state': 'Где сейчас эта задача?',
+  'cardChat.starter.continue': 'Продолжи эту задачу',
+  'cardChat.starter.lacks': 'Чего ещё не хватает в задаче?',
+  'cardChat.placeholder': 'Напишите агенту про эту карточку…',
+  'cardChat.send': 'Отправить',
+  'cardChat.stop': 'Остановить агента',
+  'cardChat.busy': 'работает…',
+  'cardChat.thinking': 'Думаю…',
+  'cardChat.viaA2A': 'через другого агента',
+  'cardChat.verdict': 'Колонку ставит Королева по своему реестру',
+  'cardChat.status.label': 'Работа по задаче',
+  'cardChat.move.dropped': 'Не делаем',
+  'cardChat.move.backlog': 'Вернуть в бэклог',
+  'cardChat.move.confirm': 'Ещё раз: {label}',
+  'cardChat.move.sending': 'Спрашиваю королеву…',
+  'cardChat.move.failed': 'Королева не ответила — ничего не сдвинуто',
+  'cardChat.col.backlog': 'Бэклог',
+  'cardChat.col.blocked': 'Заблокирована',
+  'cardChat.col.running': 'В работе',
+  'cardChat.col.review': 'На ревью',
+  'cardChat.col.done': 'Готово',
+  'cardChat.col.dropped': 'Не делаем',
+  'cardChat.work.thinking': 'Агент думает…',
+  'cardChat.work.tool': 'Агент работает с {name}…',
+  'cardChat.work.toolUnnamed': 'Агент работает с инструментом…',
+  'cardChat.work.writing': 'Агент пишет ответ…',
+  'cardChat.status.reading': 'Ищу PR по задаче…',
+  'cardChat.status.none': 'Пока ни один PR не ссылается на задачу',
+  'cardChat.status.unmeasured': 'GitHub не ответил — PR не проверены',
+  'cardChat.status.retryAt':
+    'Лимит GitHub — PR не проверены, снова после {time}',
+  'cardChat.status.more': 'ещё {n} на GitHub',
+  'cardChat.status.moreAtLeast': 'ещё не меньше {n} на GitHub',
+  'cardChat.status.moreUnread': 'остальная история — на GitHub',
+  'cardChat.pr.open': 'открыт',
+  'cardChat.pr.draft': 'черновик',
+  'cardChat.pr.merged': 'влит',
+  'cardChat.pr.closed': 'закрыт',
+  'cardChat.checks.pass': 'проверки прошли',
+  'cardChat.checks.fail': 'проверка упала',
+  'cardChat.checks.pending': 'проверки идут',
+  'cardChat.checks.none': 'проверок нет',
+  'cardChat.checks.unknown': 'проверки не прочитаны',
+  'cardChat.tab.label': 'Что показать по карточке',
+  'cardChat.tab.chat': 'Чат',
+  'cardChat.tab.bee': 'Пчела в работе',
+  'cardChat.bee.label': 'Журнал пчелы по карточке',
+  'cardChat.bee.running': 'Пчела работает',
+  'cardChat.bee.finished': 'Пчела закончила: {outcome}',
+  'cardChat.bee.finishedBare': 'Пчела закончила',
+  'cardChat.bee.calls': 'вызовов: {n}',
+  'cardChat.bee.since': 'с {time}',
+  'cardChat.bee.reading': 'Читаю журнал пчелы…',
+  'cardChat.bee.off': 'Журнал пчелы на этом сервере ещё не подключён',
+  'cardChat.bee.unmeasured': 'Королева не ответила — спрошу ещё раз',
+  'cardChat.bee.stale': 'Связь пропала — показано последнее',
+  'cardChat.bee.none': 'Пчела на эту карточку ещё не выходила',
+  'cardChat.bee.empty': 'Пчела вышла, первые шаги вот-вот появятся',
+  'cardChat.bee.thinking': 'думает…',
+  'cardChat.bee.lines': '+{n} строк',
+  'cardChat.bee.jump': 'К последним',
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
+  'hive.stuck': 'Доска здесь не открылась.',
   'hive.insideGame':
     'Вы уже внутри игры: улей — это страница вокруг этого фрейма.',
   // Sign-in inside the game's TRI frame on t27.ai (LoginModal).

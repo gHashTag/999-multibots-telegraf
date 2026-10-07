@@ -41,6 +41,18 @@ import type { LateOutcome } from './late-picture'
 // The numbers are the spec's: gHashTag/t27 specs/automation/crm-story-reel.t27,
 // vendored with its `t27c gen-ts` output (see story-template.ts).
 import * as SPEC from '../spec/crm-story-reel.gen'
+import { cutShot, shotOfScene } from './studio-shots'
+import type { HeardVoice } from './split-reel-tool'
+import {
+  cardForReel,
+  houseLineRefused,
+  houseReplacedNote,
+  languageOf,
+  reelCall,
+  takenWord,
+  voiceOf,
+} from './story-reel-templates'
+import { captionsFromWords, type SpokenWord } from '../split-reel-plan'
 
 /** Scenes a story holds: the owner's form is three. */
 export const STORY_SCENES_MIN = SPEC.SCENES_MIN
@@ -132,23 +144,112 @@ export interface StoryLate {
 
 export const KEEP_THE_PERSON =
   'Keep the person EXACTLY as in the source photo -- the same face, features, hair, age and outfit; ' +
+  'the person is the subject of the frame, face clearly visible; ' +
   'change ONLY the setting around them, and never keep the plain background of the source photo.'
+
+/** Our own eyes on a new still: true a face, false none, null unchecked. */
+export interface StoryEyes {
+  hasFace: (url: string, ctx: ToolContext) => Promise<boolean | null>
+}
+
+/** What a new still's face check leads to (spec still_face_action). */
+export function stillFaceAction(hasFace: boolean, redraws: number): number {
+  if (hasFace) return SPEC.FACE_KEEP
+  if (redraws < SPEC.STILL_FACE_REDRAWS) return SPEC.FACE_REDRAW
+  return SPEC.FACE_STOP
+}
+
+/**
+ * Where a gallery preview takes a field of the end card (spec v27:
+ * gallery_preview_field): the panel's card when it holds one, else the
+ * render's default -- the preview never invents a colour of its own.
+ */
+export function galleryPreviewField(panelHas: boolean): number {
+  if (panelHas) return SPEC.FIELD_FROM_SELLER
+  return SPEC.FIELD_FROM_DEFAULT
+}
+
+/**
+ * Where a surface takes an end-card colour (spec v29: brand_kit_field): her
+ * saved palette when she has one, else the render's default -- the same
+ * answer on the gallery preview and the rendered card.
+ */
+export function brandKitField(
+  hasClientPalette: boolean,
+  _surface: number
+): number {
+  if (hasClientPalette) return SPEC.FIELD_FROM_KEPT
+  return SPEC.FIELD_FROM_DEFAULT
+}
+
+/**
+ * How many slots a retry renders (spec v28: slots_to_render): only the empty
+ * ones. More done than total is a broken row and renders nothing.
+ */
+export function slotsToRender(slotsTotal: number, slotsDone: number): number {
+  if (slotsDone >= slotsTotal) return 0
+  return slotsTotal - slotsDone
+}
+
+/** What a retry charges (spec v28: retry_price): the slots it renders, never the made ones. */
+export function retryPrice(
+  slotsTotal: number,
+  slotsDone: number,
+  perSlot: number
+): number {
+  return slotsToRender(slotsTotal, slotsDone) * perSlot
+}
+
+/** Whether one slot is rendered on a retry (spec v28: slot_renders): a done slot never is. */
+export function slotRenders(done: boolean): boolean {
+  return !done
+}
+
+/** Whether a line, as heard, may go on to its lip-sync (spec line_fits). */
+export function lineFits(ms: number): boolean {
+  return ms <= SPEC.LINE_MAX_MS
+}
+
+const LINE_MAX_SEC_TEXT = String(SPEC.LINE_MAX_MS / 1000).replace('.', ',')
 
 export interface StoryScene {
   setting: string
   line: string
 }
 
-/** The prompt of one scene's still: the setting, the one style, the person kept. */
+/**
+ * The prompt of one scene's still: the person first, then the setting and the
+ * one style (spec v19, STILL_IDENTITY_FIRST: setting-first gave an empty street).
+ */
 export function stillPrompt(setting: string, style: string): string {
   return [
-    `Setting: ${setting.trim()}.`,
     KEEP_THE_PERSON,
+    `Setting: ${setting.trim()}.`,
     style.trim(),
     'Vertical 9:16, no text, no letters, no logos.',
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+/**
+ * Whether a scene shows the source photo as it is (spec v19, OPEN_ON_SOURCE):
+ * a talking-head reel opens on the talking head, wide, not on a picture.
+ */
+export function sceneIsSource(scene: number): boolean {
+  return SPEC.OPEN_ON_SOURCE && scene === SPEC.OPEN_SCENE
+}
+
+/**
+ * A first line that opens with a greeting or the weather (spec v19,
+ * FIRST_LINE_HOOK): the owner's reel of 2026-10-03 opened "good morning in
+ * the rain", and the first second of a reel is the hook or nothing.
+ */
+const GREETING_OPENER =
+  /^(доброе\s+утро|добрый\s+(день|вечер)|доброй\s+ночи|привет|всем\s+привет|здравствуй|здорово|хай|салют|good\s+(morning|afternoon|evening)|hello|hi|hey)(?!\p{L})/iu // cyrillic-ok
+
+export function opensWithGreeting(line: string): boolean {
+  return GREETING_OPENER.test(line.trim().replace(/^[^\p{L}]+/u, ''))
 }
 
 /** The scenes as given, checked: 1..4, each with a setting and a line. */
@@ -160,10 +261,17 @@ export function scenesOf(raw: unknown): StoryScene[] | string {
   for (const [i, s] of raw.entries()) {
     const setting = String((s as StoryScene)?.setting ?? '').trim()
     const line = String((s as StoryScene)?.line ?? '').trim()
-    if (!setting || !line)
+    // No setting is a shot of the source (spec v19, STUDIO_SHOTS): the
+    // studio is never left unless a caller names a place.
+    if (!line || (!setting && !sceneIsSource(i) && !SPEC.STUDIO_SHOTS))
       return `scenes.${i}: нужны и setting (обстановка), и line (реплика)`
     out.push({ setting, line })
   }
+  if (SPEC.FIRST_LINE_HOOK && opensWithGreeting(out[0].line))
+    return (
+      'scenes.0: первая реплика — хук (утверждение, вопрос, цифра), ' +
+      'а не приветствие: рилс решается в первую секунду'
+    )
   return out
 }
 
@@ -346,17 +454,20 @@ export async function keepEndCard(
       v => v !== undefined && v !== null && String(v).trim() !== ''
     )
   const card = given ? endCardOf(raw) : null
+  // Read as her reel will draw it (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN):
+  // a colour she keeps none of is ink there, never the house's gold.
+  const drawn = (c: StoryEndCard) =>
+    endCardForReel(mergeEndCard(c, null, profile), owner === lead, '')
   const why = given
     ? endCardProblem(raw) ||
-      (card ? endCardUnreadable(mergeEndCard(card, null, profile)) : '') ||
+      (card ? endCardUnreadable(drawn(card)) : '') ||
       (card ? '' : 'end_card: ни одного цвета #hex и ни строки кнопки')
     : ''
   const action = keepAction(true, given, given && !why)
   if (action === SPEC.KEEP_REFUSED) {
     // A #hex card that does not read gets its options (v12, v13); "black"
     // does not.
-    const merged =
-      card && !endCardProblem(raw) ? mergeEndCard(card, null, profile) : null
+    const merged = card && !endCardProblem(raw) ? drawn(card) : null
     return {
       kept: null,
       action,
@@ -473,6 +584,102 @@ export function endCardUnreadable(card: StoryEndCard | null): string {
       return `${what} цветом ${colour} на фоне ${bg} читается плохо: контраст ${ratio(x10)}:1, нужно не меньше ${ratio(SPEC.END_CARD_CONTRAST_MIN_X10)}:1; читается ${readableShade(colour, bg)}`
   }
   return ''
+}
+
+/*
+ * A CLIENT'S CARD IS NEVER THE HOUSE'S (spec v25). StoryReel draws what a
+ * card leaves out in its defaults -- the house's gold call and green button --
+ * and draws a card whenever there is a call, even with no card at all. So a
+ * client with no palette, or half of one, ended her reel in the house's
+ * colours. Her card is now filled before the render: her colours where she
+ * has them, else white or black ink, whichever reads on her ground.
+ */
+
+/** The spec's card_filled. */
+export function cardFilled(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  return (
+    !ownReel &&
+    !SPEC.HOUSE_COLOURS_ON_CLIENT_REEL &&
+    // the spec's cta_card_shown, as StoryReel.tsx reads it
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's default_ink. */
+export function defaultInk(
+  ownReel: boolean,
+  whiteX10: number,
+  blackX10: number
+): number {
+  if (ownReel || SPEC.HOUSE_COLOURS_ON_CLIENT_REEL) return SPEC.INK_HOUSE
+  if (whiteX10 >= blackX10) return SPEC.INK_WHITE
+  return SPEC.INK_BLACK
+}
+
+/** The spec's card_complete (v26). */
+export function cardComplete(
+  ownReel: boolean,
+  hasEndCard: boolean,
+  callChars: number
+): boolean {
+  if (cardFilled(ownReel, hasEndCard, callChars)) return true
+  return (
+    ownReel &&
+    SPEC.OWN_CARD_FILLED &&
+    SPEC.CTA_CARD_LIKE_WIDGET &&
+    (hasEndCard || callChars > 0)
+  )
+}
+
+/** The spec's reel_is_own (v26). */
+export function reelIsOwn(houseOwn: boolean, leadIsCaller: boolean): boolean {
+  if (houseOwn) return true
+  return leadIsCaller && SPEC.CALLER_OWN_LEAD_IS_OWN_REEL
+}
+
+/**
+ * The card as the reel will draw it: whenever the pause shows the card, every
+ * colour is set before the render (spec v26, card_complete). The composition
+ * does not apply its defaults to a card passed with some fields, so a field
+ * left out was drawn as nothing: no ground, a dark call over the face. A
+ * client's card takes hers, else ink (v25); the own reel's takes the
+ * defaults. A reel with no card shown keeps the card as given.
+ */
+export function endCardForReel(
+  card: StoryEndCard | null,
+  ownReel: boolean,
+  call: string
+): StoryEndCard | null {
+  if (!cardComplete(ownReel, !!card, call.trim().length)) return card
+  if (!cardFilled(ownReel, !!card, call.trim().length))
+    return {
+      ...card,
+      bg: card?.bg ?? SPEC.END_CARD_DEFAULT_BG,
+      title: card?.title ?? SPEC.END_CARD_DEFAULT_TITLE,
+      text: card?.text ?? SPEC.END_CARD_DEFAULT_TEXT,
+      accent: card?.accent ?? SPEC.END_CARD_DEFAULT_ACCENT,
+    }
+  const bg = card?.bg ?? SPEC.END_CARD_DEFAULT_BG
+  const ink =
+    defaultInk(
+      ownReel,
+      contrastX10(SPEC.INK_WHITE_HEX, bg),
+      contrastX10(SPEC.INK_BLACK_HEX, bg)
+    ) === SPEC.INK_BLACK
+      ? SPEC.INK_BLACK_HEX
+      : SPEC.INK_WHITE_HEX
+  return {
+    ...card,
+    bg,
+    title: card?.title ?? ink,
+    text: card?.text ?? ink,
+    accent: card?.accent ?? ink,
+  }
 }
 
 /** The spec's shade_way. */
@@ -664,9 +871,11 @@ export function bgOffered(
   return unreadable && allReadAtSomeStep
 }
 
-/** One spelling for a colour: #rrggbb, lower case (a shade of step 0). */
-/** One spelling for a colour: #rrggbb, lower case. */
-function spelled(c: string): string {
+/**
+ * One spelling for a #hex colour: #rrggbb, lower case, its alpha dropped
+ * (a shade of step 0). split_reel compares and draws its call colours in it.
+ */
+export function spelled(c: string): string {
   return `#${rgbOf(c)
     .map(v => v.toString(16).padStart(2, '0'))
     .join('')}`
@@ -824,20 +1033,77 @@ function outcome(v: any): {
   }
 }
 
+/* ── yellow captions, word by word (spec v20) ───────────────────────────── */
+
+/** Our own ears: a clip on the shelf -> its words with times (whisper). */
+export type StoryHear = (
+  url: string,
+  language?: string
+) => Promise<HeardVoice | string>
+
+/** Whether a scene's captions show its line as written (`caption_uses_line`). */
+export function captionUsesLine(
+  lineWords: number,
+  heardWords: number
+): boolean {
+  return (
+    SPEC.CAPTION_TEXT_FROM_LINE && heardWords > 0 && lineWords === heardWords
+  )
+}
+
+export interface SceneCaption {
+  text: string
+  startMs: number
+  endMs: number
+  confidence: number
+}
+
+/**
+ * One scene's captions from its OWN clip's words, timed from the clip's zero
+ * (CAPTIONS_PER_SCENE). Whisper's times, the line's spelling when whisper
+ * counted the same words -- "Тринити", not whatever it heard.
+ */
+export function sceneCaptions(
+  line: string,
+  words: readonly SpokenWord[],
+  speech?: HeardVoice['speech']
+): SceneCaption[] {
+  const heard = captionsFromWords(words, 0, speech)
+  const written = line.split(/\s+/).filter(Boolean)
+  return captionUsesLine(written.length, heard.length)
+    ? heard.map((c, i) => ({ ...c, text: written[i] }))
+    : heard
+}
+
 export function makeStoryReelTool(
   lookup: (name: string) => Tool,
-  late?: StoryLate
+  late?: StoryLate,
+  eyes?: StoryEyes,
+  cut: (sourceUrl: string, shot: number) => Promise<string> = cutShot,
+  hear?: StoryHear
 ): AgentTool {
   const now = late?.now ?? Date.now
   const sleep =
     late?.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
   return {
     name: 'story_reel',
+    // Borrowed from the registry, each charging for itself: the price that makes
+    // this a paid tool (tool-charges.ts, crm-duet.t27 v5).
+    charges: [
+      'image_edit',
+      'audio_generate',
+      'lipsync_generate',
+      'reel_render',
+    ],
     description:
-      'РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → 1–4 сцены в ОДНОМ стиле и НОВОЙ ' +
-      'обстановке каждая → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; без него — ' +
-      'клон владельца) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
-      'Реплики по 2–4 с, весь ролик с паузой до 15 с. Если вернулись stills/clips без видео — повтори с ними: ' +
+      `РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → ${STORY_SCENES_MIN}–${STORY_SCENES_MAX} сцен. ` +
+      'Сцена 1 — САМО фото, общий план говорящей головы, её реплика — ХУК, не приветствие. ' +
+      'По умолчанию из студии не выходим: сцена без setting — план того же фото (крупный, средний), ничего не рисуется; ' +
+      'setting — только если человек сам назвал место (новый кадр в ОДНОМ стиле) → реплика на сцену голосом (for_lead — голос клиента из crm_voice_clone; в разговоре за клиента — всегда его голос, его призыв и его кнопка; ' +
+      'клон владельца — только на своём рилсе) → липсинк → сборка: склейки, вдох между репликами и в конце ПАУЗА с призывом cta. ' +
+      `Реплика звучит до ${LINE_MAX_SEC_TEXT} с (длиннее — липсинк не делается, реплика названа: сократи), ` +
+      `ролик из ${SPEC.SCENES_DEFAULT} сцен с паузой — до ${SPEC.STORY_DEFAULT_MAX_SEC} с. Кадр без лица перерисовывается один раз. ` +
+      'Если вернулись stills/clips без видео — повтори с ними: ' +
       'готовое не делается и не оплачивается второй раз.',
     parameters: {
       type: 'object',
@@ -854,17 +1120,18 @@ export function makeStoryReelTool(
             properties: {
               setting: {
                 type: 'string',
-                description: 'новая обстановка сцены',
+                description:
+                  'НЕ задавать по умолчанию (тогда план того же фото в студии); только место, названное человеком',
               },
               line: {
                 type: 'string',
-                description:
-                  'реплика 2–4 с, названия словами (бот — «Тринити»)',
+                description: `реплика до ${LINE_MAX_SEC_TEXT} с (6–8 слов), названия словами (бот — «Тринити»)`,
               },
             },
-            required: ['setting', 'line'],
+            required: ['line'],
           },
-          description: 'сцены по порядку; последняя реплика — призыв',
+          description:
+            'сцены по порядку; первая реплика — хук, последняя — призыв',
         },
         style: {
           type: 'string',
@@ -874,7 +1141,11 @@ export function makeStoryReelTool(
           type: 'string',
           description: 'id клиента: говорить ЕГО голосом (crm_voice_clone)',
         },
-        cta: { type: 'string', description: 'надпись в паузе в конце' },
+        cta: {
+          type: 'string',
+          description:
+            'надпись в паузе в конце; у рилса клиента пусто — его призыв из профиля',
+        },
         [SPEC.END_CARD_ARG]: END_CARD_PARAM,
         pause_sec: {
           type: 'number',
@@ -905,9 +1176,89 @@ export function makeStoryReelTool(
       const style = String(args.style ?? '')
       const n = scenes.length
       const pause = pauseOf(args.pause_sec)
-      const endCard = endCardOf(args.end_card)
+      /*
+       * WHOSE REEL THIS IS (spec v22, voice_of). In a turn for a client
+       * (ctx.faceOf) the reel speaks HER voice: for_lead defaults to her and
+       * another id is refused -- before v22 a reel without for_lead spoke the
+       * owner's clone. A reel for a client takes her call and her card, never
+       * the house's (call_from, button_from); the runner (surface 'story')
+       * has already read them from her profile.
+       */
+      const me = String(ctx.telegramId ?? '').trim()
+      const faceOf = String(ctx.faceOf ?? '').trim()
+      const clientTurn = !!faceOf && faceOf !== me
+      const named = String(args.for_lead ?? '').trim()
+      const voice = voiceOf(!!named, clientTurn, named === faceOf)
+      if (voice === SPEC.SPEAKS_REFUSED)
+        return {
+          done: false,
+          reason: `for_lead: в разговоре за клиента рилс говорит только его голосом — for_lead ${faceOf} или пусто`, // cyrillic-ok: tool result copy
+        }
+      const lead = voice === SPEC.SPEAKS_LEAD ? named || faceOf : ''
+      let cta = String(args.cta ?? '')
+      let endCard = endCardOf(args.end_card)
+      let houseReplaced = ''
+      if (lead && lead !== me && ctx.surface !== 'story') {
+        // No line of her reel names the house unless she typed it this turn
+        // (spec v22, line_way): the agent's line is refused, before any cut.
+        const houseLine = houseLineRefused(scenes, false, ctx.ownerSaid)
+        if (houseLine) return { done: false, reason: houseLine }
+        const { storySettingsOf, STORY_DEFAULT_CTA } = await import(
+          './story-template'
+        )
+        const her = ctx.pool
+          ? await storySettingsOf(ctx.pool as never, lead, me).catch(() => null)
+          : null
+        const call = reelCall({
+          given: args.cta,
+          ownReel: false,
+          ownCall: her?.cta || STORY_DEFAULT_CTA,
+        })
+        cta = call.call
+        // The house's words the agent wrote are replaced, and the answer says
+        // so in one line (house_word_replaced), as the CRM press does.
+        const button = String(endCard?.button ?? '')
+        houseReplaced = houseReplacedNote(
+          [call.replaced, takenWord(button, false).replaced ? button : ''],
+          cta
+        )
+        // Every colour set before the render (spec v25, card_filled): what
+        // she has no colour for is ink, never the house's gold.
+        endCard = endCardForReel(
+          mergeEndCard(
+            cardForReel(endCard, false),
+            cardForReel(her?.keptCard, false),
+            cardForReel(her?.endCard, false)
+          ),
+          false,
+          cta
+        )
+      }
       const stills = carried(args.stills, n)
       const clips = carried(args.clips, n)
+      // The opening scene is the talking head itself, wide (spec v19,
+      // OPEN_ON_SOURCE): the source photo as it is, nothing drawn or checked.
+      for (let i = 0; i < n; i++)
+        if (sceneIsSource(i) && !stills[i]) stills[i] = source
+      // A scene with no setting is a shot of the same photo (STUDIO_SHOTS):
+      // cut, not drawn -- the studio and the look stay exactly the source's.
+      const uncut: string[] = []
+      await Promise.all(
+        scenes.map(async (s, i) => {
+          if (stills[i] || clips[i] || s.setting) return
+          stills[i] = await cut(source, shotOfScene(i)).catch(e => {
+            uncut.push(`${i + 1}: ${String(e).slice(0, 160)}`)
+            return ''
+          })
+        })
+      )
+      if (uncut.length)
+        return {
+          done: false,
+          reason: `план из фото не вырезан: ${uncut.join('; ')}`,
+          ...(stills.some(Boolean) ? { stills } : {}),
+        }
+      const given = [...stills]
       // Only the job's row names a task (spec: STILL_TASK_FROM_MODEL false).
       const tasks = stillTasksOf(ctx.storyStillTasks ?? [], n)
       const progress = () =>
@@ -970,11 +1321,60 @@ export function makeStoryReelTool(
           reason: 'инструменты рилса недоступны на этом сервере',
         }
 
-      // 1. The stills that are missing, all at once, from the one source.
       const drawing: string[] = []
+      // One still, drawn from the one source; true when it came back.
+      const draw = async (i: number, s: StoryScene): Promise<boolean> => {
+        const drawCtx: ToolContext = {
+          ...ctx,
+          imageWaitMs: STORY_STILL_WAIT_MS,
+          // The id is kept the moment the provider accepts it: a redeploy
+          // during the wait no longer takes the only copy with it.
+          onImageTask: (task, paid) => {
+            tasks[i] = {
+              task,
+              at: now(),
+              charged: paid?.charged ?? 0,
+              op: paid?.op ?? 'image_edit',
+            }
+            return progress()
+          },
+        }
+        const r = outcome(
+          await edit
+            .handler(
+              {
+                image_url: source,
+                prompt: stillPrompt(s.setting, style),
+                aspect_ratio: SPEC.ASPECT_RATIO,
+              },
+              drawCtx
+            )
+            .catch(e => ({ done: false, reason: String(e) }))
+        )
+        if (r.ok && r.url) {
+          stills[i] = r.url
+          tasks[i] = null
+        } else if (r.pending && r.taskId) {
+          const had = tasks[i]
+          tasks[i] = {
+            task: r.taskId,
+            at: had?.task === r.taskId ? had.at : now(),
+            charged: r.charged || had?.charged || 0,
+            op: had?.op ?? 'image_edit',
+          }
+          drawing.push(`${i + 1}: ещё рисуется (оплачен, придёт сам)`)
+        } else {
+          // Refused on the spot: image_edit gave its charge back itself.
+          tasks[i] = null
+          drawing.push(`${i + 1}: ${r.why}`)
+        }
+        return !!stills[i]
+      }
+
+      // 1. The stills that are missing, all at once, from the one source.
       await Promise.all(
         scenes.map(async (s, i) => {
-          if (stills[i] || clips[i]) {
+          if (!slotRenders(!!(stills[i] || clips[i]))) {
             tasks[i] = null
             return
           }
@@ -996,53 +1396,47 @@ export function makeStoryReelTool(
             await late?.refund(known, ctx, v.why).catch(() => undefined)
             tasks[i] = null
           }
-          const drawCtx: ToolContext = {
-            ...ctx,
-            imageWaitMs: STORY_STILL_WAIT_MS,
-            // The id is kept the moment the provider accepts it: a redeploy
-            // during the wait no longer takes the only copy with it.
-            onImageTask: (task, paid) => {
-              tasks[i] = {
-                task,
-                at: now(),
-                charged: paid?.charged ?? 0,
-                op: paid?.op ?? 'image_edit',
-              }
-              return progress()
-            },
-          }
-          const r = outcome(
-            await edit
-              .handler(
-                {
-                  image_url: source,
-                  prompt: stillPrompt(s.setting, style),
-                  aspect_ratio: SPEC.ASPECT_RATIO,
-                },
-                drawCtx
-              )
-              .catch(e => ({ done: false, reason: String(e) }))
-          )
-          if (r.ok && r.url) {
-            stills[i] = r.url
-            tasks[i] = null
-          } else if (r.pending && r.taskId) {
-            const had = tasks[i]
-            tasks[i] = {
-              task: r.taskId,
-              at: had?.task === r.taskId ? had.at : now(),
-              charged: r.charged || had?.charged || 0,
-              op: had?.op ?? 'image_edit',
-            }
-            drawing.push(`${i + 1}: ещё рисуется (оплачен, придёт сам)`)
-          } else {
-            // Refused on the spot: image_edit gave its charge back itself.
-            tasks[i] = null
-            drawing.push(`${i + 1}: ${r.why}`)
-          }
+          await draw(i, s)
         })
       )
       await progress()
+
+      // 1b. Every new still is looked at (spec v19, STILL_FACE_CHECKED): no
+      // face, one redraw; still none, stop before a voice is paid for it.
+      const faceless: number[] = []
+      const unchecked: number[] = []
+      if (eyes) {
+        await Promise.all(
+          scenes.map(async (s, i) => {
+            for (let redraws = 0; stills[i] && stills[i] !== given[i]; ) {
+              const seen = await eyes.hasFace(stills[i], ctx).catch(() => null)
+              if (seen === null) {
+                unchecked.push(i + 1)
+                return
+              }
+              const act = stillFaceAction(seen, redraws)
+              if (act === SPEC.FACE_KEEP) return
+              stills[i] = ''
+              if (act === SPEC.FACE_STOP) {
+                faceless.push(i + 1)
+                return
+              }
+              redraws += 1
+              if (!(await draw(i, s))) return
+            }
+          })
+        )
+        await progress()
+      }
+      if (faceless.length) {
+        return {
+          done: false,
+          reason:
+            `в кадре ${faceless.sort((a, b) => a - b).join(', ')} нет лица и после перерисовки — ` +
+            'поменяй обстановку (setting) этой сцены и повтори; остальные кадры сохранены, голос и липсинк не оплачивались',
+          ...sofar(),
+        }
+      }
       if (stills.some((u, i) => !u && !clips[i])) {
         return {
           done: false,
@@ -1064,7 +1458,7 @@ export function makeStoryReelTool(
       )
       await Promise.all(
         scenes.map(async (s, i) => {
-          if (clips[i]) return
+          if (!slotRenders(!!clips[i])) return
           const v = recorded[i]
             ? outcome({ done: true, url: recorded[i], голос: 'её голосовое' }) // cyrillic-ok: audio_generate's own answer keys
             : outcome(
@@ -1072,9 +1466,7 @@ export function makeStoryReelTool(
                   .handler(
                     {
                       text: s.line,
-                      ...(args.for_lead
-                        ? { for_lead: String(args.for_lead) }
-                        : {}),
+                      ...(lead ? { for_lead: lead } : {}),
                     },
                     ctx
                   )
@@ -1082,6 +1474,16 @@ export function makeStoryReelTool(
               )
           if (!v.ok || !v.url) {
             failed.push(`голос ${i + 1}: ${v.why}`)
+            return
+          }
+          // Heard before its lip-sync (spec v19, LINE_MEASURED_BEFORE_LIPSYNC):
+          // a long line would push the reel past its 15 s.
+          const ms = Math.round(v.seconds * 1000)
+          if (!recorded[i] && ms > 0 && !lineFits(ms)) {
+            failed.push(
+              `реплика ${i + 1} звучит ${String(v.seconds).replace('.', ',')} с, длиннее ${LINE_MAX_SEC_TEXT} с: ` +
+                'сократи её — липсинк этой сцены не делался'
+            )
             return
           }
           voiceKind ||= v.voice
@@ -1101,18 +1503,47 @@ export function makeStoryReelTool(
         return { done: false, reason: failed.join('; '), ...sofar() }
       }
 
-      // 4. The template: cuts, breaths, and the pause with the call to action.
+      // 4. Captions (spec v20): every clip heard by itself. Nothing heard is
+      // no reason to throw the lip-syncs away -- the reel goes out without
+      // them and the answer says so (CAPTIONS_MISSING_KEEPS_REEL).
+      const language = languageOf(scenes.map(s => s.line).join(' '))
+      const deaf: string[] = []
+      const captions: SceneCaption[][] = await Promise.all(
+        clips.map(async (clip, i) => {
+          if (!SPEC.CAPTIONS_ON) return []
+          if (!hear) {
+            deaf.push(`${i + 1}: слух не подключён`)
+            return []
+          }
+          const got = await hear(clip, language).catch(e => String(e))
+          if (typeof got === 'string' || !got.words.length) {
+            deaf.push(
+              `${i + 1}: ${typeof got === 'string' ? got.slice(0, 120) : 'слов не услышано'}`
+            )
+            return []
+          }
+          return sceneCaptions(scenes[i].line, got.words, got.speech)
+        })
+      )
+
+      // 5. The template: cuts, breaths, and the pause with the call to action.
+      // Every colour of the card shown is set here (spec v26, card_complete):
+      // the own reel's from the defaults, a client's already in hers or ink.
+      const drawnCard = endCardForReel(endCard, !lead || lead === me, cta)
       const r = outcome(
         await render
           .handler(
             {
               compositionId: 'StoryReel',
               props: {
-                scenes: clips.map(video => ({ video })),
+                scenes: clips.map((video, i) => ({
+                  video,
+                  captions: captions[i],
+                })),
                 pauseSec: pause,
                 breathSec: STORY_BREATH_SEC,
-                cta: String(args.cta ?? ''),
-                ...(endCard ? { endCard } : {}),
+                cta,
+                ...(drawnCard ? { endCard: drawnCard } : {}),
               },
             },
             ctx
@@ -1129,6 +1560,14 @@ export function makeStoryReelTool(
         stills,
         clips,
         ...(voiceKind ? { voice: voiceKind } : {}),
+        ...(deaf.length
+          ? { captions_missing: `без титров: ${deaf.join('; ')}` }
+          : { captions: `${n} из ${n} сцен` }),
+        ...(unchecked.length
+          ? {
+              faces_unchecked: `кадры ${unchecked.sort((a, b) => a - b).join(', ')}: лицо не проверено (зрение не ответило)`,
+            }
+          : {}),
         ...(spoken
           ? {
               seconds:
@@ -1136,6 +1575,7 @@ export function makeStoryReelTool(
                 10,
             }
           : {}),
+        ...(houseReplaced ? { house_replaced: houseReplaced } : {}),
         give_to_person: r.url,
       }
     },

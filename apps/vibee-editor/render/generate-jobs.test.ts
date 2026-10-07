@@ -144,7 +144,11 @@ describe('durability: read path only, write-through NOT yet proven', () => {
       async query(sql: string, params: any[] = []) {
         const s = sql.replace(/\s+/g, ' ').trim()
         this.calls.push(s.slice(0, 40))
-        if (s.startsWith('CREATE TABLE') || s.startsWith('CREATE INDEX'))
+        if (
+          s.startsWith('CREATE TABLE') ||
+          s.startsWith('CREATE INDEX') ||
+          s.startsWith('ALTER TABLE generate_jobs ADD COLUMN')
+        )
           return { rows: [] }
         if (s.startsWith('INSERT INTO generate_jobs')) {
           const [
@@ -158,6 +162,7 @@ describe('durability: read path only, write-through NOT yet proven', () => {
             provider,
             error,
             prompt,
+            code,
           ] = params
           const existing = rows.find(r => r.id === id)
           const row = {
@@ -171,6 +176,7 @@ describe('durability: read path only, write-through NOT yet proven', () => {
             provider,
             error,
             prompt,
+            code,
           }
           if (existing) Object.assign(existing, row)
           else rows.push(row)
@@ -208,6 +214,21 @@ describe('durability: read path only, write-through NOT yet proven', () => {
     const recovered = await getJobDurable(job.id)
     expect(recovered?.url).toBe('https://storage/a.mp4')
     expect(recovered?.state).toBe('done')
+  })
+
+  it("a failure's name survives a restart, so the app can still say it", async () => {
+    const pool = makePool()
+    attachStore(pool as any)
+
+    const job = startJob('lipsync', '4242', 'a song')
+    failJob(job.id, 'ElevenLabs TTS error: 401', 'generation_failed')
+    await settle()
+    _resetJobs()
+
+    const recovered = await getJobDurable(job.id)
+    expect(recovered?.state).toBe('failed')
+    expect(recovered?.code).toBe('generation_failed')
+    expect(recovered?.error).toBe('ElevenLabs TTS error: 401')
   })
 
   it('the list survives it too, and still refuses an empty owner', async () => {
@@ -281,7 +302,7 @@ describe('write-through, proved at the write and not at the read', () => {
       writes,
       async query(sql: string, params: any[] = []) {
         const s = sql.replace(/\s+/g, ' ').trim()
-        if (s.startsWith('CREATE')) return { rows: [] }
+        if (s.startsWith('CREATE') || s.startsWith('ALTER')) return { rows: [] }
         if (s.startsWith('INSERT INTO generate_jobs')) {
           writes.push(params)
           return { rows: [] }

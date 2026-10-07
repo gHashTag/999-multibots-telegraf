@@ -49,7 +49,8 @@ import { storyPriceEstimateNotes } from './story-template'
  * her for a voice note while two of hers sat in the chat, and assembled a
  * talking clip by hand from lipsync_generate. So the point now says: any
  * talking reel in a client's voice IS this template, asked first without
- * start; her voice is Replicate, never ElevenLabs; her old voice notes are
+ * start; her clone is Replicate (off since 2026-10-02: no balance, Kie only),
+ * so her own voice notes on Kie are the voice; her old voice notes are
  * looked for before a new one is asked. The tool names, the pause and the
  * price are the spec's.
  */
@@ -60,15 +61,15 @@ export const STORY_GIFT =
   `(~${REEL.PRICE_ESTIMATE_TOKENS} ток.); руками из lipsync_generate и audio_generate не собирай. ` +
   `Голос — ЕГО клон: ${REEL.CLONE_TOOL} {chat} сам найдёт голосовые, что он уже присылал ` +
   `(${TOKEN_PRICES.voice_clone} ток., один раз) — сначала вызови его, новое голосовое проси, только если ` +
-  'их нет или мало; чужим голосом не озвучивай. Клон и реплики — MiniMax на Replicate, НЕ ElevenLabs: ' +
-  'сломанный ключ ElevenLabs им не мешает; не работает голос — providers_status (голос_клиента) скажет ' +
-  'правду. НЕТ КЛОНА или Replicate отказал ему (402) — не беда: шаблон сам возьмёт его НАСТОЯЩИЕ ' +
+  'их нет или мало; чужим голосом не озвучивай. Клон — MiniMax на Replicate, НЕ ElevenLabs, а Replicate ' +
+  'ВЫКЛЮЧЕН (нет баланса, решение владельца 02.10.2026, у нас Kie): новый клон инструмент не сделает и не ' +
+  'спишет. НЕТ КЛОНА, Replicate выключен или Replicate отказал ему (402) — не беда: шаблон сам возьмёт его НАСТОЯЩИЕ ' +
   `голосовые из лички, нарежет по сценам и сделает липсинк на Kie (до ${REEL.NOTES_MAX_SEC} с, его слова, ` +
   `без клона и Replicate, ~${storyPriceEstimateNotes()} ток.) — запускай ${REEL.SELLER_TOOL} как обычно. ` +
   'Сцены: 3 в ОДНОМ стиле, каждая — НОВАЯ обстановка ' +
   'его дела из ЕГО фото (crm_client_face); реплики от первого лица по 2–4 с его словами о деле — из ' +
   `переписки и плана (crm_client_plan). Запуск — ${REEL.SELLER_TOOL} {lead, start: true, scenes, style, ` +
-  'cta: призыв ЕГО дела, to: "dm", caption: «это вам — рилс про ваше дело вашим голосом» и один мягкий ' +
+  'cta: призыв ЕГО дела или пусто — возьмётся его призыв из профиля (не Тринити), to: "dm", caption: «это вам — рилс про ваше дело вашим голосом» и один мягкий ' +
   `вопрос}: в фоне, в конце пауза ${REEL.PAUSE_SEC} с с призывом, готовый приходит владельцу ` +
   'КАРТОЧКОЙ-подарком — одно нажатие. Один на человека, платит владелец; до траты назови цену.\n'
 

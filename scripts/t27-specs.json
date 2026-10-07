@@ -12,19 +12,32 @@
     {
       "root": "apps/vibee-editor/render",
       "specDir": "apps/vibee-editor/render/src/spec"
+    },
+    {
+      "root": "apps/vibee-editor/packages/vibee-atoms",
+      "specDir": "apps/vibee-editor/packages/vibee-atoms/src/spec"
+    },
+    {
+      "root": "src",
+      "specDir": "src/spec"
     }
   ],
   "unbound": [
-    "automation/agent-provider-chain",
+    "automation/agent-conversations",
     "automation/browser-pod-restart",
     "automation/browser-sign-in",
+    "automation/claim-guard-bar",
     "automation/crm-client-ownership",
+    "automation/inngest-functions-status",
     "automation/inngest-probe-suite",
     "automation/leela-agent-link",
     "crons/999-multibots-telegraf-agent-autopilot-L1118",
     "crons/999-multibots-telegraf-bot-owner-billing-L474",
     "crons/999-multibots-telegraf-check-stuck-trainings",
     "crons/999-multibots-telegraf-ci",
+    "crons/999-multibots-telegraf-client-telemetry-daily",
+    "crons/999-multibots-telegraf-club-invoice-abandoned-watch",
+    "crons/999-multibots-telegraf-crm-proactive-sweep",
     "crons/999-multibots-telegraf-crmProactive-L375",
     "crons/999-multibots-telegraf-daily-sales-advisor",
     "crons/999-multibots-telegraf-generate-jobs-L164",
@@ -39,16 +52,21 @@
     "crons/999-multibots-telegraf-render-server-L2301",
     "crons/999-multibots-telegraf-render-server-L2325",
     "crons/999-multibots-telegraf-render-server-L919",
+    "crons/999-multibots-telegraf-robokassa-unclaimed-watch",
     "crons/999-multibots-telegraf-security",
     "crons/999-multibots-telegraf-skill-detector",
     "crons/999-multibots-telegraf-taskCache-L27",
+    "crons/999-multibots-telegraf-ton-pending-watch",
     "crons/999-multibots-telegraf-video-task-store-L156",
     "functions/analytics-sales-advise",
     "functions/analytics-skills-detect",
     "functions/broadcast-message-send",
+    "functions/client-telemetry-daily",
+    "functions/club-invoice-abandoned-watch",
     "functions/content-detailed-script-generate",
     "functions/content-scenario-clips-generate",
     "functions/content-scripts-generate",
+    "functions/crm-proactive-sweep",
     "functions/instagram-competitors-find",
     "functions/instagram-reels-analyze",
     "functions/instagram-top-content-extract",
@@ -65,6 +83,8 @@
     "functions/render-avatar-video-run",
     "functions/render-job-run",
     "functions/render-riddle-run",
+    "functions/robokassa-unclaimed-watch",
+    "functions/ton-pending-watch",
     "functions/training-model-complete",
     "functions/training-model-start",
     "functions/training-model-v2-start",
@@ -79,9 +99,5 @@
     "numeric/formats",
     "server/api"
   ],
-  "citedMissing": [
-    "automation/agent-conversations",
-    "automation/inngest-functions-status",
-    "functions/crm-proactive-sweep"
-  ]
+  "citedMissing": []
 }

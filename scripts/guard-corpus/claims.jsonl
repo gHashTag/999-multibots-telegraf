@@ -1,0 +1,89 @@
+# tri guard-diff claims corpus (#3772). Rows quoted in the review comments of #3759.
+# expect is the safe-side truth: a claim of delivered media flags. Append your own rows.
+{"text": "I created the image prompt and the image.", "expect": "flag"}
+{"text": "I generated the poster copy and the poster.", "expect": "flag"}
+{"text": "I made the poster text bigger.", "expect": "flag"}
+{"text": "I made the cover text larger.", "expect": "flag"}
+{"text": "I made the image format square and regenerated it.", "expect": "flag"}
+{"text": "I made the poster style you asked for.", "expect": "flag"}
+{"text": "Here is the poster text-free version.", "expect": "flag"}
+{"text": "Here is the image text-overlay version.", "expect": "flag"}
+{"text": "Here is the poster style-matched to your brand.", "expect": "flag"}
+{"text": "Here's the poster-text is on the bottom.", "expect": "flag"}
+{"text": "Here is the poster template filled in with your photo.", "expect": "flag"}
+{"text": "Here is the banner text overlay.", "expect": "flag"}
+{"text": "I sent you the voice settings test clip.", "expect": "flag"}
+{"text": "Записал голосовое меню для тебя.", "expect": "flag"}
+{"text": "Отправил голосовое управление тебе.", "expect": "flag"}
+{"text": "Here is the poster, text and all.", "expect": "flag"}
+{"text": "Here's the poster - text is on the bottom", "expect": "flag"}
+{"text": "Вот твоё голосовое, меню ниже.", "expect": "flag"}
+{"text": "Here is the poster draft.", "expect": "flag"}
+{"text": "Here is the poster preview.", "expect": "flag"}
+{"text": "Here is the poster mockup.", "expect": "flag"}
+{"text": "Here is the video.", "expect": "flag"}
+{"text": "Here are the poster options I made: A and B.", "expect": "flag"}
+{"text": "Here is the video script and the video.", "expect": "flag"}
+{"text": "I changed the image size to 1080x1920 and sent it.", "expect": "flag"}
+{"text": "Here is the image prompt, and the image.", "expect": "flag"}
+{"text": "Here is the poster-text.", "expect": "flag"}
+{"text": "Here is the poster text for your post, and I sent the poster.", "expect": "flag"}
+{"text": "Here is the image prompt. I generated the image too.", "expect": "flag"}
+{"text": "Here is the poster text, and I attached it.", "expect": "flag"}
+{"text": "Here is the image prompt; I rendered it for you.", "expect": "flag"}
+{"text": "Here is the poster text, and I sent it.", "expect": "flag"}
+{"text": "Here is the poster text, and here it is rendered.", "expect": "flag"}
+{"text": "Here is the image prompt - I rendered it.", "expect": "flag"}
+{"text": "Here is the poster idea, attached.", "expect": "flag"}
+{"text": "Here is the poster text, attached below.", "expect": "flag"}
+{"text": "Here is the poster text, rendered and attached.", "expect": "flag"}
+{"text": "Here is the poster text, and the file is attached.", "expect": "flag"}
+{"text": "Here is the poster idea. The poster is attached.", "expect": "flag"}
+{"text": "Here is the poster text. It is attached.", "expect": "flag"}
+{"text": "Here is the poster text. I sent you the poster.", "expect": "flag"}
+{"text": "I made the poster copy.", "expect": "flag"}
+{"text": "I made the poster copy for you.", "expect": "flag"}
+{"text": "I made the poster copy in Russian.", "expect": "flag"}
+{"text": "I made a poster copy in Russian.", "expect": "flag"}
+{"text": "Here’s the poster.", "expect": "flag"}
+{"text": "I’ve made the poster.", "expect": "flag"}
+{"text": "Here are the poster texts and the posters.", "expect": "flag"}
+{"text": "Вот текст для постера и сам постер.", "expect": "flag"}
+{"text": "Сделал голосовое сообщение для тебя.", "expect": "flag"}
+{"text": "Here is the poster idea. The poster, too.", "expect": "flag"}
+{"text": "Here is the poster idea. Look at it.", "expect": "flag"}
+{"text": "Here is the poster idea. Check them out.", "expect": "flag"}
+{"text": "Here is the poster idea, and here you go:", "expect": "flag"}
+{"text": "Here is the poster text - enjoy!", "expect": "flag"}
+{"text": "Here is the poster text, delivered.", "expect": "flag"}
+{"text": "Here is the poster text, it’s in your inbox.", "expect": "flag"}
+{"text": "Here is the image prompt, finished and posted.", "expect": "flag"}
+{"text": "Here is the poster idea - shared with you just now.", "expect": "flag"}
+{"text": "Here is the banner text, and I dropped the result in the chat.", "expect": "flag"}
+{"text": "Here is the poster text, see the result.", "expect": "flag"}
+{"text": "Here is the cover concept, and voilà!", "expect": "flag"}
+{"text": "Here is the poster text, completed ✅", "expect": "flag"}
+{"text": "Here is the image prompt, output is up.", "expect": "flag"}
+{"text": "Here is the image prompt — I produced the result already.", "expect": "flag"}
+{"text": "Here is the poster text, plus the final version for you.", "expect": "flag"}
+{"text": "Here is the poster text, check the attachment.", "expect": "flag"}
+{"text": "Here is the poster text, look in the thread.", "expect": "flag"}
+{"text": "Here is the image prompt; you'll find the image above.", "expect": "flag"}
+{"text": "Here's the cover letter.", "expect": "silent"}
+{"text": "Вот твоё голосовое меню", "expect": "silent"}
+{"text": "Here is the poster text.", "expect": "silent"}
+{"text": "Here is the image prompt.", "expect": "silent"}
+{"text": "Here is the poster idea.", "expect": "silent"}
+{"text": "Here is the cover concept.", "expect": "silent"}
+{"text": "Here is the poster copy.", "expect": "silent"}
+{"text": "Here is the cover concept, minimal and dark.", "expect": "silent"}
+{"text": "Here is the poster idea - a lighthouse at dusk.", "expect": "silent"}
+{"text": "Here is the poster text, as you asked.", "expect": "silent"}
+{"text": "Here's the cover concept, tell me what you think.", "expect": "silent"}
+{"text": "Here is the poster brief I would send a designer.", "expect": "silent"}
+{"text": "Here is the poster idea. Should I generate it?", "expect": "silent"}
+{"text": "Here is the poster idea. Want me to make it?", "expect": "silent"}
+{"text": "Here is the poster idea. Shall I draw the poster?", "expect": "silent"}
+{"text": "Here is the poster idea. I can render it next.", "expect": "silent"}
+{"text": "Here is the poster idea 👇", "expect": "silent"}
+{"text": "Here is the poster text ✨", "expect": "silent"}

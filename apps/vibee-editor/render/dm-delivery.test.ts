@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * THE SERVICE IN THE DM: made on the owner's turn, paid by the recipient at
  * the press, refunded if it does not arrive.
@@ -221,6 +229,45 @@ describe('a refused gift leaves a line, because nothing else does', () => {
       ctxWith(pool)
     )
     expect(journalled(pool).length, 'a success was filed as a refusal').toBe(0)
+  })
+
+  it('a stamped picture refused by image_generate is no card for the client (#3663)', async () => {
+    // Since #3657 image_generate refuses a stamped picture on every surface
+    // and returns no URL -- this is the shape the deliverer really receives.
+    stubSupabase([leadRow])
+    const { tool, q } = await deliverer({
+      gen: async () => ({
+        сделано: false, // cyrillic-ok: the tool's answer field
+        причина: 'знак pollinations.ai — такое не отдаём', // cyrillic-ok: the tool's answer field
+        watermark: 'pollinations.ai',
+      }),
+    })
+    const pool = poolWith([{ balance: 50 }])
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    expect(r.delivered).toBe(false)
+    expect(r.proposal, 'a refused picture became a card').toBeFalsy()
+    expect(JSON.stringify(r)).not.toContain('http')
+    expect(q.pendingCount(), 'a card was queued').toBe(0)
+    const rows = journalled(pool)
+    expect(rows.length, 'the refusal left no trace').toBe(1)
+    expect(String(rows[0][4])).toContain('generate')
+  })
+
+  it('a clean picture still becomes a card', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer({
+      gen: async () => ({ url: PIC, watermark: null }),
+    })
+    const pool = poolWith([{ balance: 50 }])
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    expect(r.draft_url).toBeUndefined()
+    expect(r.proposal).toBe(true)
   })
 
   it('a journal that is down does not stop the seller', async () => {
@@ -890,30 +937,131 @@ describe('the real generator honours chargeLater', () => {
     process.env.HOUSE_TELEGRAM_IDS = prevHouse
   })
 
-  it('with chargeLater the owner wallet is not touched; without it, it is', async () => {
-    const { TOOLS } = await import('./src/agent/tools')
-    const gen = TOOLS.find(t => t.name === 'image_generate')!
-    const deferred = recordingPool()
-    await gen.handler({ prompt: 'кот' }, {
-      telegramId: OWNER,
-      pool: deferred,
-      chargeLater: true,
-    } as never)
-    // A charge is `balance - price`; the failure path may still refund a zero.
-    expect(
-      deferred.sqls.filter(q => /balance = balance - /i.test(q)),
-      'the owner paid for a deferred charge'
-    ).toEqual([])
-    const paid = recordingPool()
-    await gen.handler({ prompt: 'кот' }, {
-      telegramId: OWNER,
-      pool: paid,
-    } as never)
-    expect(
-      paid.sqls.some(q => /balance = balance - /i.test(q)),
-      'the plain path stopped charging'
-    ).toBe(true)
+  it(
+    'with chargeLater the owner wallet is not touched; without it, it is',
+    async () => {
+      const { TOOLS } = await import('./src/agent/tools')
+      const gen = TOOLS.find(t => t.name === 'image_generate')!
+      const deferred = recordingPool()
+      await gen.handler({ prompt: 'кот' }, {
+        telegramId: OWNER,
+        pool: deferred,
+        chargeLater: true,
+      } as never)
+      // A charge is `balance - price`; the failure path may still refund a zero.
+      expect(
+        deferred.sqls.filter(q => /balance = balance - /i.test(q)),
+        'the owner paid for a deferred charge'
+      ).toEqual([])
+      const paid = recordingPool()
+      await gen.handler({ prompt: 'кот' }, {
+        telegramId: OWNER,
+        pool: paid,
+      } as never)
+      expect(
+        paid.sqls.some(q => /balance = balance - /i.test(q)),
+        'the plain path stopped charging'
+      ).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
+})
+
+describe('the real generator keeps a stamped picture out of a client chat', () => {
+  /*
+   * Bee review of #3414: on the business surface the agent's words go to the
+   * client, so a stamped URL in image_generate's result was one sentence away
+   * from the client. The tool now refuses there, refunds, and returns no URL.
+   * The generate route is stubbed to answer from the free leg; every later
+   * fetch (download, S3 upload) is recorded so a refusal can be seen to stop
+   * before it.
+   */
+  let params: unknown[] = []
+  const pool = {
+    query: async (_sql: string, p: unknown[] = []) => {
+      params.push(...p)
+      return { rows: [{ balance: 50, n: 0, count: 0, id: 1 }] }
+    },
+  }
+  let urls: string[] = []
+  const prevHouse = process.env.HOUSE_TELEGRAM_IDS
+  beforeEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = ''
+    urls = []
+    params = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(String(url))
+        if (String(url).includes('/api/generate/image')) {
+          return new Response(
+            JSON.stringify({
+              url: 'https://image.pollinations.ai/prompt/x',
+              provider: 'pollinations/flux',
+              tried: [],
+            }),
+            { status: 200 }
+          )
+        }
+        return new Response('nope', { status: 503 })
+      })
+    )
   })
+  afterEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = prevHouse
+  })
+
+  it(
+    'business surface: refused, no URL, nothing downloaded',
+    async () => {
+      const { TOOLS } = await import('./src/agent/tools')
+      const gen = TOOLS.find(t => t.name === 'image_generate')!
+      const r = (await gen.handler({ prompt: 'кот' }, {
+        telegramId: LEAD,
+        pool,
+        surface: 'business',
+      } as never)) as Record<string, unknown>
+      expect(r['сделано']).toBe(false) // cyrillic-ok: tool answer field
+      expect(r.watermark).toBe('pollinations.ai')
+      expect(JSON.stringify(r)).not.toContain('image.pollinations.ai')
+      expect(urls.filter(u => !u.includes('/api/generate/image'))).toEqual([])
+      // The client paid on the way in; the refusal gives it back.
+      expect(
+        params.some(v => /^refund: image_generate/.test(String(v))),
+        'the client was charged and not refunded'
+      ).toBe(true)
+      // Bee review of #3421: nobody tells the owner, so nothing may promise him.
+      expect(String(r['причина'])).not.toMatch(/пришл[её]т владелец/) // cyrillic-ok: tool answer text
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
+
+  it(
+    "the owner's own surface is refused too, and pointed at image_edit",
+    async () => {
+      /*
+       * Owner, 2026-10-05: asked in the bot for a poster with his photo, he got
+       * a stamped stranger "as a draft" and called it garbage. The draft
+       * exception is gone; the owner is refunded and sent to image_edit.
+       */
+      const { TOOLS } = await import('./src/agent/tools')
+      const gen = TOOLS.find(t => t.name === 'image_generate')!
+      const r = (await gen.handler({ prompt: 'кот' }, {
+        telegramId: OWNER,
+        pool,
+        surface: 'bot',
+      } as never)) as Record<string, unknown>
+      expect(r['сделано']).toBe(false) // cyrillic-ok: tool answer field
+      expect(JSON.stringify(r)).not.toContain('image.pollinations.ai')
+      expect(urls.filter(u => !u.includes('/api/generate/image'))).toEqual([])
+      expect(String(r['причина'])).toContain('image_edit') // cyrillic-ok: tool answer field
+      expect(
+        params.some(v => /^refund: image_generate/.test(String(v))),
+        'the owner was charged and not refunded'
+      ).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 /**

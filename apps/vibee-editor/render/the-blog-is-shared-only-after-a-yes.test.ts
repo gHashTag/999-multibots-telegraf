@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   parseRss,
   xText,
+  clip,
   shareUrls,
   linkFor,
   threadsText,
@@ -19,13 +20,20 @@ import {
   type ShareDeps,
   questionFor,
   xThread,
+  staticArticleUrl,
+  summaryWithEvidence,
 } from './src/agent/blog-share'
+import { postFor } from './src/agent/reddit'
 
 const RSS = `<?xml version="1.0"?><rss><channel>
 <item><title>The FPGA row was corrected &amp; checked</title><link>https://t27.ai/#/blog/fpga-row</link>
 <guid isPermaLink="false">fpga-row</guid><description>[proven] A merged PR corrected an invalid Yosys invocation.</description></item>
 <item><title>Older post</title><link>https://t27.ai/#/blog/older</link><guid isPermaLink="false">older</guid><description>x</description></item>
 </channel></rss>`
+
+/* The 2026-10-03 article's real label shape: 200 characters, digits, ';' and an apostrophe. */
+const ITEM_WITH_A_LONG_LABEL = `<item><title>Twelve pull requests</title><link>https://t27.ai/#/blog/twelve</link>
+<guid isPermaLink="false">twelve</guid><description>[counts measured through the GitHub API on 2026-10-02; merged means merged by the openXC7 maintainer, not shipped in a release; bitstream checks are cavearr's bench] Since 1 September we opened 12 pull requests.</description></item>`
 
 type Row = {
   slug: string
@@ -41,6 +49,10 @@ function world(answer: Answer = 'pending') {
   const asked: string[] = []
   const posted: string[] = []
   const told: string[] = []
+  let published: Record<string, string> = {
+    X: 'тред отправлен («Post all») · страница ушла с формы · найдено в профиле', // cyrillic-ok: the words publishEverywhere writes
+    LinkedIn: 'нажато «Post» · страница ушла с формы · найдено в профиле', // cyrillic-ok: the words publishEverywhere writes
+  }
   const pool = {
     async query(sql: string, p: unknown[] = []) {
       const s = sql.replace(/\s+/g, ' ').trim()
@@ -83,10 +95,7 @@ function world(answer: Answer = 'pending') {
     fetchRss: async () => RSS,
     ask: async what => (asked.push(what), `q${asked.length}`),
     answerOf: async () => answer,
-    publish: async a => (
-      posted.push(a.slug),
-      { X: 'pressed', LinkedIn: 'pressed' }
-    ),
+    publish: async a => (posted.push(a.slug), published),
     tell: async t => void told.push(t),
   }
   return {
@@ -97,6 +106,7 @@ function world(answer: Answer = 'pending') {
     told,
     advance: (ms: number) => (now += ms),
     setAnswer: (a: Answer) => (answer = a),
+    setPublished: (r: Record<string, string>) => (published = r),
   }
 }
 
@@ -110,6 +120,56 @@ describe('the feed', () => {
     expect(a[0].summary).toBe(
       'A merged PR corrected an invalid Yosys invocation.'
     )
+  })
+
+  it('a cut post ends on a whole sentence, or a whole word, never mid-word', () => {
+    const s = 'Five are merged and seven are open. Most follow one thread here.'
+    expect(clip(s, 50)).toBe('Five are merged and seven are open.')
+    expect(clip('one two three four five six', 20)).toBe('one two three four…')
+    expect(clip('x'.repeat(30), 10)).toBe('x'.repeat(9) + '…')
+    expect(clip('short', 10)).toBe('short')
+    /* A stop that is the last character that fits still ends a sentence. */
+    expect(clip('aaaa bbbb. cccc dddd', 10)).toBe('aaaa bbbb.')
+    expect(clip('abc', -1)).toBe('')
+    const first = xThread({
+      slug: 's',
+      title: 'T',
+      link: 'https://t27.ai/blog/s',
+      summary: 'One sentence that fits. ' + 'word '.repeat(80),
+    }).first
+    expect(first.endsWith('word…') || first.endsWith('.')).toBe(true)
+    expect(first.length).toBeLessThanOrEqual(X_LIMIT)
+  })
+
+  it('a long evidence label goes too, so the X post opens with the article', () => {
+    const [a] = parseRss(
+      `<rss><channel>${ITEM_WITH_A_LONG_LABEL}</channel></rss>`
+    )
+    expect(a.summary).toBe('Since 1 September we opened 12 pull requests.')
+    expect(xThread(a).first).toContain('Since 1 September')
+  })
+
+  it('the label is kept apart, and goes back wherever there is room for it', () => {
+    const [a] = parseRss(
+      `<rss><channel>${ITEM_WITH_A_LONG_LABEL}</channel></rss>`
+    )
+    const caveat =
+      "counts measured through the GitHub API on 2026-10-02; merged means merged by the openXC7 maintainer, not shipped in a release; bitstream checks are cavearr's bench"
+    expect(a.evidence).toBe(caveat)
+    /* As the site prints it: LinkedIn, Facebook, Instagram, the drafter. */
+    expect(summaryWithEvidence(a)).toBe(
+      `[${caveat}] Since 1 September we opened 12 pull requests.`
+    )
+    /* A Reddit text post has room: the caveat goes with the claim. */
+    const p = postFor(
+      { name: 't27ai', why: 'his own', promo: 'own', everyHours: 24 },
+      a
+    )
+    expect(p.body.startsWith(`[${caveat}] Since 1 September`)).toBe(true)
+    /* An article without a label has nothing put in front of it. */
+    const [, older] = parseRss(RSS)
+    expect(older.evidence).toBeUndefined()
+    expect(summaryWithEvidence(older)).toBe('x')
   })
 
   it('the X post fits, and both share pages are the networks own', () => {
@@ -161,6 +221,40 @@ describe('only after a yes', () => {
     expect(s.posted).toEqual([])
   })
 
+  it('a question nobody saw is SAID to the owner, not closed in silence', async () => {
+    const w = world('expired')
+    await blogShareTick(w.d)
+    expect(await blogShareTick(w.d)).toBe('fpga-row: expired, not posted')
+    expect(w.told.join('\n')).toContain('fpga-row')
+    expect(w.posted).toEqual([])
+  })
+
+  it('a yes where no network took the post is FAILED, not posted', async () => {
+    const w = world('pending')
+    await blogShareTick(w.d)
+    w.setAnswer('allowed')
+    w.setPublished({
+      X: 'тред не получился: no what is happening', // cyrillic-ok: the words publishEverywhere writes
+      LinkedIn: 'не подключена — вход не найден, ничего не нажато', // cyrillic-ok: the words publishEverywhere writes
+    })
+    expect(await blogShareTick(w.d)).toBe('fpga-row: failed')
+    expect(w.told[0]).toMatch(/^⚠️/)
+  })
+
+  it('a press nobody saw on the profile is UNCONFIRMED, not posted', async () => {
+    const w = world('pending')
+    await blogShareTick(w.d)
+    w.setAnswer('allowed')
+    w.setPublished({
+      X: 'тред отправлен («Post all») · страница ушла с формы · не подтверждено: в профиле не найдено', // cyrillic-ok: the words publishEverywhere writes
+      LinkedIn:
+        'нажато «Post» · страница ушла с формы · не подтверждено: в профиле не найдено', // cyrillic-ok: the words publishEverywhere writes
+    })
+    expect(await blogShareTick(w.d)).toBe('fpga-row: unconfirmed')
+    expect(w.told[0]).toMatch(/^❔/)
+    expect(w.told[0]).not.toMatch(/Опубликовано/) // cyrillic-ok: test
+  })
+
   it('one question a day; the next day the next article', async () => {
     const w = world('denied')
     await blogShareTick(w.d)
@@ -190,7 +284,7 @@ describe('the owner s own community gets the article too', () => {
     /* One subreddit, named in one place: a cron that posts a project's own
        article into other people's communities is what spam is. */
     const u = shareUrls(article)
-    const subs = u.reddit.match(/\/r\/([^/]+)\//g) ?? []
+    const subs = u.reddit!.match(/\/r\/([^/]+)\//g) ?? []
     expect(subs).toHaveLength(1)
   })
 
@@ -226,6 +320,46 @@ describe('Threads gets the article too (owner, 24.09: all three next steps)', ()
     expect(t.length).toBeLessThanOrEqual(THREADS_LIMIT)
     expect(t.endsWith(linkFor(article, 'threads'))).toBe(true)
   })
+
+  /* #3446 clipped the summary; the title kept cutting mid-word. */
+  it('a long title is cut at a whole word on X and on Threads', () => {
+    /* Word lengths 1..9, so no fixed room lands on a space by chance. */
+    const words = Array.from({ length: 300 }, (_, i) => 'w'.repeat(1 + (i % 9)))
+    const title = words.join(' ')
+    const wholeWord = (head: string) => {
+      expect(head.endsWith('…')).toBe(true)
+      const kept = head.slice(0, -1)
+      expect(title.startsWith(kept)).toBe(true)
+      expect(title[kept.length]).toBe(' ')
+    }
+    for (const link of ['https://t27.ai/#/blog/s', article.link]) {
+      const long = { ...article, link, title }
+      const t = threadsText(long)
+      expect(t.length).toBeLessThanOrEqual(THREADS_LIMIT)
+      wholeWord(t.split('\n\n')[0])
+      expect(xText(long).length).toBeLessThanOrEqual(X_LIMIT - 23)
+      wholeWord(xText(long))
+    }
+  })
+
+  /* The same mid-word cut lived in both Reddit titles. */
+  it('a long title is cut at a whole word on Reddit too', () => {
+    const words = Array.from({ length: 300 }, (_, i) => 'w'.repeat(1 + (i % 9)))
+    const title = words.join(' ')
+    const long = { ...article, title }
+    const fromUrl = new URL(shareUrls(long).reddit!).searchParams.get('title')!
+    const fromDesk = postFor(
+      { name: 't27ai', why: 'his own', promo: 'own', everyHours: 24 },
+      long
+    ).title
+    for (const head of [fromUrl, fromDesk]) {
+      expect(head.length).toBeLessThanOrEqual(300)
+      expect(head.endsWith('…')).toBe(true)
+      const kept = head.slice(0, -1)
+      expect(title.startsWith(kept)).toBe(true)
+      expect(title[kept.length]).toBe(' ')
+    }
+  })
 })
 
 describe('the link goes in the reply, not in the post', () => {
@@ -251,6 +385,36 @@ describe('the link goes in the reply, not in the post', () => {
 
   it('the link is the whole of the second post', () => {
     expect(xThread(article).second).toBe(linkFor(article, 'x'))
+  })
+
+  it('the caveat the first post has no room for rides above the link', () => {
+    const caveat = {
+      ...article,
+      evidence: 'board throughput derived, not measured',
+    }
+    const second = xThread(caveat).second
+    expect(second).toBe(
+      `[board throughput derived, not measured]\n\n${linkFor(caveat, 'x')}`
+    )
+    expect(xThread(caveat).first).not.toContain('derived')
+  })
+
+  it('a long caveat is cut at a word, keeps its brackets and the whole link', () => {
+    for (const n of [50, 200, 255, 256, 300, 900]) {
+      const words = Array.from({ length: n }, (_, i) => 'w'.repeat((i % 7) + 1))
+      const long = { ...article, evidence: words.join(' ') }
+      const link = linkFor(long, 'x')
+      const second = xThread(long).second
+      expect(second.endsWith(`]\n\n${link}`)).toBe(true)
+      expect(second.startsWith('[')).toBe(true)
+      /* X counts the link as 23, whatever its length. */
+      expect(second.length - link.length + 23).toBeLessThanOrEqual(X_LIMIT)
+      const said = second.slice(1, second.indexOf(']\n\n'))
+      const kept = said.replace(/…$/, '')
+      expect(long.evidence.startsWith(kept)).toBe(true)
+      if (kept.length < long.evidence.length)
+        expect(long.evidence[kept.length]).toBe(' ')
+    }
   })
 
   it('without the link, the words get the room the link used to take', () => {
@@ -304,7 +468,67 @@ describe('every network carries its own tag', () => {
     expect(l.hash).toBe('#/blog/gf-t')
   })
 
+  it('the feed link becomes the static page a crawler can read', () => {
+    /* After '#' nothing reaches the server: X drew the home page's card. */
+    expect(staticArticleUrl('https://t27.ai/#/blog/gf-t')).toBe(
+      'https://t27.ai/blog/gf-t/'
+    )
+    expect(staticArticleUrl('https://t27.ai/blog/gf-t/')).toBe(
+      'https://t27.ai/blog/gf-t/'
+    )
+    expect(staticArticleUrl('https://t27.ai/#/queen')).toBe(
+      'https://t27.ai/#/queen'
+    )
+    const [first] = parseRss(
+      '<item><title>T</title><link>https://t27.ai/#/blog/fpga-row</link><guid>fpga-row</guid><description>x</description></item>'
+    )
+    expect(first.link).toBe('https://t27.ai/blog/fpga-row/')
+  })
+
   it('the owner is asked with the clean link', () => {
     expect(questionFor(article)).toContain(`(${article.link})`)
+  })
+})
+
+describe('a press is not a post', () => {
+  it('a share page still on screen after the press is NOT confirmed', async () => {
+    const { receiptOf } = await import('./src/agent/blog-share')
+    expect(receiptOf('https://x.com/intent', 'https://x.com/intent')).toMatch(
+      /не подтверждено/
+    ) // cyrillic-ok: test
+    expect(receiptOf('https://x.com/intent', '')).toMatch(/не подтверждено/) // cyrillic-ok: test
+    expect(receiptOf('https://x.com/intent', 'https://x.com/home')).not.toMatch(
+      /не подтверждено/
+    ) // cyrillic-ok: test
+  })
+})
+
+describe('the headline says what is known', () => {
+  it('pressed everywhere, confirmed nowhere, is NOT "published"', async () => {
+    const { headlineOf, LEFT_THE_FORM, SEEN_ON_PROFILE } = await import(
+      './src/agent/blog-share'
+    )
+    const unconfirmed = {
+      X: 'нажато «Post» · не подтверждено: страница не сменилась',
+    } // cyrillic-ok: test
+    expect(headlineOf(unconfirmed)).not.toMatch(/Опубликовано/) // cyrillic-ok: test
+    const published = 'Опубликовано' // cyrillic-ok: test
+    /* A receipt alone is not a post (spec v2): the profile must show it. */
+    expect(
+      headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM}` }) // cyrillic-ok: test
+    ).not.toContain(published)
+    expect(
+      headlineOf({ X: `нажато «Post» · ${LEFT_THE_FORM} · ${SEEN_ON_PROFILE}` }) // cyrillic-ok: test
+    ).toContain(published)
+    expect(headlineOf({ error: 'x' })).toMatch(/Не получилось/) // cyrillic-ok: test
+  })
+
+  it("an API post with Meta's own id is a post (meta-connect.t27 posted)", async () => {
+    const { headlineOf, outcomeOf } = await import('./src/agent/blog-share')
+    const out = {
+      Threads: 'опубликовано через API · https://www.threads.net/@n/post/1', // cyrillic-ok: test
+    }
+    expect(outcomeOf(out)).toBe('posted')
+    expect(headlineOf(out)).toContain('Опубликовано') // cyrillic-ok: test
   })
 })

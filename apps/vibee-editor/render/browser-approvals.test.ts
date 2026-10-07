@@ -3,6 +3,7 @@ import {
   askFor,
   decide,
   readApproval,
+  allowedActHost,
   resetApprovalsCache,
   APPROVAL_TTL_MS,
   type ApprovalState,
@@ -29,6 +30,8 @@ interface Row {
   allow_token: string
   deny_token: string
   created_ms: number
+  ttl_ms: number | null
+  act_host: string | null
 }
 
 function fakePool(seed: Row[] = []) {
@@ -39,7 +42,7 @@ function fakePool(seed: Row[] = []) {
       const s = sql.trim().toUpperCase()
       if (s.startsWith('CREATE TABLE')) return { rows: [] }
       if (s.startsWith('INSERT')) {
-        const [id, who, what, allow, deny] = params as string[]
+        const [id, who, what, allow, deny, ttl, host] = params as string[]
         rows.push({
           id,
           telegram_id: who,
@@ -48,6 +51,8 @@ function fakePool(seed: Row[] = []) {
           allow_token: allow,
           deny_token: deny,
           created_ms: Date.now(),
+          ttl_ms: ttl == null ? null : Number(ttl),
+          act_host: host ?? null,
         })
         return { rows: [] }
       }
@@ -63,6 +68,15 @@ function fakePool(seed: Row[] = []) {
         if (!row) return { rows: [] }
         row.state = row.allow_token === token ? 'allowed' : 'denied'
         return { rows: [{ state: row.state }] }
+      }
+      if (s.startsWith('SELECT ACT_HOST')) {
+        const row = rows.find(
+          r =>
+            r.id === String(params[0]) &&
+            r.telegram_id === String(params[1]) &&
+            r.state === 'allowed'
+        )
+        return { rows: row ? [{ act_host: row.act_host }] : [] }
       }
       if (s.startsWith('SELECT')) {
         const row = rows.find(r => r.id === String(params[0]))
@@ -148,9 +162,71 @@ describe('silence', () => {
     expect(state).not.toBe('allowed')
   })
 
+  it('A QUESTION THAT WAITS A DAY IS STILL OPEN AFTER TEN MINUTES', async () => {
+    /*
+     * 2026-10-02: the blog desk waits 24 h for its yes, but every question
+     * died at the browser's 10 min -- eight articles "declined" unseen.
+     */
+    const pool = fakePool()
+    const { id } = await askFor(pool, {
+      telegramId: 'tg-900000001',
+      what: 'post the article',
+      newId: () => 'long1',
+      newToken: () => `tok${++n}`,
+      ttlMs: 24 * 60 * 60 * 1000,
+    })
+    pool.rows[0].created_ms = Date.now() - APPROVAL_TTL_MS - 60_000
+    expect((await readApproval(pool, id))?.state).toBe('pending')
+    pool.rows[0].created_ms = Date.now() - 24 * 60 * 60 * 1000 - 1000
+    expect((await readApproval(pool, id))?.state).toBe('expired')
+  })
+
   it('does not expire a question that was just asked', async () => {
     const pool = fakePool()
     const { id } = await ask(pool)
     expect((await readApproval(pool, id))?.state).toBe('pending')
+  })
+})
+
+describe('a yes is for one place, one purpose (2026-10-03)', () => {
+  it('a question about acting on a page keeps its host; its yes names it', async () => {
+    const pool = fakePool()
+    const q = await askFor(pool, {
+      telegramId: 'tg-900000001',
+      what: 'pay 120 on the bank page',
+      actHost: 'online.sberbank.ru',
+      newId: () => `id${++n}`,
+      newToken: () => `tok${++n}`,
+    })
+    expect((await readApproval(pool, q.id))?.actHost).toBe('online.sberbank.ru')
+    /* Not allowed yet: nothing to act on. */
+    expect(await allowedActHost(pool, q.id, 'tg-900000001')).toBeNull()
+    await decide(pool, q.id, q.allowToken)
+    expect(await allowedActHost(pool, q.id, 'tg-900000001')).toBe(
+      'online.sberbank.ru'
+    )
+    /* Somebody else's question opens nothing for them. */
+    expect(await allowedActHost(pool, q.id, 'tg-900000002')).toBeNull()
+  })
+
+  it('a question with no page (tabs to close, a post) has no host, allowed or not', async () => {
+    const pool = fakePool()
+    const q = await ask(pool, 'close 3 duplicate tabs')
+    expect((await readApproval(pool, q.id))?.actHost).toBeNull()
+    await decide(pool, q.id, q.allowToken)
+    expect(await allowedActHost(pool, q.id, 'tg-900000001')).toBeNull()
+  })
+
+  it('a denied question opens nothing even with a host', async () => {
+    const pool = fakePool()
+    const q = await askFor(pool, {
+      telegramId: 'tg-900000001',
+      what: 'send the letter',
+      actHost: 'mail.google.com',
+      newId: () => `id${++n}`,
+      newToken: () => `tok${++n}`,
+    })
+    await decide(pool, q.id, q.denyToken)
+    expect(await allowedActHost(pool, q.id, 'tg-900000001')).toBeNull()
   })
 })

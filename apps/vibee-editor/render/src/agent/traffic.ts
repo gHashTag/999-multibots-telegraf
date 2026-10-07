@@ -18,6 +18,9 @@
 import type { AgentTool, ToolContext } from './tools'
 import { requireOwner } from './telegram-tools'
 import { tagValue } from './utm'
+import { isWelcomeStep } from '../../../packages/vibee-atoms/src/welcome-steps'
+import { AGENT_PACKAGES } from '../../../packages/vibee-atoms/src/agent-packages'
+import { MARKETPLACE_AGENTS } from '../../../packages/vibee-atoms/src/agent-marketplace'
 
 export interface Queryable {
   query: (
@@ -34,6 +37,11 @@ export const TRAFFIC_PATHS = [
    * guard keeps it closed (auth.ts), and the handler asks for the key again.
    */
   '/api/traffic/start',
+  /*
+   * A step on the welcome screen (vibee-atoms welcome-steps.ts): the
+   * screen's heatmap. Public like an arrival, bounded the same way.
+   */
+  '/api/traffic/welcome',
 ] as const
 
 export function isTrafficPath(path: string): boolean {
@@ -63,9 +71,11 @@ export function arrivalOf(raw: unknown): Arrival | null {
 
 let tableReady = false
 let startsReady = false
+let welcomeReady = false
 export function resetTrafficTableForTests(): void {
   tableReady = false
   startsReady = false
+  welcomeReady = false
   hits.clear()
 }
 
@@ -218,6 +228,114 @@ export async function arrivalsByChannel(
   }))
 }
 
+/**
+ * A STEP ON THE WELCOME SCREEN: (day, step, item) -> count.
+ *
+ * The step is one of WELCOME_STEPS; the item is a package or an agent id,
+ * kept only when it names one of ours -- anything else is stored as ''. So
+ * the table can never grow past steps x (packages + agents) rows a day,
+ * however the public endpoint is fed.
+ */
+export interface WelcomeHit {
+  step: string
+  item: string
+}
+
+const WELCOME_ITEMS = new Set<string>([
+  ...AGENT_PACKAGES.map(p => p.id),
+  ...MARKETPLACE_AGENTS.map(a => a.id),
+])
+
+/** A welcome step from untrusted JSON, or null when it is not on the list. Pure. */
+export function welcomeHitOf(raw: unknown): WelcomeHit | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (!isWelcomeStep(r.step)) return null
+  const item = tagValue(r.item)
+  return { step: r.step, item: WELCOME_ITEMS.has(item) ? item : '' }
+}
+
+async function ensureWelcomeTable(q: Queryable): Promise<void> {
+  if (welcomeReady) return
+  await q.query(`CREATE TABLE IF NOT EXISTS traffic_welcome (
+    day date NOT NULL DEFAULT current_date,
+    step text NOT NULL,
+    item text NOT NULL DEFAULT '',
+    n integer NOT NULL DEFAULT 1,
+    PRIMARY KEY (day, step, item)
+  )`)
+  welcomeReady = true
+}
+
+export async function countWelcome(q: Queryable, h: WelcomeHit): Promise<void> {
+  await ensureWelcomeTable(q)
+  await q.query(
+    `INSERT INTO traffic_welcome (step, item) VALUES ($1, $2)
+     ON CONFLICT (day, step, item)
+     DO UPDATE SET n = traffic_welcome.n + 1`,
+    [h.step, h.item]
+  )
+}
+
+export interface WelcomeCount {
+  step: string
+  item: string
+  n: number
+}
+
+/** Welcome steps over the last `days` days, most first. */
+export async function welcomeSteps(
+  q: Queryable,
+  days: number
+): Promise<WelcomeCount[]> {
+  await ensureWelcomeTable(q)
+  const { rows } = await q.query(
+    `SELECT step, item, SUM(n)::int AS n
+       FROM traffic_welcome
+      WHERE day > current_date - $1::int
+      GROUP BY step, item
+      ORDER BY n DESC, step, item`,
+    [clampDays(days)]
+  )
+  return rows.map(r => ({
+    step: String(r.step),
+    item: String(r.item ?? ''),
+    n: Number(r.n) || 0,
+  }))
+}
+
+/**
+ * The welcome funnel: shown -> reached the packages -> pressed a way in
+ * (a try, the gift, an order). Each share is of `shown`; with no shows
+ * every share is 0, never a division by zero. Pure.
+ */
+export function welcomeFunnel(counts: readonly WelcomeCount[]): {
+  shown: number
+  packagesSeen: number
+  tried: number
+  ordered: number
+  skipped: number
+  reachedPackages: number
+  orderRate: number
+} {
+  const sum = (...steps: string[]) =>
+    counts.filter(c => steps.includes(c.step)).reduce((n, c) => n + c.n, 0)
+  const shown = sum('shown')
+  const packagesSeen = sum('packages_seen')
+  const tried = sum('agent_talk', 'gift', 'package_try', 'pinned_gift')
+  const ordered = sum('package_order', 'package_buy', 'pinned_order')
+  const share = (n: number) => (shown ? Math.round((n / shown) * 1000) / 10 : 0)
+  return {
+    shown,
+    packagesSeen,
+    tried,
+    ordered,
+    skipped: sum('skip'),
+    reachedPackages: share(packagesSeen),
+    orderRate: share(ordered),
+  }
+}
+
 /** How many arrivals one address may count in a minute. */
 export const ARRIVALS_PER_MINUTE = 20
 const hits = new Map<string, { minute: number; n: number }>()
@@ -256,6 +374,7 @@ export async function handleTraffic(
   if (path === '/api/traffic/start') return handleStart(deps)
   if (!allowArrival(deps.address, (deps.now ?? Date.now)()))
     return { status: 429, body: { ok: false, error: 'slow down' } }
+  if (path === '/api/traffic/welcome') return handleWelcome(deps)
   let parsed: unknown
   try {
     parsed = JSON.parse(await deps.readBody())
@@ -266,6 +385,26 @@ export async function handleTraffic(
   if (!a) return { status: 400, body: { ok: false, error: 'no source' } }
   try {
     await countArrival(await deps.getPool(), a)
+    return { status: 200, body: { ok: true } }
+  } catch {
+    return { status: 503, body: { ok: false, error: 'unavailable' } }
+  }
+}
+
+/** A step on the welcome screen; already past the per-address limit. */
+async function handleWelcome(
+  deps: TrafficDeps
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await deps.readBody())
+  } catch {
+    return { status: 400, body: { ok: false, error: 'JSON body expected' } }
+  }
+  const h = welcomeHitOf(parsed)
+  if (!h) return { status: 400, body: { ok: false, error: 'unknown step' } }
+  try {
+    await countWelcome(await deps.getPool(), h)
     return { status: 200, body: { ok: true } }
   } catch {
     return { status: 503, body: { ok: false, error: 'unavailable' } }
@@ -300,7 +439,8 @@ export const TRAFFIC_TOOLS: AgentTool[] = [
     description:
       'Where visitors come from: per channel (x, linkedin, reddit, threads, ' +
       'telegram...) the visits on our pages and the starts of our bots over ' +
-      'the last N days. Owner only.',
+      'the last N days, and the welcome screen heatmap (how many saw it, ' +
+      'reached the packages, tried, ordered; every button by count). Owner only.',
     parameters: {
       type: 'object',
       properties: {
@@ -315,17 +455,20 @@ export const TRAFFIC_TOOLS: AgentTool[] = [
       const channels = await arrivalsByChannel(q, days)
       const starts = await startsBySource(q, days)
       const sources = bySource(channels, starts)
+      const welcome = await welcomeSteps(q, days)
       return {
         days,
         total: channels.reduce((n, c) => n + c.arrivals, 0),
         totalStarts: sources.reduce((n, c) => n + c.starts, 0),
         sources,
         channels,
+        welcome: { funnel: welcomeFunnel(welcome), steps: welcome },
         note:
           'arrivals: visits on our pages (the app, t27.ai) from links tagged ' +
           'utm_source; starts: our bots opened from a link carrying the ' +
-          'channel after "__" in /start. Counts only -- no person behind a ' +
-          'number is known.',
+          'channel after "__" in /start; welcome: each step of the welcome ' +
+          'screen counted once per visit (reachedPackages and orderRate are ' +
+          '% of shown). Counts only -- no person behind a number is known.',
       }
     },
   },

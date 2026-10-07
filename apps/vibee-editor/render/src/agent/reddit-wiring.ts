@@ -19,15 +19,22 @@
  * Switched on by REDDIT_DESK_ENABLED=1.
  */
 import type { Queryable } from '../browser/sessions'
+import type { DeskWho } from '../browser/desk-page'
 import {
+  ANSWER_WAIT_MS,
+  readAnonymously,
   redditTick,
   submitUrl,
+  subredditOpen,
   subredditsOf,
   type Answer,
+  type CommunityState,
   type Mention,
   type PlannedPost,
+  type Skip,
 } from './reddit'
-import { RSS_URL } from './blog-share'
+import { RSS_URL, redditPressedKeys } from './blog-share'
+import * as SPEC from '../spec/reddit-desk.gen'
 
 const settle = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -61,10 +68,11 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     return 'reddit is not signed in'
 
   /* The desk's own list of communities, from its row if it has one. */
-  const row = await readStrategy(pool, 'reddit:subreddits').catch(() => null)
+  const row = await readStrategy(pool, SPEC.LIST_KEY).catch(() => null)
   const subs = subredditsOf(
     (row as { subreddits?: unknown } | null)?.subreddits
   )
+  const skipped = skipStore(pool)
 
   return await redditTick({
     pool,
@@ -72,7 +80,7 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
     about: ABOUT,
     subs,
     readJson: url => readAsThePerson(pool, owner, url),
-    ask: what => requestPermission(pool, owner, what),
+    ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     draft: text => writeDraft(text),
@@ -84,7 +92,57 @@ export async function runRedditDesk(pool: Queryable): Promise<string> {
       return await r.text()
     },
     tell: text => sendToTelegram(owner, `[Reddit] ${text}`),
+    communityState: communityStateFor(pool, owner),
+    blogPosted: () => blogRedditPosts(pool),
+    readSkips: skipped.read,
+    writeSkips: skipped.write,
   })
+}
+
+/**
+ * The desk's skip record: its own strategy row (SPEC.SKIP_KEY), beside the
+ * owner's list (SPEC.LIST_KEY) and never in place of it. Reading never throws;
+ * a failed write is reported by the tick.
+ */
+export function skipStore(pool: Queryable): {
+  read: () => Promise<unknown>
+  write: (skips: Skip[]) => Promise<void>
+} {
+  return {
+    read: async () => {
+      const { readStrategy } = await import('./strategies')
+      return await readStrategy(pool, SPEC.SKIP_KEY).catch(() => null)
+    },
+    write: async skips => {
+      const { writeStrategy } = await import('./strategies')
+      await writeStrategy(pool, SPEC.SKIP_KEY, { skips })
+    },
+  }
+}
+
+/**
+ * A community's state (reddit.ts subredditOpen): the server's own read
+ * first, then the person's signed-in page -- Reddit's network filter answers
+ * an anonymous server with an HTML block page, which reads as `unknown`.
+ */
+export function communityStateFor(
+  pool: Queryable,
+  owner: string
+): (name: string) => Promise<CommunityState> {
+  return name =>
+    subredditOpen(name, [
+      url => readAnonymously(url),
+      url => readAsThePerson(pool, owner, url),
+    ])
+}
+
+/** What the blog-share desk pressed "Post" for on Reddit (blog_shares). */
+export async function blogRedditPosts(pool: Queryable): Promise<string[]> {
+  const { rows } = await pool.query(
+    `SELECT slug, detail FROM blog_shares WHERE state <> 'asked'`,
+    []
+  )
+  return redditPressedKeys(rows as Array<{ slug?: unknown; detail?: unknown }>)
 }
 
 /** Where the time of the last tick is kept, so a deploy cannot forget it. */
@@ -129,12 +187,16 @@ export async function runRedditIfDue(
 }
 
 /** The browser's endpoint, started if it is off. */
-async function endpointOf(pool: Queryable, owner: string): Promise<string> {
+export async function endpointOf(
+  pool: Queryable,
+  owner: string,
+  by = 'reddit'
+): Promise<string> {
   const { readSession } = await import('../browser/sessions')
   const { startBrowserAsAgent } = await import('../browser/routes')
   let s = await readSession(pool, owner)
   if (!s || s.state !== 'live' || !s.cdpEndpoint) {
-    await startBrowserAsAgent(owner)
+    await startBrowserAsAgent(owner, by)
     s = await readSession(pool, owner)
   }
   if (!s?.cdpEndpoint) throw new Error('the browser did not start')
@@ -147,12 +209,19 @@ async function endpointOf(pool: Queryable, owner: string): Promise<string> {
  * closed afterwards: reading the inbox must not leave the person's browser
  * fuller than it was.
  */
-async function readAsThePerson(
+export async function readAsThePerson(
   pool: Queryable,
   owner: string,
   url: string
 ): Promise<unknown> {
-  const { listTargets, newPage, closePage } = await import('../browser/cdp')
+  const { newDeskPage, deskMayGo } = await import('../browser/desk-page')
+  const { listTargets, closePage } = await import('../browser/cdp')
+  /*
+   * The list first, before the open tab is borrowed (#3488, found by the
+   * bee): the read below reaches through a tab already on Reddit, and only
+   * the fallback went through newDeskPage's check.
+   */
+  await deskMayGo({ pool, telegramId: owner }, url)
   const cdp = await endpointOf(pool, owner)
   /*
    * TWO PLACES TO READ IN, AND NEITHER IS TRUSTWORTHY ALONE.
@@ -177,7 +246,10 @@ async function readAsThePerson(
       first = e instanceof Error ? e.message : String(e)
     }
   }
-  const page = await newPage(cdp, 'https://www.reddit.com/')
+  const page = await newDeskPage(cdp, 'https://www.reddit.com/', {
+    pool,
+    telegramId: owner,
+  })
   try {
     return await readIn(cdp, page.id, url)
   } catch (e) {
@@ -268,7 +340,7 @@ export function choosePage(
  * reported instead when it never does -- a wrong origin is exactly the failure
  * this helper exists to name.
  */
-async function waitForOrigin(
+export async function waitForOrigin(
   cdp: string,
   pageId: string,
   want: string,
@@ -301,55 +373,103 @@ async function waitForOrigin(
 }
 
 /**
- * The draft, from the one model call this codebase keeps for prose
- * (agent/provider.ts reserveEnv). Returns null rather than a guess when no
- * model answers -- reddit.ts then hands the comment to the owner instead of
- * offering them something to approve.
+ * The draft. The FREE z.ai flash models first (owner, 2026-10-05: "переключи
+ * на бесплатную модель z.ai"), the paid reserve route last. Measured
+ * 2026-10-04 16:14Z: the reserve key ran out of funds, every draft came back
+ * null and the engage desk logged "no model answered" for x and reddit.
+ * glm-4.5-flash (zai-lite, no thinking) goes before glm-4.7-flash (zai, a
+ * hybrid reasoner that can spend the budget thinking). Returns null rather
+ * than a guess when no model answers; why each one failed is logged.
  */
-async function writeDraft(prompt: string): Promise<string | null> {
-  const { reserveEnv } = await import('./provider')
-  const reserve = reserveEnv()
-  if (!reserve?.key) return null
-  try {
-    const r = await fetch(`${reserve.base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${reserve.key}`,
-      },
-      body: JSON.stringify({
-        model: reserve.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 600,
-        temperature: 0.4,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    })
-    if (!r.ok) return null
-    const out = (await r.json()) as {
-      choices?: Array<{ message?: { content?: unknown } }>
+export const DRAFT_ORDER = ['zai-lite', 'zai', 'reserve'] as const
+export let DRAFT_RETRY_MS = 4000
+export function setDraftRetryMs(ms: number): void {
+  DRAFT_RETRY_MS = ms
+}
+
+export async function writeDraft(prompt: string): Promise<string | null> {
+  const { allProviders, reserveEnv } = await import('./provider')
+  const routes: Array<{
+    id: string
+    base: string
+    key: string
+    model: string
+  }> = []
+  const have = allProviders()
+  for (const id of DRAFT_ORDER) {
+    if (id === 'reserve') {
+      const r = reserveEnv()
+      if (r?.key) routes.push({ id, base: r.base, key: r.key, model: r.model })
+      continue
     }
-    const text = out.choices?.[0]?.message?.content
-    return typeof text === 'string' && text.trim() ? text.trim() : null
-  } catch {
-    return null
+    const p = have.find(x => x.id === id)
+    if (p?.key) routes.push({ id, base: p.base, key: p.key, model: p.model })
   }
+  const why: string[] = []
+  for (const route of routes) {
+    const zai = route.id !== 'reserve'
+    try {
+      const ask = () =>
+        fetch(`${route.base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${route.key}`,
+          },
+          body: JSON.stringify({
+            model: route.model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: zai ? 1000 : 600,
+            temperature: 0.4,
+            // GLM thinks by default and spends the whole budget on it:
+            // measured 2026-10-04, 350 tokens of reasoning for a five-word
+            // reply, so a draft came back with empty content.
+            ...(zai ? { thinking: { type: 'disabled' } } : {}),
+          }),
+          signal: AbortSignal.timeout(60_000),
+        })
+      let r = await ask()
+      // The free endpoint answers 429 to a burst; one paced retry.
+      if (r.status === 429) {
+        await new Promise(res => setTimeout(res, DRAFT_RETRY_MS))
+        r = await ask()
+      }
+      if (!r.ok) {
+        why.push(`${route.id} ${r.status}`)
+        continue
+      }
+      const out = (await r.json()) as {
+        choices?: Array<{ message?: { content?: unknown } }>
+      }
+      const text = out.choices?.[0]?.message?.content
+      if (typeof text === 'string' && text.trim()) return text.trim()
+      why.push(`${route.id} empty`)
+    } catch (e) {
+      why.push(
+        `${route.id} ${String(e instanceof Error ? e.name : e).slice(0, 40)}`
+      )
+    }
+  }
+  console.warn(`[draft] no model answered: ${why.join(', ') || 'no route'}`)
+  return null
 }
 
 /** Press the first button whose label matches, or throw saying so. */
-async function pressOne(
+export async function pressOne(
+  who: DeskWho,
   cdp: string,
   pageId: string,
   labels: string[]
 ): Promise<string> {
-  const { evaluateOn, clickAt } = await import('../browser/cdp')
+  const { evaluateOn } = await import('../browser/cdp')
+  const { deskClick } = await import('../browser/desk-page')
   const { findProbe, foundOf } = await import('../browser/find-target')
   for (const label of labels) {
     const found = foundOf(
       await evaluateOn(cdp, pageId, findProbe(label)).catch(() => null)
     )
     if (found) {
-      await clickAt(cdp, pageId, found.x, found.y)
+      await deskClick(who, cdp, pageId, found.x, found.y)
       return found.label
     }
   }
@@ -368,20 +488,22 @@ async function replyOnReddit(
   m: Mention,
   text: string
 ): Promise<string> {
-  const { newPage, typeText, activatePage } = await import('../browser/cdp')
+  const { newDeskPage, deskType } = await import('../browser/desk-page')
+  const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newPage(cdp, m.link)
+  const who: DeskWho = { pool, telegramId: owner }
+  const page = await newDeskPage(cdp, m.link, who)
   /* Front, so the tab is awake -- and so the person sees what is typed. */
   await activatePage(cdp, page.id).catch(() => {})
   /* The same trap as the inbox: press nothing until the page is really here. */
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
   await settle(3_000)
   /* Reddit's own words on the comment's own reply control. */
-  await pressOne(cdp, page.id, ['reply', 'ответить'])
+  await pressOne(who, cdp, page.id, ['reply', 'ответить'])
   await settle(1_500)
-  await typeText(cdp, page.id, text)
+  await deskType(who, cdp, page.id, text)
   await settle(1_000)
-  const pressed = await pressOne(cdp, page.id, [
+  const pressed = await pressOne(who, cdp, page.id, [
     'comment',
     'reply',
     'ответить',
@@ -396,13 +518,15 @@ async function submitOnReddit(
   owner: string,
   p: PlannedPost
 ): Promise<string> {
-  const { newPage, activatePage } = await import('../browser/cdp')
+  const { newDeskPage } = await import('../browser/desk-page')
+  const { activatePage } = await import('../browser/cdp')
   const cdp = await endpointOf(pool, owner)
-  const page = await newPage(cdp, submitUrl(p))
+  const who: DeskWho = { pool, telegramId: owner }
+  const page = await newDeskPage(cdp, submitUrl(p), who)
   /* Front, so the tab is awake -- and so the person sees what is posted. */
   await activatePage(cdp, page.id).catch(() => {})
   await waitForOrigin(cdp, page.id, 'https://www.reddit.com')
   await settle(3_000)
-  const pressed = await pressOne(cdp, page.id, ['post', 'опубликовать'])
+  const pressed = await pressOne(who, cdp, page.id, ['post', 'опубликовать'])
   return `опубликовано («${pressed}») в r/${p.subreddit}` // cyrillic-ok: told to the owner
 }

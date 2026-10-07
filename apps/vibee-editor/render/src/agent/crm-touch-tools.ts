@@ -502,10 +502,15 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           days: w.days,
           stage: st.stage,
           because: w.because,
+          because_code: w.why,
           // What to do about it, and why that and not something else.
           move: step.move,
           urgency: step.urgency,
           next_why: step.why,
+          // The two reasons again as codes, so a screen in another language
+          // does not print the Russian lines above (loop tick 12).
+          next_why_code: step.whyCode,
+          next_why_vars: step.whyVars ?? null,
           intent: step.intent ?? null,
           nudges: nudgesSince({ touches: list, lastInboundAt: msg?.lastIn }),
           from: list.length > 0 ? 'touches' : 'messages',

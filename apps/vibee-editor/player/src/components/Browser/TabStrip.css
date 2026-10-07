@@ -1,0 +1,220 @@
+/*
+ * The tabs above the picture: A SHORT WRAPPING STRIP -- not a row that
+ * scrolls sideways, and not a grid as tall as the pod.
+ *
+ * Measured with `tri shot tab-strip` at 390 px (2026-10-07): the first
+ * strip was one row scrolled sideways, and on load the chosen tab (third of
+ * five) and the "+" were both past the right edge -- the person saw two
+ * tabs, neither of them the one on screen, and nothing said there was more.
+ * The next try, a grid showing every tab whole, was 610 px tall at twelve
+ * tabs: the picture the strip chooses for went below the fold.
+ *
+ * So: tabs wrap two to a row; the strip stops at two rows and the top of a
+ * third (the cut-off row says "there is more") and scrolls inside itself;
+ * TabStrip.tsx scrolls the chosen tab into view; "+" has a finger-wide
+ * column of its own and sticks to the strip's top, so it is on screen
+ * however long the list and wherever it is scrolled. A title keeps
+ * two lines and the host one -- clamped by lines, never cut sideways.
+ * `tri shot tab-strip-12` holds the cap (STRIP_CAP_PX in bin/helpers/shot.mjs).
+ */
+.tab-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+/*
+ * Column 1 belongs to "+" alone (it spans every row the pod's cap of twelve
+ * tabs can make, and sticks to the top while the tabs scroll); the tabs fill
+ * the columns after it. Rows are spaced by the tab's margin, not row-gap:
+ * the empty rows "+" spans would each add a gap of blank scroll.
+ */
+.tab-strip__row {
+  display: grid;
+  grid-template-columns: var(--touch-target, 44px) repeat(
+      auto-fill,
+      minmax(140px, 1fr)
+    );
+  column-gap: 6px;
+  align-items: start;
+  max-height: 136px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * A FIXED height -- two title lines and the host, clamped below. Left to
+ * its content, Chromium sized each grid row by the tab's min-height (rows
+ * of 50 px under tabs of 63, measured 2026-10-07) and the tabs painted
+ * over each other; a fixed one also makes the two-row cap exact.
+ */
+.tab-strip__tab {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 52px;
+  min-height: var(--touch-target, 44px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-strip__tab.is-active {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.tab-strip__pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--touch-target, 44px);
+  /* The design-system button rule fixes height and nowrap; a title that wraps
+     must grow its tab instead of painting over the next row. */
+  height: auto;
+  white-space: normal;
+  line-height: 1.2;
+  padding: 3px 10px;
+  /* The design system's button gap (8px) would squeeze the title's second
+     line out of the fixed tab: 31 + 12 + 6 of padding is all there is. */
+  gap: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tab-strip__title,
+.tab-strip__host {
+  flex: 0 0 auto;
+  max-width: 100%;
+  min-width: 0;
+  /* A button keeps its words on one line; a tab's title may not. Clamped by
+     lines, so a long one ends in an ellipsis inside its own box. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.tab-strip__host {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.tab-strip__title {
+  font-size: 13px;
+}
+
+.tab-strip__host {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tab-strip__tab.is-active .tab-strip__title {
+  color: #00ff88;
+}
+
+.tab-strip__close,
+.tab-strip__new {
+  flex: 0 0 auto;
+  min-width: var(--touch-target, 44px);
+  min-height: var(--touch-target, 44px);
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.tab-strip__new {
+  /* Its own column, pinned to the strip's top: on screen at any length of
+     the list and at any scroll. 12 = MAX_TABS_SHOWN, one tab a row. */
+  grid-column: 1;
+  grid-row: 1 / span 12;
+  position: sticky;
+  top: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+}
+
+.tab-strip__close:active,
+.tab-strip__new:active {
+  color: #00ff88;
+}
+
+.tab-strip button:disabled {
+  opacity: 0.5;
+}
+
+.tab-strip__refused {
+  margin: 0;
+  font-size: 12px;
+  color: #f5c542;
+}
+
+/* v2: the agent's mark beside the title, and the confirm before closing. */
+.tab-strip__agent {
+  margin-right: 4px;
+  font-size: 12px;
+  color: #f5c542;
+}
+
+.tab-strip__agent.is-chat {
+  color: #7fd4ff;
+}
+
+.tab-strip__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 197, 66, 0.5);
+  border-radius: 10px;
+  background: rgba(245, 197, 66, 0.08);
+}
+
+.tab-strip__confirm-text {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.tab-strip__confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-strip__confirm-close,
+.tab-strip__confirm-keep {
+  flex: 1 1 0;
+  min-height: var(--touch-target, 44px);
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tab-strip__confirm-close {
+  border: 1px solid #f5c542;
+  background: rgba(245, 197, 66, 0.15);
+  color: #f5c542;
+}
+
+.tab-strip__confirm-keep {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+}

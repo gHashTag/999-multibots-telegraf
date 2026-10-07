@@ -494,6 +494,8 @@ export function makeCrmDeliverTools(
   return [
     {
       name: 'crm_deliver_photo',
+      // Draws through the borrowed image tools (tool-charges.ts).
+      charges: ['image_generate', 'image_edit'],
       description:
         'ЛИД-МАГНИТ человеку из переписки: портрет 9:16 из ЕГО лица (img2img, GPT Image 2.5) — ' +
         'из присланного им фото или аватарки; чужое лицо не рисует, без фото сам готовит просьбу ' +
@@ -910,7 +912,17 @@ export function makeCrmDeliverTools(
               gift
                 ? (ctx as ToolContext)
                 : { ...(ctx as ToolContext), chargeLater: true }
-            )) as { url?: string; причина?: string; reason?: string } // cyrillic-ok: public API field
+            )) as {
+              url?: string
+              причина?: string // cyrillic-ok: public API field
+              reason?: string
+            }
+            /*
+             * A stamped picture never arrives here: image_generate refuses it
+             * on every surface and returns no URL (#3657), so it takes the
+             * no-URL door below. The draft branch that lived here was dead
+             * code (#3663); dm-delivery.test.ts pins the refusal end to end.
+             */
             if (!made?.url) {
               noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
               await noteGift(ctx, made?.причина ?? made?.reason, 'generate') // cyrillic-ok: public API field

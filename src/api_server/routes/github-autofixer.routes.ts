@@ -12,14 +12,25 @@ import { requireInternalKey } from '../middleware/requireInternalKey'
 const router: Router = express.Router()
 const controller = new GitHubAutoFixerController()
 
-// Middleware для всех GitHub webhook endpoints
-router.use(githubWebhookRateLimit as any)
-router.use(logWebhookRequest)
+// The GitHub limiter and logger are attached PER ROUTE, never with a bare
+// router.use. This router is mounted at '/api' in api_server/index.ts, so a
+// bare router.use ran for every /api/* request that entered it -- including
+// /api/inngest, /api/video-callback and /api/kie-ai/*, mounted after it.
+// Measured live 2026-10-03: those answered with `ratelimit-limit: 100` and
+// `ratelimit-policy: 100;w=900`, i.e. Inngest (one IP) and Kie callbacks
+// shared a budget of 100 requests per 15 minutes with GitHub, and every one
+// of them printed "[GitHub Webhook] Event: unknown".
+const githubWebhook = [githubWebhookRateLimit as any, logWebhookRequest]
 
 // Основной endpoint для GitHub PR webhooks
 router.post(
   '/webhooks/github/pr-issues',
-  [enableRawBody, validateGitHubHeaders, validatePullRequestEvent],
+  [
+    ...githubWebhook,
+    enableRawBody,
+    validateGitHubHeaders,
+    validatePullRequestEvent,
+  ],
   async (req: any, res: any) => {
     await controller.handlePullRequestWebhook(req, res)
   }
@@ -33,6 +44,7 @@ router.post(
 // routers use. The router stays mounted open so the signed webhook still works.
 router.post(
   '/webhooks/github/manual-fix/:prNumber',
+  ...githubWebhook,
   requireInternalKey,
   async (req: any, res: any) => {
     await controller.handleManualFix(req, res)

@@ -106,6 +106,7 @@ import { SUPPORT_HANDLE } from '@/config/support'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { showStartGreeting } from '@/navigation/helpers/startGreeting'
 import { isAddressedToUs } from '@/navigation/helpers/groupAddressing'
+import { tellOwnersTheRoomIsSilent } from '@/navigation/helpers/silentRoomNotice'
 
 // Импорт всех сцен
 import {
@@ -239,7 +240,19 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
+import { topicThreadMiddleware, agentConversationFor } from './topics/threads'
+import {
+  ensureTabsQuietly,
+  nameTopicQuietly,
+  registerTabsCommand,
+} from './topics/wire'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
+import {
+  agentPackageIntent,
+  agentPackageOrderReply,
+  notifyTeamOfPackageOrder,
+  placePackageOrder,
+} from '@/services/agentPackageOrder'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -285,6 +298,13 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     bot.use(silenceNet)
     bot.use(deadPressNet)
+    /*
+     * A TAB ANSWERS IN ITS TAB. Private-chat topics (Bot API 9.3+): every
+     * direct send aimed at this chat inherits the topic of the update, so the
+     * agent lane's answer lands in the tab the person wrote in
+     * (topics/threads.ts). Right after the nets, so every handler sees the view.
+     */
+    bot.use(topicThreadMiddleware)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
@@ -1213,7 +1233,10 @@ If not, continue on your own and click the "I myself" button`
        * A caption naming the bot, or a photo sent as a reply to its message,
        * still works -- that is somebody asking for something.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
@@ -1400,7 +1423,7 @@ If not, continue on your own and click the "I myself" button`
          * пока идёт работа, и гасим в finally — иначе он остался бы висеть
          * после ошибки.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
+        const { держатьПечатает, разбитьДлинное, actionForTool } = await import(
           '@/helpers/telegramLongAnswer'
         )
         const стоп = держатьПечатает(ctx as any)
@@ -1441,9 +1464,15 @@ If not, continue on your own and click the "I myself" button`
             ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
               ? String(ctx.chat.id)
               : ''
+          const conversation = inRoom
+            ? undefined
+            : agentConversationFor(ctx.state?.topicThreadId)
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
+            // "sending a photo…" while a picture tool runs (#3665)
+            onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
           })
           /*
            * The request reached the server, so the server already stored the
@@ -1895,7 +1924,10 @@ If not, continue on your own and click the "I myself" button`
        * A private chat is unaffected: one person writing to the bot alone is
        * addressing it by definition. See groupAddressing.ts for what counts.
        */
-      if (!isAddressedToUs(ctx)) return next()
+      if (!isAddressedToUs(ctx)) {
+        void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
+        return next()
+      }
 
       /*
        * The file reaches the shelf BEFORE the agent is asked, and a refusal is
@@ -1927,7 +1959,17 @@ If not, continue on your own and click the "I myself" button`
        * of them; every later part's job gets `null` and stops. A message that
        * is not part of an album passes straight through as the only part.
        */
-      const chatLane = String(ctx.chat?.id ?? ctx.from?.id ?? '')
+      /*
+       * One lane per TAB: a long reel turn in one topic must not hold the
+       * question asked in another. Without a topic the key is unchanged.
+       */
+      const topicId = ctx.state?.topicThreadId as number | undefined
+      const chatLane =
+        String(ctx.chat?.id ?? ctx.from?.id ?? '') +
+        (topicId !== undefined ? `:t${topicId}` : '')
+      if (topicId !== undefined && ctx.chat?.type === 'private') {
+        void nameTopicQuietly(ctx, topicId)
+      }
       const albumParts = albums.collect(chatLane, ctx.message)
 
       /*
@@ -2450,6 +2492,20 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    */
   const stripButtons = async (ctx: any) =>
     ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+  /*
+   * THE BUTTONS COME BACK WHEN THE PRESS DID NOT LAND.
+   *
+   * Owner, 2026-10-03: a relay that failed used to strip the card first and
+   * then say "try again in a minute" -- with nothing left to try again on.
+   * The keyboard Telegram showed is still in the callback's own message, so
+   * the press puts exactly that back. Stripping first stays: while the relay
+   * is in flight a second tap has nothing to hit.
+   */
+  const restoreButtons = async (ctx: any) => {
+    const markup = ctx.callbackQuery?.message?.reply_markup
+    if (markup?.inline_keyboard?.length)
+      await ctx.editMessageReplyMarkup(markup).catch(() => undefined)
+  }
 
   /**
    * THE CARD SAYS WHAT WAS DECIDED, instead of going blank (issue #2418).
@@ -2496,20 +2552,38 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     )
     const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
-    // The card now carries its own outcome, with the history row intact.
-    await settleButtons(ctx, '✅ Отправлено', lead) // cyrillic-ok: button label
-    // Either press frees the proactive sweep to prepare the next card, and
-    // moves a scoped sweep on to the next person.
-    void import('@/services/crmProactive').then(m =>
-      m.noteResolved(String(ctx.from?.id ?? ''), id)
-    )
-    // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
-    // needs a lead, the log has no line for a success, and the journal had no
-    // kind. Fire-and-forget on purpose -- a journal that is down must never
-    // eat a press.
-    void import('@/services/hiveNote').then(m =>
-      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
-    )
+    /*
+     * THE CARD SAYS WHAT HAPPENED, NOT WHAT WAS HOPED.
+     *
+     * Audit 2026-10-03: the card was settled "✅ Sent" before anyone read r,
+     * so a 401 or a 5xx left a card saying "Sent" above a reply saying "not
+     * sent" -- and no button to try again. Now: sent -> "Sent"; the server
+     * ANSWERED no -> the draft was not sent, the buttons come back; the
+     * connection broke -> "not sure", and no button, because a second press
+     * could deliver the message twice.
+     */
+    if (!r.ok && !r.unknown) {
+      await restoreButtons(ctx)
+    } else {
+      // The card now carries its own outcome, with the history row intact.
+      await settleButtons(
+        ctx,
+        r.ok ? '✅ Отправлено' : '⚠️ Ушло ли — не знаю', // cyrillic-ok: button label
+        lead
+      )
+      // Either press frees the proactive sweep to prepare the next card, and
+      // moves a scoped sweep on to the next person.
+      void import('@/services/crmProactive').then(m =>
+        m.noteResolved(String(ctx.from?.id ?? ''), id)
+      )
+      // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
+      // needs a lead, the log has no line for a success, and the journal had
+      // no kind. Fire-and-forget on purpose -- a journal that is down must
+      // never eat a press.
+      void import('@/services/hiveNote').then(m =>
+        m.notePressToHive(String(ctx.from?.id ?? ''), 'sent', { lead })
+      )
+    }
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -2542,7 +2616,10 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
                 // shown as it came, because "something went wrong" would hide
                 // the only thing that says whether to retry or to rewrite.
                 (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') +
-                (r.error ?? ''),
+                (r.error ?? '') +
+                (isRu
+                  ? '. Кнопки на карточке вернулись.'
+                  : '. The card has its buttons back.'),
           extra as any
         ),
       afterSentKeyboard(lead),
@@ -2564,15 +2641,49 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    * and the press, and a restart in between strands nothing.
    */
   bot.action(/^bap:(.+)$/, async ctx => {
-    await ctx.answerCbQuery().catch(() => undefined)
+    await ctx
+      .answerCbQuery(
+        isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+      )
+      .catch(() => undefined)
     await stripButtons(ctx)
     const [, token] = ctx.match as RegExpMatchArray
-    const { answerBrowserPermission } = await import(
-      '@/services/browserApproval'
-    )
-    const said = await answerBrowserPermission(token)
-    await ctx.reply(said).catch(() => undefined)
+    const { tapBrowserPermission } = await import('@/services/browserApproval')
+    const r = await tapBrowserPermission(token)
+    if (!r.reached) await restoreButtons(ctx)
+    await ctx.reply(r.said).catch(() => undefined)
   })
+
+  /*
+   * A MEETING CARD, ANSWERED (spec: t27 specs/automation/meeting-reminders).
+   *
+   * The render sent the card; the press goes back to it as the PRESSER, and
+   * the render honours it only from the meeting's owner. The card keeps its
+   * join / directions / calendar rows and shows the outcome as a disabled
+   * button; when the render cannot be reached the original buttons come
+   * back and the person is told why, so there is still something to press.
+   */
+  bot.action(
+    /^mtg:(ok|later|cancel|done|missed):([A-Za-z0-9_-]{16,})$/,
+    async ctx => {
+      await ctx
+        .answerCbQuery(
+          isRussianFromState(ctx) ? 'Передаю ответ…' : 'Passing it on…' // cyrillic-ok: toast
+        )
+        .catch(() => undefined)
+      // Gone at once, so a second tap cannot snooze twice while we wait.
+      await stripButtons(ctx)
+      const [, action, token] = ctx.match as RegExpMatchArray
+      const { answerMeeting } = await import('@/services/meetingAnswer')
+      const r = await answerMeeting(String(ctx.from?.id ?? ''), action, token)
+      if (!r.reached) {
+        await restoreButtons(ctx)
+      } else if (r.markup) {
+        await ctx.editMessageReplyMarkup(r.markup as any).catch(() => undefined)
+      }
+      await ctx.reply(r.said).catch(() => undefined)
+    }
+  )
 
   bot.action(/^tgp:no:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
@@ -2931,6 +3042,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let pickedLook: { n: number } | null = null
       /** The client's own press for her next story reel (?start=reel). */
       let wantsReel = false
+      /** The agent package ordered from the mini app (?start=agentpkg_<id>). */
+      let orderedPackage: string | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3041,6 +3154,13 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // makes it in the background and sends it back to this chat.
             wantsReel = true
             logger.info('Story reel deep-link', { telegramId })
+          } else if (agentPackageIntent(startParam)) {
+            // A package card's "Order" press: a request for the team.
+            orderedPackage = agentPackageIntent(startParam)
+            logger.info('Agent package deep-link', {
+              telegramId,
+              package: orderedPackage,
+            })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -3072,10 +3192,36 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
       console.log('🔴 [DEBUG /start] userExists:', userDetails.isExist)
 
+      /*
+       * THE ORDER IS TAKEN BEFORE ANYTHING ELSE. A new person is about to be
+       * sent through CreateUserScene, and a local variable does not survive
+       * that trip -- so the team hears of the order and the person is told
+       * it arrived now, whoever they turn out to be.
+       */
+      if (orderedPackage && ctx.from) {
+        const orderer = ctx.from
+        const pkg = orderedPackage
+        const outcome = await placePackageOrder(orderer.id, pkg, () =>
+          notifyTeamOfPackageOrder(
+            ctx.telegram,
+            pkg,
+            orderer,
+            ctx.botInfo?.username
+          )
+        )
+        await ctx.reply(
+          agentPackageOrderReply(isRussianFromState(ctx), outcome)
+        )
+      }
+
       if (!userDetails.isExist) {
+        if (orderedPackage) ctx.session.agentPackageOrdered = true
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (orderedPackage) {
+        // Answered above; a greeting on top would bury the confirmation.
+        orderedPackage = null
       } else if (wantsApp) {
         ctx.session.appDeepLink = undefined
         await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))
@@ -3162,6 +3308,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           }
         })()
       }
+      // The fixed tabs, once per person, when the bot has topics on.
+      void ensureTabsQuietly(ctx)
     } catch (error) {
       console.log(
         '🔴 [DEBUG /start] ERROR:',
@@ -3180,6 +3328,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       )
     }
   })
+
+  registerTabsCommand(bot)
 
   // Команда /help
   bot.command('help', async ctx => {
@@ -4307,7 +4457,9 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * people press twice.
        */
       const { stopOwnerRun } = await import('@/services/ownerRuns')
-      const { requestRemoteStop } = await import('@/services/agentStopRemote')
+      const { requestRemoteStopWhy, stopReply } = await import(
+        '@/services/agentStopRemote'
+      )
       const had = stopOwnerRun(ownerId(ctx))
       /*
        * And the same press, written down on the render.
@@ -4317,19 +4469,16 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
        * call leaves its run behind it, so neither has a socket to close. The
        * render records the press and those runs read it between steps.
        *
-       * Not awaited for the answer's sake -- it is awaited so the record is
-       * in before the person is told anything -- and it never throws.
+       * With a local run the person is already being answered by the turn
+       * itself, so the reply goes out at once and the record lands behind
+       * it. Without one, the render's answer IS the answer: "nothing to
+       * stop" only when it is known, and a render that never heard the press
+       * is named, so the person presses again instead of trusting a silence.
+       * Bounded (10 s, one retry) and never throws.
        */
-      const wrote = await requestRemoteStop(ownerId(ctx))
-      await sendLong(
-        ctx,
-        had
-          ? '⏹ Останавливаю — ничего не отправлю.' // cyrillic-ok: user-facing
-          : wrote === 'written'
-            ? '⏹ Принял. Если ход идёт на сервере — он прервётся.' // cyrillic-ok: user-facing
-            : 'Сейчас нечего останавливать.', // cyrillic-ok: user-facing
-        hub()
-      )
+      const remote = requestRemoteStopWhy(ownerId(ctx))
+      await sendLong(ctx, stopReply(had, had ? 'written' : await remote), hub())
+      if (had) await remote
     } else if (verb === 'auto') await switchAutopilot(ctx, true)
     else if (verb === 'autooff') await switchAutopilot(ctx, false)
     else if (verb === 'leads') await showLeads(ctx)
