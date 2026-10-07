@@ -295,15 +295,22 @@ drift` уже значил «влито, но не выехало»; `case` бе
 
 **2026-10-07 loop (crm-story-reel v20, ratchet drift #3828):**
 
-- **A pure move of code stales mutant anchors too, not only an edit.** #3827
-  moved `carryStills`/`carryClips` above a comment and the anchors stopped
-  matching. Run `tri mutants --check` after any move; after re-anchoring,
-  rerun that exact mutant rather than trusting the new anchor.
-- **A re-anchored mutant that survives means a missing boundary vector, not a
-  bad anchor.** The killing vector for #3827's voice mutants is "voice mode
-  missing, current mode 0": `Number(null)` is `0`, so `sameVoice` alone calls
-  a missing mode the same mode, and only `voiceKnown` stops the clips from
-  being carried. A missing voice mode carries no clips.
+- **A rewrite stales mutant anchors silently until the next
+  `tri mutants --check`.** #3824 rewrote the retry rule through
+  `carryStills`/`carryClips`/`voiceKnown` and merged with three anchors
+  stale; no gate runs `--check`, so it took #3827 to find and re-anchor them.
+  Run `tri mutants --check` in the same PR as the rewrite; after
+  re-anchoring, rerun that exact mutant rather than trusting the new anchor.
+- **At current mode `VOICE_NONE` (0) only `voiceKnown` keeps a missing voice
+  mode from carrying clips.** `Number(null)` is `0`, so `sameVoice` alone
+  calls a missing mode the same mode; `carryClips` returns
+  `carryStills(sameStyle) && voiceKnown && sameVoice`, and `voiceKnown` is
+  what blocks the clips. The boundary vector, from #3824, is
+  `carryClips(true, true, false)`; it kills #3824's mutant "clips carried
+  from an unrecorded voice". The story test "a failed job that never
+  recorded its voice carries no clips" runs at mode 1 (`VOICE_CLONE`,
+  `qualify()` gives a clone), so on its own it does not cover the mode-0
+  boundary.
 - **`tri mutants` lives in `bin/tri`.** The root `./tri` reaches it only
   through its unknown-command bridge (exit 64 = "not mine"); a word the root
   `./tri` handles itself never reaches `bin/tri` that way. When in doubt, call
@@ -315,18 +322,26 @@ drift` уже значил «влито, но не выехало»; `case` бе
   PR.** Generated output plus data is allowed without it; if the label is
   truly needed, park the branch and report.
 - **Census/ratchet drift on t27 master can come from a master workflow
-  change, not from your spec.** t27#7399 added `own-language.yml` (quiet
-  181->182, shell 301->302). Compare against fresh master before blaming your
-  diff.
+  change, not from your spec.** t27#7399 added a "Foreign-line budget" `run:`
+  step to `own-language.yml` (which exists since t27 0f9f314d3, 2026-10-05)
+  without re-blessing the census; `tools/census/quiet.txt` and `shell.txt`
+  went from 181/301 to 182/302 only in t27#7451, an unrelated spec PR.
+  Compare against fresh master before blaming your diff.
 - **`git push` exiting 141 is not a failure by itself** (SIGPIPE from the
   pre-push hook output). Verify with `git ls-remote origin <branch>` and retry
   only if the branch is missing.
-- **In a 999 worktree run `./tri wt-deps` first.** The player tests need
-  `node_modules` symlinked to the main checkout; never commit that symlink
-  (add files by name).
+- **In a 999 worktree run `./tri wt-deps` first.** It links the root
+  `node_modules` to the main checkout and copies render's into a real
+  directory. It does not touch the player: the player tests need a separate
+  `ln -sfn` of `apps/vibee-editor/player/node_modules` to the main checkout
+  (`.claude/loop-opus/WORKFLOW.md`). Never commit either link (add files by
+  name).
 - **`check-t27-specs.mjs` without `--t27 <fresh t27 clone>` cannot see drift
   from t27.** Ratchet entries (`citedMissing`, `unbound`) only show up with
   it.
+- **Lessons written from a compacted session summary carried four false
+  claims (#3837 -> #3838).** Verify every fact against code or PR history
+  before it goes into a skill.
 
 ## Что уже привязано (27.09.2026)
 
