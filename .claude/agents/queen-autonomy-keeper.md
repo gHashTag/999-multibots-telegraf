@@ -78,7 +78,7 @@ stands-after-deploy --state open`. A stand that is red on two deploys
      `launchctl print gui/$(id -u)/ai.t27.stands-after-deploy | grep -E 'state|last exit'`.
    - `social_status` through the agent door (recipe: skill
      `mcp-owner-access`). Note each network's state. `needs-connect` is the
-     owner's move: the card «Подключить Threads и LinkedIn» is already on his
+     owner's move: the "connect Threads and LinkedIn" card is already on his
      phone, so do not send a second one. `no-client-id` and `no-seal-key` are
      the owner's Railway variables; name them.
    - `./tri meta` and `./tri blog-share 5`.
@@ -113,7 +113,7 @@ stands-after-deploy --state open`. A stand that is red on two deploys
    `source: "queen-autonomy"`, `headline` (at most 120 characters), `body`,
    `needs_you` (true only when an owner move is open). Then `unset` the
    variable. The route answers 400 to any other field. A non-2xx answer goes
-   into the owner report as "Королеве не доставлено (код N)".
+   into the owner report as "not delivered to the Queen (code N)".
 6. **Report to the owner in Russian, a few lines:**
    - Mac: load, swap, leaked runs found or ended;
    - stands: last deploy, green or red, open issues;
