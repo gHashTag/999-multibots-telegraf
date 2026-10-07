@@ -293,6 +293,37 @@ drift` уже значил «влито, но не выехало»; `case` бе
   documented subcommands, corpus ratchet, duplicate-bodies, coverage,
   emit-bitexact) — это не твоя спека; см. комментарии в t27#4850/#4852.
 
+**2026-10-07 loop (crm-story-reel v20, ratchet drift #3828):**
+
+- **A pure move of code stales mutant anchors too, not only an edit.** #3827
+  moved `carryStills`/`carryClips` above a comment and the anchors stopped
+  matching. Run `tri mutants --check` after any move; after re-anchoring,
+  rerun that exact mutant rather than trusting the new anchor.
+- **A re-anchored mutant that survives means a missing boundary vector, not a
+  bad anchor.** #3827's mutant lived until a test covered "voice mode missing,
+  current mode 0": `sameVoice` must treat a missing mode as the same mode.
+- **`tri mutants` works only through the repo's `bin/tri`.** The root `./tri`
+  is a different entry point.
+- **A `*.gen.ts` goes stale when t27c changes, not only when the spec
+  changes.** `mail-push.gen.ts` gained a "TestBlock was not emitted" line in
+  #3831. Regenerate with the current compiler; never hand-edit the output.
+- **A bee never applies the owner's `owner-approved-foreign` label to its own
+  PR.** Generated output plus data is allowed without it; if the label is
+  truly needed, park the branch and report.
+- **Census/ratchet drift on t27 master can come from a master workflow
+  change, not from your spec.** #7399 added `own-language.yml` (quiet
+  181->182, shell 301->302). Compare against fresh master before blaming your
+  diff.
+- **`git push` exiting 141 is not a failure by itself** (SIGPIPE from the
+  pre-push hook output). Verify with `git ls-remote origin <branch>` and retry
+  only if the branch is missing.
+- **In a 999 worktree run `./tri wt-deps` first.** The player tests need
+  `node_modules` symlinked to the main checkout; never commit that symlink
+  (add files by name).
+- **`check-t27-specs.mjs` without `--t27 <fresh t27 clone>` cannot see drift
+  from t27.** Ratchet entries (`citedMissing`, `unbound`) only show up with
+  it.
+
 ## Что уже привязано (27.09.2026)
 
 | спека                              | хост                                                                                               | что нашла привязка                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
