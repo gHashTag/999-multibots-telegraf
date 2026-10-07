@@ -9,6 +9,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useUserLevel } from '@/hooks/useUserLevel'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { CRM_PHONE_QUERY } from '@/lib/crmPhone'
 import { crmShows, type CrmBlock } from '@vibee/atoms'
 import { LevelSwitch } from '@/components/Level/LevelSwitch'
 import { LevelDashboard } from '@/components/Level/LevelDashboard'
@@ -212,6 +214,8 @@ export default function CrmPage() {
    */
   const { level, switched } = useUserLevel()
   const shows = (block: CrmBlock) => crmShows(level, block)
+  // The level switch is one line on a phone (LevelSwitch's `row` face).
+  const phone = useMediaQuery(CRM_PHONE_QUERY)
   const navigate = useNavigate()
   /*
    * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
@@ -1038,7 +1042,7 @@ export default function CrmPage() {
         </button>
       </header>
 
-      <LevelSwitch variant="chips" />
+      <LevelSwitch variant={phone ? 'row' : 'chips'} />
 
       {noticeFailure ? (
         <AllRefused reason={crmErrorText(noticeFailure, lang, t)} />

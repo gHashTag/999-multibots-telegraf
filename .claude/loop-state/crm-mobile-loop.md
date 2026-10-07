@@ -2,7 +2,7 @@
 
 <!-- loop-branch: fix/crm-mobile-ux -->
 <!-- loop-pr: 3199 -->
-<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts src/__tests__/embed-guest-panel.test.tsx src/pages/crmClientThumb.test.ts src/pages/crmInsets.test.ts src/pages/touchTargets.test.ts -->
+<!-- loop-tests: cd apps/vibee-editor/player && npx vitest run src/pages/Crm.test.tsx src/pages/CrmCockpit.test.tsx src/pages/CrmClient.test.tsx src/lib/crmRecent.test.ts src/lib/useScrollMemory.test.tsx src/lib/backTo.test.tsx src/pages/Chat.clientThread.test.tsx src/pages/chatClientRow.test.ts src/components/Crm/ClientAside.test.tsx src/lib/usePublishedHeight.test.tsx src/lib/crmMatches.test.ts src/lib/crmReason.test.ts src/__tests__/embed-guest-panel.test.tsx src/pages/crmClientThumb.test.ts src/pages/crmInsets.test.ts src/pages/touchTargets.test.ts src/lib/crmPhone.test.ts src/components/Level/__tests__/levelSwitch.test.tsx src/components/Crm/FunnelStrip.test.tsx src/__tests__/a-finger-is-44px-everywhere.test.ts -->
 
 Started 30.09.2026 by the owner's `/loop 30m`: find the weak spots of mobile
 layout and UI/UX, study competitors, write a decomposed plan, implement it,
@@ -167,8 +167,28 @@ TRI_LOOP=crm-mobile ./bin/tri loop-guard end
       now ("9 d" / "9 дн.") -- Pipedrive's "rotting N days" (tick 12)
 - [x] Test-order leak in Crm.test: one test changed the shared `answers`
       and later tests saw it. `afterEach` restores a pristine copy (tick 12)
+- [x] WORK tab's first screen (done by the story loop, turn 15, 07.10.2026,
+      branch claude/loving-mccarthy-llkh92): the first person waiting for an
+      answer ended at 926 px under a tab bar at 787 -- every size measure was
+      green. `tri shot` now has `fold` (the crm `load` state names the first
+      `.crm__open` and, from 360 px, its `.crm__why`). Off on a phone the
+      AUTO panel is one line (on / unread never fold; the folded line turns
+      nothing on), "View as" is label + native select (`LevelSwitch` face
+      `row`), funnel chips are side-by-side pills at 360-480 px only (at 320
+      they wrapped to three rows). Name 926 -> 668 px (390 ru). Its 15 guards
+      are adopted below and its 4 new test files are in the marker: do not
+      unfold AUTO-off or restack the funnel without re-measuring `fold`.
+      Open: Prepare still ends at 807 of 787 (P32 in story-loop.md).
+      Found on the way: guard #46 ("name column may widen past the row") was
+      stale since #3244 made the grid `auto minmax(0, 1fr) auto` (the t.me
+      column) -- `loop-guard start` would have stopped the next tick.
+      Re-anchored to the three-track rule, proven killed by Crm.test.tsx +
+      crmInsets.test.ts. A guard list goes stale from OTHER people's merges:
+      run `tri mutants --adopt` (it checks every anchor) after merging main
 - [ ] The lead list's `because` (chat memory, `'давно тихо'` and friends)
-      is still Russian prose on an English screen -- same cure: codes
+      is still Russian prose on an English screen -- same cure: codes.
+      Checked 07.10.2026: `loadSegment` (crm_leads) is called by no page --
+      nothing shows this text today; the item waits for a screen that does
 - [~] `tri loop-guard start` took ~11 min: every guard runs the whole
   marker. The guards now run it with `--bail=1` (3 guards: 65 -> 43 s,
   same verdicts). Next step if still slow: each guard against its
