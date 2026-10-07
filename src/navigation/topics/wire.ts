@@ -1,6 +1,6 @@
 /**
- * Where the tabs meet the bot: /start makes them, /tabs remakes them, the
- * first message of a person's own topic names it. Every call here is quiet:
+ * Where the tabs meet the bot: /start makes them, /tabs remakes the ones the
+ * person deleted, the first message of a person's own topic names it. Every call here is quiet:
  * a tab is a convenience and must never cost a person their answer.
  */
 import type { Telegraf } from 'telegraf'
@@ -8,11 +8,13 @@ import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   ensureTabs,
-  forgetFixedTabs,
   nameFreshTopic,
   topicsEnabled,
+  type EnsureOptions,
   type TabKind,
+  type TabSpec,
 } from './tabs'
+import { appButton, appDoorLabel } from '@/navigation/helpers/appLinks'
 import {
   requestManagedBotKeyboard,
   suggestBotName,
@@ -23,19 +25,42 @@ function botName(ctx: any): string {
   return String(ctx.botInfo?.username ?? '')
 }
 
-export async function ensureTabsQuietly(ctx: any): Promise<void> {
+export async function ensureTabsQuietly(
+  ctx: any,
+  opts: EnsureOptions = {}
+): Promise<void> {
   try {
     if (ctx.chat?.type !== 'private' || !topicsEnabled(ctx.botInfo)) return
     if (!botName(ctx) || !ctx.chat?.id) return
     const isRu = isRussianFromState(ctx)
-    await ensureTabs(ctx.telegram, botName(ctx), ctx.chat.id, isRu, kind =>
-      mybotMarkup(ctx, kind, isRu)
+    await ensureTabs(
+      ctx.telegram,
+      botName(ctx),
+      ctx.chat.id,
+      isRu,
+      tab => tabMarkup(ctx, tab, isRu),
+      opts
     )
   } catch (e) {
     logger.warn('[topic-tabs] ensure failed', {
       error: e instanceof Error ? e.message : String(e),
     })
   }
+}
+
+/**
+ * A tab's first message carries one button: the mini-app screen of its route
+ * (spec TAB_ROUTES), or, in "My bot" when this bot may manage bots, Telegram's
+ * own bot creation sheet.
+ */
+export function tabMarkup(ctx: any, tab: TabSpec, isRu: boolean): unknown {
+  const sheet = mybotMarkup(ctx, tab.kind, isRu)
+  if (sheet) return sheet
+  const button = appButton(appDoorLabel(tab.route, isRu), tab.route, {
+    chatType: 'private',
+    botUsername: botName(ctx) || null,
+  })
+  return button ? { inline_keyboard: [[button]] } : undefined
 }
 
 /**
@@ -75,7 +100,8 @@ export async function nameTopicQuietly(
       botName(ctx),
       ctx.chat.id,
       threadId,
-      text
+      text,
+      msg?.reply_to_message?.forum_topic_created?.name
     )
   } catch (e) {
     logger.warn('[topic-tabs] naming failed', {
@@ -84,7 +110,11 @@ export async function nameTopicQuietly(
   }
 }
 
-/** /tabs: make the fixed tabs again (after the person deleted some). */
+/**
+ * /tabs: make again the fixed tabs the person deleted. Nothing is forgotten
+ * blindly: each stored tab is asked about, and only a tab Telegram says is
+ * gone is made again. A live tab keeps its thread, its history and its name.
+ */
 export function registerTabsCommand(bot: Telegraf<any>): void {
   bot.command('tabs', async ctx => {
     const isRu = isRussianFromState(ctx as any)
@@ -97,14 +127,7 @@ export function registerTabsCommand(bot: Telegraf<any>): void {
       )
       return
     }
-    try {
-      await forgetFixedTabs(botName(ctx), ctx.chat.id)
-    } catch (e) {
-      logger.warn('[topic-tabs] forget failed', {
-        error: e instanceof Error ? e.message : String(e),
-      })
-    }
-    await ensureTabsQuietly(ctx)
+    await ensureTabsQuietly(ctx, { probe: true })
     await ctx.reply(isRu ? 'Вкладки на месте.' : 'Tabs are in place.')
   })
 }
