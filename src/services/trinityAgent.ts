@@ -47,6 +47,9 @@ const БАЗА = 'https://vibee-render-production.up.railway.app'
  * means dead, and TURN_CEILING_MS is only the backstop for a stream that
  * chatters forever without finishing.
  */
+/** Mirrors render conversation.ts CONVERSATION_RE. */
+export const CONVERSATION_ID_RE = /^[a-z0-9]{4,24}$/
+
 export const SILENCE_MS = 90_000
 export const TURN_CEILING_MS = 420_000
 
@@ -182,15 +185,17 @@ export async function fetchHistory(
 async function readConversation(
   telegramId: string,
   /*
-   * The thread the turn will be written into: an agent's own, or a room's.
+   * The thread the turn will be written into: an agent's own, a room's, or
+   * one of the person's own conversations (a topic tab of the private chat).
    * Without it a group turn carried the asker's PRIVATE history as context.
    */
-  thread: { agent?: string; room?: string } = {}
+  thread: { agent?: string; room?: string; conversation?: string } = {}
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
     const where = new URLSearchParams()
     if (thread.agent) where.set('agent', thread.agent)
     if (thread.room) where.set('room', thread.room)
+    if (thread.conversation) where.set('conversation', thread.conversation)
     const scoped = where.size ? `&${where}` : ''
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
@@ -413,6 +418,13 @@ export async function спроситьАгента(
      * Errors thrown here are swallowed: an indicator never fails a turn.
      */
     onTool?: (name: string | null) => void
+    /**
+     * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
+     * CONVERSATION_RE): a topic tab of the private chat keeps its own memory
+     * (navigation/topics/threads.ts agentConversationFor). Ignored when a
+     * room or an agent names the thread. Absent -> the base conversation.
+     */
+    conversation?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
@@ -422,7 +434,18 @@ export async function спроситьАгента(
   const agent =
     opts.agent && AGENT_ID_RE.test(opts.agent) ? opts.agent : undefined
   const room = opts.room && ROOM_RE.test(opts.room) ? opts.room : undefined
-  const past = await readConversation(telegramId, { agent, room })
+  const conversation =
+    !agent &&
+    !room &&
+    opts.conversation &&
+    CONVERSATION_ID_RE.test(opts.conversation)
+      ? opts.conversation
+      : undefined
+  const past = await readConversation(telegramId, {
+    agent,
+    room,
+    conversation,
+  })
   const messages = [
     ...past.map(turn => ({
       role: turn.role,
@@ -514,6 +537,7 @@ export async function спроситьАгента(
            */
           ...(room ? { room } : {}),
           ...(agent ? { agent } : {}),
+          ...(conversation ? { conversation } : {}),
         }),
         signal: прерыватель.signal,
       }
