@@ -42,6 +42,15 @@ npx vitest run src/__tests__/services/businessDmContext.test.ts src/__tests__/se
 - Ключ сессии `${from.id}:${chat.id}` совпадает у бизнес-чата и личного чата бота с тем же человеком.
 - Права соединения в Bot API 9.0 (`rights.can_reply`) — `canReplyOf` понимает обе формы.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `src/services/businessBotService.ts`, `src/navigation/helpers/actionButtons.ts` (`payRow`, `stripAgentMarkers`)

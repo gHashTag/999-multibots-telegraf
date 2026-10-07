@@ -100,6 +100,15 @@ each law is written once in TS and pinned by the spec vectors.
 - Run one sed mutant per law, addressed by line number. The reviewer bee found two survivors
   in t27#6564 that the author had missed, and its review is worth waiting for.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - Epic #3641; PRs #3636 (hive), #3645 (double tap, token, coverage); t27 #6430 (spec).
