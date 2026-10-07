@@ -36,6 +36,7 @@ function memoryDb() {
   const rows: any[] = []
   const ddl: string[] = []
   let selects = 0
+  let inserts = 0
   const tick = () => new Promise(r => setTimeout(r, 0))
   const mine = (r: any, p: unknown[]) => r.bot === p[0] && r.tid === p[1]
   return {
@@ -43,6 +44,9 @@ function memoryDb() {
     ddl,
     get selects() {
       return selects
+    },
+    get inserts() {
+      return inserts
     },
     async query(sql: string, p: unknown[] = []) {
       await tick()
@@ -65,6 +69,7 @@ function memoryDb() {
         }
       }
       if (q.startsWith('INSERT')) {
+        inserts++
         const [bot, tid, thread_id, kind, title] = p
         const clash = rows.some(
           r =>
@@ -365,9 +370,12 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
   it('1. /tabs twice makes nothing, and a network error forgets nothing', async () => {
     const tg = telegram()
     await ensureTabs(tg, 'b', 777, false)
+    const written = db.inserts
     await tabsCommand()(tg)
     await tabsCommand()(tg)
     expect(tg.made()).toHaveLength(TABS.length)
+    // a live stored tab is not even claimed again: no write, not just no make
+    expect(db.inserts).toBe(written)
     const flaky = telegram({ probeError: 'ETIMEDOUT' })
     await tabsCommand()(flaky)
     expect(flaky.made()).toHaveLength(0)
