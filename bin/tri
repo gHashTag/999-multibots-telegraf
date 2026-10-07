@@ -219,6 +219,7 @@ tri — оболочка Trinity S³AI
 
   Состояние проекта
   tri schema     таблицы, которые код считает существующими, против настоящих
+  tri schema-drift [--baseline]  unique indexes, defaults, NOT NULL of the live DB vs deployment/queen-watch/schema-baseline.json (read-only)
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
   tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
@@ -913,6 +914,7 @@ case "${1:-}" in
   in-bundle) shift; bash "$ROOT/bin/helpers/in-bundle.sh" "$ROOT" "$@" ;;
   work-report) shift; bash "$ROOT/bin/helpers/work-report.sh" "$@" ;;
   a2a) shift; bash "$ROOT/bin/helpers/a2a.sh" "$ROOT" "$@" ;;
+  schema-drift) shift; bash "$ROOT/bin/helpers/schema-baseline.sh" "$ROOT" "$@" ;;
   remote-check) shift; bash "$ROOT/bin/helpers/remote-check.sh" "$ROOT" "$@" ;;
   bench) shift; bash "$ROOT/bin/helpers/bench.sh" "$ROOT" "$@" ;;
   lesson) shift; bash "$ROOT/bin/helpers/lesson.sh" "$ROOT" "$@" ;;
