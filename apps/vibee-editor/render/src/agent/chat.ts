@@ -1430,6 +1430,8 @@ function ownerSideSection(surface?: string): string {
     'порядку ВХОДА В АККАУНТЫ, затем снова browser_logins и одна строка на сеть. ' + // cyrillic-ok: prompt copy
     /* #2974: where visitors come from, by the utm tag of each channel. */
     'Откуда приходят люди, по каналам (utm_source) — crm_traffic. ' + // cyrillic-ok: prompt copy
+    /* automation/bot-topic-tabs.t27: the person's private-chat topic tabs. */
+    'Вкладки-темы человека в боте (Агент, Рилсы, Браузер…): какие есть, а каких нет — tabs_status. ' + // cyrillic-ok: prompt copy
     /* automation/ball-board.t27: one board of CRM, mail and code work by client. */
     'Где мяч по всем делам сразу — CRM, почта, открытые PR и баги, по ' + // cyrillic-ok: prompt copy
     'клиентам, чей ход — ball_board; адрес, домен, репо или метку к ' + // cyrillic-ok: prompt copy

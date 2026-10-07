@@ -17,9 +17,11 @@ import {
   forgetRow,
   makeTab,
   mayRename,
+  maySetUp,
   nameChars,
   nameFits,
   readsDb,
+  settleWon,
   tableColorsAllowed,
   tableColorsDistinct,
   threadMissing,
@@ -106,6 +108,11 @@ describe('spec bot-topic-tabs.t27', () => {
     expect(
       threadMissing({ response: { description: 'Too Many Requests' } })
     ).toBe(false)
+    // the probe's "nothing changed" is a live topic, not a missing one
+    expect(
+      threadMissing(new Error('400: Bad Request: TOPIC_NOT_MODIFIED'))
+    ).toBe(false)
+    expect(SPEC.PROBE_METHOD).toBe('editForumTopic')
   })
 
   it('only the claim that landed makes the tab, and a dead claim expires', () => {
@@ -118,12 +125,30 @@ describe('spec bot-topic-tabs.t27', () => {
   })
 
   it("only a person's own unknown topic is named from its first message", () => {
-    expect(mayRename(false, false, false)).toBe(true)
-    expect(mayRename(true, false, false)).toBe(false)
-    expect(mayRename(false, true, false)).toBe(false)
-    expect(mayRename(false, false, true)).toBe(false)
+    expect(mayRename(false, false, false, false)).toBe(true)
+    expect(mayRename(true, false, false, false)).toBe(false)
+    expect(mayRename(false, true, false, false)).toBe(false)
+    expect(mayRename(false, false, true, false)).toBe(false)
     // a command makes no name, so it is never a topic's name either
     expect(topicTitleFrom('/start')).toBe('')
+  })
+
+  it("no topic is named while one of the person's tabs is being made", () => {
+    expect(mayRename(false, false, false, true)).toBe(false)
+    expect(mayRename(true, false, false, true)).toBe(false)
+  })
+
+  it('a slow maker whose claim was taken keeps nothing and deletes its topic', () => {
+    expect(settleWon(1)).toBe(true)
+    expect(settleWon(0)).toBe(false)
+    expect(settleWon(2)).toBe(false)
+  })
+
+  it("a person's tabs are set up by that person or a keeper", () => {
+    expect(maySetUp(true, false)).toBe(true)
+    expect(maySetUp(false, true)).toBe(true)
+    expect(maySetUp(true, true)).toBe(true)
+    expect(maySetUp(false, false)).toBe(false)
   })
 
   it('a send named its own thread, even null, keeps it', () => {
@@ -151,6 +176,6 @@ describe('spec bot-topic-tabs.t27', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
