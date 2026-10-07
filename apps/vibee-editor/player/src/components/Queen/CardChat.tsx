@@ -33,6 +33,9 @@ import {
 } from '@/lib/threadLive'
 import * as SPEC from '@/spec/kanban-card-chat.gen'
 import { AgentCards } from '@/components/Chat/AgentCards'
+import { BeeLog } from '@/components/Queen/BeeLog'
+import { useBeeWork } from '@/hooks/useBeeWork'
+import { toolCount } from '@/lib/cardWork'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
@@ -92,6 +95,27 @@ export function CardChat({
   const [titleOpen, setTitleOpen] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<CardStatus | null>(null)
+  // v7: the card's two faces -- the conversation and the bee at work. Until
+  // the person picks one, a card a bee is on opens on the bee (S20).
+  const [picked, setPicked] = useState<'chat' | 'bee' | null>(null)
+  const [beeSeen, setBeeSeen] = useState(beeFirst(card))
+  const face = picked ?? (beeSeen ? 'bee' : 'chat')
+  const beeWork = useBeeWork(card.task, card.repo ?? '', face === 'bee')
+  const beeRunning = beeWork.kind === 'bee' && beeWork.bee.running
+  useEffect(() => {
+    setPicked(null)
+    setBeeSeen(beeFirst(card))
+    // A new card starts on its own face; the column alone is not a new card.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.task])
+  useEffect(() => {
+    if (beeRunning && SPEC.BEE_FACE_FIRST_RUNNING) setBeeSeen(true)
+  }, [beeRunning])
+  // A log is read by its height: at HALF it is two lines (tri shot
+  // card-chat-bee, 03.10), so turning to the bee takes the sheet to FULL.
+  useEffect(() => {
+    if (face === 'bee') setDetent(SPEC.BEE_FACE_DETENT as Detent)
+  }, [face])
 
   // The task's work: the server's one read when it has a token, else this
   // client's own read of GitHub's public API.
@@ -241,6 +265,8 @@ export function CardChat({
     if (!trimmed) return
     sendOrQueue(trimmed, [], { task: card.task })
     setInput('')
+    // The answer lands in the chat: show it there (SEND_SHOWS_CHAT).
+    if (SPEC.SEND_SHOWS_CHAT) setPicked('chat')
   }
 
   const title =
@@ -302,6 +328,12 @@ export function CardChat({
           <span className="card-chat__title">{title}</span>
           {busy && (
             <span className="card-chat__busy">{t('cardChat.busy')}</span>
+          )}
+          {!busy && beeRunning && (
+            <span className="card-chat__bee-peek">
+              <span className="card-chat__tab-live" aria-hidden="true" />
+              {t('cardChat.bee.running')}
+            </span>
           )}
         </div>
       }
@@ -369,55 +401,113 @@ export function CardChat({
           onMoved={c => onResolved?.(c)}
         />
         <div
-          className="card-chat__log"
-          ref={logRef}
-          role="log"
-          aria-live="polite"
+          className="card-chat__tabs"
+          role="tablist"
+          aria-label={t('cardChat.tab.label')}
         >
-          {messages.length === 0 && (
-            <div className="card-chat__empty">
-              <p>{loading ? t('cardChat.loading') : t('cardChat.empty')}</p>
-              {!loading && (
-                <div className="card-chat__starters">
-                  {starters.map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      className="card-chat__starter"
-                      onClick={() => send(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
+          <button
+            type="button"
+            role="tab"
+            id="card-chat-tab-chat"
+            aria-controls="card-chat-face"
+            aria-selected={face === 'chat'}
+            className="card-chat__tab"
+            onClick={() => setPicked('chat')}
+          >
+            {t('cardChat.tab.chat')}
+            {messages.length > 0 && (
+              <span className="card-chat__tab-count">{messages.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="card-chat-tab-bee"
+            aria-controls="card-chat-face"
+            aria-selected={face === 'bee'}
+            className="card-chat__tab"
+            onClick={() => setPicked('bee')}
+          >
+            {beeRunning && (
+              <span className="card-chat__tab-live" aria-hidden="true" />
+            )}
+            {t('cardChat.tab.bee')}
+            {beeWork.kind === 'bee' && toolCount(beeWork.rows) > 0 && (
+              <span className="card-chat__tab-count">
+                {toolCount(beeWork.rows)}
+              </span>
+            )}
+          </button>
+        </div>
+        {face === 'bee' ? (
+          <div
+            id="card-chat-face"
+            role="tabpanel"
+            aria-labelledby="card-chat-tab-bee"
+            className="card-chat__face"
+          >
+            <BeeLog work={beeWork} />
+          </div>
+        ) : (
+          <div
+            id="card-chat-face"
+            role="tabpanel"
+            aria-labelledby="card-chat-tab-chat"
+            className="card-chat__face"
+          >
+            <div
+              className="card-chat__log"
+              ref={logRef}
+              role="log"
+              aria-live="polite"
+            >
+              {messages.length === 0 && (
+                <div className="card-chat__empty">
+                  <p>{loading ? t('cardChat.loading') : t('cardChat.empty')}</p>
+                  {!loading && (
+                    <div className="card-chat__starters">
+                      {starters.map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          className="card-chat__starter"
+                          onClick={() => send(s)}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
+              {messages.map((m, idx) => {
+                const assistant = m.role === 'assistant'
+                // The markers are the agent's proposals; the bubble shows words.
+                const text = assistant ? parseCards(m.text || '').text : m.text
+                return (
+                  <div key={m.id} className="card-chat__turn">
+                    <div className={`card-chat__msg card-chat__msg--${m.role}`}>
+                      {m.surface === 'agent' && assistant && (
+                        <span className="card-chat__via">
+                          {t('cardChat.viaA2A')}
+                        </span>
+                      )}
+                      {text ||
+                        (assistant && busy ? t('cardChat.thinking') : '')}
+                    </div>
+                    {assistant && m.text && cardsOf(m.text, idx)}
+                  </div>
+                )
+              })}
+              {workSaid && (
+                <p className="card-chat__doing" role="status">
+                  <span className="card-chat__doing-dot" aria-hidden="true" />
+                  {workSaid}
+                </p>
+              )}
             </div>
-          )}
-          {messages.map((m, idx) => {
-            const assistant = m.role === 'assistant'
-            // The markers are the agent's proposals; the bubble shows words.
-            const text = assistant ? parseCards(m.text || '').text : m.text
-            return (
-              <div key={m.id} className="card-chat__turn">
-                <div className={`card-chat__msg card-chat__msg--${m.role}`}>
-                  {m.surface === 'agent' && assistant && (
-                    <span className="card-chat__via">
-                      {t('cardChat.viaA2A')}
-                    </span>
-                  )}
-                  {text || (assistant && busy ? t('cardChat.thinking') : '')}
-                </div>
-                {assistant && m.text && cardsOf(m.text, idx)}
-              </div>
-            )
-          })}
-          {workSaid && (
-            <p className="card-chat__doing" role="status">
-              <span className="card-chat__doing-dot" aria-hidden="true" />
-              {workSaid}
-            </p>
-          )}
-        </div>
+          </div>
+        )}
         <form
           className="card-chat__composer"
           onSubmit={e => {
@@ -462,6 +552,13 @@ export function CardChat({
         </form>
       </div>
     </DetentSheet>
+  )
+}
+
+/** A card a bee is on opens on its bee (BEE_FACE_FIRST_RUNNING). */
+function beeFirst(card: OpenCard): boolean {
+  return (
+    SPEC.BEE_FACE_FIRST_RUNNING && columnCode(card.column) === SPEC.COL_RUNNING
   )
 }
 

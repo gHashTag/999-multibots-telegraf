@@ -8,7 +8,8 @@ import {
 } from './managed-bot-create'
 import { BOT_USERNAME_RE } from '../managed-bots-protocol'
 
-const FAKE_TOKEN = '900000033:ZZfakefakefakefakefakefakefakefake' // secret-guard-ok: fake fixture token
+// Shorter than a real secret half, so no secret scanner reads it as one.
+const FAKE_TOKEN = '900000033:fixture-not-a-token'
 
 function stub(canManage: boolean, sendOk = true) {
   const calls: Array<{ method: string; body?: any }> = []
@@ -40,7 +41,7 @@ function stub(canManage: boolean, sendOk = true) {
   return { tool: makeCreateBotTool(deps), calls }
 }
 
-const ctx = { telegramId: '144022504', pool: null } as any
+const ctx = { telegramId: '900000034', pool: null } as any
 
 describe('tg_create_bot', () => {
   it('returns the newbot link and sends the button when can_manage_bots is true', async () => {
@@ -85,7 +86,7 @@ describe('tg_create_bot', () => {
 
   it('suggests a valid username when none or an invalid one is given', async () => {
     const { tool } = stub(true)
-    for (const username of [undefined, '1bad name!', 'x', '@neurocoder']) {
+    for (const username of [undefined, '1bad name!', 'x', '@example_bot']) {
       const out: any = await tool.handler({ username }, ctx)
       expect(BOT_USERNAME_RE.test(out.suggested.username)).toBe(true)
     }

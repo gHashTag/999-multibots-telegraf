@@ -1,0 +1,195 @@
+{
+  "_comment": "tri jam fixture (bin/helpers/test_jam.py). Commit tokens like a1 expand to 40-hex SHAs; {sha:a1} in a check text expands the same way. now is 12:00Z.",
+  "now": "2026-10-03T12:00:00Z",
+  "prs": [
+    {
+      "n": 101,
+      "unmeasured": "gh api graphql: HTTP 502",
+      "expect": "JAM_UNMEASURED"
+    },
+    {
+      "n": 102,
+      "draft": true,
+      "commits": [["d1", "2026-10-03T08:00:00Z"]],
+      "expect": "JAM_DRAFT_OR_FRESH"
+    },
+    {
+      "n": 103,
+      "commits": [["f1", "2026-10-03T11:55:00Z"]],
+      "expect": "JAM_DRAFT_OR_FRESH"
+    },
+    {
+      "n": 104,
+      "commits": [
+        ["a1", "2026-10-03T08:00:00Z"],
+        ["a2", "2026-10-03T08:10:00Z"]
+      ],
+      "checks": [
+        ["github-actions", "Tests", "FAILURE", 0, ""],
+        ["github-actions", "Lint", "FAILURE", 0, ""]
+      ],
+      "expect": "JAM_NOISE_RED"
+    },
+    {
+      "n": 105,
+      "commits": [
+        ["a1", "2026-10-03T08:00:00Z"],
+        ["a2", "2026-10-03T08:10:00Z"],
+        ["b1", "2026-10-03T09:00:00Z"]
+      ],
+      "expect": "JAM_STACKED_ON_OPEN",
+      "parent": 104
+    },
+    {
+      "n": 106,
+      "base": "feat/b104",
+      "commits": [["c1", "2026-10-03T09:00:00Z"]],
+      "expect": "JAM_STACKED_ON_OPEN",
+      "parent": 104
+    },
+    {
+      "n": 107,
+      "mergeable": "CONFLICTING",
+      "commits": [["e1", "2026-10-03T09:00:00Z"]],
+      "expect": "JAM_CONFLICTING"
+    },
+    {
+      "n": 108,
+      "labels": ["bee-reviewed"],
+      "labeled": "2026-10-03T10:00:00Z",
+      "commits": [["g1", "2026-10-03T09:00:00Z"]],
+      "comments": [["2026-10-03T10:00:00Z", "Reviewer bee: approved."]],
+      "expect": "JAM_LABELED_NOT_MERGED"
+    },
+    {
+      "n": 109,
+      "commits": [
+        ["h1", "2026-10-03T09:00:00Z"],
+        ["h2", "2026-10-03T11:00:00Z"]
+      ],
+      "comments": [
+        [
+          "2026-10-03T10:00:00Z",
+          "Reviewer bee Z: not merged -- the test is a spelling test"
+        ]
+      ],
+      "expect": "JAM_REFUSED_THEN_PUSHED"
+    },
+    {
+      "n": 110,
+      "commits": [["i1", "2026-10-03T09:00:00Z"]],
+      "comments": [
+        [
+          "2026-10-03T10:00:00Z",
+          "bee-7: not merging (yet), the guard is missing"
+        ]
+      ],
+      "expect": "JAM_REFUSED_NOT_FIXED"
+    },
+    {
+      "n": 111,
+      "commits": [["j1", "2026-10-03T09:00:00Z"]],
+      "force_pushed": "2026-10-03T11:00:00Z",
+      "comments": [
+        ["2026-10-03T10:00:00Z", "Reviewer bee: changes requested, see below"]
+      ],
+      "expect": "JAM_REFUSED_THEN_PUSHED"
+    },
+    {
+      "n": 112,
+      "commits": [["k1", "2026-10-03T09:00:00Z"]],
+      "comments": [
+        ["2026-10-03T09:30:00Z", "Looks fine to me (a human, no bee named)"]
+      ],
+      "expect": "JAM_NO_REVIEWER"
+    },
+    {
+      "n": 113,
+      "commits": [["l1", "2026-10-03T10:00:00Z"]],
+      "comments": [
+        ["2026-10-03T11:50:00Z", "Reviewer bee: reading the diff now"]
+      ],
+      "checks": [["github-actions", "Tests", "FAILURE", 0, ""]],
+      "expect": "JAM_NONE"
+    },
+    {
+      "n": 114,
+      "commits": [["m1", "2026-10-03T10:00:00Z"]],
+      "comments": [["2026-10-03T10:30:00Z", "Reviewer bee: approved."]],
+      "expect": "JAM_NO_REVIEWER"
+    },
+    {
+      "n": 115,
+      "commits": [
+        ["o1", "2026-10-03T09:00:00Z"],
+        ["o2", "2026-10-03T09:30:00Z"]
+      ],
+      "checks": [
+        [
+          "gitguardian",
+          "GitGuardian Security Checks",
+          "FAILURE",
+          0,
+          "| 1 | Triggered | Generic | {sha:o2} | x.ts |"
+        ],
+        ["github-actions", "Tests", "FAILURE", 0, ""]
+      ],
+      "expect": "JAM_NO_REVIEWER",
+      "note": "RED"
+    },
+    {
+      "n": 116,
+      "commits": [
+        ["p1", "2026-10-03T09:00:00Z"],
+        ["p2", "2026-10-03T09:30:00Z"]
+      ],
+      "checks": [
+        [
+          "gitguardian",
+          "GitGuardian Security Checks",
+          "FAILURE",
+          0,
+          "| 1 | Triggered | Generic | {sha:p1} | x.ts |"
+        ]
+      ],
+      "expect": "JAM_NOISE_RED"
+    },
+    {
+      "n": 117,
+      "author": "app/dependabot",
+      "title": "chore(deps): bump the npm group",
+      "expect": "dependabot"
+    },
+    {
+      "n": 118,
+      "title": "release(board): ship trinity 2c21b25",
+      "expect": "owners"
+    },
+    {
+      "n": 119,
+      "commits": [
+        ["q1", "2026-10-03T09:00:00Z"],
+        ["q2", "2026-10-03T11:00:00Z"]
+      ],
+      "comments": [
+        ["2026-10-03T10:00:00Z", "Reviewer bee: not merged -- missing test"],
+        ["2026-10-03T11:45:00Z", "Second bee: re-reviewing the new head"]
+      ],
+      "expect": "JAM_NONE"
+    },
+    {
+      "n": 120,
+      "commits": [["r1", "2026-10-03T09:00:00Z"]],
+      "reviews": [
+        ["2026-10-03T10:00:00Z", "CHANGES_REQUESTED", "Please split this."]
+      ],
+      "expect": "JAM_REFUSED_NOT_FIXED"
+    },
+    {
+      "n": 121,
+      "commits": [["s1", "2026-10-03T09:00:00Z"]],
+      "truncated": true,
+      "expect": "JAM_UNMEASURED"
+    }
+  ]
+}

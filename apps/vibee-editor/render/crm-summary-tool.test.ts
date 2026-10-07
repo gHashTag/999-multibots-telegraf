@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+/*
+ * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
+ * That import is CPU-bound -- ~1.5-2.3 s cold on an idle machine, 4.4-5.0 s
+ * at load ~25 -- and is free only when an earlier test already paid it. Run
+ * alone (`-t`, a reorder) the test pays it under vitest's 5 s default.
+ */
+const SLOW_IMPORT_TIMEOUT_MS = 30_000
+
 /**
  * THE OVERVIEW: every number derived the way the list derives it, from a
  * three-person memory -- one waiting, one who asked a price and was answered,
@@ -325,11 +333,15 @@ describe('crm_summary', () => {
     expect(r.people_with_messages).toBe(3)
   })
 
-  it('is registered, and it is in the compact seller kit', async () => {
-    const { TOOLS_BY_NAME, COMPACT_TOOLS } = await import('./src/agent/tools')
-    expect(TOOLS_BY_NAME.has('crm_summary')).toBe(true)
-    expect(COMPACT_TOOLS.test('crm_summary')).toBe(true)
-  })
+  it(
+    'is registered, and it is in the compact seller kit',
+    async () => {
+      const { TOOLS_BY_NAME, COMPACT_TOOLS } = await import('./src/agent/tools')
+      expect(TOOLS_BY_NAME.has('crm_summary')).toBe(true)
+      expect(COMPACT_TOOLS.test('crm_summary')).toBe(true)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
 })
 
 describe('the touches helpers', () => {

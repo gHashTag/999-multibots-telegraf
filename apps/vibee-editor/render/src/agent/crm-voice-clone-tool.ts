@@ -136,6 +136,8 @@ const SHORT_NOTE =
 export function makeLeadVoiceTool(deps: LeadVoiceDeps): AgentTool {
   return {
     name: 'crm_voice_clone',
+    // The one-time clone price (TOKEN_PRICES.voice_clone), charged through deps.
+    charges: ['voice_clone'],
     description:
       'Клон голоса клиента из ЕГО голосовых в твоей личке с ним — чтобы его подарок (рилс про его дело) ' +
       `говорил его голосом. Берутся только его голосовые, не твои; нужно от ${LEAD_VOICE_MIN_SECONDS} с, ` +

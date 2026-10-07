@@ -6,13 +6,15 @@
 export const KIND = "automation" satisfies string;
 export const ID = "engage-desk" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 3 satisfies number;
 export const TICK_MS = 300000 satisfies number;
-export const SEARCH_EVERY_MS = 21600000 satisfies number;
+export const SEARCH_EVERY_MS = 7200000 satisfies number;
+export const SEARCH_STALE_MS = 1800000 satisfies number;
+export const TOPICS_PER_SEARCH = 3 satisfies number;
 export const ANSWER_WAIT_MS = 86400000 satisfies number;
 export const DAY_MS = 86400000 satisfies number;
-export const DAILY_CAP_PER_NETWORK = 3 satisfies number;
-export const PER_SEARCH_PER_NETWORK = 1 satisfies number;
+export const DAILY_CAP_PER_NETWORK = 5 satisfies number;
+export const PER_SEARCH_PER_NETWORK = 2 satisfies number;
 export const POST_MAX_AGE_MS = 604800000 satisfies number;
 export const COMMENT_MIN_CHARS = 80 satisfies number;
 export const COMMENT_MAX_CHARS = 1000 satisfies number;
@@ -23,8 +25,22 @@ export const ONE_COMMENT_PER_POST = true satisfies boolean;
 export const MENTIONS_ALLOWED = false satisfies boolean;
 export const DMS_ALLOWED = false satisfies boolean;
 export const CLAIM_GUARD_REQUIRED = true satisfies boolean;
+export const OWN_POSTS_SKIPPED = true satisfies boolean;
+export const NOTHING_FOUND_REASONS = 7 satisfies number;
 export const READER_NETWORKS = 5 satisfies number;
-export const PARALLEL_TABS_MAX = 3 satisfies number;
+export const HABR_READS_WITHOUT_SIGN_IN = true satisfies boolean;
+export const PARALLEL_TABS_MAX = 8 satisfies number;
+export const PIDS_MAX = 1000 satisfies number;
+export const PIDS_BROWSER_BASE = 250 satisfies number;
+export const PIDS_PER_TAB = 44 satisfies number;
+export const PIDS_MARGIN = 100 satisfies number;
+export const PAGE_CEILING = 14 satisfies number;
+export const POD_SCREEN_WIDTH = 1280 satisfies number;
+export const DESK_WINDOW_LEFT = 6000 satisfies number;
+export const DESK_TABS_CLOSED = true satisfies boolean;
+export const SWEEP_SKIPS_DESK_TABS = true satisfies boolean;
+export const TELEGRAM_READS_PREVIEW = true satisfies boolean;
+export const TELEGRAM_JOINS = false satisfies boolean;
 export const PROMO_SHARE_MAX_PERCENT = 10 satisfies number;
 export const PROMO_WINDOW_MS = 2592000000 satisfies number;
 export const RULES_READ_FIRST = true satisfies boolean;
@@ -35,6 +51,12 @@ export const LEAD_CHECK_AFTER_MS = 86400000 satisfies number;
 export const LEAD_CHECK_LAST_MS = 604800000 satisfies number;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn search_due was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn search_may_start was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn topic_at was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn worth_a_comment was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn search_has_room was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_search was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn ask_says_no_sign_in was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fresh was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn fits was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_propose was not emitted -- this backend lowers declarations, not bodies.
@@ -46,7 +68,19 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn promo_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn community_allows was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_draft was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn tabs_room was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn signed_in was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn telegram_may_comment was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn lead_check_due was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -67,7 +101,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TICK_MS", "SEARCH_EVERY_MS", "ANSWER_WAIT_MS", "DAY_MS", "DAILY_CAP_PER_NETWORK", "PER_SEARCH_PER_NETWORK", "POST_MAX_AGE_MS", "COMMENT_MIN_CHARS", "COMMENT_MAX_CHARS", "X_COMMENT_MAX_CHARS", "RECEIPT_SNIPPET_CHARS", "ASK_NEEDS_YES", "ONE_COMMENT_PER_POST", "MENTIONS_ALLOWED", "DMS_ALLOWED", "CLAIM_GUARD_REQUIRED", "READER_NETWORKS", "PARALLEL_TABS_MAX", "PROMO_SHARE_MAX_PERCENT", "PROMO_WINDOW_MS", "RULES_READ_FIRST", "THREAD_CONTEXT_REQUIRED", "VOICE_REFRESH_MS", "VOICE_SAMPLES", "LEAD_CHECK_AFTER_MS", "LEAD_CHECK_LAST_MS", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TICK_MS", "SEARCH_EVERY_MS", "SEARCH_STALE_MS", "TOPICS_PER_SEARCH", "ANSWER_WAIT_MS", "DAY_MS", "DAILY_CAP_PER_NETWORK", "PER_SEARCH_PER_NETWORK", "POST_MAX_AGE_MS", "COMMENT_MIN_CHARS", "COMMENT_MAX_CHARS", "X_COMMENT_MAX_CHARS", "RECEIPT_SNIPPET_CHARS", "ASK_NEEDS_YES", "ONE_COMMENT_PER_POST", "MENTIONS_ALLOWED", "DMS_ALLOWED", "CLAIM_GUARD_REQUIRED", "OWN_POSTS_SKIPPED", "NOTHING_FOUND_REASONS", "READER_NETWORKS", "HABR_READS_WITHOUT_SIGN_IN", "PARALLEL_TABS_MAX", "PIDS_MAX", "PIDS_BROWSER_BASE", "PIDS_PER_TAB", "PIDS_MARGIN", "PAGE_CEILING", "POD_SCREEN_WIDTH", "DESK_WINDOW_LEFT", "DESK_TABS_CLOSED", "SWEEP_SKIPS_DESK_TABS", "TELEGRAM_READS_PREVIEW", "TELEGRAM_JOINS", "PROMO_SHARE_MAX_PERCENT", "PROMO_WINDOW_MS", "RULES_READ_FIRST", "THREAD_CONTEXT_REQUIRED", "VOICE_REFRESH_MS", "VOICE_SAMPLES", "LEAD_CHECK_AFTER_MS", "LEAD_CHECK_LAST_MS", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

@@ -76,9 +76,6 @@ vi.doMock('telegram', async importOriginal => {
     async connect() {
       script.timeline.push('connect')
     }
-    async checkAuthorization() {
-      return true
-    }
     private async maybeFail(method: string) {
       const msg = script.failFirst[method]
       if (msg) {
@@ -102,6 +99,8 @@ vi.doMock('telegram', async importOriginal => {
       return script.participants
     }
     async invoke(req: unknown) {
+      // The login probe client() runs before every tool; not a tool's call.
+      if (req instanceof actual.Api.updates.GetState) return {}
       script.calls.push({ method: 'invoke', req })
       await this.maybeFail('invoke')
       return script.commonChats

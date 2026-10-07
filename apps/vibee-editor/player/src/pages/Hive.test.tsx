@@ -256,6 +256,22 @@ describe('the game address follows the board, and the board the address', () => 
     tick(BOARD_GRACE_MS + 800)
     expect(container.querySelector('a.hive-out')).toBeNull()
   })
+
+  it('the tab names the game with no view word, on every view, and is put back on the way out', () => {
+    // Owner, 2026-10-04, a screenshot of /game/browser: the tab still said
+    // "AI Video Editor | Powered by V5 Ultra-Minimal Language". Then, of the
+    // first fix: "BROWSER ·" is not a word the tab should carry.
+    document.title = 'before the game'
+    open('/game/browser')
+    expect(document.title).toBe('app.title')
+    board.hash = '#/queen?tab=kanban'
+    tick()
+    expect(document.title).toBe('app.title')
+    expect(document.title).not.toMatch(/BROWSER|KANBAN|·/)
+    act(() => root.unmount())
+    expect(document.title).toBe('before the game')
+    root = createRoot(container)
+  })
 })
 
 /**

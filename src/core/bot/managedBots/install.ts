@@ -127,19 +127,23 @@ export async function onManagedBot(
 ): Promise<void> {
   const copy = copyFor(event.ownerLanguage)
   try {
-    await rememberManagedBot(event, managerUsername)
-    await launchManagedBot(
-      manager,
-      {
-        botId: event.botId,
-        botUsername: event.botUsername,
-        botName: event.botName,
-        ownerId: event.ownerId,
-      },
-      deps,
+    let row: ManagedBotRow = (await rememberManagedBot(
+      event,
       managerUsername
-    )
-    if (announce)
+    )) ?? {
+      botId: event.botId,
+      botUsername: event.botUsername,
+      botName: event.botName,
+      ownerId: event.ownerId,
+    }
+    // A catalogue agent's bot (agentHive): bound before the first launch, so
+    // it never answers a single message as a client bot.
+    if (!row.agentId && deps.claimAgent)
+      row = (await deps.claimAgent(event, managerUsername)) ?? row
+    await launchManagedBot(manager, row, deps, managerUsername)
+    if (row.agentId && deps.agentBorn) {
+      if (announce) await deps.agentBorn(row)
+    } else if (announce)
       await deps.tellOwner(event.ownerId, copy.created(event.botUsername))
   } catch (error) {
     logger.error('[managed-bots] a created bot could not be brought up', {

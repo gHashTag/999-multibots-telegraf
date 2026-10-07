@@ -29,6 +29,8 @@ export type HiveNote = {
     | 'sweep-idle'
     | 'sweep-card'
     | 'sweep-failed'
+    /** A busy provider: the client was deferred to the next tick. */
+    | 'sweep-deferred'
     | 'sweep-held'
     | 'card-pressed'
     /** A card that left under AUTO, with nobody pressing anything. */
@@ -96,10 +98,14 @@ export type HiveNote = {
  */
 const TOOK_CHARS = 12
 
-function withTook(text: string, ms?: number): string {
-  const body = text.slice(0, 300 - TOOK_CHARS)
-  if (!Number.isFinite(ms) || (ms as number) < 0) return text.slice(0, 300)
-  return `${body} [${Math.round((ms as number) / 1000)}s]`
+function withTook(text: string, ms?: number, model?: string): string {
+  // The model goes BEFORE the duration: readers (bin/helpers/turn-time.sh)
+  // anchor `[Ns]` at the end of the line.
+  const by = model ? ` [${model.slice(0, 60)}]` : ''
+  const timed = Number.isFinite(ms) && (ms as number) >= 0
+  const body = text.slice(0, 300 - by.length - (timed ? TOOK_CHARS : 0))
+  if (!timed) return body + by
+  return `${body}${by} [${Math.round((ms as number) / 1000)}s]`
 }
 
 /** What the journal should say about this outcome, or null for non-sweeps. */
@@ -114,14 +120,14 @@ export function noteForSweep(
       return {
         kind: 'sweep-idle',
         who: owner,
-        what: withTook(prefix + r.why, r.ms),
+        what: withTook(prefix + r.why, r.ms, r.model),
         severity: 'normal',
       }
     case 'card':
       return {
         kind: 'sweep-card',
         who: owner,
-        what: withTook(prefix + r.why, r.ms),
+        what: withTook(prefix + r.why, r.ms, r.model),
         severity: 'normal',
       }
     /*
@@ -151,7 +157,16 @@ export function noteForSweep(
       return {
         kind: 'sweep-failed',
         who: owner,
-        what: withTook(prefix + r.why, r.ms),
+        what: withTook(prefix + r.why, r.ms, r.model),
+        severity: 'attention',
+      }
+    // A busy provider: the client waits for the next tick. Counted under its
+    // own kind so it is neither a failure nor silent.
+    case 'deferred':
+      return {
+        kind: 'sweep-deferred',
+        who: owner,
+        what: withTook(prefix + r.why, r.ms, r.model),
         severity: 'attention',
       }
     default:

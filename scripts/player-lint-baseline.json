@@ -1,6 +1,6 @@
 {
-  "errors": 407,
-  "files": 742,
-  "measured": "2026-10-02",
+  "errors": 406,
+  "files": 766,
+  "measured": "2026-10-07",
   "note": "may only go down; see scripts/player-lint-ratchet.cjs"
 }

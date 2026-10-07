@@ -9,9 +9,19 @@
  * The chain, each part borrowed from the registry so it charges and refunds
  * exactly as when called alone:
  *
- *   voice    -- audio_generate (the owner's clone; for_lead: the client's)
- *   gate     -- the voice is measured; longer than SPEECH_MAX_SECONDS is
- *               refused BEFORE any still or lip-sync is paid for
+ *   estimate -- a new voice is estimated from its text in speech units, at
+ *               the slower of MS_PER_CHAR and the slowest pace THAT voice
+ *               was ever measured at (its clone's row); too long for
+ *               SPEECH_MAX_SECONDS is refused BEFORE the voice is paid for
+ *               (split-reel v8, per voice since v9)
+ *   voice    -- audio_generate (the owner's clone on the house's own reel;
+ *               a client's reel speaks the client's voice -- split-reel v7)
+ *   gate     -- the voice is measured, and a clone's pace is kept on its
+ *               row so its next text is judged at it (v9). Longer than
+ *               SPEECH_MAX_SECONDS is refused BEFORE any still or lip-sync
+ *               is paid for (the backstop for a voice slower than its
+ *               estimate). The one refusal after a charge, so a voice THIS
+ *               call paid for is given back, once (v8 backstop_refund)
  *   b-roll   -- image_edit with the spec's BROLL_MODEL, one still per split
  *               shot the voice actually needs, all at once, no text in them
  *   lip-sync -- lipsync_generate with the spec's LIPSYNC_MODEL
@@ -29,14 +39,46 @@ import { join } from 'node:path'
 import type { AgentTool } from './tools'
 import * as SPEC from '../spec/split-reel.gen'
 import {
+  agentSuppliedHouseName,
+  callDrawn,
   captionsFromWords,
   framesForSeconds,
+  houseNameAllowed,
+  houseOwnTurn,
+  leadOfTurn,
+  backstopRefund,
+  msOfSeconds,
+  paceToKeep,
+  reelCallColour,
   speechFrames,
+  speechMsEstimate,
+  speechUnits,
   splitReelProps,
   splitSegments,
+  textFits,
+  voiceTooLong,
+  type ReelCallColour,
   type SpeechFrames,
   type SpokenWord,
 } from '../split-reel-plan'
+import {
+  clientCallColourOf,
+  clientCtaOf,
+  STORY_DEFAULT_CTA,
+} from './story-template'
+// The call's colour is read as the story reel reads its end card: the same
+// #hex check, the same contrast, the same shade (crm-story-reel.t27).
+import {
+  contrastX10,
+  endCardOf,
+  endCardProblem,
+  endCardReadable,
+  endCardUnreadable,
+  readableShade,
+  spelled,
+} from './story-reel-tool'
+import { cloneFor, keepVoicePace, voicePaceOf } from './lead-voice'
+import { isHouse } from '../house-ids'
 import { whisperConfig, whisperWords } from './media-library'
 import { withShelfFile } from './media-extract'
 import { probeSeconds, proxyShelfUrl, shelfKeyOf } from './lipsync-voice'
@@ -186,6 +228,8 @@ function outcome(v: any): {
   pending: boolean
   seconds: number
   voice: string
+  /** What the borrowed tool's charge took, from its receipt; 0 when none. */
+  charged: number
 } {
   const ok =
     v?.done === true || v?.['сделано'] === true || v?.['готово'] === true // cyrillic-ok: borrowed tools' answer keys
@@ -196,11 +240,75 @@ function outcome(v: any): {
     pending: v?.pending === true,
     seconds: Number(v?.seconds) || 0,
     voice: String(v?.['голос'] ?? ''), // cyrillic-ok: borrowed tools' answer keys
+    charged: Number(v?.['токены']?.['потрачено']) || 0, // cyrillic-ok: borrowed tools' answer keys
   }
 }
 
 const isUrl = (v: unknown): v is string =>
   typeof v === 'string' && /^https?:\/\//.test(v.trim())
+
+/* ── the colour of the call (split-reel v10) ───────────────────────────── */
+
+/** Whether a colour reads on the scrim under the call: the end card's check. */
+export function callReads(colour: string): boolean {
+  return endCardReadable(contrastX10(colour, SPEC.CALL_GROUND))
+}
+
+/**
+ * The colour the order gave for the call, checked as an end card's colour:
+ * `colour` in one spelling (#rrggbb, so what is drawn is what was measured),
+ * '' when none was given, `problem` in words when it is not a #hex.
+ */
+export function givenCallColour(raw: unknown): {
+  colour: string
+  isHouse: boolean
+  problem: string
+} {
+  const text = String(raw ?? '').trim()
+  if (!text) return { colour: '', isHouse: false, problem: '' }
+  const problem = endCardProblem({ title: text })
+  const title = endCardOf({ title: text })?.title
+  if (problem || !title)
+    return {
+      colour: '',
+      isHouse: false,
+      problem: (problem || 'нужен цвет #hex').replace(
+        'end_card.title',
+        'cta_color'
+      ),
+    }
+  const colour = spelled(title)
+  return { colour, isHouse: colour === spelled(SPEC.HOUSE_CALL_COLOR), problem }
+}
+
+/**
+ * The call's colour as the composition draws it (spec v10): call_colour_from
+ * in colours, then call_drawn against the scrim -- as it is when it reads,
+ * else the order's colour is refused (`refused` says why, with the shade
+ * that reads) and any other is drawn in its least shade that reads.
+ */
+export function callColourOf(c: ReelCallColour): {
+  colour: string
+  refused: string
+} {
+  const { colour, from } = reelCallColour({
+    ...c,
+    hers: c.hers ? spelled(c.hers) : '',
+  })
+  const way = callDrawn(from, callReads(colour))
+  if (way === SPEC.CALL_REFUSED)
+    return {
+      colour: '',
+      refused: `cta_color: ${endCardUnreadable({ title: colour, bg: SPEC.CALL_GROUND })}`,
+    }
+  return {
+    colour:
+      way === SPEC.CALL_AS_IS
+        ? colour
+        : readableShade(colour, SPEC.CALL_GROUND),
+    refused: '',
+  }
+}
 
 export function makeSplitReelTool(
   lookup: (name: string) => Tool,
@@ -208,12 +316,21 @@ export function makeSplitReelTool(
 ): AgentTool {
   return {
     name: 'split_reel',
+    // Borrowed from the registry, each charging for itself: the price that makes
+    // this a paid tool (tool-charges.ts, crm-duet.t27 v5).
+    charges: [
+      'image_edit',
+      'audio_generate',
+      'lipsync_generate',
+      'reel_render',
+    ],
     description:
       `СПЛИТ-РИЛС ОДНИМ ВЫЗОВОМ (шаблон ${SPEC.COMPOSITION}, спека split-reel.t27): кадр с лицом в студии ` +
-      `(${SPEC.FACE_SPEC}) + текст → голос (клон владельца; for_lead — голос клиента) → липсинк ` +
+      `(${SPEC.FACE_SPEC}) + текст → голос (рилс владельца — его клон; рилс клиента — голос клиента) → липсинк ` +
       `${SPEC.LIPSYNC_MODEL} → b-roll кадры для сплит-половин (${SPEC.BROLL_MODEL}, без надписей) → ` +
       `жёлтые титры по слову из ИТОГОВОГО голоса (свой whisper) → сборка: полный кадр, сплит, полный, ` +
       `в конце пауза ${SPEC.CTA_PAUSE_SEC} с с призывом. Речь до ${SPEC.SPEECH_MAX_SECONDS} с. ` +
+      'Рилс клиента (for_lead или разговор с клиентом) — его голос и его призыв; Тринити и бота владельца сам не вставляй, слова человека — его. ' +
       'Вернулись voice_url/clip/broll_urls без видео — повтори с ними: готовое не делается и не оплачивается второй раз.',
     parameters: {
       type: 'object',
@@ -224,7 +341,7 @@ export function makeSplitReelTool(
         },
         text: {
           type: 'string',
-          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи; бот в речи — «Тринити»`,
+          description: `что сказать, до ${SPEC.SPEECH_MAX_SECONDS} с речи (до ~${Math.floor((SPEC.SPEECH_MAX_SECONDS * 1000) / SPEC.MS_PER_CHAR)} знаков, меньше для медленного голоса; цифры и иероглифы весят больше); бот в речи — «Тринити» только в рилсе владельца`,
         },
         brolls: {
           type: 'array',
@@ -237,7 +354,13 @@ export function makeSplitReelTool(
         },
         cta: {
           type: 'string',
-          description: `надпись в паузе в конце (по умолчанию ${SPEC.OWNER_CTA})`,
+          description:
+            'надпись в паузе в конце; по умолчанию — призыв клиента из его профиля, бот владельца только в рилсе владельца',
+        },
+        cta_color: {
+          type: 'string',
+          description:
+            'цвет надписи в конце, #hex — только если человек сам его назвал; по умолчанию — цвет из палитры клиента, золото владельца только в рилсе владельца',
         },
         voice_url: {
           type: 'string',
@@ -273,6 +396,50 @@ export function makeSplitReelTool(
           done: false,
           reason: `brolls: от 1 до ${MOST_BROLLS} обстановок для сплит-кадров`,
         }
+      /*
+       * Whose reel this is (split-reel v7), from code-set fields only: the
+       * wallet (the house's or a seller's), the turn's client (ctx.faceOf),
+       * the order's for_lead, an unattended sweep. Only the house's own reel
+       * ends on its bot; a client's speaks her voice and ends on her call.
+       */
+      const turn = {
+        house: isHouse(ctx.telegramId),
+        faceOf: ctx.faceOf,
+        sellerSweep: ctx.sellerSweep,
+      }
+      const forClient = String(turn.faceOf ?? '').trim()
+      const named = String(args.for_lead ?? '')
+        .trim()
+        .replace(/^@/, '')
+      if (forClient && named && named !== forClient)
+        return {
+          done: false,
+          reason: 'в разговоре с клиентом рилс делается только его голосом',
+        }
+      const forLead = leadOfTurn(named, turn)
+      const house = houseOwnTurn(turn, forLead)
+      // Her own words stand; a house name the agent put in does not.
+      if (!houseNameAllowed(house, agentSuppliedHouseName(text, ctx.ownerSaid)))
+        return {
+          done: false,
+          reason:
+            'рилс не для владельца не называет ни Тринити, ни бота владельца, если человек сам этого не написал: убери их из text',
+        }
+      // The call's colour (v10): a colour the order gave that is not a
+      // #hex, or does not read under the call, is refused here, before any
+      // charge. Hers is read once, here, and never stops the reel.
+      const givenColour = givenCallColour(args.cta_color)
+      if (givenColour.problem)
+        return { done: false, reason: givenColour.problem }
+      const callColour = callColourOf({
+        house,
+        given: givenColour.colour,
+        givenIsHouse: givenColour.isHouse,
+        hers: house
+          ? ''
+          : await clientCallColourOf(ctx.pool, String(ctx.telegramId), forLead),
+      })
+      if (callColour.refused) return { done: false, reason: callColour.refused }
       const edit = lookup('image_edit')
       const speak = lookup('audio_generate')
       const lip = lookup('lipsync_generate')
@@ -299,16 +466,46 @@ export function makeSplitReelTool(
           'готовое не делается и не оплачивается второй раз',
       })
 
+      // 0. A new voice too long for the format is refused from its text,
+      // before it is paid for (split-reel v8 text_fits), at the pace of the
+      // voice that will speak it (v9): the clone audio_generate will pick
+      // for this lead, found by the same rule, and the slowest pace kept on
+      // ITS row -- the voice's, never the caller's. The measured gate in
+      // step 2 stays, for a voice slower than anything it was measured at.
+      const fresh = !voiceUrl && !clip
+      const units = speechUnits(text)
+      const clone =
+        fresh && forLead
+          ? await cloneFor(ctx.pool, String(ctx.telegramId), forLead).catch(
+              () => null
+            )
+          : null
+      const kept = clone
+        ? await voicePaceOf(ctx.pool, clone.voiceId).catch(() => 0)
+        : 0
+      if (fresh && !textFits(units, kept))
+        return {
+          done: false,
+          reason:
+            `text на ~${Math.ceil(speechMsEstimate(units, kept) / 1000)} с речи, а формат держит до ` +
+            `${SPEC.SPEECH_MAX_SECONDS} с: сократи text — голос не заказан и не оплачен`,
+          ...sofar(),
+        }
+
       // 1. The voice, unless it came back from the last call.
       let voiceKind = ''
       let spoken = 0
-      if (!voiceUrl && !clip) {
+      // Whether THIS call paid for the voice, and what it took: the backstop
+      // gives back only a voice it paid for (v8 backstop_refund).
+      let paidHere = false
+      let chargedNow = 0
+      if (fresh) {
         const v = outcome(
           await speak
             .handler(
               {
                 text,
-                ...(args.for_lead ? { for_lead: String(args.for_lead) } : {}),
+                ...(forLead ? { for_lead: forLead } : {}),
               },
               ctx
             )
@@ -319,6 +516,8 @@ export function makeSplitReelTool(
         voiceUrl = v.url
         voiceKind = v.voice
         spoken = v.seconds
+        paidHere = true
+        chargedNow = v.charged
       }
 
       // 2. The gate: a voice too long for the format is refused before the
@@ -330,14 +529,42 @@ export function makeSplitReelTool(
           reason: 'не удалось измерить длину голоса — липсинк не заказан',
           ...sofar(),
         }
-      if (!clip && spoken > SPEC.SPEECH_MAX_SECONDS) {
+      // The clone just paid for and measured keeps its slowest pace (v9
+      // pace_to_keep), before the gate below may refuse it: the next text
+      // for this voice is judged at it, before it is paid for.
+      if (paidHere && clone) {
+        const next = paceToKeep(kept, msOfSeconds(spoken), units)
+        if (next > kept)
+          await keepVoicePace(ctx.pool, clone.voiceId, next).catch(e =>
+            console.log(`[split_reel] pace not kept: ${String(e)}`)
+          )
+      }
+      if (!clip && voiceTooLong(msOfSeconds(spoken))) {
         const tooLong = voiceUrl
         voiceUrl = ''
+        // The one refusal after the charge: the voice this call paid for
+        // goes back, the exact sum, once per voice (v8 backstop_refund).
+        const back = backstopRefund(paidHere, msOfSeconds(spoken), chargedNow)
+        let returned = false
+        if (back > 0) {
+          // Imported here: tools.ts imports this file to build its list.
+          const { refundTooLongVoice } = await import('./tools')
+          returned = await refundTooLongVoice(
+            ctx,
+            { url: tooLong, charged: back },
+            'голос длиннее формата сплит-рилса'
+          )
+        }
+        // A voice given back is not offered again: its url stays out of
+        // the answer, so nobody keeps a voice the wallet got back.
         return {
           done: false,
           reason:
             `голос ${spoken.toFixed(1)} с, а формат держит до ${SPEC.SPEECH_MAX_SECONDS} с речи: ` +
-            `сократи text и повтори без voice_url (длинный голос: ${tooLong})`,
+            `сократи text и повтори без voice_url` +
+            (returned
+              ? `; ${back} ток. за этот голос возвращены`
+              : ` (длинный голос: ${tooLong})`),
           ...sofar(),
         }
       }
@@ -411,13 +638,22 @@ export function makeSplitReelTool(
       const seconds = speechEnd(heard.words)
       const captions = captionsFromWords(heard.words, 0, heard.speech)
 
-      // 6. The template.
+      // 6. The template, ending on the call the spec picks (v7), in the
+      // colour it picks (v10).
       const props = splitReelProps({
         lipSyncVideo: clip,
         seconds,
         bRolls,
         captions,
-        ctaText: String(args.cta ?? '').trim(),
+        call: {
+          house,
+          given: String(args.cta ?? '').trim(),
+          client: house
+            ? ''
+            : await clientCtaOf(ctx.pool, String(ctx.telegramId), forLead),
+          neutral: STORY_DEFAULT_CTA,
+        },
+        callColour: callColour.colour,
       })
       const r = outcome(
         await render

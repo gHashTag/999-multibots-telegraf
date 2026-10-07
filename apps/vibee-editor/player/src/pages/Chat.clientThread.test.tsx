@@ -197,6 +197,20 @@ describe('the thread about a client', () => {
     expect(post).toBeDefined()
     expect((post.body as { client?: string }).client).toBe(CLIENT)
     expect((post.body as { surface?: string }).surface).toBe('miniapp')
+    // The agent is told what the owner sees beside the chat (spec v5): under
+    // the Assistant, the six client widgets and nothing of a specialist's.
+    const widgets = (post.body as { widgets?: Record<string, unknown> }).widgets
+    expect(widgets?.shown).toEqual([
+      'moves',
+      'group',
+      'soul',
+      'package',
+      'plan',
+      'history',
+    ])
+    expect(widgets?.open).toBe('moves')
+    expect(widgets).not.toHaveProperty('content')
+    expect(widgets).not.toHaveProperty('templates')
 
     // Start over: only this thread is cleared.
     const reset = [
@@ -458,6 +472,7 @@ describe('the self thread is untouched', () => {
       s => s.method === 'POST' && s.url.includes('/api/agent/chat')
     )!
     expect(post.body).not.toHaveProperty('client')
+    expect(post.body).not.toHaveProperty('widgets')
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>('button.chat-reset')!.click()

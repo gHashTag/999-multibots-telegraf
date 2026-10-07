@@ -634,6 +634,11 @@ removes trees, and only provably finished ones. Lessons it cost:
   key files) lost a `logs/.env`; the second (exact names) lacked ~20 names a
   day later. The bee found both by attacking a throwaway repo with `--apply`.
 - `status --ignored` collapses `logs/` -- use `--ignored=matching -z`.
+- **A fresh branch is `new`, not finished** (#3745, 06.10): a named branch 0
+  commits ahead with no merged PR of that name stays until the YOUNGER of its
+  branch reflog and its tree's own `.git/worktrees/<name>/logs/HEAD` is 6 h old
+  (`NEW_BRANCH_MAX_H`, #3751: an old branch in a fresh tree is new too);
+  `-b` + `origin/main` looked "already in main".
 - An empty env number with `??` becomes 0 and turns a dry run into a sweep;
   use `||`.
 - 03.10 run of `tri worktrees --apply` (#3474 code): 46 of 66 trees removed,
@@ -1086,7 +1091,15 @@ tri waiting     # что лежит в открытом PR: деньги / ви�
    `git worktree add`: on 2026-10-03 such a tree blocked its own push on
    render tests dying with "Cannot find package 'undici'", which looked
    exactly like a regression. A tree made some other way: `./tri deps` before
-   the first commit.
+   the first commit. If the pre-push related-tests still fail on render with
+   "Cannot find module '@vibee/atoms'" or a red `atoms-resolve-in-tree`, the
+   render node_modules is a link into another tree: `tri wt-deps <tree>`
+   replaces it with an APFS clone from a donor with the same lock and proves
+   `undici` and `@vibee/atoms` resolve from inside the tree (rc 1 otherwise,
+   #3675).
+   Before dispatching an author, run `tri holders <branch>`: rc 1 = another
+   worktree already holds that branch, or a tree has the repo staged deleted
+   (ALARM). Three writers on #3730's branch, 2026-10-06.
 3. PR на main в конце витка. Маленький PR, который можно слить сегодня,
    ценнее большого, который ждёт слова владельца третью неделю.
 4. Длинная ветка не «накапливает ценность» — она её запирает.
@@ -2295,6 +2308,51 @@ loop produced nothing between answers.
   browser profiles); secrets; passwords (typed only by the person); posting to
   the person's social networks without their "yes" in the approval.
 
+### The Queen's round: `tri inflight`, then `tri jam` (owner, 2026-10-03)
+
+This is the one home of this rule; other skills point here.
+
+On 2026-10-03 five PRs sat open for hours with nobody reading them, and
+`tri queue` called a commit-stacked PR "free to merge". The Queen does not
+code and does not merge -- she manages, and the first question a manager asks
+is "who touches this PR next?".
+
+- Every round starts with `tri inflight` (what is already moving; its last
+  line is the `tri jam` summary) and then `tri jam`. `tri jam` gives each open
+  PR one jam case and one action, in merge order (parent before child). It is
+  read-only: it never merges, labels or comments. `*` marks the Queen's turn.
+- The cases, their order (first match wins) and the actions are those of
+  gHashTag/t27#5700 (`specs/automation/review-jam.t27`); `bin/helpers/jam.py`
+  carries them by hand until the spec lands, then binds to it.
+
+| case                      | action                      | the Queen, this round                                 |
+| ------------------------- | --------------------------- | ----------------------------------------------------- |
+| `JAM_UNMEASURED`          | `ACT_MEASURE_AGAIN`         | not "no jam": say so, ask again next round            |
+| `JAM_DRAFT_OR_FRESH`      | `ACT_WAIT`                  | nothing; the author may still be pushing              |
+| `JAM_STACKED_ON_OPEN`     | `ACT_WAIT_FOR_BASE`         | nothing here; get the parent merged first             |
+| `JAM_CONFLICTING`         | `ACT_REBASE_BY_CODER`       | a coder bee rebases on main                           |
+| `JAM_LABELED_NOT_MERGED`  | `ACT_FINISH_MERGE`          | a reviewer bee finishes the merge (the last one died) |
+| `JAM_REFUSED_THEN_PUSHED` | `ACT_DISPATCH_RE_REVIEW`    | a reviewer bee, DIFFERENT from the one that refused   |
+| `JAM_REFUSED_NOT_FIXED`   | `ACT_DISPATCH_CODER`        | a coder bee answers the refusal; no new reviewer      |
+| `JAM_NOISE_RED`           | `ACT_NAME_NOISE_AND_REVIEW` | a reviewer bee who names the red as noise and reviews |
+| `JAM_NO_REVIEWER`         | `ACT_DISPATCH_REVIEWER`     | a reviewer bee, briefed as in "A reviewer bee" below  |
+| `JAM_NONE`                | `ACT_NOTHING`               | nothing; a bee spoke on this head recently            |
+
+- Noise is GitHub Actions jobs with zero steps (the billing stop), or a
+  GitGuardian red whose flagged commits are all older than the head (the
+  owner's false-positive click). A red that is not noise is printed as a
+  `RED` note under the line.
+- Dependabot's PRs and `release(board)` PRs are listed apart and are never a
+  jam. Dependabot gets a coder bee who splits the safe part into a reviewed
+  PR (never merged blind); `release(board)` is the owner's, no bee touches it.
+- Exit 0: everything read, nothing is the Queen's turn. 1: at least one is.
+  2: a read failed (gh refused, rate-limited, `--limit` hit) -- 2 wins over 1,
+  and "jam: none" is never printed then.
+
+The refusal convention is the one `tri pr-billing` reads. The unittest
+(`python3 -m unittest bin/helpers/test_jam.py`) pins jam's two patterns to
+`./tri`'s and runs every case on `bin/helpers/fixtures/jam-prs.json`.
+
 ### A board release, end to end (2026-10-02)
 
 A trinity merge ships nothing until 999's `ARG QUEEN_REF` moves.
@@ -2372,3 +2430,133 @@ checks out N's own branch (bin/helpers/prtree.sh) and says how far behind
 main it is. It refuses a closed or fork PR, a silent gh ("unknown", never
 "no such PR"), and a local branch of that name with unpushed commits -- moving
 it to origin would drop someone's work.
+
+**Push with `tri push`, deploy the runner with `tri runner deploy --wait`.**
+A 6-13 minute green gate followed by "Connection reset" (rc 141) is a push that
+may or may not have landed. `tri push [branch]` runs `tri online` without a
+pipe, pushes over ssh with keepalive, and counts success only when
+`git ls-remote` shows the branch at your HEAD (one retry; refuses `-f` and
+main). `tri runner deploy --wait` returns 0 only for a NEW deployment id that
+is SUCCESS and whose `/health` says ok; without `--wait`, `railway up` only
+means the upload was accepted.
+
+**A fresh worktree needs render deps before the first push:** `tri wt-deps <tree>`
+(see above). Without them the gate's LOCAL fallback (runner busy over 240 s)
+fails with "Cannot find package 'undici'" -- the tree is broken, not the change.
+
+## Lessons of the night of 2026-10-06: review rounds that end
+
+The one home of these rules. Other files point here and do not restate them.
+They came out of the honesty guard (`claimed-but-not-done.ts`) and the price
+reader (`printed-facts.ts`). Domain examples are in `cloud-agent-does-the-work`,
+section "The agent says only what it did".
+
+1. **A grid before review, not hand-written examples.** Generate the cross
+   product of every slot (verbs x gaps x nouns x whitespace; currency position
+   x spacing x following word), and its honest mirror (the same grid with the
+   claim removed, which must stay silent). Compute each expected value from a
+   one-line rule and run the grid against main too. Hand-written examples let
+   the reviewer find the next hole every round: #3728 took 6 rounds and #3730
+   took 7, and each hole was a combination no example covered. The reviewer
+   should be checking the rule, not finding your next missing example.
+2. **Fix the class, not the site.** Normalise once at the entry point, so no
+   rule downstream sees a raw form. Every exported function in
+   `claimed-but-not-done.ts` maps every line break and every whitespace
+   character to one form first (#3728). Keep one helper for one grammar fact:
+   `EN_NOUN`, an optional plural for every English object noun (pending
+   #3748). Use one shape rule instead of a word per connector: a later
+   multiplier in the same price phrase applies to every earlier amount
+   ("$5-10k", "$5 or 6 million", "₽5 до 10 тыс"; `printed-facts.ts`, #3730
+   round 7). If a fix adds an entry to a list, ask what structure the misses
+   share.
+3. **Close a list on the side where a miss is safe.** Readings are not
+   symmetric. A PRINTED amount counts as confirmed only when the person
+   confirmed EVERY reading of it. The HEARD side is read narrowly. In #3730,
+   four rounds patched a list of time words that made a spaced "к" a
+   preposition, and every round a word was missing. The merged rule closes
+   the other side: "к" is only a thousand before the end of the text,
+   punctuation or a currency (`K_THOUSAND_NEXT`), and anything else keeps
+   both readings, so the agent asks again.
+4. **Usability is a corpus with a bar, not an impression.** Commit a corpus of
+   realistic honest inputs as a test next to the soundness grid. A head may
+   add needless re-asks or notes up to 12% of the corpus, and no more than
+   main + 2. #3730 merged at 5/47 (10.6%). #3741 round 1 was rejected at 26
+   needless notes against main's 2. It merged at 2.
+5. **Merge policy (adopted 2026-10-06).** A reviewer bee merges when the head
+   is sound against main (no row that main flags turns silent or unsafe) and
+   usability is within the bar above. A hole that exists on main too becomes
+   a new issue, not another round. #3741 and #3730 merged under this policy,
+   and #3743, #3744 and #3746 were filed from it.
+6. **Bees are general-purpose agents with an explicit branch and worktree, not
+   forks.** A fork inherits the parent's context and drifts onto sibling PRs.
+   Three writers ended up on #3730's branch. Before dispatch, run
+   `tri holders <branch>` (#3738): rc 1 means a tree already holds the branch.
+   `tri worktrees` shows a fresh bee branch with no commits as new, not
+   finished, so the cleanup does not offer to remove it (#3749). An old
+   branch freshly checked out into a new worktree is still shown as finished
+   (#3751, fixed by #3755: age is the younger of the branch reflog and the
+   worktree's own HEAD log).
+7. **The reviewer builds its own probe.** A claim set the author wrote passes
+   the author's own fix. On #3759 the author's own set caught every claim in
+   both rounds (16/16 in round 1, 0 lost of 50 in round 2). Each time, the
+   reviewer's independent probe found more: 20 lost in round 1, then 16 in
+   round 2, which the author's sets never covered (a
+   comma ends the clause, then "I attached it"; the next sentence delivers
+   the picture). Every reviewer prompt asks for an independent adversarial
+   probe against main, aimed at each condition of the new rule.
+   The reviewer runs `tri guard-diff <claims|prices>` over
+   `scripts/guard-corpus/<guard>.jsonl` with its own extra rows appended
+   (`--head <PR>`; rc 1 = a lost claim or a wrong confirm vs main, #3772),
+   and commits the rows that found a hole, so the probe outlives its round.
+8. **A rule that silences must prove the object ENDS.** A "this noun is only
+   a modifier" rule (`poster text`, `voice menu`) silences a claim, so it
+   must check the whole rest of the message: no second media noun, no
+   delivery word (attached, sent, rendered), no "it" as an object. Checking
+   only the next word ate the real object (#3759 rounds 1-2).
+9. **Pick the closed list whose MISS is safe.** #3758 round 3 listed money
+   words (budget, total, each) that keep a later multiplier on the price. A
+   money synonym missing from that list (bucks, payout) confirms the bare
+   price silently, so the miss is unsafe. The safe list is the other one:
+   the counted nouns (followers, seats, guests, people) that let the bare
+   price stand. An unknown word then asks again. Before you merge a closed
+   list, name what a missing entry does.
+10. **A reviewer's suggested fix is a hypothesis, not a patch.** #3758 round
+    4's reviewer proposed "a filler word after the counted noun ends the
+    phrase"; round 5 shipped it and the next reviewer found
+    `$5 about 10k ticket and merch revenue` confirming silently, plus every
+    joiner (`-`, `/`, U+202F) read as an end. The author of the next round
+    attacks the suggested rule with fresh rows before pushing, and the
+    rejection comment says whether its fix was tested on a set it was not
+    written from.
+11. **A held-out set catches a list fitted to the known rows.** #3759 round 5
+    met the bar on the reviewer's set (7.1%) and the author's set (8%) but
+    drew 17.5% on 40 honest rows written before tuning and never tuned on.
+    Every author reports a held-out set separately; a gap of more than a few
+    points means the lists fit the probe, not the language.
+12. **A label is consent only when its owner applies it.** The
+    `owner-approved-foreign` label on this loop's TypeScript PRs was added by
+    the author account a second after `gh pr create` (#3762, #3768, #3771,
+    #3773), citing the owner's overnight instruction. The #3773 reviewer
+    bee raised it in its report to the loop, not on the PR: applied that
+    way, the label proves nothing about consent. Finish the PRs
+    already in review, open no new non-t27 code PR, and ask the owner.
+13. **Deleting a feature also deletes its words from the shared lists.**
+    #3758 round 8 removed the rule that let a bare hedge release the price,
+    but the hedge words stayed in `FILLER_RUN`, which `suffixReading` reads
+    as "no multiplier". `$5ish, 10k` then confirmed where main asked: 22
+    rows on the round-8 reviewer's probe. The variant had measured sound on
+    the reviewer's copy; the author's rebuild was not that copy. When a
+    round ships "variant X", diff the rebuilt branch against the measured
+    copy, and grep every list the deleted feature fed. Round 9 excluded
+    `HEDGE_RUN` from the filler test in one line. Its author measured 0 rows
+    where main asks and head confirms over 2181 rows; the independent
+    reviewer's own 270-row probe plus the 525-row corpus also found 0.
+14. **Seal the held-out set before the code round, and publish only its
+    hash.** For #3779 a bee that never saw the baseline rows wrote 344 rows
+    (244 claims, 100 honest replies) outside the repo and posted only their
+    SHA-256 on the issue. Main's guard caught 1 of 244 on it, against 38 of
+    300 on the baseline set and 59 of 69 on the corpus it was tuned on: the
+    further a set is from the tuning rows, the lower the score, which is
+    what lesson 11 predicts. The author never gets the path; the reviewer
+    checks the hash, runs the set once at the end, and a mismatch voids the
+    run.

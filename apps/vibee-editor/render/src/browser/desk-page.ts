@@ -129,6 +129,7 @@ export async function deskMayAct(
   const verdict = mayAct({
     url,
     allowedAtMs: session?.allowedAtMs ?? null,
+    allowedHost: session?.allowedHost ?? null,
     nowMs: now,
     alsoSensitive: ruleFor(url, rules) === 'ask',
   })
