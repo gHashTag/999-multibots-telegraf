@@ -254,6 +254,12 @@
 // colours every surface that shows her end card -- each template preview in the gallery and the
 // rendered card alike -- and with none saved both fall to END_CARD_DEFAULT_*. No surface ever
 // takes the host theme's green (brand_kit_field; preview and render never disagree).
+// v30 (2026-10-07, 999#3818, t27#7343): the v28 reuse rule did not say WHAT must match for a
+// made piece to be carried. A retry in another style kept stills drawn in the old style, and a
+// retry in another voice mode kept clips lip-synced to the old voice. Stills are carried only
+// when the style matches (carry_stills); clips only when the stills are carried AND the voice
+// mode matches (carry_clips) -- a clip is a still that speaks. A failed job that never recorded
+// its voice mode carries no clips: an unknown voice cannot be said to match.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_story_reel {
@@ -261,7 +267,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 29;
+    pub const VERSION : u8 = 30;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -840,6 +846,17 @@ module automation::crm_story_reel {
     // Whether one slot is rendered on a retry (v28): a done slot never is.
     fn slot_renders(done: bool) -> bool {
         return !done;
+    }
+
+    // Whether a retry keeps the stills a failed job made (v30): only in the same style.
+    fn carry_stills(same_style: bool) -> bool {
+        return same_style;
+    }
+
+    // Whether a retry keeps the clips a failed job made (v30): only when its stills are carried
+    // and the voice mode is recorded and the same. An unrecorded voice mode never matches.
+    fn carry_clips(same_style: bool, same_voice: bool, voice_known: bool) -> bool {
+        return carry_stills(same_style) && voice_known && same_voice;
     }
 
     // Whether a #hex colour has a length CSS reads: #rgb, #rgba, #rrggbb, #rrggbbaa.
@@ -1664,7 +1681,7 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 29);
+        assert(VERSION == 30);
     }
 
     test "a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink" {
@@ -2019,6 +2036,24 @@ module automation::crm_story_reel {
         assert(DEFAULT_TEXT_CONTRAST_X10 == 196);
         assert(end_card_readable(DEFAULT_TITLE_CONTRAST_X10));
         assert(end_card_readable(DEFAULT_TEXT_CONTRAST_X10));
+    }
+
+    test "a retry carries stills only in the same style" {
+        assert(carry_stills(true));
+        assert(!carry_stills(false));
+    }
+
+    test "a retry carries clips only with carried stills and a recorded, matching voice mode" {
+        // Same style, same recorded voice: clips kept.
+        assert(carry_clips(true, true, true));
+        // Same style, other voice: stills kept, clips re-rendered.
+        assert(carry_stills(true));
+        assert(!carry_clips(true, false, true));
+        // Other style: neither stills nor clips, whatever the voice.
+        assert(!carry_clips(false, true, true));
+        // Voice mode never recorded: no clips, even with the same style.
+        assert(!carry_clips(true, true, false));
+        assert(!carry_clips(true, false, false));
     }
 
 }
