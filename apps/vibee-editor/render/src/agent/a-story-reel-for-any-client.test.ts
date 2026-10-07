@@ -75,6 +75,7 @@ interface Job {
   still_tasks?: string
   payer?: string | null
   end_card?: string | null
+  voice_mode?: number | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -246,7 +247,11 @@ function fakeBase() {
       return {
         rows: db.jobs.filter(j => j.lead_id === p[0] && j.status === 'running'),
       }
-    if (q.startsWith('SELECT scenes, stills, clips, topic FROM story_jobs')) {
+    if (
+      q.startsWith(
+        'SELECT scenes, stills, clips, topic, style, voice_mode FROM story_jobs'
+      )
+    ) {
       return {
         rows: db.jobs
           .filter(
@@ -295,6 +300,7 @@ function fakeBase() {
         deliver_to: v.deliver_to ?? null,
         caption: v.caption ?? null,
         end_card: v.end_card ?? null,
+        voice_mode: v.voice_mode ?? null,
         card_at: null,
       })
       return { rows: [{ id }] }
@@ -411,6 +417,7 @@ function fakeBase() {
         clips: p[2],
         still_tasks: p[3],
         payer: p[4],
+        voice_mode: p[5],
         updated: clock,
       })
       return { rows: [] }
@@ -2944,6 +2951,8 @@ describe('a retry after a failed job (spec v28, 999#3815)', () => {
       scenes: JSON.stringify(SCRIPT4),
       stills: JSON.stringify(['https://s/1', 'https://s/2', '', '']),
       clips: JSON.stringify(['https://c/1', 'https://c/2', '', '']),
+      style: null,
+      voice_mode: SPEC.VOICE_CLONE,
       status: 'failed',
       runner: null,
       attempts: 3,
@@ -3011,5 +3020,99 @@ describe('a retry after a failed job (spec v28, 999#3815)', () => {
     expect(written).toBe(0)
     expect(c.seen[0].scenes).toEqual(SCRIPT4)
     expect(c.renders()).toBe(2)
+  })
+
+  // 999#3817: a carried clip must not speak in the voice of the failed job.
+  it('a changed voice mode keeps the stills and renders the clips again', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { voice_mode: SPEC.VOICE_NOTES })
+    const c = counting(base)
+    c.deps.voiceNotes = async () => ({ urls: [] }) as any
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['', '', '', ''])
+  })
+
+  it('a failed job that never recorded its voice carries no clips', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { voice_mode: null })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['', '', '', ''])
+  })
+
+  it('a changed look carries neither stills nor clips', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { style: 'warm film grain' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+      style: 'cold blue noir',
+    })
+    await drain()
+    expect(c.seen[0].stills.filter(Boolean)).toEqual([])
+    expect(c.seen[0].clips.filter(Boolean)).toEqual([])
+    expect(c.renders()).toBe(4)
+  })
+
+  it('a clip saved mid-run is saved with the voice it speaks', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { deps } = depsOn(base, async (_args, ctx) => {
+      await ctx.storyProgress?.({
+        stills: ['https://s/1', '', '', ''],
+        clips: ['https://c/1', '', '', ''],
+        stillTasks: [],
+      })
+      return { done: false, reason: 'lipsync failed' }
+    })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    const job = base.db.jobs.at(-1)
+    expect(job?.clips).toBe(JSON.stringify(['https://c/1', '', '', '']))
+    expect(job?.voice_mode).toBe(SPEC.VOICE_CLONE)
+  })
+
+  it('the same look and voice carry everything, and the new job records its voice', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { style: 'warm film grain' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+      style: 'warm film grain',
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['https://c/1', 'https://c/2', '', ''])
+    expect(c.renders()).toBe(2)
+    expect(base.db.jobs.at(-1)?.voice_mode).toBe(SPEC.VOICE_CLONE)
   })
 })

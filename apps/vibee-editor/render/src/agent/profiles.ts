@@ -75,7 +75,9 @@ export const PROFILES: Profile[] = [
     name: 'Reddit',
     about: 'Ответы в комментариях и посты в профильные сообщества', // cyrillic-ok
     /*
-     * SHORT ON PURPOSE: the inbox, and our own community. The desk's real work
+     * SHORT ON PURPOSE: the inbox, and our own community if there is one
+     * (r/t27ai was banned by Reddit on 2026-10-03 and left the list on
+     * 2026-10-06, so today it is the inbox alone). The desk's real work
      * in the other communities is reading their rules and asking the owner --
      * both done through Reddit's own JSON in the tick, not by walking pages --
      * and the whole-round walk is capped at MAX_SITES (strategies.ts), so a

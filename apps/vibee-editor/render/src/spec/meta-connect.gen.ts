@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "meta-connect" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const THREADS_TEXT_MAX = 500 satisfies number;
 export const THREADS_LINKS_MAX = 5 satisfies number;
 export const THREADS_POSTS_PER_DAY = 250 satisfies number;
@@ -24,6 +24,9 @@ export const TOKEN_LEAVES_SERVER = false satisfies boolean;
 export const POLL_EVERY_MS = 3000 satisfies number;
 export const POLLS = 10 satisfies number;
 export const ASK_NEEDS_YES = true satisfies boolean;
+export const IG_RELINK_EVERY_MS = 600000 satisfies number;
+export const IG_RELINK_NEEDS_CONSENT = false satisfies boolean;
+export const IG_PUBLISH_RETRIES = 1 satisfies number;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn route was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn should_refresh was not emitted -- this backend lowers declarations, not bodies.
@@ -34,6 +37,10 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn posted was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn state_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_poll_ms was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn should_relink was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn retry_after_relink was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -49,7 +56,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREADS_TEXT_MAX", "THREADS_LINKS_MAX", "THREADS_POSTS_PER_DAY", "IG_CAPTION_MAX", "IG_POSTS_PER_DAY", "DESK_POSTS_PER_DAY", "CARD_W", "CARD_H", "LONG_TOKEN_DAYS", "REFRESH_DAYS_LEFT", "REFRESH_MIN_AGE_H", "PAGE_TOKEN_EXPIRES", "STATE_TTL_MS", "TOKEN_LEAVES_SERVER", "POLL_EVERY_MS", "POLLS", "ASK_NEEDS_YES", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "THREADS_TEXT_MAX", "THREADS_LINKS_MAX", "THREADS_POSTS_PER_DAY", "IG_CAPTION_MAX", "IG_POSTS_PER_DAY", "DESK_POSTS_PER_DAY", "CARD_W", "CARD_H", "LONG_TOKEN_DAYS", "REFRESH_DAYS_LEFT", "REFRESH_MIN_AGE_H", "PAGE_TOKEN_EXPIRES", "STATE_TTL_MS", "TOKEN_LEAVES_SERVER", "POLL_EVERY_MS", "POLLS", "ASK_NEEDS_YES", "IG_RELINK_EVERY_MS", "IG_RELINK_NEEDS_CONSENT", "IG_PUBLISH_RETRIES", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

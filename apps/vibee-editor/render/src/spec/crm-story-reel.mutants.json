@@ -1299,5 +1299,81 @@
     "from": "          ? JSON.stringify(carried.scenes)",
     "to": "          ? null",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a clip is carried across a voice change",
+    "file": "src/agent/story-template.ts",
+    "from": "  return carryStills(sameStyle) && voiceKnown && sameVoice\n",
+    "to": "  return carryStills(sameStyle) && voiceKnown\n",
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "a still is carried across a look change",
+    "file": "src/agent/story-template.ts",
+    "from": "    const stills = carryStills(sameLook) ? fit(row.stills) : none()",
+    "to": "    const stills = fit(row.stills)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "an unrecorded voice counts as the same",
+    "file": "src/agent/story-template.ts",
+    "from": "    const sameVoice = Number(row.voice_mode) === now.mode\n    const none = () => Array.from({ length: n }, () => '')\n    const voiceKnown = row.voice_mode !== null && row.voice_mode !== undefined",
+    "to": "    const sameVoice =\n      row.voice_mode == null || Number(row.voice_mode) === now.mode\n    const none = () => Array.from({ length: n }, () => '')\n    const voiceKnown = true",
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
+  },
+  {
+    "name": "the job never records its voice",
+    "file": "src/agent/story-template.ts",
+    "from": "      JSON.stringify(carried?.clips ?? []),\n      mode,\n",
+    "to": "      JSON.stringify(carried?.clips ?? []),\n      null,\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "progress forgets the voice its clips speak",
+    "file": "src/agent/story-template.ts",
+    "from": "          // The voice the clips so far speak in, for a retry to compare.\n          mode,\n",
+    "to": "          // The voice the clips so far speak in, for a retry to compare.\n          null,\n",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "stills carried in another style",
+    "file": "src/agent/story-template.ts",
+    "from": "  return sameStyle\n}",
+    "to": "  return true\n}",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried across a voice change",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return carryStills(sameStyle) && voiceKnown",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried from an unrecorded voice",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return carryStills(sameStyle) && sameVoice",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "clips carried without their stills",
+    "file": "src/agent/story-template.ts",
+    "from": "return carryStills(sameStyle) && voiceKnown && sameVoice",
+    "to": "return voiceKnown && sameVoice",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "carryFromFailed ignores the clip rule",
+    "file": "src/agent/story-template.ts",
+    "from": "const clips = carryClips(sameLook, sameVoice, voiceKnown)",
+    "to": "const clips = carryStills(sameLook)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

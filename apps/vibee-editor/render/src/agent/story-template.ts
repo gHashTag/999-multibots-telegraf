@@ -575,7 +575,8 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS still_tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS payer      text,
   ADD COLUMN IF NOT EXISTS end_card   jsonb,
-  ADD COLUMN IF NOT EXISTS scene_count integer`
+  ADD COLUMN IF NOT EXISTS scene_count integer,
+  ADD COLUMN IF NOT EXISTS voice_mode integer`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -800,8 +801,23 @@ export async function startStory(
   )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
-  // A retry after a failed job of the same script keeps what it made (v28).
-  const carried = await carryFromFailed(deps.pool, lead, s.owner, given, asked)
+  // A retry after a failed job of the same script keeps what it made (v28),
+  // but only what this press would make the same way (999#3817).
+  const style = String(who.style ?? '')
+    .trim()
+    .slice(0, 600)
+  const mode = voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient)
+  const carried = await carryFromFailed(
+    deps.pool,
+    lead,
+    s.owner,
+    given,
+    asked,
+    {
+      style,
+      mode,
+    }
+  )
   /*
    * THE DAY'S GENERATIONS, COUNTED FIRST (spec v6). A reel the payer's daily
    * cap cannot cover is refused here, in words, before a still is drawn --
@@ -815,9 +831,7 @@ export async function startStory(
       lead,
       requester,
     })
-    const clone =
-      voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient) ===
-      SPEC.VOICE_CLONE
+    const clone = mode === SPEC.VOICE_CLONE
     const needed = slotsNeeded(
       given ? given.length : carried ? carried.scenes.length : count,
       carried ? filled(carried.stills) : 0,
@@ -845,8 +859,8 @@ export async function startStory(
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
                              scenes, style, cta, deliver_to, caption, end_card, scene_count,
-                             stills, clips)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                             stills, clips, voice_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
     [
       lead,
       s.owner,
@@ -872,6 +886,7 @@ export async function startStory(
       count,
       JSON.stringify(carried?.stills ?? []),
       JSON.stringify(carried?.clips ?? []),
+      mode,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -886,24 +901,45 @@ export async function startStory(
 
 const filled = (v: string[]) => v.filter(Boolean).length
 
+/** spec carry_stills (v30): stills are kept only under the same look. */
+export function carryStills(sameStyle: boolean): boolean {
+  return sameStyle
+}
+
+/** spec carry_clips (v30): a clip is a still that speaks, in a known voice. */
+export function carryClips(
+  sameStyle: boolean,
+  sameVoice: boolean,
+  voiceKnown: boolean
+): boolean {
+  return carryStills(sameStyle) && voiceKnown && sameVoice
+}
+
 /**
  * WHAT A RETRY KEEPS (spec v28, RETRY_REUSES_DONE_SLOTS). A new job for the
  * same client and the same script -- her given scenes, or the same asked
  * topic with the scenes the failed job wrote -- starts from the stills and
  * clips the latest failed job already made, so only the empty slots are
  * rendered and paid again (slots_to_render).
+ *
+ * A slot is kept only when this press would render it the same way
+ * (999#3817): the stills only under the same look (the job's style), and the
+ * clips only over those stills and in the same voice mode -- a clip carried
+ * across a voice change would speak in the old voice. A failed job that never
+ * recorded its voice mode carries no clips.
  */
 export async function carryFromFailed(
   pool: StoryDeps['pool'],
   lead: string,
   seller: string,
   given: StoryScene[] | null,
-  asked: string
+  asked: string,
+  now: { style: string; mode: number }
 ): Promise<{ scenes: StoryScene[]; stills: string[]; clips: string[] } | null> {
   if (!given && !asked) return null
   const rows: any[] = await pool
     .query(
-      `SELECT scenes, stills, clips, topic FROM story_jobs
+      `SELECT scenes, stills, clips, topic, style, voice_mode FROM story_jobs
         WHERE lead_id = $1 AND seller_id = $2 AND status = 'failed'
         ORDER BY id DESC LIMIT 5`,
       [lead, seller]
@@ -920,8 +956,14 @@ export async function carryFromFailed(
     const n = scenes.length
     const fit = (v: unknown) =>
       Array.from({ length: n }, (_, i) => list(v)[i] ?? '')
-    const stills = fit(row.stills)
-    const clips = fit(row.clips)
+    const sameLook = String(row.style ?? '').trim() === now.style
+    const sameVoice = Number(row.voice_mode) === now.mode
+    const none = () => Array.from({ length: n }, () => '')
+    const voiceKnown = row.voice_mode !== null && row.voice_mode !== undefined
+    const stills = carryStills(sameLook) ? fit(row.stills) : none()
+    const clips = carryClips(sameLook, sameVoice, voiceKnown)
+      ? fit(row.clips)
+      : none()
     if (!filled(stills) && !filled(clips)) return null
     return { scenes, stills, clips }
   }
@@ -1072,13 +1114,15 @@ async function runHeld(
     storyProgress: async p => {
       await pool.query(
         `UPDATE story_jobs SET stills = $2, clips = $3, still_tasks = $4,
-                payer = $5, updated_at = now() WHERE id = $1`,
+                payer = $5, voice_mode = $6, updated_at = now() WHERE id = $1`,
         [
           id,
           JSON.stringify(p.stills),
           JSON.stringify(p.clips),
           JSON.stringify(p.stillTasks ?? []),
           payer,
+          // The voice the clips so far speak in, for a retry to compare.
+          mode,
         ]
       )
     },
