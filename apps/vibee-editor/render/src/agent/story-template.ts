@@ -901,19 +901,6 @@ export async function startStory(
 
 const filled = (v: string[]) => v.filter(Boolean).length
 
-/**
- * WHAT A RETRY KEEPS (spec v28, RETRY_REUSES_DONE_SLOTS). A new job for the
- * same client and the same script -- her given scenes, or the same asked
- * topic with the scenes the failed job wrote -- starts from the stills and
- * clips the latest failed job already made, so only the empty slots are
- * rendered and paid again (slots_to_render).
- *
- * A slot is kept only when this press would render it the same way
- * (999#3817): the stills only under the same look (the job's style), and the
- * clips only over those stills and in the same voice mode -- a clip carried
- * across a voice change would speak in the old voice. A failed job that never
- * recorded its voice mode carries no clips.
- */
 /** spec carry_stills (v30): stills are kept only under the same look. */
 export function carryStills(sameStyle: boolean): boolean {
   return sameStyle
@@ -928,6 +915,19 @@ export function carryClips(
   return carryStills(sameStyle) && voiceKnown && sameVoice
 }
 
+/**
+ * WHAT A RETRY KEEPS (spec v28, RETRY_REUSES_DONE_SLOTS). A new job for the
+ * same client and the same script -- her given scenes, or the same asked
+ * topic with the scenes the failed job wrote -- starts from the stills and
+ * clips the latest failed job already made, so only the empty slots are
+ * rendered and paid again (slots_to_render).
+ *
+ * A slot is kept only when this press would render it the same way
+ * (999#3817): the stills only under the same look (the job's style), and the
+ * clips only over those stills and in the same voice mode -- a clip carried
+ * across a voice change would speak in the old voice. A failed job that never
+ * recorded its voice mode carries no clips.
+ */
 export async function carryFromFailed(
   pool: StoryDeps['pool'],
   lead: string,

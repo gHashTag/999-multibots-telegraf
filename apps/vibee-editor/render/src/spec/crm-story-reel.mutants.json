@@ -1303,23 +1303,29 @@
   {
     "name": "a clip is carried across a voice change",
     "file": "src/agent/story-template.ts",
-    "from": "    const clips = sameLook && sameVoice ? fit(row.clips) : none()",
-    "to": "    const clips = sameLook ? fit(row.clips) : none()",
-    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+    "from": "  return carryStills(sameStyle) && voiceKnown && sameVoice\n",
+    "to": "  return carryStills(sameStyle) && voiceKnown\n",
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   },
   {
     "name": "a still is carried across a look change",
     "file": "src/agent/story-template.ts",
-    "from": "    const stills = sameLook ? fit(row.stills) : none()",
+    "from": "    const stills = carryStills(sameLook) ? fit(row.stills) : none()",
     "to": "    const stills = fit(row.stills)",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   },
   {
     "name": "an unrecorded voice counts as the same",
     "file": "src/agent/story-template.ts",
-    "from": "    const sameVoice =\n      row.voice_mode !== null &&\n      row.voice_mode !== undefined &&\n      Number(row.voice_mode) === now.mode",
-    "to": "    const sameVoice =\n      row.voice_mode == null || Number(row.voice_mode) === now.mode",
-    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+    "from": "    const sameVoice = Number(row.voice_mode) === now.mode\n    const none = () => Array.from({ length: n }, () => '')\n    const voiceKnown = row.voice_mode !== null && row.voice_mode !== undefined",
+    "to": "    const sameVoice =\n      row.voice_mode == null || Number(row.voice_mode) === now.mode\n    const none = () => Array.from({ length: n }, () => '')\n    const voiceKnown = true",
+    "tests": [
+      "src/agent/a-story-reel-for-any-client.test.ts",
+      "src/spec/crm-story-reel.test.ts"
+    ]
   },
   {
     "name": "the job never records its voice",
