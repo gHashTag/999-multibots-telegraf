@@ -47,7 +47,9 @@ describe('every agent has a desk of its own', () => {
     const urls = allSites().map(s => s.url)
     expect(new Set(urls).size).toBe(urls.length)
     expect(urls).toContain('https://hh.ru/applicant/negotiations')
-    /* Reddit is the reddit desk's now, and it walks the feed it can answer. */
-    expect(urls).toContain('https://www.reddit.com/r/t27ai/new/')
+    /* Reddit is the reddit desk's now, and it walks the inbox it can answer. */
+    expect(urls).toContain('https://www.reddit.com/message/unread/')
+    /* r/t27ai was banned by Reddit (2026-10-03): no round walks its feed. */
+    expect(urls).not.toContain('https://www.reddit.com/r/t27ai/new/')
   })
 })

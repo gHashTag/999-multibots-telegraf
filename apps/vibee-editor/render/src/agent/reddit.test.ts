@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import * as SPEC from '../spec/reddit-desk.gen'
 import {
   SUBREDDITS,
   subredditsOf,
@@ -28,6 +29,12 @@ import {
   closedLine,
   communityStateOf,
   isClosed,
+  activeSkips,
+  skipLine,
+  skippedIn,
+  skipsOf,
+  withSkip,
+  type Skip,
   redditShareRefusal,
   subredditOpen,
 } from './reddit'
@@ -42,6 +49,17 @@ const mention = (over: Partial<Mention> = {}): Mention => ({
   link: 'https://www.reddit.com/r/ProgrammingLanguages/comments/x/y/',
   ...over,
 })
+
+/*
+ * r/t27ai, as it was on the built-in list before Reddit banned it
+ * (2026-10-03) -- kept here so the closed-community cases stay concrete.
+ */
+const T27AI: Subreddit = {
+  name: 't27ai',
+  why: 'own',
+  promo: 'own',
+  everyHours: 24,
+}
 
 describe('the list of communities', () => {
   it('never posts by itself where posting is only maybe welcome', () => {
@@ -71,7 +89,7 @@ describe('the list of communities', () => {
   })
 
   it('walks the inbox first, then every community feed', () => {
-    const sites = redditSites([SUBREDDITS[0]])
+    const sites = redditSites([T27AI])
     expect(sites[0].url).toContain('/message/unread')
     expect(sites[1].url).toBe('https://www.reddit.com/r/t27ai/new/')
   })
@@ -256,7 +274,7 @@ describe('what a post looks like', () => {
   }
 
   it('is words with a tagged link, not a bare link', () => {
-    const p = postFor(SUBREDDITS[0], article)
+    const p = postFor(T27AI, article)
     expect(p.body.startsWith(article.summary)).toBe(true)
     expect(p.body).toContain('utm_source=reddit')
     expect(p.slug).toBe(article.slug)
@@ -265,7 +283,7 @@ describe('what a post looks like', () => {
   })
 
   it("never sends a title past Reddit's limit", () => {
-    const p = postFor(SUBREDDITS[0], { ...article, title: 'x'.repeat(400) })
+    const p = postFor(T27AI, { ...article, title: 'x'.repeat(400) })
     expect(p.title.length).toBe(TITLE_MAX)
     expect(p.title.endsWith('…')).toBe(true)
   })
@@ -598,6 +616,7 @@ describe('a community Reddit closed', () => {
     const looked: string[] = []
     const { deps, rows } = fakeDesk({
       readJson: async url => (url.includes('unread') ? inboxOf() : null),
+      subs: [T27AI, ...SUBREDDITS],
       fetchRss: async () => rss,
       communityState: async name => {
         looked.push(name)
@@ -609,7 +628,7 @@ describe('a community Reddit closed', () => {
       },
     })
     expect(await redditTick(deps)).toBe(
-      'asked about posting in r/ProgrammingLanguages'
+      'asked about posting in r/ProgrammingLanguages (skipped: r/t27ai banned)'
     )
     expect(looked).toEqual(['t27ai', 'ProgrammingLanguages'])
     expect(rows[0].target).toBe('ProgrammingLanguages/specs-that-run')
@@ -619,7 +638,7 @@ describe('a community Reddit closed', () => {
   it('leaves the desk with nothing to post when every due community is closed', async () => {
     const { deps } = fakeDesk({
       readJson: async () => inboxOf(),
-      subs: [SUBREDDITS[0]],
+      subs: [T27AI],
       communityState: async () => 'banned',
       ask: async () => {
         throw new Error('must not ask about a banned community')
@@ -639,7 +658,7 @@ describe('a community Reddit closed', () => {
       </item></channel></rss>`
     const { deps } = fakeDesk({
       readJson: async url => (url.includes('unread') ? inboxOf() : null),
-      subs: [SUBREDDITS[0]],
+      subs: [T27AI],
       fetchRss: async () => rss,
       blogPosted: async () => ['t27ai/specs-that-run'],
       ask: async () => {
@@ -718,5 +737,173 @@ describe('a community Reddit closed', () => {
         { slug: 'broken', detail: 'not json' },
       ])
     ).toEqual(['t27ai/old-one', 'fpga/new-one'])
+  })
+})
+
+describe('the desk heals its own list (spec reddit-desk.t27)', () => {
+  beforeEach(() => resetRedditActsForTests())
+
+  const RSS = `<rss><channel><item>
+      <guid>specs-that-run</guid>
+      <title>Specs that run</title>
+      <link>https://t27.ai/blog/specs-that-run</link>
+      <description>A spec whose asserts are evaluated.</description>
+    </item></channel></rss>`
+
+  const skipAt = (name: string, state: string, atMs: number) => ({
+    skips: [{ name, state, at: new Date(atMs).toISOString() }],
+  })
+
+  /* The skip row as agent_strategies would hold it, in memory. */
+  function skipRow(start: unknown = null) {
+    const row = { value: start, writes: 0 }
+    return {
+      row,
+      readSkips: async () => row.value,
+      writeSkips: async (skips: Skip[]) => {
+        row.writes++
+        row.value = { skips }
+      },
+    }
+  }
+
+  it('skips a banned first community, records it, and asks about the next one', async () => {
+    const store = skipRow()
+    const owner = [T27AI, ...SUBREDDITS]
+    const ownerCopy = JSON.stringify(owner)
+    const looked: string[] = []
+    const { deps, rows, said } = fakeDesk({
+      readJson: async url => (url.includes('unread') ? inboxOf() : null),
+      subs: owner,
+      fetchRss: async () => RSS,
+      communityState: async name => {
+        looked.push(name)
+        return name === 't27ai' ? 'banned' : 'open'
+      },
+      readSkips: store.readSkips,
+      writeSkips: store.writeSkips,
+    })
+    expect(await redditTick(deps)).toBe(
+      'asked about posting in r/ProgrammingLanguages (skipped: r/t27ai banned)'
+    )
+    expect(looked).toEqual(['t27ai', 'ProgrammingLanguages'])
+    expect(rows[0].target).toBe('ProgrammingLanguages/specs-that-run')
+    /* Recorded with its reason and time. */
+    expect(skipsOf(store.row.value)).toEqual([
+      { name: 't27ai', state: 'banned', at: new Date(10_000).toISOString() },
+    ])
+    /* The owner sees it, once. */
+    expect(said).toEqual([skipLine('t27ai', 'banned')])
+    expect(said[0]).toContain('r/t27ai banned -> skipped')
+    /* The owner's list is exactly what he wrote. */
+    expect(JSON.stringify(owner)).toBe(ownerCopy)
+  })
+
+  it('does not look at a skipped community again, nor tell the owner twice', async () => {
+    const store = skipRow(skipAt('t27ai', 'banned', 0))
+    const looked: string[] = []
+    const { deps, said } = fakeDesk({
+      readJson: async url => (url.includes('unread') ? inboxOf() : null),
+      subs: [T27AI, ...SUBREDDITS],
+      fetchRss: async () => RSS,
+      communityState: async name => {
+        looked.push(name)
+        return 'open'
+      },
+      readSkips: store.readSkips,
+      writeSkips: store.writeSkips,
+    })
+    expect(await redditTick(deps)).toBe(
+      'asked about posting in r/ProgrammingLanguages'
+    )
+    expect(looked).toEqual(['ProgrammingLanguages'])
+    expect(said).toEqual([])
+    expect(store.row.writes).toBe(0)
+  })
+
+  it('lets a skip expire after thirty days, and tries the community again', async () => {
+    const store = skipRow(skipAt('t27ai', 'private', 0))
+    const looked: string[] = []
+    const { deps, rows } = fakeDesk({
+      now: () => SPEC.SKIP_MS,
+      readJson: async url => (url.includes('unread') ? inboxOf() : null),
+      subs: [T27AI, ...SUBREDDITS],
+      fetchRss: async () => RSS,
+      communityState: async name => {
+        looked.push(name)
+        return 'open'
+      },
+      readSkips: store.readSkips,
+      writeSkips: store.writeSkips,
+    })
+    expect(await redditTick(deps)).toBe('asked about posting in r/t27ai')
+    expect(looked).toEqual(['t27ai'])
+    expect(rows[0].target).toBe('t27ai/specs-that-run')
+    /* The expired skip is dropped from the record. */
+    expect(skipsOf(store.row.value)).toEqual([])
+    /* One millisecond earlier it was still in force. */
+    const held = skipsOf(skipAt('t27ai', 'private', 0))
+    expect(activeSkips(held, SPEC.SKIP_MS - 1)).toHaveLength(1)
+  })
+
+  it('never skips on a read that knows nothing', async () => {
+    const store = skipRow()
+    const { deps, said } = fakeDesk({
+      readJson: async url => (url.includes('unread') ? inboxOf() : null),
+      subs: [T27AI],
+      fetchRss: async () => RSS,
+      communityState: async () => 'unknown',
+      readSkips: store.readSkips,
+      writeSkips: store.writeSkips,
+    })
+    expect(await redditTick(deps)).toBe('asked about posting in r/t27ai')
+    expect(store.row.writes).toBe(0)
+    expect(said).toEqual([])
+  })
+
+  it('reads the other ways Reddit closes a community', () => {
+    expect(communityStateOf('{"reason": "quarantined", "error": 403}')).toBe(
+      'quarantined'
+    )
+    expect(communityStateOf('{"message": "Not Found", "error": 404}')).toBe(
+      'not_found'
+    )
+    expect(communityStateOf({ kind: 'Listing', data: { children: [] } })).toBe(
+      'not_found'
+    )
+    const t5 = (data: Record<string, unknown>) => ({ kind: 't5', data })
+    expect(communityStateOf(t5({ quarantine: true }))).toBe('quarantined')
+    expect(communityStateOf(t5({ subreddit_type: 'restricted' }))).toBe(
+      'restricted'
+    )
+    expect(communityStateOf(t5({ subreddit_type: 'archived' }))).toBe(
+      'restricted'
+    )
+    expect(
+      communityStateOf(
+        t5({ subreddit_type: 'restricted', user_is_contributor: true })
+      )
+    ).toBe('open')
+    expect(communityStateOf(t5({ subreddit_type: 'public' }))).toBe('open')
+  })
+
+  it('keeps a skip at its first time, and reads only well-formed rows', () => {
+    const first = withSkip([], 't27ai', 'banned', 1_000)
+    expect(first.added).toBe(true)
+    const again = withSkip(first.skips, 'T27AI', 'private', 9_000)
+    expect(again.added).toBe(false)
+    expect(again.skips).toEqual(first.skips)
+    expect(skippedIn(first.skips, 'T27ai')).toBe(true)
+    expect(
+      skipsOf({
+        skips: [
+          { name: 'r/FPGA', state: 'banned', at: '2026-10-06T00:00:00Z' },
+          { name: '!!', state: 'banned', at: '2026-10-06T00:00:00Z' },
+          { name: 'ok', state: 'open', at: '2026-10-06T00:00:00Z' },
+          { name: 'ok', state: 'banned', at: 'never' },
+        ],
+      })
+    ).toEqual([{ name: 'FPGA', state: 'banned', at: '2026-10-06T00:00:00Z' }])
+    expect(skipsOf(null)).toEqual([])
   })
 })
