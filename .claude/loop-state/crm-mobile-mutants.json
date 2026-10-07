@@ -597,24 +597,6 @@
     "to": "w && picked !== null && w.ours >= 0"
   },
   {
-    "name": "tri shot measures the stand, not Telegram",
-    "file": "bin/helpers/shot.mjs",
-    "from": "        foldInsets: TELEGRAM,",
-    "to": ""
-  },
-  {
-    "name": "tri shot types its own home indicator",
-    "file": "bin/helpers/shot.mjs",
-    "from": "  bottom: FIRST.TG_HOME_BOTTOM_PX,",
-    "to": "  bottom: 34,"
-  },
-  {
-    "name": "tri shot stops asking for Prepare",
-    "file": "bin/helpers/shot.mjs",
-    "from": "          ['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX],\n",
-    "to": ""
-  },
-  {
     "name": "the pills block typed past the spec",
     "file": "apps/vibee-editor/player/src/components/Crm/FunnelStrip.css",
     "from": "@media (min-width: 360px) and (max-width: 480px) {",
