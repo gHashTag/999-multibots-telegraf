@@ -253,7 +253,8 @@ function fakeBase() {
             j =>
               j.lead_id === p[0] &&
               j.seller_id === p[1] &&
-              j.status === 'failed'
+              // Only when the statement itself says so.
+              (!q.includes("status = 'failed'") || j.status === 'failed')
           )
           .sort((a, b) => b.id - a.id)
           .slice(0, 5)
