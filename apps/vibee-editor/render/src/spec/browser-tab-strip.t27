@@ -29,7 +29,8 @@
 //     not know the mark cannot close the agent's page silently.
 //   - Which tab is in front is asked over ONE browser socket per poll (flattened sessions,
 //     one evaluate each), and the answer is shared for VISIBILITY_CACHE_MS, so two open
-//     app tabs do not double the load on the pod.
+//     app tabs do not double the load on the pod. A page that has not answered within
+//     VISIBILITY_PROBE_MS is not visible: one hung page must not hold the whole strip.
 // Claim status: v1 written 2026-10-06 with its host; not yet measured on a live pod.
 // v2 (2026-10-07): agent marks, confirm before closing an agent tab, one socket per poll.
 // phi^2 + 1/phi^2 = 3 | TRINITY
@@ -89,6 +90,10 @@ module automation::browser_tab_strip {
     // ---- Which tab is in front (v2) ----------------------------------------------------
     pub const SOCKETS_PER_POLL : u8 = 1;  // one browser socket, flattened sessions
     pub const VISIBILITY_CACHE_MS : u16 = 1500;  // shared by every reader of one pod
+    pub const VISIBILITY_PROBE_MS : u16 = 1000;  // a page silent this long (a hung
+                                                 // renderer, an open alert) is not
+                                                 // visible; the strip does not wait
+                                                 // out the 20 s CDP call timeout
 
     // A target is shown when it is a page and its address is not the browser's own.
     fn shown(is_page: bool, internal: bool) -> bool {
@@ -233,6 +238,7 @@ module automation::browser_tab_strip {
         assert(cache_fresh(1499));
         assert(!cache_fresh(1500));
         assert(VISIBILITY_CACHE_MS < POLL_MS);
+        assert(VISIBILITY_PROBE_MS < VISIBILITY_CACHE_MS);
     }
 }
 
