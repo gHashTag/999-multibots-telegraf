@@ -27,6 +27,11 @@
  *     the price above the button, spec v16) stands higher on the screen.
  *     A pair whose first element is missing is out of order too: "the
  *     price is above the button" is not true of a price that is not there.
+ *   - fold: what a state says must be on the FIRST screen (its `fold`
+ *     selectors) ends above the bars fixed to the bottom of the viewport
+ *     (the app's tab bar), counted from the top of the page, not from
+ *     wherever the state scrolled. Missing counts as below the fold. An
+ *     entry `[selector, minWidth]` is asked only from that width up.
  * Exit 0 clean, 1 something measured wrong, 2 could not measure. The
  * verdict goes to `tri gate`. Nothing is written or started: keeping and
  * start are refused by the answer script.
@@ -443,6 +448,14 @@ const HARNESSES = {
       {
         id: 'load',
         ready: async p => p.locator('.crm__row').first().waitFor(),
+        /*
+         * P31: the work tab opens on the first person waiting for an answer
+         * -- their name at any width, and from 360 px why they wait. The
+         * press that starts the reply is one short scroll below (it ends at
+         * about 800 of 787 px at 390); a real phone in Telegram's fullscreen
+         * also gives up about 127 px to its buttons and the home indicator.
+         */
+        fold: ['.crm__list .crm__open', ['.crm__list .crm__why', 360]],
       },
       {
         // The owner's complaint, 2026-10-01: finding one contact on a phone.
@@ -1166,7 +1179,14 @@ const answer = (tool, args) => {
 }
 
 /* Measured in the page: the target is the page's own --touch-target. */
-function measure({ root, scope, within: area, before = [], cards: deck }) {
+function measure({
+  root,
+  scope,
+  within: area,
+  before = [],
+  cards: deck,
+  fold: firstScreen = [],
+}) {
   const target =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -1302,6 +1322,50 @@ function measure({ root, scope, within: area, before = [], cards: deck }) {
     })
     .filter(x => x !== null)
   /*
+   * THE FIRST SCREEN (P31, 07.10.2026). The work tab passed every measure
+   * while the first person waiting for an answer began 868 px down a 844 px
+   * phone: green on size, cut and overlap, and nobody to answer without a
+   * scroll. Whatever a state names in `fold` must END above the line where
+   * the bars fixed to the bottom (the tab bar) begin. The place is the
+   * page's own, at scroll 0: every scrolled ancestor's offset is added back.
+   */
+  const bars = [...document.querySelectorAll('body *')].filter(el => {
+    if (getComputedStyle(el).position !== 'fixed') return false
+    const r = el.getBoundingClientRect()
+    return (
+      r.height > 0 &&
+      r.width >= window.innerWidth / 2 &&
+      r.top >= window.innerHeight / 2 &&
+      r.bottom >= window.innerHeight - 2
+    )
+  })
+  const line = Math.round(
+    Math.min(
+      window.innerHeight,
+      ...bars.map(el => el.getBoundingClientRect().top)
+    )
+  )
+  const fold = firstScreen
+    .map(x => (Array.isArray(x) ? x : [x, 0]))
+    .filter(([, from]) => window.innerWidth >= from)
+    .map(([sel]) => {
+      const el = document.querySelector(sel)
+      if (!el) return { sel, end: null, line, bad: `${sel} is not there` }
+      let scrolled = window.scrollY
+      for (let p = el.parentElement; p; p = p.parentElement)
+        scrolled += p.scrollTop
+      const end = Math.round(el.getBoundingClientRect().bottom + scrolled)
+      return {
+        sel,
+        end,
+        line,
+        bad:
+          end <= line
+            ? null
+            : `${name(el)} ends at ${end}px, the first screen at ${line}px`,
+      }
+    })
+  /*
    * CARDS: a harness that names its cards gets each one held to a minimum
    * height and to no overlap with any other card. No cards found is "not
    * measured", which counts as a failure, never as a pass.
@@ -1330,6 +1394,7 @@ function measure({ root, scope, within: area, before = [], cards: deck }) {
   return {
     card,
     order,
+    fold,
     target,
     controls: controls.length,
     wider,
@@ -1457,6 +1522,7 @@ try {
       within: h.within,
       before: h.before,
       cards: h.cards,
+      fold: s.fold,
     })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
@@ -1484,12 +1550,14 @@ try {
       m.cut.length +
       m.overlap.length +
       m.order.length +
-      m.card.length
+      m.card.length +
+      m.fold.filter(f => f.bad).length
     bad += wrong
     lines.push(
       `${wrong ? 'RED  ' : 'ok   '}${s.id}: ${m.controls} controls, target ${m.target}px, ` +
         `wider ${m.wider}px, small ${m.small.length}, cut ${m.cut.length}, overlap ${m.overlap.length}, order ${m.order.length}` +
         (h.cards ? `, card ${m.card.length}` : '') +
+        (s.fold ? `, fold ${m.fold.filter(f => f.bad).length}` : '') +
         ` · ${file}`
     )
     for (const x of m.small) lines.push(`       small   ${x}`)
@@ -1497,6 +1565,11 @@ try {
     for (const x of m.overlap) lines.push(`       overlap ${x}`)
     for (const x of m.order) lines.push(`       order   ${x}`)
     for (const x of m.card) lines.push(`       card    ${x}`)
+    // Green or red, the margin is printed: 2 px above the line is not 200.
+    for (const f of m.fold)
+      lines.push(
+        `       fold    ${f.bad ?? `${f.sel} ends at ${f.end}px of ${f.line}px`}`
+      )
   }
   if (errors.length) {
     bad += errors.length

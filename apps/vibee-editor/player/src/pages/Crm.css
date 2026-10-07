@@ -431,6 +431,49 @@
   padding: 10px 16px;
 }
 
+/*
+ * OFF, ON A PHONE, THE PANEL IS ITS HEADING (src/lib/crmPhone.ts). The
+ * heading's button is the whole row -- name, lamp, "off" and a chevron --
+ * so the folded panel is one touch target tall, not 220 px.
+ */
+.crm-auto--folded {
+  padding-block: 0;
+}
+
+.crm-auto__fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--touch-target, 44px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crm-auto__word {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--t27-muted, #888);
+}
+
+.crm-auto__fold::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--t27-muted, #888);
+  transition: transform 0.15s ease;
+}
+
+.crm-auto__fold[aria-expanded='true']::after {
+  transform: rotate(90deg);
+}
+
 /* ── SEARCH AND THE "UNDER WAY" HEADING ───────────────────────────────── */
 
 /*

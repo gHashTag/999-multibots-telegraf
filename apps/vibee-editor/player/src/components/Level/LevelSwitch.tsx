@@ -5,8 +5,12 @@
  * the UI". Offered to admins and dev builds only; it changes what the screens
  * draw and nothing the server allows (hooks/useUserLevel.ts).
  *
- * Two faces of one control: a compact select for the header, where space is
- * short, and a row of chips where there is room (the CRM, the admin badge).
+ * Three faces of one control: a compact select for the header, where space
+ * is short, a row of chips where there is room (the CRM, the admin badge),
+ * and on a phone's CRM the label and the select on one line (`row`): the
+ * chips took two lines there, about 100 px of a first screen that has room
+ * for one person to answer (P31, `tri shot crm`, 07.10.2026). The phone's
+ * own picker is the idiom for one of four when the width is short.
  */
 import { USER_LEVELS, USER_LEVEL_LABEL, type UserLevel } from '@vibee/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -18,18 +22,18 @@ const COPY = {
   ru: { label: 'Смотреть как', real: 'Мой' },
 } as const
 
-export function LevelSwitch(props: { variant?: 'select' | 'chips' }) {
+export function LevelSwitch(props: { variant?: 'select' | 'chips' | 'row' }) {
   const { lang } = useLanguage()
   const l = lang === 'ru' ? 'ru' : 'en'
   const { level, switched, setLevel } = useUserLevel()
   if (!canSwitchLevel()) return null
   const copy = COPY[l]
 
-  if (props.variant === 'select') {
-    return (
+  if (props.variant === 'select' || props.variant === 'row') {
+    const select = (
       <select
         className="level-switch-select"
-        data-testid="level-switch"
+        data-testid={props.variant === 'row' ? undefined : 'level-switch'}
         aria-label={copy.label}
         title={copy.label}
         value={switched && level ? level : ''}
@@ -45,6 +49,16 @@ export function LevelSwitch(props: { variant?: 'select' | 'chips' }) {
           </option>
         ))}
       </select>
+    )
+    if (props.variant === 'select') return select
+    return (
+      <label
+        className="level-switch level-switch--row"
+        data-testid="level-switch"
+      >
+        <span className="level-switch__label">{copy.label}</span>
+        {select}
+      </label>
     )
   }
 

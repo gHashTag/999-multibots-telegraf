@@ -96,6 +96,14 @@ numbers and the dedupe rule are in the header of
   Цена над кнопкой (спека v16): «до нажатия» — это место, а не слово.
   Пара, где первого нет, — тоже нарушение: «цена над кнопкой» неверно о
   цене, которой нет.
+- **fold** — what a STATE names in `fold` must END on the first screen: above
+  the bars fixed to the bottom of the viewport (the app's tab bar, found by
+  `position: fixed` in the lower half), counted from the top of the page
+  (scrolled ancestors added back). `[selector, minWidth]` asks only from that
+  width up. The margin is printed green or red (`ends at 708px of 787px`):
+  2 px above the line is not 200. Added for P31 (07.10.2026): the CRM work
+  tab passed size, cut and overlap while the first person waiting for an
+  answer began at 868 px of a 844 px phone.
 
 ## Solution Steps: снять новый экран
 
@@ -382,6 +390,31 @@ import.meta.url)), ...)` and `readFileSync`.
   (`a.crm__tme`, a 44×44 sibling) and a grid column on a phone. Look for the
   same speck in the screen's other lists, even if the stand's fixture leaves
   them empty (CRM hot leads).
+
+- **Green on every control measure, and nobody on the first screen.** The
+  CRM work tab (07.10.2026): 29 controls, all 44 px, nothing cut -- and the
+  first person waiting for an answer ended at 926 px under a tab bar at 787.
+  Size measures say whether a thumb CAN press; they never said whether there
+  is anything to press without scrolling. Name what the screen is FOR in
+  `fold`, measure it RED first, then fix.
+- **Spend the first screen by state, not by feature.** What stood above the
+  person: a switch that was OFF at full size (220 px), a tester's level
+  chips on two lines, count chips stacked two rows high. Off-and-safe folds
+  to one line (on -- the state that acts without the owner -- never does);
+  the tester's chips become label + native select; count pills go side by
+  side. Each piece is a jsdom guard; the shot holds the sum.
+- **A shot's fold is not the owner's phone.** The stand is 844 px with no
+  Telegram chrome. Telegram fullscreen on an iPhone also takes its own
+  buttons at the top and the home indicator (about 127 px together), so
+  print the margin and say in the report how much of it a real phone eats.
+- **A width rule that saves a row at 390 can cost one at 320.** Side-by-side
+  funnel pills: 126 -> 78 px at 390, but three rows at 320 (as tall as two
+  stacked). Measure every width before scoping; scope the rule
+  (`min-width: 360px`).
+- **Type gate red on files you never touched = a dependency main added and
+  this container never installed** (`@tonconnect/ui`, 9 errors). Look at the
+  first error (`TS2307 Cannot find module`), install with `--no-save`, and
+  check the shot's playwright still resolves afterwards.
 
 ## Related Resources
 

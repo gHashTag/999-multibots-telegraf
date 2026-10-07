@@ -400,3 +400,22 @@ Suno/TTS + Runway/Luma/Kling). Это ровно та бизнес-модель-
 Источники: [Material: Dialogs](https://m2.material.io/components/dialogs),
 [Material: Accessibility](https://m1.material.io/usability/accessibility.html),
 [HubSpot: CRM mobile app](https://blog.hubspot.com/sales/crm-mobile-app).
+
+## 07.10, виток 15: первый экран вкладки «Работа»
+
+- **Pipedrive, Focus view**: мобильное приложение открывается сразу на
+  «самом срочном за день»: сверху компактные счётчики (просроченное,
+  непрочитанная почта, рядом), под ними — дела на сегодня. Счётчики —
+  маленькие плашки, а не крупные карточки.
+- **HubSpot, Today view**: главный экран мобильного приложения — задачи на
+  сегодня и просроченные, звонок или письмо прямо из строки задачи.
+- Ни у одного из них переключатель автоматики не стоит на первом экране во
+  весь рост. У нас выключенный AUTO занимал ~220 px над первым человеком;
+  теперь, пока он выключен, — одна строка; включённый (пишет людям сам) —
+  никогда не сворачивается. Воронка — плашки в строку на 360–480 px.
+- Остаётся разрыв с ними: кнопка действия («Подготовить») в первом экране
+  — у них она в строке задачи; у нас на 20 px ниже края стенда (P32).
+
+Источники: [Pipedrive: Focus view in the mobile app](https://support.pipedrive.com/en/article/focus-view-in-the-mobile-app),
+[HubSpot: Today view on mobile](https://community.hubspot.com/t5/Releases-and-Updates/Now-Live-Introducing-the-Today-View-on-Mobile-a-new-home-for/ba-p/418321),
+[HubSpot: Use tasks in the mobile app](https://knowledge.hubspot.com/mobile/use-tasks-in-the-hubspot-mobile-app).
