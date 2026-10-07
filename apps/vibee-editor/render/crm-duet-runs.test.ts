@@ -21,6 +21,11 @@ import {
   type DuetDeps,
 } from './src/agent/crm-duet-tool'
 import type { ToolContext } from './src/agent/tools'
+// The duet's paid set is derived from the tool registry (tool-charges.ts)
+// and a read before the registry loads fails closed -- the run would end
+// `failed`. In production the duet only runs through the registry, so load
+// it here the same way.
+import './src/agent/tools'
 
 const OWNER = '144022504'
 const BUYER = '435572800'

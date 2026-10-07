@@ -1041,6 +1041,14 @@ export function makeStoryReelTool(
     late?.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
   return {
     name: 'story_reel',
+    // Borrowed from the registry, each charging for itself: the price that makes
+    // this a paid tool (tool-charges.ts, crm-duet.t27 v5).
+    charges: [
+      'image_edit',
+      'audio_generate',
+      'lipsync_generate',
+      'reel_render',
+    ],
     description:
       `РИЛС-ИСТОРИЯ ОДНИМ ВЫЗОВОМ (шаблон StoryReel): одно фото с лицом → ${STORY_SCENES_MIN}–${STORY_SCENES_MAX} сцен. ` +
       'Сцена 1 — САМО фото, общий план говорящей головы, её реплика — ХУК, не приветствие. ' +

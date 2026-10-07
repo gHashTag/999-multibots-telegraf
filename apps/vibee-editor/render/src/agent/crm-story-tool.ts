@@ -95,6 +95,8 @@ export function makeCrmStoryTool(o: {
 }): AgentTool {
   return {
     name: 'crm_story_reel',
+    // Runs story_reel through its deps (story-deps.ts): priced as story_reel.
+    charges: ['story_reel'],
     description:
       'ШАБЛОН «РИЛС-ИСТОРИЯ» CRM для клиента с лицом (аватарка) — ЛЮБОЙ говорящий рилс клиента его голосом, ' +
       'не ручная сборка. Голос: его клон (crm_voice_clone), а нет клона — его НАСТОЯЩИЕ голосовые из лички, ' +
@@ -520,6 +522,8 @@ export function makeMyStoryTool(o: {
 }): AgentTool {
   return {
     name: 'my_story_reel',
+    // Runs story_reel through its deps (story-deps.ts): priced as story_reel.
+    charges: ['story_reel'],
     description:
       'ТВОЙ РИЛС-ИСТОРИЯ: твоё лицо (аватарка) в новой обстановке каждой сцены, твой голос (клон), ' +
       '3 сцены ~15 с и пауза с призывом. Без start — готово ли, следующая тема плана, цена и твои рилсы. ' +
