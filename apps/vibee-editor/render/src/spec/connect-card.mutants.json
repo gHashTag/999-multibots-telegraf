@@ -28,5 +28,17 @@
     "file": "src/agent/connect-card.ts",
     "from": "[id, d.owner, n, d.now(), !button]",
     "to": "[id, d.owner, n, d.now(), false]"
+  },
+  {
+    "name": "a used link redeemed again",
+    "file": "src/agent/connect-card.ts",
+    "from": "      WHERE nonce = $1 AND owner = $2 AND used = false",
+    "to": "      WHERE nonce = $1 AND owner = $2"
+  },
+  {
+    "name": "a card Telegram refused counted as sent",
+    "file": "src/agent/connect-card.ts",
+    "from": "        WHERE nonce = ANY($1::text[])`,",
+    "to": "        WHERE false`,"
   }
 ]

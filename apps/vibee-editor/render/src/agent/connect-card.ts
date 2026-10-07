@@ -203,8 +203,10 @@ export async function runConnectCard(d: CardDeps): Promise<string> {
     'Подключите соцсети для блога: одно нажатие — и откроется страница самой сети, где вы даёте согласие.',
   ]
   const buttons: Array<Array<{ text: string; web_app: { url: string } }>> = []
+  const ids: string[] = []
   for (const n of due) {
     const id = nonce()
+    ids.push(id)
     const button = hasButton(states[n])
     /* A network with no button is still recorded, so the honest line is sent
      * once a week too; its row is born used and can never be redeemed. */
@@ -235,11 +237,22 @@ export async function runConnectCard(d: CardDeps): Promise<string> {
     lines.push(
       'Ссылка действует час и один раз. Публикации по-прежнему только после вашего «да».' // cyrillic-ok: told to the owner
     )
-  await d.send(
-    d.owner,
-    lines.join('\n\n'),
-    buttons.length > 0 ? { inline_keyboard: buttons } : undefined
-  )
+  try {
+    await d.send(
+      d.owner,
+      lines.join('\n\n'),
+      buttons.length > 0 ? { inline_keyboard: buttons } : undefined
+    )
+  } catch (e) {
+    /* A card that never arrived is not a card sent: its rows go stale, so the
+     * week's wait does not start and the next tick tries again. */
+    await d.pool.query(
+      `UPDATE social_connect_links SET stale = true, used = true
+        WHERE nonce = ANY($1::text[])`,
+      [ids]
+    )
+    throw e
+  }
   return `carded ${due.join(', ')}`
 }
 

@@ -102,9 +102,25 @@ function fakePool(tokens: Array<{ network: string; expiresAt?: number }> = []) {
           rows: [...last].map(([network, at]) => ({ network, last: at })),
         }
       }
+      if (/nonce = ANY/.test(q)) {
+        const ids = p[0] as string[]
+        for (const l of links)
+          if (ids.includes(l.nonce)) {
+            l.stale = true
+            l.used = true
+          }
+        return { rows: [] }
+      }
       if (/SET used = true/.test(q)) {
+        /* The guards are read from the statement itself, so a redeem that
+         * dropped `AND used = false` would really take a used link here. */
+        const onlyUnused = /AND used = false/.test(q)
+        const ownerBound = /AND owner = \$2/.test(q)
         const l = links.find(
-          x => x.nonce === p[0] && x.owner === p[1] && !x.used
+          x =>
+            x.nonce === p[0] &&
+            (!ownerBound || x.owner === p[1]) &&
+            (!onlyUnused || !x.used)
         )
         if (!l) return { rows: [] }
         l.used = true
@@ -194,6 +210,15 @@ describe('connect-card.t27 against the host', () => {
     )
     expect(again.status).toBe(410)
     expect(pool.states).toHaveLength(1)
+
+    /* Two taps at once on the LinkedIn button: one consent, one refusal. */
+    const li0 = new URL(buttonsOf(bot.sent[0].markup)[1].web_app.url).pathname
+    const both = await Promise.all([
+      handleConnectLink({ url: li0, method: 'POST' }, door(pool)),
+      handleConnectLink({ url: li0, method: 'POST' }, door(pool)),
+    ])
+    expect(both.map(r => r.status).sort()).toEqual([200, 410])
+    expect(pool.states).toHaveLength(2)
 
     /* An hour old: refused, and the network goes back in the queue. */
     const late = fakePool()
@@ -319,6 +344,28 @@ describe('connect-card.t27 against the host', () => {
       })
     ).toBe('nothing due')
     expect(bot2.sent).toHaveLength(0)
+
+    /* A card Telegram refused was never carded: the next tick tries again,
+     * and the links of the card that never arrived cannot be redeemed. */
+    const lost = fakePool()
+    let refuse = true
+    const bot3 = botApi()
+    const flaky = (at: number) =>
+      runConnectCard({
+        pool: lost as never,
+        owner: OWNER,
+        send: async (to, text, markup) => {
+          if (refuse) throw new Error('Telegram 400')
+          await bot3.send(to, text, markup)
+        },
+        now: () => at,
+        env: fullEnv,
+      })
+    await expect(flaky(T0)).rejects.toThrow('Telegram 400')
+    expect(lost.links.every(l => l.stale && l.used)).toBe(true)
+    refuse = false
+    expect(await flaky(T0 + 5 * 60_000)).toBe('carded threads, linkedin')
+    expect(bot3.sent).toHaveLength(1)
   })
 
   it('only a network that can be connected gets a button', async () => {
