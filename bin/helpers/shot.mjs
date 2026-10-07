@@ -114,6 +114,106 @@ const openMore = async p => {
     await more.locator(':scope > summary').click()
 }
 
+/*
+ * A STAND-IN POD FOR THE TAB STRIP. Its door is answered by render's own
+ * `handleStrip` (browser/tab-strip.ts) over an injected StripIo and a pool
+ * that knows one live session -- so the title clip, the hidden devtools://
+ * page, the 12-tab cap and the refusal to close the last tab are the
+ * host's, not this file's. The pod's tabs live here between requests; the
+ * visible page is the active one, as on a single-window pod.
+ */
+const STRIP_DOOR = `
+const { pod, raw } = JSON.parse(process.argv[1])
+const m = await import('./src/browser/tab-strip.ts')
+const { handleStrip } = m.handleStrip ? m : m.default
+const pool = {
+  query: async sql =>
+    /SELECT/.test(sql)
+      ? { rows: [{ telegram_id: 'shot', session_id: 'shot', state: 'live',
+          cdp_endpoint: 'pod:9222' }] }
+      : { rows: [] },
+}
+let seq = pod.targets.length
+const io = {
+  list: async () => pod.targets,
+  visible: async (_e, ids) => new Set(ids.filter(id => id === pod.active)),
+  activate: async (_e, id) => { pod.active = id },
+  open: async (_e, url) => {
+    const t = { id: 'new-' + ++seq, type: 'page', url, title: 'Google' }
+    pod.targets.push(t)
+    return t
+  },
+  close: async (_e, id) => {
+    // As Chromium does: closing the shown tab shows its neighbour.
+    const i = pod.targets.findIndex(t => t.id === id)
+    pod.targets = pod.targets.filter(t => t.id !== id)
+    if (pod.active === id)
+      pod.active = (pod.targets[Math.max(0, i - 1)] ?? {}).id ?? null
+  },
+}
+const r = await handleStrip(pool, 'shot', raw, io)
+console.log(JSON.stringify({ r, pod }))
+`
+const stripPod = (targets, active) => {
+  let pod = { targets, active }
+  return req => {
+    const raw = req.method() === 'POST' ? (req.postData() ?? '') : null
+    const run = spawnSync(
+      join(RENDER, 'node_modules/.bin/tsx'),
+      ['--input-type=module', '-e', STRIP_DOOR, JSON.stringify({ pod, raw })],
+      { cwd: RENDER, encoding: 'utf8' }
+    )
+    if (run.status !== 0) throw new Error(`strip door: ${run.stderr.trim()}`)
+    const out = JSON.parse(run.stdout.trim().split('\n').pop())
+    pod = out.pod
+    return { status: out.r.status, json: out.r.body }
+  }
+}
+// The head of the page's own title: the host clips the tail (40 chars).
+const HABR = 'Троичная логика' // cyrillic-ok
+/* Real-length titles: a strip breaks on what a pod really holds. */
+const POD_FIVE = [
+  [
+    'reddit',
+    'https://www.reddit.com/r/FPGA/comments/1abcde/ternary_nets/?share=1',
+    'Ternary neural networks on a $40 FPGA board: what we measured : r/FPGA',
+  ],
+  [
+    'habr',
+    'https://habr.com/ru/articles/912345/',
+    `${HABR} на FPGA: как мы ускорили инференс втрое / Хабр`, // cyrillic-ok
+  ],
+  [
+    'github',
+    'https://github.com/gHashTag/999-multibots-telegraf/pull/3808',
+    'feat(browser): the tab strip above the picture · Pull Request #3808 · gHashTag/999-multibots-telegraf',
+  ],
+  [
+    'google',
+    'https://www.google.com/search?q=ternary+fpga+inference',
+    'ternary fpga inference benchmark - Google Search',
+  ],
+  [
+    't27b-lab',
+    'https://t27b-lab-production.up.railway.app/coverage',
+    't27b lab: native AArch64 backend coverage, every corpus file',
+  ],
+].map(([id, url, title]) => ({ id, type: 'page', url, title }))
+/* The browser's own pages are never tabs: the host drops them. */
+const POD_HIDDEN = [
+  {
+    id: 'devtools',
+    type: 'page',
+    url: 'devtools://devtools/bundled/inspector.html',
+    title: 'DevTools',
+  },
+  { id: 'sw', type: 'service_worker', url: 'https://www.reddit.com/sw.js' },
+]
+const POD_TWELVE = Array.from({ length: 12 }, (_, i) => {
+  const t = POD_FIVE[i % POD_FIVE.length]
+  return { ...t, id: `${t.id}-${i}`, title: `${i + 1}. ${t.title}` }
+})
+
 const HARNESSES = {
   'story-palette': {
     tool: 'crm_story_reel',
@@ -678,6 +778,103 @@ const HARNESSES = {
         ready: async p => {
           await p.locator('.card-chat__move-btn--armed').click()
           await p.locator('.card-chat__move-said').waitFor()
+        },
+      },
+    ],
+  },
+  /*
+   * THE TABS OF THE PERSON'S OWN BROWSER (/browser on a phone, above the
+   * picture): five long titles, GitHub chosen. A thumb switches to another
+   * tab, then closes it; render's handleStrip answers every press.
+   */
+  'tab-strip': {
+    routes: [
+      [
+        '**/api/browser/strip',
+        stripPod([...POD_FIVE, ...POD_HIDDEN], 'github'),
+      ],
+    ],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    // The tabs are read above the picture they choose.
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').nth(4).waitFor()
+          // The host drops the browser's own pages: five tabs, not six.
+          if ((await p.locator('.tab-strip__tab').count()) !== 5)
+            throw new Error('load: the strip does not show five tabs')
+        },
+      },
+      {
+        id: 'switch',
+        ready: async p => {
+          await p.locator('.tab-strip__pick', { hasText: HABR }).click()
+          await p
+            .locator('.tab-strip__tab.is-active', { hasText: HABR })
+            .waitFor()
+        },
+      },
+      {
+        id: 'close',
+        ready: async p => {
+          await p.locator('.tab-strip__tab.is-active .tab-strip__close').click()
+          await p
+            .locator('.tab-strip__tab', { hasText: HABR })
+            .waitFor({ state: 'detached' })
+          if ((await p.locator('.tab-strip__tab').count()) !== 4)
+            throw new Error('close: the strip does not show four tabs')
+        },
+      },
+    ],
+  },
+  /* The pod's cap: twelve tabs, so "+" is refused before it is pressed. */
+  'tab-strip-12': {
+    page: 'tab-strip',
+    routes: [['**/api/browser/strip', stripPod(POD_TWELVE, 'github-7')]],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').nth(11).waitFor()
+          if (!(await p.locator('.tab-strip__new').isDisabled()))
+            throw new Error('twelve tabs: "+" is not disabled')
+        },
+      },
+    ],
+  },
+  /* One tab: no close cross at all, and the host refuses one if asked. */
+  'tab-strip-1': {
+    page: 'tab-strip',
+    routes: [['**/api/browser/strip', stripPod([POD_FIVE[2]], 'github')]],
+    root: '.tab-strip',
+    scope: '.remote-browser',
+    within: 'root',
+    before: [['.tab-strip', '.remote-browser__stage']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.tab-strip__tab').first().waitFor()
+          if ((await p.locator('.tab-strip__close').count()) !== 0)
+            throw new Error('one tab: a close cross is offered')
+          // Asked anyway, the door refuses: the last tab stays open.
+          const status = await p.evaluate(async () => {
+            const r = await fetch('/api/browser/strip', {
+              method: 'POST',
+              body: JSON.stringify({ action: 'close', id: 'github' }),
+            })
+            return r.status
+          })
+          if (status !== 409)
+            throw new Error(`one tab: closing the last answered ${status}`)
         },
       },
     ],

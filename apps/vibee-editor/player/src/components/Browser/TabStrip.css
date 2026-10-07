@@ -1,4 +1,16 @@
-/* The tabs above the picture: one row, scrolled sideways, a finger per tab. */
+/*
+ * The tabs above the picture: a GRID, NOT A ROW THAT SCROLLS SIDEWAYS.
+ *
+ * Measured with `tri shot tab-strip` at 390 px (2026-10-07): the first
+ * strip was one row scrolled sideways, and on load the chosen tab (third of
+ * five) and the "+" were both past the right edge -- the person saw two
+ * tabs, neither of them the one on screen, and nothing said there was more.
+ * Every title was cut by an ellipsis too. The same defect the owner
+ * photographed in the action row on 2026-09-22 (Browser.css, "A GRID").
+ * So every tab is in view, the chosen one and "+" included, and a title
+ * wraps instead of being cut: the host already clips it to 40 characters.
+ * The cost is height -- two tabs a row -- and the column scrolls for it.
+ */
 .tab-strip {
   display: flex;
   flex-direction: column;
@@ -7,23 +19,15 @@
 }
 
 .tab-strip__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 6px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tab-strip__row::-webkit-scrollbar {
-  display: none;
 }
 
 .tab-strip__tab {
-  flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  max-width: 220px;
+  min-width: 0;
   min-height: var(--touch-target, 44px);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 10px;
@@ -39,6 +43,11 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--touch-target, 44px);
+  /* The design-system button rule fixes height and nowrap; a title that wraps
+     must grow its tab instead of painting over the next row. */
+  height: auto;
+  white-space: normal;
+  line-height: 1.25;
   padding: 4px 10px;
   display: flex;
   flex-direction: column;
@@ -54,9 +63,10 @@
 .tab-strip__title,
 .tab-strip__host {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  /* A button keeps its words on one line; a tab's title may not. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .tab-strip__title {
