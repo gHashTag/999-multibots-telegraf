@@ -29,7 +29,13 @@ import {
  * AN UNREADABLE SWITCH SAYS SO. Showing "off" for a state that could not be
  * read would teach the owner that nothing is sending when something might be.
  */
-export function AutoPanel() {
+/** "Everyone waiting for us" into the chosen list: how many, and the press. */
+export interface PickAll {
+  n: number
+  pick: () => void
+}
+
+export function AutoPanel({ pickAll = null }: { pickAll?: PickAll | null }) {
   const { t } = useLanguage()
   const [state, setState] = useState<Reached<Autopilot>>({
     reachable: true,
@@ -155,6 +161,21 @@ export function AutoPanel() {
               </button>
             ))}
           </div>
+
+          {/*
+        "Everyone waiting" fills the chosen list, so it stands under that
+        choice (P32: in the list of people it pushed the first one 55 px
+        down). Shown only once the chosen list is known.
+      */}
+          {pickAll ? (
+            <button
+              type="button"
+              className="crm__pick-all"
+              onClick={pickAll.pick}
+            >
+              {t('crm.waiting.pickAll', { n: pickAll.n })}
+            </button>
+          ) : null}
 
           <div className="crm-auto__acts">
             <button
