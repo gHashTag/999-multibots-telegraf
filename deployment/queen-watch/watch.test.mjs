@@ -17,6 +17,7 @@ import {
   PAGE_ASSETS_MAX,
   PAGE_ISSUE_TITLE,
   RELAYS_ISSUE_TITLE,
+  SCHEMA_ISSUE_TITLE,
   assetsOf,
   config,
   hash8,
@@ -26,8 +27,11 @@ import {
   probe,
   probeBrowserPage,
   run,
+  schemaIssueSpec,
+  secretsOf,
   tellOwner,
 } from './watch.mjs'
+import { snapshot } from './schema.mjs'
 /* A namespace too: a helper an older watch.mjs lacks is undefined in the one
  * test that needs it, instead of failing the whole file at load. */
 import * as watchNs from './watch.mjs'
@@ -856,6 +860,272 @@ describe('the BROWSER page', () => {
     expect(config({ BROWSER_PAGE_URL: 'off' }).pageUrl).toBe('')
     expect(BROWSER_PAGE).toBe(
       'https://app.t27.ai/game/browser?spec=specs%2Fdemos%2Fhello_world.t27'
+    )
+  })
+})
+
+describe('the database schema watch', () => {
+  /* A fake database URL: its password must never reach a log or a payload. */
+  const DB_PW = 'fake-db-pass-0007'
+  const DB_URL = `postgresql://postgres:${DB_PW}@db.example.test:5432/railway` // secret-guard-ok: fake test fixture
+  const dbRows = () => ({
+    columns: [
+      {
+        table_name: 'user_tokens',
+        column_name: 'id',
+        column_default: 'gen_random_uuid()',
+        is_nullable: 'NO',
+      },
+      {
+        table_name: 'user_tokens',
+        column_name: 'telegram_id',
+        column_default: null,
+        is_nullable: 'NO',
+      },
+      {
+        table_name: 'payments_v2',
+        column_name: 'metadata',
+        column_default: "'{}'::jsonb",
+        is_nullable: 'YES',
+      },
+    ],
+    unique: [
+      {
+        tablename: 'user_tokens',
+        indexname: 'user_tokens_pkey',
+        indexdef:
+          'CREATE UNIQUE INDEX user_tokens_pkey ON public.user_tokens USING btree (id)',
+      },
+      {
+        tablename: 'user_tokens',
+        indexname: 'user_tokens_tid',
+        indexdef:
+          'CREATE UNIQUE INDEX user_tokens_tid ON public.user_tokens USING btree (telegram_id)',
+      },
+    ],
+    pk: [
+      { table_name: 'user_tokens', has_pk: true },
+      { table_name: 'payments_v2', has_pk: true },
+    ],
+  })
+  const BASE = { generated_at: '2026-10-07T00:00:00Z', ...snapshot(dbRows()) }
+  const lostIndex = () => {
+    const r = dbRows()
+    r.unique = r.unique.filter(u => u.indexname !== 'user_tokens_tid')
+    return r
+  }
+  /* The relays answer healthy, the page is off: only the schema can report. */
+  const schemaWorld = (read, opts = {}) => {
+    const w = world(opts)
+    let reads = 0
+    w.deps.schemaBaseline = async () => BASE
+    w.deps.schemaRead = async cfg => {
+      reads++
+      expect(cfg.schemaUrl).toBe(DB_URL)
+      return read()
+    }
+    w.reads = () => reads
+    return w
+  }
+  const schemaCfg = (over = {}) => cfgWith({ schemaUrl: DB_URL, ...over })
+  const schemaPosts = w =>
+    w.sent('/queen/report').filter(p => p.body.headline.includes('schema'))
+  /* Seed the relays' state so their first-run report stays out of the count. */
+  const quietRelays = async cfg => {
+    await run(cfg, world().deps)
+  }
+
+  it('reads DATABASE_URL; SCHEMA_WATCH=off or no URL turns it off, and off never reads or reports', async () => {
+    expect(config({ DATABASE_URL: DB_URL }).schemaUrl).toBe(DB_URL)
+    expect(
+      config({ DATABASE_URL: DB_URL, SCHEMA_WATCH: 'off' }).schemaUrl
+    ).toBe('')
+    expect(config({}).schemaUrl).toBe('')
+    expect(config({}).schemaEveryS).toBe(86400)
+    const cfg = cfgWith()
+    await quietRelays(cfg)
+    const w = schemaWorld(() => dbRows())
+    expect(await run(cfg, w.deps)).toBe(0)
+    expect(w.reads()).toBe(0)
+    expect(w.stdout()).toContain('queen-watch: schema: off')
+    expect(schemaPosts(w)).toHaveLength(0)
+  })
+
+  it('the URL and its password are secrets: scrubbed even URL-encoded', () => {
+    const odd = 'p@ss/w0rd!x'
+    const url = `postgresql://u:${encodeURIComponent(odd)}@h.test/db` // secret-guard-ok: fake test fixture
+    const s = secretsOf(cfgWith({ schemaUrl: url }))
+    expect(s).toContain(url)
+    expect(s).toContain(odd)
+    expect(s).toContain(encodeURIComponent(odd))
+  })
+
+  it('a clean database: first run says live once, then one look a day', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => dbRows())
+    expect(await run(cfg, w.deps)).toBe(0)
+    expect(w.reads()).toBe(1)
+    expect(schemaPosts(w).map(p => p.body.headline)).toEqual([
+      'live on Railway: the database schema watch -- unique indexes and defaults match the baseline',
+    ])
+    expect(w.stdout()).toContain(
+      'ok    schema: 1 tables, 2 unique indexes, 1 defaults match'
+    )
+
+    /* The next hour: not due, no read, no report, rc 0. */
+    const w2 = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w2.deps)).toBe(0)
+    expect(w2.reads()).toBe(0)
+    expect(w2.stdout()).toContain('next look in 24 h')
+    expect(schemaPosts(w2)).toHaveLength(0)
+  })
+
+  it('NEGATIVE CONTROL: a lost unique index goes to the Queen, a GitHub issue and Telegram; nothing is fixed', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w.deps)).toBe(1)
+
+    const [q] = schemaPosts(w)
+    expect(q.body.headline).toBe(
+      'the database schema drifted from its baseline (1 item(s))'
+    )
+    expect(q.body.needs_you).toBe(true)
+    expect(q.body.body).toContain(
+      'user_tokens: unique index user_tokens_tid is missing (btree (telegram_id))'
+    )
+    const issue = w.sent('api.github.com').find(c => c.url.endsWith('/issues'))
+    expect(issue.body.title).toBe(SCHEMA_ISSUE_TITLE)
+    expect(judge(issue.body.body).delegatable).toBe(true)
+    const tg = w.sent('api.telegram.org')
+    expect(tg).toHaveLength(1)
+    expect(tg[0].body.text).toContain('user_tokens_tid')
+    expect(tg[0].body.text).toContain('https://github.com/x/y/issues/99')
+    /* Read-only: one read, no Railway mutation, no restart. */
+    expect(w.reads()).toBe(1)
+    expect(w.restarts()).toBe(0)
+    /* The URL and its password are in no payload and no log line. */
+    for (const c of w.calls) {
+      expect(c.raw).not.toContain(DB_PW)
+      expect(c.url).not.toContain(DB_PW)
+    }
+    expect(w.stdout()).not.toContain(DB_PW)
+  })
+
+  it('a schema issue never takes the relays issue, and the relays never take it', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex(), {
+      issues: [
+        {
+          number: 5,
+          title: RELAYS_ISSUE_TITLE,
+          html_url: 'https://github.com/x/y/issues/5',
+        },
+      ],
+    })
+    await run(cfg, w.deps)
+    expect(
+      w.sent('api.github.com').some(c => c.url.endsWith('/issues/5/comments'))
+    ).toBe(false)
+    expect(w.sent('api.github.com').some(c => c.url.endsWith('/issues'))).toBe(
+      true
+    )
+
+    /* The relays broken while a schema issue is open: a new relays issue. */
+    const w2 = world({
+      render: 401,
+      issues: [
+        {
+          number: 6,
+          title: SCHEMA_ISSUE_TITLE,
+          html_url: 'https://github.com/x/y/issues/6',
+        },
+      ],
+    })
+    await run(cfgWith({ renderKey: OTHER_KEY }), w2.deps)
+    expect(
+      w2.sent('api.github.com').some(c => c.url.endsWith('/issues/6/comments'))
+    ).toBe(false)
+  })
+
+  it('a drifted database stays quiet on the next daily look unless the drift set changes', async () => {
+    const cfg = schemaCfg({ schemaEveryS: 0, repeatS: 999_999 })
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w.deps)).toBe(1)
+    expect(schemaPosts(w)).toHaveLength(1)
+
+    const same = schemaWorld(() => lostIndex())
+    expect(await run(cfg, same.deps)).toBe(1)
+    expect(schemaPosts(same)).toHaveLength(0)
+    expect(same.stdout()).toContain('still drifted, already reported')
+
+    const worse = schemaWorld(() => {
+      const r = lostIndex()
+      r.columns = r.columns.map(c =>
+        c.column_name === 'id' ? { ...c, column_default: null } : c
+      )
+      return r
+    })
+    expect(await run(cfg, worse.deps)).toBe(1)
+    expect(schemaPosts(worse)).toHaveLength(1)
+
+    const fixed = schemaWorld(() => dbRows())
+    expect(await run(cfg, fixed.deps)).toBe(0)
+    expect(schemaPosts(fixed).map(p => p.body.headline)).toEqual([
+      'the database schema matches its baseline again',
+    ])
+  })
+
+  it('an unreachable database is not measured (rc 2), tries again next hour, and never prints the URL', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const down = () => {
+      throw Object.assign(new Error(`connect ECONNREFUSED ${DB_URL}`), {
+        code: 'ECONNREFUSED',
+      })
+    }
+    const w = schemaWorld(down)
+    expect(await run(cfg, w.deps)).toBe(2)
+    expect(w.stdout()).toContain(
+      'schema: could not read the database (ECONNREFUSED)'
+    )
+    expect(w.stdout()).not.toContain(DB_PW)
+    const [q] = schemaPosts(w)
+    expect(q.body.needs_you).toBe(true)
+    expect(q.body.headline).toContain(
+      'could not be measured (1 run(s) in a row)'
+    )
+
+    const again = schemaWorld(down)
+    expect(await run(cfg, again.deps)).toBe(2)
+    expect(again.reads()).toBe(1)
+    expect(schemaPosts(again)).toHaveLength(0)
+  })
+
+  it('the schema issue body passes the Queen spec judge', () => {
+    const body = schemaIssueSpec({
+      result: {
+        lines: [
+          {
+            mark: 'FAIL',
+            text: 'user_tokens: unique index x is missing (btree (a))',
+          },
+        ],
+      },
+      note: 'Not fixed.',
+      when: '2026-10-07T10:00:00Z',
+    })
+    const verdict = judge(body)
+    expect(verdict.missing).toEqual([])
+    expect(verdict.delegatable).toBe(true)
+    expect(boundaryPaths(body)).toEqual(
+      expect.arrayContaining([
+        'deployment/queen-watch/schema-baseline.json',
+        'deployment/queen-watch/schema.mjs',
+      ])
     )
   })
 })

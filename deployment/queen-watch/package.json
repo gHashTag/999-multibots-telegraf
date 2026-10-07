@@ -1,0 +1,9 @@
+{
+  "name": "queen-watch",
+  "private": true,
+  "description": "The hourly Railway cron in this directory. Its one dependency is pg, for the read-only schema drift check (schema.mjs).",
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
