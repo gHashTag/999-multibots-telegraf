@@ -18,6 +18,8 @@
  * did not name a thread itself. Pure apart from the client it wraps.
  */
 
+import { TOPIC_NAME_MAX } from '@/spec/bot-topic-tabs.gen'
+
 /** Methods that accept `message_thread_id` in a private chat (Bot API 9.3). */
 export const THREADED_METHODS: ReadonlySet<string> = new Set([
   'sendMessage',
@@ -68,6 +70,22 @@ export function privateTopicOf(update: any): number | undefined {
   return Number.isInteger(id) && id > 0 ? id : undefined
 }
 
+/**
+ * The spec's rule (bot-topic-tabs.t27 inject_thread): a send gets the tab's
+ * thread only when it accepts one, targets this same chat, is not a
+ * business-connection send (that speaks in somebody else's chat), and did not
+ * name a thread itself -- and naming means the KEY is present, even with the
+ * value null: a caller that wrote `message_thread_id: null` asked for none.
+ */
+export function injectThread(
+  threadedMethod: boolean,
+  sameChat: boolean,
+  keyPresent: boolean,
+  business: boolean
+): boolean {
+  return threadedMethod && sameChat && !keyPresent && !business
+}
+
 /** Add the topic to a payload when it targets this chat and named none. */
 export function threadPayload(
   method: string,
@@ -75,13 +93,14 @@ export function threadPayload(
   chatId: number | string,
   threadId: number
 ): any {
-  if (!THREADED_METHODS.has(method)) return payload
   if (!payload || typeof payload !== 'object') return payload
-  if (String(payload.chat_id) !== String(chatId)) return payload
-  if (payload.message_thread_id !== undefined) return payload
-  // A business-connection send speaks in somebody else's chat.
-  if (payload.business_connection_id) return payload
-  return { ...payload, message_thread_id: threadId }
+  const inject = injectThread(
+    THREADED_METHODS.has(method),
+    String(payload.chat_id) === String(chatId),
+    'message_thread_id' in payload,
+    Boolean(payload.business_connection_id)
+  )
+  return inject ? { ...payload, message_thread_id: threadId } : payload
 }
 
 /**
@@ -134,13 +153,19 @@ export function agentConversationFor(
 }
 
 /**
- * A topic name from the first thing written in it: one line, at most 32
- * characters (Telegram allows 128; the tab column shows far fewer).
+ * A topic name from the first thing written in it: one line, at most
+ * SPEC.TOPIC_NAME_MAX characters (Telegram allows 128; the tab column shows
+ * far fewer). Characters are code points, so an emoji is never cut in half.
  */
 export function topicTitleFrom(text: string | undefined | null): string {
   const line = String(text ?? '')
     .replace(/\s+/g, ' ')
     .trim()
   if (!line || line.startsWith('/')) return ''
-  return line.length > 32 ? `${line.slice(0, 31).trimEnd()}…` : line
+  const chars = [...line]
+  if (chars.length <= TOPIC_NAME_MAX) return line
+  return `${chars
+    .slice(0, TOPIC_NAME_MAX - 1)
+    .join('')
+    .trimEnd()}…`
 }

@@ -14,7 +14,7 @@ import {
   setTopicTabsDbForTests,
   topicsEnabled,
 } from '@/navigation/topics/tabs'
-import { mybotMarkup } from '@/navigation/topics/wire'
+import { mybotMarkup, registerTabsCommand } from '@/navigation/topics/wire'
 
 const topicMsg = (thread = 42, type = 'private') => ({
   message: {
@@ -26,43 +26,70 @@ const topicMsg = (thread = 42, type = 'private') => ({
   },
 })
 
-/** An in-memory bot_topic_tabs. */
+/**
+ * An in-memory bot_topic_tabs that keeps the two unique keys the CREATE
+ * statements declare: one row per thread, and one row per fixed tab kind.
+ * Every query yields to the event loop first, so two /start handlers really
+ * interleave, and every SELECT returns COPIES (Postgres does).
+ */
 function memoryDb() {
   const rows: any[] = []
+  const ddl: string[] = []
+  let selects = 0
+  const tick = () => new Promise(r => setTimeout(r, 0))
+  const mine = (r: any, p: unknown[]) => r.bot === p[0] && r.tid === p[1]
   return {
     rows,
+    ddl,
+    get selects() {
+      return selects
+    },
     async query(sql: string, p: unknown[] = []) {
-      if (sql.startsWith('CREATE')) return { rows: [] }
-      if (sql.startsWith('SELECT'))
+      await tick()
+      const q = sql.trim()
+      if (q.startsWith('CREATE')) {
+        ddl.push(q)
+        return { rows: [] }
+      }
+      if (q.startsWith('SELECT')) {
+        selects++
         return {
-          rows: rows.filter(r => r.bot === p[0] && r.tid === p[1]),
+          rows: rows
+            .filter(r => mine(r, p))
+            .map(r => ({
+              thread_id: r.thread_id,
+              kind: r.kind,
+              title: r.title,
+              created_at: r.created_at,
+            })),
         }
-      if (sql.startsWith('INSERT')) {
-        if (
-          !rows.some(
-            r => r.bot === p[0] && r.tid === p[1] && r.thread_id === p[2]
-          )
+      }
+      if (q.startsWith('INSERT')) {
+        const [bot, tid, thread_id, kind, title] = p
+        const clash = rows.some(
+          r =>
+            r.bot === bot &&
+            r.tid === tid &&
+            (r.thread_id === thread_id || (kind !== 'chat' && r.kind === kind))
         )
-          rows.push({
-            bot: p[0],
-            tid: p[1],
-            thread_id: p[2],
-            kind: p[3],
-            title: p[4],
-          })
+        if (clash) return { rows: [] }
+        rows.push({ bot, tid, thread_id, kind, title, created_at: new Date() })
+        return { rows: [{ thread_id }] }
+      }
+      if (q.startsWith('UPDATE')) {
+        const r = rows.find(x => mine(x, p) && x.thread_id === p[2])
+        if (r) {
+          r.thread_id = p[3]
+          r.title = p[4]
+        }
         return { rows: [] }
       }
-      if (sql.startsWith('DELETE')) {
+      if (q.startsWith('DELETE')) {
         for (let i = rows.length - 1; i >= 0; i--)
-          if (
-            rows[i].bot === p[0] &&
-            rows[i].tid === p[1] &&
-            rows[i].kind !== 'chat'
-          )
-            rows.splice(i, 1)
+          if (mine(rows[i], p) && rows[i].thread_id === p[2]) rows.splice(i, 1)
         return { rows: [] }
       }
-      throw new Error('unexpected sql ' + sql)
+      throw new Error('unexpected sql ' + q)
     },
   }
 }
@@ -214,8 +241,8 @@ describe('fixed tabs: made once per person', () => {
 
   it('the intro of each tab is sent INTO that tab', async () => {
     const a = api()
-    await ensureTabs(a, 't27ai_bot', 777, false, k =>
-      k === 'mybot' ? { keyboard: [] } : undefined
+    await ensureTabs(a, 't27ai_bot', 777, false, t =>
+      t.kind === 'mybot' ? { keyboard: [] } : undefined
     )
     const intros = a.calls.filter(c => c[0] === 'sendMessage').map(c => c[1])
     expect(intros.map(p => p.message_thread_id)).toEqual(
@@ -269,5 +296,182 @@ describe('fixed tabs: made once per person', () => {
     )
     expect(mybotMarkup(ctx, 'reels', false)).toBeUndefined()
     expect(mybotMarkup({ ...ctx, botInfo: {} }, 'mybot', false)).toBeUndefined()
+  })
+})
+
+/** A Telegram that makes topics, and remembers which ones the person deleted. */
+function telegram(opts: { deleted?: number[]; probeError?: string } = {}) {
+  let next = 100
+  const calls: any[] = []
+  return {
+    calls,
+    made: () => calls.filter(c => c[0] === 'createForumTopic'),
+    async callApi(method: string, payload: any) {
+      calls.push([method, payload])
+      await new Promise(r => setTimeout(r, 0))
+      if (method === 'createForumTopic')
+        return { message_thread_id: next++, name: payload.name }
+      if (method === 'sendChatAction') {
+        if (opts.probeError) throw new Error(opts.probeError)
+        if (opts.deleted?.includes(payload.message_thread_id)) {
+          const e: any = new Error('400: Bad Request: message thread not found')
+          e.response = { description: 'Bad Request: message thread not found' }
+          throw e
+        }
+      }
+      return true
+    },
+  }
+}
+
+describe('review of #3544: /tabs, two /start, an explicit null thread, no read per message', () => {
+  let db: ReturnType<typeof memoryDb>
+  beforeEach(() => {
+    db = memoryDb()
+    setTopicTabsDbForTests(db)
+  })
+
+  const tabsCommand = () => {
+    let handler: any
+    registerTabsCommand({
+      command: (_: string, h: any) => (handler = h),
+    } as any)
+    return (tg: any) =>
+      handler({
+        chat: { id: 777, type: 'private' },
+        from: { id: 777, language_code: 'en' },
+        botInfo: { username: 'b', has_topics_enabled: true },
+        telegram: tg,
+        reply: async () => undefined,
+        state: {},
+      })
+  }
+
+  it('1. /tabs keeps every live tab and makes only the one the person deleted', async () => {
+    const tg = telegram({ deleted: [102] })
+    await ensureTabs(tg, 'b', 777, false)
+    const before = db.rows.map(r => [r.kind, r.thread_id])
+    await tabsCommand()(tg)
+    expect(tg.made()).toHaveLength(TABS.length + 1)
+    expect(tg.made().at(-1)![1].name).toBe(TABS[2].en)
+    const after = new Map(db.rows.map(r => [r.kind, r.thread_id]))
+    for (const [kind, thread] of before)
+      if (kind !== TABS[2].kind) expect(after.get(kind)).toBe(thread)
+    expect(after.get(TABS[2].kind)).toBe(106)
+    expect(db.rows).toHaveLength(TABS.length)
+    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toEqual([])
+  })
+
+  it('1. /tabs twice makes nothing, and a network error forgets nothing', async () => {
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, false)
+    await tabsCommand()(tg)
+    await tabsCommand()(tg)
+    expect(tg.made()).toHaveLength(TABS.length)
+    const flaky = telegram({ probeError: 'ETIMEDOUT' })
+    await tabsCommand()(flaky)
+    expect(flaky.made()).toHaveLength(0)
+    expect(db.rows).toHaveLength(TABS.length)
+  })
+
+  it('1. a topic whose Telegram name is a fixed tab is never renamed', async () => {
+    const tg = telegram()
+    const fixed = TABS[1].ru
+    expect(await nameFreshTopic(tg, 'b', 777, 900, 'hello', fixed)).toBe('')
+    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toEqual([])
+  })
+
+  it('2. two /start at once make one set of tabs', async () => {
+    const tg = telegram()
+    await Promise.all([
+      ensureTabs(tg, 'b', 777, true),
+      ensureTabs(tg, 'b', 777, true),
+      ensureTabs(tg, 'b', 777, true),
+    ])
+    expect(tg.made()).toHaveLength(TABS.length)
+    expect(db.rows).toHaveLength(TABS.length)
+    expect(db.rows.every(r => r.thread_id > 0)).toBe(true)
+  })
+
+  it('2. the CREATE declares the unique keys itself', async () => {
+    await ensureTabs(telegram(), 'b', 777, true)
+    const all = db.ddl.join('\n').replace(/\s+/g, ' ')
+    expect(all).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS \w+ ON bot_topic_tabs \(bot_username, telegram_id, kind\) WHERE kind <> 'chat'/
+    )
+    expect(all).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS \w+ ON bot_topic_tabs \(bot_username, telegram_id, thread_id\)/
+    )
+  })
+
+  it('2. a dead claim expires and a live one is respected', async () => {
+    const old = new Date(Date.now() - 3 * 60_000)
+    db.rows.push({
+      bot: 'b',
+      tid: 777,
+      thread_id: -1,
+      kind: TABS[0].kind,
+      title: 'x',
+      created_at: old,
+    })
+    db.rows.push({
+      bot: 'b',
+      tid: 777,
+      thread_id: -2,
+      kind: TABS[1].kind,
+      title: 'x',
+      created_at: new Date(),
+    })
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, false)
+    const names = tg.made().map(c => c[1].name)
+    expect(names).toContain(TABS[0].en)
+    expect(names).not.toContain(TABS[1].en)
+    expect(names).toHaveLength(TABS.length - 1)
+  })
+
+  it('3. a send that named its thread, even null, keeps it', () => {
+    const n = threadPayload(
+      'sendMessage',
+      { chat_id: 777, message_thread_id: null },
+      777,
+      42
+    )
+    expect(n.message_thread_id).toBeNull()
+    const u = threadPayload(
+      'sendMessage',
+      { chat_id: 777, message_thread_id: undefined },
+      777,
+      42
+    )
+    expect('message_thread_id' in u).toBe(true)
+    expect(u.message_thread_id).toBeUndefined()
+  })
+
+  it('4. messages in a known tab cost no database read', async () => {
+    const tg = telegram()
+    await ensureTabs(tg, 'b', 777, true)
+    await nameFreshTopic(tg, 'b', 777, 100, 'first')
+    const warm = db.selects
+    for (let i = 0; i < 5; i++) await nameFreshTopic(tg, 'b', 777, 100, 'more')
+    expect(db.selects).toBe(warm)
+    // a person's own topic: named once, then known without a read
+    expect(await nameFreshTopic(tg, 'b', 777, 555, 'coffee reel')).toBe(
+      'coffee reel'
+    )
+    const named = db.selects
+    expect(await nameFreshTopic(tg, 'b', 777, 555, 'again')).toBe('')
+    expect(db.selects).toBe(named)
+    expect(tg.calls.filter(c => c[0] === 'editForumTopic')).toHaveLength(1)
+  })
+
+  it('4. a make drops the cached tabs, so a new tab is known at once', async () => {
+    const tg = telegram()
+    expect(await nameFreshTopic(tg, 'b', 777, 100, 'early')).toBe('early')
+    db.rows.length = 0
+    setTopicTabsDbForTests(db)
+    await nameFreshTopic(tg, 'b', 777, 999, '/start')
+    await ensureTabs(tg, 'b', 777, true)
+    expect(await nameFreshTopic(tg, 'b', 777, 101, 'hello')).toBe('')
   })
 })
