@@ -40,6 +40,7 @@ import {
   THREADS_LINKS_MAX,
   THREADS_TEXT_MAX,
 } from '../spec/meta-connect.gen'
+import { THREADS_SCOPES } from '../spec/connect-card.gen'
 
 export { CARD_H, CARD_W }
 
@@ -137,7 +138,8 @@ export function appOf(
   return id && secret ? { id, secret } : null
 }
 
-export const THREADS_SCOPES = 'threads_basic,threads_content_publish'
+/* What the consent asks for is the spec's (connect-card.t27). */
+export { THREADS_SCOPES }
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_manage_posts',

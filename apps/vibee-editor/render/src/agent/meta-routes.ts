@@ -9,6 +9,7 @@
 import type { Queryable } from '../browser/sessions'
 import {
   appOf,
+  canSeal,
   finishConnect,
   readTokensRelinked,
   scrub,
@@ -19,6 +20,7 @@ import {
   type Network,
 } from './meta-connect'
 import { finishApiConnect, startApiConnect } from './social-api'
+import { connectStates } from './connect-card'
 
 export function isMetaPath(path: string): boolean {
   return (
@@ -128,9 +130,12 @@ export async function handleMeta(
       linkedin: !!appOf('linkedin'),
       x: !!appOf('x'),
     }
+    const networks = statusView(held, d.now())
+    /* connected | needs-connect | no-client-id | no-seal-key (connect-card.t27). */
+    const connect = connectStates(apps, networks as never, canSeal())
     return {
       status: 200,
-      json: { ok: true, apps, networks: statusView(held, d.now()) },
+      json: { ok: true, apps, networks, connect },
     }
   }
 
