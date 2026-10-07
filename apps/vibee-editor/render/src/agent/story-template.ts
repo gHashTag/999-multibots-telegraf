@@ -914,6 +914,20 @@ const filled = (v: string[]) => v.filter(Boolean).length
  * across a voice change would speak in the old voice. A failed job that never
  * recorded its voice mode carries no clips.
  */
+/** spec carry_stills (v30): stills are kept only under the same look. */
+export function carryStills(sameStyle: boolean): boolean {
+  return sameStyle
+}
+
+/** spec carry_clips (v30): a clip is a still that speaks, in a known voice. */
+export function carryClips(
+  sameStyle: boolean,
+  sameVoice: boolean,
+  voiceKnown: boolean
+): boolean {
+  return carryStills(sameStyle) && voiceKnown && sameVoice
+}
+
 export async function carryFromFailed(
   pool: StoryDeps['pool'],
   lead: string,
@@ -943,13 +957,13 @@ export async function carryFromFailed(
     const fit = (v: unknown) =>
       Array.from({ length: n }, (_, i) => list(v)[i] ?? '')
     const sameLook = String(row.style ?? '').trim() === now.style
-    const sameVoice =
-      row.voice_mode !== null &&
-      row.voice_mode !== undefined &&
-      Number(row.voice_mode) === now.mode
+    const sameVoice = Number(row.voice_mode) === now.mode
     const none = () => Array.from({ length: n }, () => '')
-    const stills = sameLook ? fit(row.stills) : none()
-    const clips = sameLook && sameVoice ? fit(row.clips) : none()
+    const voiceKnown = row.voice_mode !== null && row.voice_mode !== undefined
+    const stills = carryStills(sameLook) ? fit(row.stills) : none()
+    const clips = carryClips(sameLook, sameVoice, voiceKnown)
+      ? fit(row.clips)
+      : none()
     if (!filled(stills) && !filled(clips)) return null
     return { scenes, stills, clips }
   }
