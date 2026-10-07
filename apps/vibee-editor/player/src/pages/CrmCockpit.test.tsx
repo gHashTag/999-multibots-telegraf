@@ -329,6 +329,126 @@ describe('the AUTO switch', () => {
   })
 })
 
+/**
+ * THE WORK TAB ON A PHONE (P31, 07.10.2026).
+ *
+ * `tri shot crm` at 390x844: the first person waiting for an answer ended at
+ * 926 px under a tab bar at 787. The AUTO panel took ~220 px while OFF, and
+ * the level chips two lines. jsdom has no layout, so what is pinned here is
+ * the behaviour the measured fix rests on: off on a phone is one line, on is
+ * never folded, an unread switch is never folded, and the folded line
+ * cannot turn anything on.
+ */
+describe('the work tab on a phone', () => {
+  const asPhone = () =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: query === '(max-width: 480px)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia
+  })
+  const fold = () => host.querySelector<HTMLButtonElement>('.crm-auto__fold')
+
+  it('folds the AUTO switch to its name and "off" while it is off', async () => {
+    asPhone()
+    await screen()
+    expect(fold()!.getAttribute('aria-expanded')).toBe('false')
+    expect(fold()!.textContent).toContain('crm.auto.offShort')
+    // The heading holds the button (the disclosure pattern).
+    expect(fold()!.closest('h3')).toBeTruthy()
+    // Nothing that turns it on, and no scope, until it is opened.
+    expect(byText('crm.auto.turnOn')).toBeFalsy()
+    expect(host.querySelector('.crm-auto__scope')).toBeNull()
+  })
+
+  it('opens the whole panel on a press, and nothing is switched by it', async () => {
+    asPhone()
+    await screen()
+    await act(async () => fold()!.click())
+    expect(fold()!.getAttribute('aria-expanded')).toBe('true')
+    expect(byText('crm.auto.turnOn')).toBeTruthy()
+    expect(host.querySelector('.crm-auto__scope')).toBeTruthy()
+    expect(calls.filter(c => c.name === 'autopilot_set')).toHaveLength(0)
+  })
+
+  it('never folds a switch that is ON: its stop stays in plain sight', async () => {
+    autopilot = { ...autopilot, on: true, until: iso(Date.now() + 3_600_000) }
+    asPhone()
+    await screen()
+    expect(fold()).toBeNull()
+    expect(byText('crm.auto.turnOff')).toBeTruthy()
+  })
+
+  it('never folds a switch it could not read: it says so at full size', async () => {
+    asPhone()
+    const real = globalThis.fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const name = String(
+          JSON.parse(String(init?.body ?? '{}'))?.params?.name
+        )
+        if (name === 'autopilot_status')
+          return new Response('down', { status: 500 })
+        return real(url, init)
+      })
+    )
+    try {
+      await screen()
+      expect(fold()).toBeNull()
+      expect(text()).toContain('crm.auto.unreachable')
+    } finally {
+      vi.stubGlobal('fetch', real)
+    }
+  })
+
+  it('says nothing about the state before the server has answered', async () => {
+    asPhone()
+    const real = globalThis.fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const name = String(
+          JSON.parse(String(init?.body ?? '{}'))?.params?.name
+        )
+        if (name === 'autopilot_status') return new Promise<Response>(() => {})
+        return real(url, init)
+      })
+    )
+    try {
+      await screen()
+      expect(fold()!.textContent).toContain('…')
+      expect(fold()!.textContent).not.toContain('crm.auto.offShort')
+    } finally {
+      vi.stubGlobal('fetch', real)
+    }
+  })
+
+  it('a wide screen keeps the whole panel and the chips, as before', async () => {
+    await screen()
+    expect(fold()).toBeNull()
+    expect(byText('crm.auto.turnOn')).toBeTruthy()
+    expect(host.querySelector('.level-switch__chip')).toBeTruthy()
+  })
+
+  it('draws the level switch as one line: its label and a select', async () => {
+    asPhone()
+    await screen()
+    const row = host.querySelector('[data-testid="level-switch"]')!
+    expect(row.matches('label.level-switch--row')).toBe(true)
+    expect(row.querySelector('select')).toBeTruthy()
+    expect(row.querySelector('.level-switch__label')).toBeTruthy()
+    expect(host.querySelector('.level-switch__chip')).toBeNull()
+  })
+})
+
 describe('the measured figure', () => {
   it('says what left by itself, what the owner sent, and the share', async () => {
     await screen()

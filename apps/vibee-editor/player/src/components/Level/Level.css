@@ -36,6 +36,16 @@
   border-style: dashed;
 }
 
+/* The phone face: the label, then the select, one line, nowrap. */
+.level-switch--row {
+  flex-wrap: nowrap;
+}
+
+.level-switch--row .level-switch-select {
+  max-width: none;
+  min-width: 0;
+}
+
 .level-switch-select {
   padding: 4px 6px;
   border-radius: 8px;
