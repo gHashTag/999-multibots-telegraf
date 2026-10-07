@@ -49,6 +49,13 @@ describe('a finger is 44px wherever it is attached', () => {
     expect(blocks.some(b => b.includes(TARGET))).toBe(true)
   })
 
+  it('the folded AUTO line is one touch target, at any pointer', () => {
+    // P31: off on a phone, the panel IS this button; it opens the switch.
+    const blocks = ruleFor(crm, '.crm-auto__fold')
+    expect(blocks.length, 'the selector must exist').toBeGreaterThan(0)
+    expect(blocks.some(b => b.includes(TARGET))).toBe(true)
+  })
+
   it('the chips and "a new conversation" carry it where the pointer is coarse', () => {
     for (const [css, sel] of [
       [crm, '.crm__chip'],

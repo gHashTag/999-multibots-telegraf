@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { CRM_PHONE_QUERY, autoFolds } from '@/lib/crmPhone'
 import {
   loadAutopilot,
   setAutopilot,
@@ -70,6 +72,11 @@ export function AutoPanel() {
   }
 
   const a = state.data
+  // Off on a phone: the name and "off", one press from the rest (crmPhone.ts).
+  const phone = useMediaQuery(CRM_PHONE_QUERY)
+  const [opened, setOpened] = useState(false)
+  const foldable = autoFolds(phone, state.reachable, a?.on ?? false)
+  const folded = foldable && !opened
   const until = a?.until ? new Date(a.until) : null
   const clock = until
     ? `${String(until.getHours()).padStart(2, '0')}:${String(
@@ -78,103 +85,129 @@ export function AutoPanel() {
     : '—'
 
   return (
-    <section className="crm-auto" aria-label={t('crm.auto.title')}>
-      <div className="crm-auto__head">
-        <h3 className="crm-auto__title">{t('crm.auto.title')}</h3>
-        <span
-          className={`crm-auto__lamp${a?.on ? ' crm-auto__lamp--on' : ''}`}
-          aria-hidden="true"
-        />
-      </div>
-
-      <p className="crm-auto__state">
-        {!state.reachable
-          ? t('crm.auto.unreachable')
-          : a?.on
-            ? t('crm.auto.on', {
-                until: clock,
-                left: a.leftToday,
-                cap: a.cap,
-              }) +
-              (a.scope === 'chosen'
-                ? ' · ' +
-                  (a.chosen === 0
-                    ? t('crm.auto.chosen.none')
-                    : t('crm.auto.chosen.some', { n: a.chosen }))
-                : '')
-            : t('crm.auto.off')}
-      </p>
-
-      <div
-        className="crm-auto__scope"
-        role="group"
-        aria-label={t('crm.auto.scope')}
-      >
-        {(['all', 'chosen'] as const).map(k => (
+    <section
+      className={`crm-auto${folded ? ' crm-auto--folded' : ''}`}
+      aria-label={t('crm.auto.title')}
+    >
+      {foldable ? (
+        <h3 className="crm-auto__title">
+          {/* The disclosure pattern: a heading that holds its one button. */}
           <button
-            key={k}
             type="button"
-            className={`crm__chip${(a?.on ? a.scope : scope) === k ? ' crm__chip--on' : ''}`}
-            aria-pressed={(a?.on ? a.scope : scope) === k}
-            disabled={busy || Boolean(a?.on)}
-            onClick={() => setScope(k)}
+            className="crm-auto__fold"
+            aria-expanded={!folded}
+            onClick={() => setOpened(o => !o)}
           >
-            {t(`crm.auto.scope.${k}`)}
-            {k === 'chosen' && a ? ` ${a.chosen}` : ''}
+            {t('crm.auto.title')}
+            <span className="crm-auto__lamp" aria-hidden="true" />
+            {/* Before the server answers, the state is not known yet. */}
+            <span className="crm-auto__word">
+              {a ? t('crm.auto.offShort') : '…'}
+            </span>
           </button>
-        ))}
-      </div>
+        </h3>
+      ) : (
+        <div className="crm-auto__head">
+          <h3 className="crm-auto__title">{t('crm.auto.title')}</h3>
+          <span
+            className={`crm-auto__lamp${a?.on ? ' crm-auto__lamp--on' : ''}`}
+            aria-hidden="true"
+          />
+        </div>
+      )}
 
-      <div className="crm-auto__acts">
-        <button
-          type="button"
-          className="crm-auto__btn"
-          disabled={busy || !state.reachable}
-          onClick={() => void flip(!(a?.on ?? false))}
-        >
-          {a?.on ? t('crm.auto.turnOff') : t('crm.auto.turnOn')}
-        </button>
-      </div>
+      {folded ? null : (
+        <>
+          <p className="crm-auto__state">
+            {!state.reachable
+              ? t('crm.auto.unreachable')
+              : a?.on
+                ? t('crm.auto.on', {
+                    until: clock,
+                    left: a.leftToday,
+                    cap: a.cap,
+                  }) +
+                  (a.scope === 'chosen'
+                    ? ' · ' +
+                      (a.chosen === 0
+                        ? t('crm.auto.chosen.none')
+                        : t('crm.auto.chosen.some', { n: a.chosen }))
+                    : '')
+                : t('crm.auto.off')}
+          </p>
 
-      {/*
+          <div
+            className="crm-auto__scope"
+            role="group"
+            aria-label={t('crm.auto.scope')}
+          >
+            {(['all', 'chosen'] as const).map(k => (
+              <button
+                key={k}
+                type="button"
+                className={`crm__chip${(a?.on ? a.scope : scope) === k ? ' crm__chip--on' : ''}`}
+                aria-pressed={(a?.on ? a.scope : scope) === k}
+                disabled={busy || Boolean(a?.on)}
+                onClick={() => setScope(k)}
+              >
+                {t(`crm.auto.scope.${k}`)}
+                {k === 'chosen' && a ? ` ${a.chosen}` : ''}
+              </button>
+            ))}
+          </div>
+
+          <div className="crm-auto__acts">
+            <button
+              type="button"
+              className="crm-auto__btn"
+              disabled={busy || !state.reachable}
+              onClick={() => void flip(!(a?.on ?? false))}
+            >
+              {a?.on ? t('crm.auto.turnOff') : t('crm.auto.turnOn')}
+            </button>
+          </div>
+
+          {/*
         THE ONE MEASURED FIGURE. Not "resolution rate" -- we do not know
         whether the client was satisfied, and a percentage invented from sends
         would survive exactly until somebody checked it. This says what it
         counts: of what left your account, how much needed your finger.
       */}
-      {score.data ? (
-        <p className="crm-auto__score">
-          {/*
+          {score.data ? (
+            <p className="crm-auto__score">
+              {/*
             The change, when there is something to change from. A week with no
             rows at all is "no comparison", not "zero" -- drawing +13 against an
             empty file would invent a trend.
           */}
-          {score.data.note
-            ? t('crm.score.empty', { days: score.data.days })
-            : t('crm.score.line', {
-                days: score.data.days,
-                answered: score.data.dmAnswered,
-                auto: score.data.autoSent,
-                pressed: score.data.pressedSent,
-                share:
-                  score.data.withoutYouPercent === null
-                    ? '—'
-                    : `${score.data.withoutYouPercent}%`,
-              })}
-          {score.data.before && !score.data.note
-            ? ' · ' +
-              t('crm.score.before', {
-                left: score.data.before.left,
-                share:
-                  score.data.before.withoutYouPercent === null
-                    ? '—'
-                    : `${score.data.before.withoutYouPercent}%`,
-              })
-            : ''}
-        </p>
-      ) : null}
+              {score.data.note
+                ? t('crm.score.empty', { days: score.data.days })
+                : t('crm.score.line', {
+                    days: score.data.days,
+                    answered: score.data.dmAnswered,
+                    auto: score.data.autoSent,
+                    pressed: score.data.pressedSent,
+                    share:
+                      score.data.withoutYouPercent === null
+                        ? '—'
+                        : `${score.data.withoutYouPercent}%`,
+                  })}
+              {score.data.before && !score.data.note
+                ? ' · ' +
+                  t('crm.score.before', {
+                    left: score.data.before.left,
+                    share:
+                      score.data.before.withoutYouPercent === null
+                        ? '—'
+                        : `${score.data.before.withoutYouPercent}%`,
+                  })
+                : ''}
+            </p>
+          ) : null}
 
-      <p className="crm-auto__hint">{t('crm.auto.hint')}</p>
+          <p className="crm-auto__hint">{t('crm.auto.hint')}</p>
+        </>
+      )}
     </section>
   )
 }

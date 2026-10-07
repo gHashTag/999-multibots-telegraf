@@ -128,3 +128,29 @@ describe('the funnel strip', () => {
     )
   })
 })
+
+/**
+ * ONE LINE PER CHIP ON A PHONE, AND ONLY WHERE IT SAVES A ROW (P31).
+ *
+ * Measured with `tri shot crm`: at 390 px the side-by-side pills took the
+ * strip from 126 to 78 px; at 320 they wrapped to three rows, as tall as
+ * the stacked chips. jsdom has no layout, so the sheet itself is read.
+ */
+describe('the funnel strip on a phone', () => {
+  it('is one line per chip from 360 to 480 px, stacked elsewhere', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const css = readFileSync(
+      join(__dirname, 'FunnelStrip.css'),
+      'utf8'
+    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const at = css.indexOf('@media (min-width: 360px) and (max-width: 480px)')
+    expect(at, 'the phone block').toBeGreaterThan(-1)
+    const block = css.slice(at)
+    expect(block).toMatch(/\.crm-funnel__chip\s*\{[^}]*flex-direction:\s*row/)
+    // The base chip stays a column: name over count.
+    const base = css.slice(0, at)
+    expect(base).toMatch(/\.crm-funnel__chip\s*\{[^}]*flex-direction:\s*column/)
+    expect(base).not.toMatch(/flex-direction:\s*row/)
+  })
+})
