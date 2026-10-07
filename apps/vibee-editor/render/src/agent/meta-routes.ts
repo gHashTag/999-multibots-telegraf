@@ -10,7 +10,7 @@ import type { Queryable } from '../browser/sessions'
 import {
   appOf,
   finishConnect,
-  readTokens,
+  readTokensRelinked,
   scrub,
   startConnect,
   statusView,
@@ -119,7 +119,8 @@ export async function handleMeta(
   const pool = await d.getPool()
 
   if (path === '/api/social/meta/status') {
-    const held = await readTokens(pool, who)
+    /* A Page's Instagram linked after Connect is found here too (v2). */
+    const held = await readTokensRelinked(pool, d.fetch, who, d.now())
     /* Whether each Meta app is configured: a yes or no, never the id or secret. */
     const apps = {
       threads: !!appOf('threads'),
