@@ -300,10 +300,14 @@ drift` уже значил «влито, но не выехало»; `case` бе
   matching. Run `tri mutants --check` after any move; after re-anchoring,
   rerun that exact mutant rather than trusting the new anchor.
 - **A re-anchored mutant that survives means a missing boundary vector, not a
-  bad anchor.** #3827's mutant lived until a test covered "voice mode missing,
-  current mode 0": `sameVoice` must treat a missing mode as the same mode.
-- **`tri mutants` works only through the repo's `bin/tri`.** The root `./tri`
-  is a different entry point.
+  bad anchor.** The killing vector for #3827's voice mutants is "voice mode
+  missing, current mode 0": `Number(null)` is `0`, so `sameVoice` alone calls
+  a missing mode the same mode, and only `voiceKnown` stops the clips from
+  being carried. A missing voice mode carries no clips.
+- **`tri mutants` lives in `bin/tri`.** The root `./tri` reaches it only
+  through its unknown-command bridge (exit 64 = "not mine"); a word the root
+  `./tri` handles itself never reaches `bin/tri` that way. When in doubt, call
+  `bin/tri` directly.
 - **A `*.gen.ts` goes stale when t27c changes, not only when the spec
   changes.** `mail-push.gen.ts` gained a "TestBlock was not emitted" line in
   #3831. Regenerate with the current compiler; never hand-edit the output.
@@ -311,7 +315,7 @@ drift` уже значил «влито, но не выехало»; `case` бе
   PR.** Generated output plus data is allowed without it; if the label is
   truly needed, park the branch and report.
 - **Census/ratchet drift on t27 master can come from a master workflow
-  change, not from your spec.** #7399 added `own-language.yml` (quiet
+  change, not from your spec.** t27#7399 added `own-language.yml` (quiet
   181->182, shell 301->302). Compare against fresh master before blaming your
   diff.
 - **`git push` exiting 141 is not a failure by itself** (SIGPIPE from the
