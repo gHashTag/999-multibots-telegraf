@@ -41,7 +41,7 @@ import {
   CAP_WAIT_MARK,
 } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
-import { readableShade } from './story-reel-tool'
+import { readableShade, slotRenders } from './story-reel-tool'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 const SELLER = '900000001'
@@ -246,6 +246,21 @@ function fakeBase() {
       return {
         rows: db.jobs.filter(j => j.lead_id === p[0] && j.status === 'running'),
       }
+    if (q.startsWith('SELECT scenes, stills, clips, topic FROM story_jobs')) {
+      return {
+        rows: db.jobs
+          .filter(
+            j =>
+              j.lead_id === p[0] &&
+              j.seller_id === p[1] &&
+              // Only when the statement itself says so.
+              (!q.includes("status = 'failed'") || j.status === 'failed')
+          )
+          .sort((a, b) => b.id - a.id)
+          .slice(0, 5)
+          .map(j => ({ ...j })),
+      }
+    }
     if (q.startsWith('INSERT INTO story_jobs')) {
       const id = db.jobs.length + 1
       // Values by the statement's own column list, so a column the engine
@@ -267,8 +282,8 @@ function fakeBase() {
         topic: v.topic,
         about: v.about,
         runner: v.runner,
-        stills: '[]',
-        clips: '[]',
+        stills: v.stills ?? '[]',
+        clips: v.clips ?? '[]',
         status: 'running',
         url: null,
         error: null,
@@ -2895,5 +2910,106 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(out.started).toBe(false)
     expect(out.why).toMatch(`${SPEC.LINE_MAX_CHARS}`)
     expect(base.db.jobs).toHaveLength(0)
+  })
+})
+
+describe('a retry after a failed job (spec v28, 999#3815)', () => {
+  const SCRIPT4 = [
+    { setting: 'a dark quiet room', line: 'Я веду игру.' },
+    { setting: 'a dim library', line: 'Здесь нет правильного ответа.' },
+    { setting: 'a tall window at dusk', line: 'Приходите со своим вопросом.' },
+    { setting: 'a bright hall', line: 'Жду вас.' },
+  ]
+  // Counts the renders a story run would order: one per slot not yet done.
+  function counting(base: ReturnType<typeof fakeBase>) {
+    let renders = 0
+    const seen: any[] = []
+    const { deps } = depsOn(base, async args => {
+      seen.push(args)
+      const stills = (args.stills ?? []) as string[]
+      const clips = (args.clips ?? []) as string[]
+      ;(args.scenes as unknown[]).forEach((_, i) => {
+        if (slotRenders(!!(stills[i] || clips[i]))) renders += 1
+      })
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    return { deps, seen, renders: () => renders }
+  }
+  function failedJob(base: ReturnType<typeof fakeBase>, over: any = {}) {
+    base.db.jobs.push({
+      id: base.db.jobs.length + 1,
+      lead_id: LENA,
+      seller_id: SELLER,
+      topic: 'Я веду игру',
+      scenes: JSON.stringify(SCRIPT4),
+      stills: JSON.stringify(['https://s/1', 'https://s/2', '', '']),
+      clips: JSON.stringify(['https://c/1', 'https://c/2', '', '']),
+      status: 'failed',
+      runner: null,
+      attempts: 3,
+      updated: 0,
+      ...over,
+    })
+  }
+
+  it('renders only the 2 empty slots of 4, and the day cap counts only them', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base)
+    const c = counting(base)
+    const asked: number[] = []
+    c.deps.generationsLeft = async () => {
+      const left = slotsNeeded(4, 2, 2, true)
+      asked.push(left)
+      return left
+    }
+    const out = await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    expect(out.started).toBe(true)
+    await drain()
+    expect(c.seen).toHaveLength(1)
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['https://c/1', 'https://c/2', '', ''])
+    expect(c.renders()).toBe(2)
+  })
+
+  it("another client's or another script's failed job is never carried", async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { lead_id: 'someone-else' })
+    failedJob(base, { scenes: JSON.stringify(SCRIPT4.slice(0, 3)) })
+    failedJob(base, { status: 'done' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.renders()).toBe(4)
+  })
+
+  it('a retry of the same asked topic reuses the written scenes and their slots', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { topic: 'Ваза' })
+    const c = counting(base)
+    let written = 0
+    c.deps.write = async () => ((written += 1), JSON.stringify(SCENES))
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(written).toBe(0)
+    expect(c.seen[0].scenes).toEqual(SCRIPT4)
+    expect(c.renders()).toBe(2)
   })
 })
