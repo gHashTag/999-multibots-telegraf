@@ -26,6 +26,11 @@
  */
 
 import { LOGIN_QUERY } from './live-proxy'
+/*
+ * The boot clocks, the language whitelist and the sound switch are the spec's
+ * (specs/automation/browser-viewer-boot.t27): imported, never retyped here.
+ */
+import * as SPEC from '../spec/browser-viewer-boot.gen'
 
 /**
  * THE MARK AND THE NAME ARE THE APP'S OWN, taken from its header rather
@@ -1079,16 +1084,22 @@ export const VIEWER_LANG_KEY = 't27-lang'
 
 export const LANG_SCRIPT = `(function () {
   try {
-    var asked = ((location.search || '').match(/[?&]lang=(ru|en)(&|$)/) || [])[1] || null;
+    var asked = ((location.search || '').match(/[?&]__LANG_PARAM__=(__LANG_RU__|__LANG_EN__)(&|$)/) || [])[1] || null;
     var lang = asked;
     try {
       if (asked) sessionStorage.setItem(__KEY__, asked);
       else lang = sessionStorage.getItem(__KEY__);
     } catch (e) {}
-    if (lang === 'ru' || lang === 'en')
+    if (lang === __LANG_RU_Q__ || lang === __LANG_EN_Q__)
       document.documentElement.setAttribute('data-t27-lang', lang);
   } catch (e) {}
-})();`.replace(/__KEY__/g, () => JSON.stringify(VIEWER_LANG_KEY))
+})();`
+  .replace(/__KEY__/g, () => JSON.stringify(VIEWER_LANG_KEY))
+  .replace('__LANG_PARAM__', SPEC.LANG_PARAM)
+  .replace('__LANG_RU__', SPEC.LANG_RU)
+  .replace('__LANG_EN__', SPEC.LANG_EN)
+  .replace('__LANG_RU_Q__', () => JSON.stringify(SPEC.LANG_RU))
+  .replace('__LANG_EN_Q__', () => JSON.stringify(SPEC.LANG_EN))
 
 /**
  * The question every script of the window asks before it says anything: the
@@ -1115,7 +1126,7 @@ export const BOOT_HINT_EN =
   'The first start takes longer: the browser comes up together with your profile.'
 
 /** Longer than a cold pod takes, shorter than anyone will stare at a ring. */
-export const BOOT_GIVE_UP_MS = 45_000
+export const BOOT_GIVE_UP_MS: number = SPEC.BOOT_GIVE_UP_MS
 
 /**
  * PICTURES SOONER WHEN THE VIDEO IS LATE (owner, 2026-10-06, iPhone in
@@ -1129,7 +1140,7 @@ export const BOOT_GIVE_UP_MS = 45_000
  * straight to watch mode; the 45 s give-up stays for the no-frames case.
  * A video that plays later still takes over, as before.
  */
-export const BOOT_FAST_WATCH_MS = 8_000
+export const BOOT_FAST_WATCH_MS: number = SPEC.BOOT_FAST_WATCH_MS
 
 /**
  * Watch mode, once reached, is remembered for the tab (per session), so a
@@ -1340,7 +1351,7 @@ export const BOOT_SCRIPT = `
    * sound=1 on the address, as in MUTE_SCRIPT.
    */
   var sound = false;
-  try { sound = /[?&]sound=1(&|$)/.test(location.search || ''); } catch (e) {}
+  try { sound = /[?&]__SOUND_PARAM__=__SOUND_ON__(&|$)/.test(location.search || ''); } catch (e) {}
   function inline(v) {
     if (v.__t27Inline) return;
     v.__t27Inline = true;
@@ -1406,6 +1417,8 @@ export const BOOT_SCRIPT = `
   .replace('__WATCH_HINT__', () => JSON.stringify(WATCH_HINT))
   .replace('__WATCH_SAID_EN__', () => JSON.stringify(WATCH_SAID_EN))
   .replace('__WATCH_HINT_EN__', () => JSON.stringify(WATCH_HINT_EN))
+  .replace('__SOUND_PARAM__', SPEC.SOUND_PARAM)
+  .replace('__SOUND_ON__', SPEC.SOUND_ON)
 
 /**
  * PUT THE PERSON'S OWN FACE ON THE DISC, AND COUNT THEIR OTHER SCREENS.
@@ -1795,7 +1808,7 @@ html[data-t27-framed] .members-container { height: 30px !important; }
  * `?sound=1` on the window's address is the only way to hear it.
  */
 export const MUTE_SCRIPT = `(function () {
-  var allowed = /[?&]sound=1(&|$)/.test(location.search);
+  var allowed = /[?&]__SOUND_PARAM__=__SOUND_ON__(&|$)/.test(location.search);
   if (allowed) return;
   var hush = function (el) {
     if (!el || (el.tagName !== 'VIDEO' && el.tagName !== 'AUDIO')) return;
@@ -1851,6 +1864,8 @@ export const MUTE_SCRIPT = `(function () {
     }
   } catch (e) {}
 })();`
+  .replace('__SOUND_PARAM__', SPEC.SOUND_PARAM)
+  .replace('__SOUND_ON__', SPEC.SOUND_ON)
 
 /*
  * WHAT IS UNDER THE FINGER (2026-09-22). The owner could not press "Trust"

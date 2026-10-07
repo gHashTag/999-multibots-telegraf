@@ -32,6 +32,8 @@
 
 import { timingSafeEqual } from 'node:crypto'
 import { readSessionById, type Queryable } from './sessions'
+/* The language whitelist is the spec's (specs/automation/browser-viewer-boot.t27). */
+import * as SPEC from '../spec/browser-viewer-boot.gen'
 
 export const LIVE_PREFIX = '/live/'
 
@@ -86,11 +88,11 @@ export interface LiveRequest {
   lang?: ViewerLang
 }
 
-export type ViewerLang = 'ru' | 'en'
+export type ViewerLang = typeof SPEC.LANG_RU | typeof SPEC.LANG_EN
 
 /** Only the two languages the window has words for; anything else is null. */
 export function viewerLangOf(v: string | null | undefined): ViewerLang | null {
-  return v === 'ru' || v === 'en' ? v : null
+  return v === SPEC.LANG_RU || v === SPEC.LANG_EN ? v : null
 }
 
 export function cookieNameFor(sessionId: string): string {
@@ -121,7 +123,7 @@ export function parseLive(
   const queryToken = kept.get('t')
   kept.delete('t')
   const suffix = kept.toString() ? `?${kept.toString()}` : ''
-  const lang = viewerLangOf(kept.get('lang'))
+  const lang = viewerLangOf(kept.get(SPEC.LANG_PARAM))
 
   return {
     sessionId,
@@ -152,7 +154,7 @@ export function loginUrlFor(
   sessionId: string,
   lang?: ViewerLang | null
 ): string {
-  const tail = viewerLangOf(lang) ? `&lang=${lang}` : ''
+  const tail = viewerLangOf(lang) ? `&${SPEC.LANG_PARAM}=${lang}` : ''
   return `${LIVE_PREFIX}${sessionId}/${LOGIN_QUERY}${tail}`
 }
 
