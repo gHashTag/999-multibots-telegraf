@@ -670,6 +670,16 @@ async function initializeBots() {
         )
     })
 
+    // The private-chat tabs table is made here, at launch, for a bot with
+    // topics on: before this it waited for the first /start, so after a
+    // deploy nobody could tell a missing table from a broken database.
+    void import('@/navigation/topics/tabs')
+      .then(({ prepareTabsTable }) => prepareTabsTable(botInfo))
+      .then(outcome => {
+        if (outcome !== 'off')
+          console.log(`🗂 [TABS] ${botInfo.username}: table ${outcome}`)
+      })
+
     botPromises.push(botPromise)
   }
 
