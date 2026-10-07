@@ -24,7 +24,8 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { requireOwner } from './telegram-tools'
-import { threadsPost, type Network, type Post } from './meta-connect'
+import { canSeal, threadsPost, type Network, type Post } from './meta-connect'
+import { connectStates } from './connect-card'
 import { linkedInCommentary, xPost } from './social-api'
 import { isNotConnected } from './rounds'
 import type { NetworkLogin } from '../browser/logins'
@@ -124,6 +125,8 @@ export interface SocialStatus {
   /** Which networks have their app id/secret on vibee-render. */
   apps: Record<Network, boolean>
   networks: NetworkState[]
+  /** Whether META_TOKEN_KEY is set, so a new token could be sealed; never the key. */
+  sealable?: boolean
   /** The owner's browser logins (browser/logins.ts); null = unreadable. */
   logins?: NetworkLogin[] | null
 }
@@ -301,6 +304,7 @@ const realDeps: SocialDeps = {
     return {
       apps,
       networks: statusView(held, Date.now()) as unknown as NetworkState[],
+      sealable: canSeal(),
       logins,
     }
   },
@@ -426,6 +430,12 @@ export const SOCIAL_TOOLS: AgentTool[] = [
         canPost: canPostOf(reach),
         reach,
         todo: todoOf(s),
+        /* connected | needs-connect | no-client-id | no-seal-key (connect-card.t27). */
+        connectState: connectStates(
+          s.apps,
+          s.networks,
+          s.sealable ?? canSeal()
+        ),
         connect: CONNECT_LINK,
       }
     },

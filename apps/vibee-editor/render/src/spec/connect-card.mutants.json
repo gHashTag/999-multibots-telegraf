@@ -1,0 +1,32 @@
+[
+  {
+    "name": "the agent's key let through the card's door",
+    "file": "src/agent/connect-card.ts",
+    "from": "  if (!mayStart(d.actor(req)))",
+    "to": "  if (false)"
+  },
+  {
+    "name": "a link honoured at exactly one hour",
+    "file": "src/agent/connect-card.ts",
+    "from": "return !used && ageMs < SPEC.LINK_TTL_MS",
+    "to": "return !used && ageMs <= SPEC.LINK_TTL_MS"
+  },
+  {
+    "name": "a connected network carded again a week later",
+    "file": "src/agent/connect-card.ts",
+    "from": "return state !== 'connected' && (!everSent || sinceMs >= SPEC.CARD_EVERY_MS)",
+    "to": "return !everSent || sinceMs >= SPEC.CARD_EVERY_MS"
+  },
+  {
+    "name": "a dead button for a network with no client id",
+    "file": "src/agent/connect-card.ts",
+    "from": "return state === 'needs-connect'",
+    "to": "return state !== 'connected'"
+  },
+  {
+    "name": "the honest no-button row left redeemable",
+    "file": "src/agent/connect-card.ts",
+    "from": "[id, d.owner, n, d.now(), !button]",
+    "to": "[id, d.owner, n, d.now(), false]"
+  }
+]
