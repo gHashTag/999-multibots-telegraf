@@ -34,5 +34,23 @@
     "file": "src/agent/meta-connect.ts",
     "from": "const room = THREADS_TEXT_MAX - p.link.length - 2",
     "to": "const room = THREADS_TEXT_MAX - p.link.length + 1"
+  },
+  {
+    "name": "the Page re-read on every post, no window",
+    "file": "src/agent/meta-connect.ts",
+    "from": "sinceLastMs >= IG_RELINK_EVERY_MS",
+    "to": "sinceLastMs >= 0"
+  },
+  {
+    "name": "a failed publish retried for the same account",
+    "file": "src/agent/meta-connect.ts",
+    "from": "return newId !== '' && newId !== oldId",
+    "to": "return newId !== ''"
+  },
+  {
+    "name": "the Page never read again after Connect",
+    "file": "src/agent/meta-connect.ts",
+    "from": "  if (!shouldRelink(Boolean(t.meta.ig_id), publishFailed, since)) return t\n",
+    "to": "  return t\n"
   }
 ]

@@ -84,6 +84,23 @@ export function TabStrip({ live }: { live: boolean }) {
       ? t('browser.tabs.agentDesk')
       : t('browser.tabs.agentChat')
 
+  /*
+   * The strip is capped at two rows and scrolls inside itself (TabStrip.css),
+   * so the chosen tab is brought into it when it changes -- by the strip's
+   * own scrollTop: scrollIntoView would scroll the page as well.
+   */
+  const row = useRef<HTMLDivElement>(null)
+  const activeId = tabs.find(tab => tab.active)?.id
+  useEffect(() => {
+    const box = row.current
+    const tab = box?.querySelector('.tab-strip__tab.is-active')
+    if (!box || !tab) return
+    const b = box.getBoundingClientRect()
+    const r = tab.getBoundingClientRect()
+    if (r.top < b.top) box.scrollTop += r.top - b.top
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom
+  }, [activeId])
+
   if (!live) return null
   const canClose = tabs.length > 1
   const canOpen = tabs.length < SPEC.MAX_TABS_SHOWN
@@ -95,6 +112,7 @@ export function TabStrip({ live }: { live: boolean }) {
   return (
     <div className="tab-strip">
       <div
+        ref={row}
         className="tab-strip__row"
         role="tablist"
         aria-label={t('browser.tabs.label')}
