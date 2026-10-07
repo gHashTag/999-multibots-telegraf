@@ -382,8 +382,9 @@ const en: Translations = {
   'crm.waiting.title': 'Waiting for an answer',
   'crm.waiting.none':
     'Nobody is waiting for an answer. That is good news, not an empty screen.',
-  'crm.waiting.counts':
-    'waiting on us: {ours} · time to return: {due} · awaiting reply: {theirs}',
+  'crm.waiting.count.ours': 'waiting on us: {n}',
+  'crm.waiting.count.due': 'time to return: {n}',
+  'crm.waiting.count.theirs': 'awaiting reply: {n}',
   'crm.leads.title': 'Hot leads',
   'crm.leads.counts': 'found {found}',
   'crm.leads.setAside': 'set aside, touched recently: {n}',
@@ -3438,8 +3439,9 @@ const ru: Translations = {
   'crm.waiting.title': 'Ждут ответа',
   'crm.waiting.none':
     'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.',
-  'crm.waiting.counts':
-    'ждут нас: {ours} · пора вернуться: {due} · ждём ответа: {theirs}',
+  'crm.waiting.count.ours': 'ждут нас: {n}',
+  'crm.waiting.count.due': 'пора вернуться: {n}',
+  'crm.waiting.count.theirs': 'ждём ответа: {n}',
   'crm.leads.title': 'Горячие лиды',
   'crm.leads.counts': 'найдено {found}',
   'crm.leads.setAside': 'отложено недавно тронутых: {n}',

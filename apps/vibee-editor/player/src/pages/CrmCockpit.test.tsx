@@ -50,6 +50,8 @@ let autopilot: Record<string, unknown> = {
 const calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 let emptyScore = false
+// Only "they owe us" in the waiting list: nobody is waiting for US.
+let nobodyWaitsForUs = false
 let picks: string[] = []
 let failPicks = false
 let lastPick: { lead: unknown; on: unknown } | null = null
@@ -172,6 +174,18 @@ vi.stubGlobal(
     if (name === 'autopilot_leads' && failPicks)
       return new Response('nope', { status: 500 })
     let data = answers()[name] ?? {}
+    if (name === 'crm_waiting' && nobodyWaitsForUs) {
+      const all = answers().crm_waiting as {
+        waiting: Array<{ waiting: string }>
+      }
+      data = {
+        total: 1,
+        ours: 0,
+        due: 0,
+        theirs: 1,
+        waiting: all.waiting.filter(r => r.waiting === 'theirs'),
+      }
+    }
     if (name === 'crm_outcomes' && emptyScore)
       data = {
         days: 7,
@@ -436,6 +450,37 @@ describe('the work tab on a phone', () => {
     expect(fold()).toBeNull()
     expect(byText('crm.auto.turnOn')).toBeTruthy()
     expect(host.querySelector('.level-switch__chip')).toBeTruthy()
+  })
+
+  it('"everyone waiting" lives in the AUTO panel, beside the chosen list', async () => {
+    // P32: between the heading and the first row it cost 55 px.
+    asPhone()
+    await screen()
+    expect(host.querySelector('.crm__pick-all')).toBeNull()
+    await act(async () => fold()!.click())
+    const pick = host.querySelector('.crm-auto .crm__pick-all')
+    expect(pick?.textContent).toContain('crm.waiting.pickAll:2')
+  })
+
+  it('offers "everyone waiting" only when somebody is waiting for us', async () => {
+    nobodyWaitsForUs = true
+    try {
+      await screen()
+      expect(host.querySelector('.crm-auto')).toBeTruthy()
+      expect(host.querySelector('.crm__pick-all')).toBeNull()
+    } finally {
+      nobodyWaitsForUs = false
+    }
+  })
+
+  it('names only the kinds of waiting that have somebody', async () => {
+    // crm-first-screen.t27 count_shown: the fixture has nobody "due".
+    asPhone()
+    await screen()
+    const counts = host.querySelector('.crm__counts')?.textContent ?? ''
+    expect(counts).toContain('crm.waiting.count.ours:2')
+    expect(counts).toContain('crm.waiting.count.theirs:1')
+    expect(counts).not.toContain('crm.waiting.count.due')
   })
 
   it('draws the level switch as one line: its label and a select', async () => {

@@ -11,8 +11,15 @@
  * This runs each package's own vitest from its own directory, prints the RUN
  * line (the path vitest itself reports) beside the totals and the failing
  * files, and fails when the path is not the package asked for.
+ *
+ * WHY, NOT ONLY WHICH (07.10.2026). A render test failed once in a full run
+ * and passed three times alone; the run had printed its file name and
+ * nothing else, so the reason was gone with the process. Each package's raw
+ * output is now kept in .git/tri-full-run-<name>.log, and every FAIL line
+ * is followed by the first error the run printed for it.
  */
 import { spawnSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..', '..')
@@ -53,11 +60,33 @@ for (const name of names) {
   ]
   const here = ran === dir
   const ok = here && r.status === 0 && failing.length === 0
+  const log = join(ROOT, '.git', `tri-full-run-${name}.log`)
+  writeFileSync(log, plain)
+  /** The first error vitest printed under a failing file's own heading. */
+  const why = file => {
+    const at = plain.search(
+      new RegExp(
+        `FAIL\\s+\\S*${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+>`
+      )
+    )
+    if (at < 0) return null
+    const line = plain
+      .slice(at)
+      .split('\n')
+      .slice(1, 12)
+      .find(l => /Error|expected|Timeout|timed out|assert/i.test(l))
+    return line ? line.trim().slice(0, 200) : null
+  }
   console.log(`== ${name}: ${ok ? 'green' : 'RED'}`)
   console.log(`   ran in  ${ran}${here ? '' : `   <-- NOT ${dir}`}`)
   console.log(`   files   ${files}`)
   console.log(`   tests   ${tests}`)
-  for (const f of failing) console.log(`   FAIL    ${f}`)
+  for (const f of failing) {
+    console.log(`   FAIL    ${f}`)
+    const w = why(f)
+    if (w) console.log(`           ${w}`)
+  }
+  if (!ok) console.log(`   log     ${log}`)
   if (!ok) bad++
   // tri gate: the verdict, stamped with the tree it ran on.
   spawnSync('node', [

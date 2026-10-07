@@ -31,7 +31,9 @@
  *     selectors) ends above the bars fixed to the bottom of the viewport
  *     (the app's tab bar), counted from the top of the page, not from
  *     wherever the state scrolled. Missing counts as below the fold. An
- *     entry `[selector, minWidth]` is asked only from that width up.
+ *     entry `[selector, minWidth]` is asked only from that width up. A
+ *     state's `foldInsets` ({top, bottom}) take what a host keeps off the
+ *     page -- Telegram in fullscreen, from crm-first-screen.t27.
  * Exit 0 clean, 1 something measured wrong, 2 could not measure. The
  * verdict goes to `tri gate`. Nothing is written or started: keeping and
  * start are refused by the answer script.
@@ -46,6 +48,18 @@ const HERE = import.meta.dirname
 const ROOT = resolve(HERE, '../..')
 const PLAYER = join(ROOT, 'apps/vibee-editor/player')
 const RENDER = join(ROOT, 'apps/vibee-editor/render')
+/*
+ * The CRM's first screen is a spec (crm-first-screen.t27): the phone widths
+ * and Telegram's fullscreen insets are read from its generated module, never
+ * typed here. Node strips the types of a .ts import by itself.
+ */
+const FIRST = await import(join(PLAYER, 'src/spec/crm-first-screen.gen.ts'))
+/** What Telegram keeps in fullscreen: its row and the status bar, the home bar. */
+const TELEGRAM = {
+  top: FIRST.TG_DEVICE_TOP_PX + FIRST.TG_BUTTONS_TOP_PX,
+  bottom: FIRST.TG_HOME_BOTTOM_PX,
+}
+
 const CRM_CLIENT_FIXTURES = JSON.parse(
   readFileSync(join(PLAYER, 'src/harness/crmClientFixtures.json'), 'utf8')
 )
@@ -449,13 +463,18 @@ const HARNESSES = {
         id: 'load',
         ready: async p => p.locator('.crm__row').first().waitFor(),
         /*
-         * P31: the work tab opens on the first person waiting for an answer
-         * -- their name at any width, and from 360 px why they wait. The
-         * press that starts the reply is one short scroll below (it ends at
-         * about 800 of 787 px at 390); a real phone in Telegram's fullscreen
-         * also gives up about 127 px to its buttons and the home indicator.
+         * crm-first-screen.t27: the work tab opens on the first person
+         * waiting for an answer -- their name at any width; why they wait
+         * and the press that starts the reply from the pill width up --
+         * inside TELEGRAM's first screen (its row and the status bar on
+         * top, the home indicator below), not merely the stand's.
          */
-        fold: ['.crm__list .crm__open', ['.crm__list .crm__why', 360]],
+        fold: [
+          '.crm__list .crm__open',
+          ['.crm__list .crm__why', FIRST.PILLS_MIN_PX],
+          ['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX],
+        ],
+        foldInsets: TELEGRAM,
       },
       {
         // The owner's complaint, 2026-10-01: finding one contact on a phone.
@@ -1186,6 +1205,7 @@ function measure({
   before = [],
   cards: deck,
   fold: firstScreen = [],
+  foldInsets: insets = { top: 0, bottom: 0 },
 }) {
   const target =
     parseFloat(
@@ -1339,11 +1359,16 @@ function measure({
       r.bottom >= window.innerHeight - 2
     )
   })
+  // Where the screen ends: the bars' top, less what a host keeps above and
+  // below the page (Telegram in fullscreen: its row, the status bar, the
+  // home indicator -- a state's `foldInsets`).
   const line = Math.round(
     Math.min(
       window.innerHeight,
       ...bars.map(el => el.getBoundingClientRect().top)
-    )
+    ) -
+      insets.top -
+      insets.bottom
   )
   const fold = firstScreen
     .map(x => (Array.isArray(x) ? x : [x, 0]))
@@ -1523,6 +1548,7 @@ try {
       before: h.before,
       cards: h.cards,
       fold: s.fold,
+      foldInsets: s.foldInsets,
     })
     /*
      * A DESKTOP MEASURED AND CALLED A PHONE. Measured 27.09.2026: after one
@@ -1566,9 +1592,12 @@ try {
     for (const x of m.order) lines.push(`       order   ${x}`)
     for (const x of m.card) lines.push(`       card    ${x}`)
     // Green or red, the margin is printed: 2 px above the line is not 200.
+    const where = s.foldInsets
+      ? ` (less ${s.foldInsets.top} top, ${s.foldInsets.bottom} bottom)`
+      : ''
     for (const f of m.fold)
       lines.push(
-        `       fold    ${f.bad ?? `${f.sel} ends at ${f.end}px of ${f.line}px`}`
+        `       fold    ${f.bad ?? `${f.sel} ends at ${f.end}px of ${f.line}px`}${where}`
       )
   }
   if (errors.length) {
