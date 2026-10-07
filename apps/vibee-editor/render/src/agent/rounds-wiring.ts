@@ -53,7 +53,9 @@ export async function runRoundNow(
   const { waitForBrowser, cdpHealthIo } = await import('../browser/health')
 
   const { loginsOfPerson } = await import('../browser/logins')
-  const { deskMayGo } = await import('../browser/desk-page')
+  const { deskMayGo, holdDeskTab, releaseDeskTab } = await import(
+    '../browser/desk-page'
+  )
   const { siteRulesOf } = await import('../browser/site-rules')
   /*
    * THE PERSON'S SITE LIST, read before the walk (#3488, found by the bee):
@@ -92,7 +94,10 @@ export async function runRoundNow(
   const win = deskWindow({
     open: async url => {
       await deskMayGo(who, url)
-      return await openWindow(await endpoint(), url)
+      const id = await openWindow(await endpoint(), url)
+      /* Held like a desk tab: the sweep spares it, the tab strip marks it. */
+      holdDeskTab(id)
+      return id
     },
     tile: async targetId => {
       if (!desk) return
@@ -111,7 +116,10 @@ export async function runRoundNow(
       await goTo(await endpoint(), targetId, url)
     },
     alive: async targetId => !!(await pageUrl(await endpoint(), targetId)),
-    close: async targetId => await closeWindow(await endpoint(), targetId),
+    close: async targetId => {
+      releaseDeskTab(targetId)
+      await closeWindow(await endpoint(), targetId)
+    },
     /*
      * A round can start minutes after a deploy swap, when the port answers and
      * Chromium behind it does not (browser/health.ts). Waiting here is what

@@ -8,11 +8,14 @@ import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import * as SPEC from './browser-tab-strip.gen'
 import {
+  agentMark,
+  cacheFresh,
   clipTitle,
   handleStrip,
   hostOnly,
   isStripTab,
   mayClose,
+  mayCloseTab,
   mayOpen,
   resetStripMemory,
   stripOf,
@@ -153,6 +156,7 @@ describe('browser-tab-strip.t27 against the host', () => {
     )
     expect(Object.keys(tabs[0]).sort()).toEqual([
       'active',
+      'agent',
       'host',
       'id',
       'title',
@@ -202,5 +206,89 @@ describe('browser-tab-strip.t27 against the host', () => {
     const root = readFileSync(join(PLAYER, 'index.css'), 'utf8')
     const px = Number(/--touch-target:\s*(\d+)px/.exec(root)?.[1])
     expect(px).toBeGreaterThanOrEqual(SPEC.MIN_TOUCH_PX)
+  })
+
+  it('a tab the agent works in is marked with a word, desk before chat', () => {
+    expect(agentMark(false, false)).toBe(null)
+    expect(agentMark(true, false)).toBe(SPEC.AGENT_DESK)
+    expect(agentMark(false, true)).toBe(SPEC.AGENT_CHAT)
+    expect(agentMark(true, true)).toBe(SPEC.AGENT_DESK)
+    const tabs = stripOf(
+      [
+        page('d', 'https://x.example/compose/post?draft=secret'),
+        page('c', 'https://c.example/'),
+        page('p', 'https://p.example/'),
+      ],
+      new Set(),
+      null,
+      { desk: new Set(['d']), chat: new Set(['c', 'd']) }
+    )
+    expect(tabs.map(t => t.agent)).toEqual([
+      SPEC.AGENT_DESK,
+      SPEC.AGENT_CHAT,
+      null,
+    ])
+    /* One word: nothing of the desk's work or the page rides along. */
+    expect(JSON.stringify(tabs)).not.toContain('secret')
+    expect(SPEC.RETURNS_DESK_INTERNALS).toBe(false)
+    expect(SPEC.VERSION).toBe(2)
+  })
+
+  it("closing an agent tab needs the person's confirm", async () => {
+    expect(mayCloseTab(2, false, false)).toBe(true)
+    expect(mayCloseTab(2, true, false)).toBe(false)
+    expect(mayCloseTab(2, true, true)).toBe(true)
+    expect(mayCloseTab(1, true, true)).toBe(false)
+    expect(mayCloseTab(1, false, false)).toBe(false)
+    const io: StripIo = {
+      ...fakeIo([
+        page('a', 'https://a.example/'),
+        page('b', 'https://b.example/'),
+      ]),
+      agents: () => ({ desk: new Set(['a']), chat: new Set() }),
+    }
+    const refused = await handleStrip(
+      livePool().pool,
+      'tg-1',
+      JSON.stringify({ action: SPEC.ACTION_CLOSE, id: 'a' }),
+      io
+    )
+    expect(refused.status).toBe(SPEC.AGENT_TAB_STATUS)
+    expect(refused.body.reason).toBe(SPEC.REASON_AGENT_WORKING)
+    const done = await handleStrip(
+      livePool().pool,
+      'tg-1',
+      JSON.stringify({ action: SPEC.ACTION_CLOSE, id: 'a', confirm: true }),
+      io
+    )
+    expect(done.status).toBe(200)
+    expect(SPEC.CLOSE_AGENT_NEEDS_CONFIRM).toBe(true)
+  })
+
+  it('the front tab is asked over one socket and shared briefly', async () => {
+    expect(cacheFresh(0)).toBe(true)
+    expect(cacheFresh(SPEC.VISIBILITY_CACHE_MS - 1)).toBe(true)
+    expect(cacheFresh(SPEC.VISIBILITY_CACHE_MS)).toBe(false)
+    expect(SPEC.VISIBILITY_CACHE_MS).toBeLessThan(SPEC.POLL_MS)
+    /* Two reads inside the cache ask the pod once. */
+    let asked = 0
+    const io: StripIo = {
+      ...fakeIo([
+        page('a', 'https://a.example/'),
+        page('b', 'https://b.example/'),
+      ]),
+      visible: async () => {
+        asked += 1
+        return new Set(['b'])
+      },
+    }
+    await handleStrip(livePool().pool, 'tg-1', null, io)
+    await handleStrip(livePool().pool, 'tg-1', null, io)
+    expect(asked).toBe(1)
+    /*
+     * One socket per read is held by src/browser/visible-pages.test.ts against
+     * a real WebSocket server: SOCKETS_PER_POLL connections, not one per page.
+     */
+    expect(SPEC.SOCKETS_PER_POLL).toBe(1)
   })
 })

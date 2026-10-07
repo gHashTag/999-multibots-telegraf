@@ -16,6 +16,7 @@
  */
 import { API_BASE } from '../config'
 import { apiFetch, type ApiError } from '@/lib/apiFetch'
+import * as TAB_STRIP from '@/spec/browser-tab-strip.gen'
 
 export type BrowserState =
   | 'none'
@@ -687,12 +688,22 @@ export function siteRowsOf(raw: unknown): SiteRuleRow[] {
  * in the person's browser, as the server chose to describe it: an id, a
  * clipped title, a host and whether it is in front. Never a path.
  * ──────────────────────────────────────────────────────────────────────── */
+/** Who works in a tab (browser-tab-strip.t27 v2): one word, or nobody. */
+export type TabAgent =
+  | typeof TAB_STRIP.AGENT_DESK
+  | typeof TAB_STRIP.AGENT_CHAT
+  | null
+
 export interface BrowserTab {
   id: string
   title: string
   host: string
   active: boolean
+  agent: TabAgent
 }
+
+/** The server's code for "an agent is working in that tab; confirm first". */
+export const AGENT_WORKING = TAB_STRIP.REASON_AGENT_WORKING
 
 export type TabAction = 'activate' | 'new' | 'close'
 
@@ -708,6 +719,10 @@ export function tabsOf(raw: unknown): BrowserTab[] {
         title: typeof t.title === 'string' ? t.title : '',
         host: typeof t.host === 'string' ? t.host : '',
         active: t.active === true,
+        agent:
+          t.agent === TAB_STRIP.AGENT_DESK || t.agent === TAB_STRIP.AGENT_CHAT
+            ? t.agent
+            : null,
       },
     ]
   })
@@ -725,18 +740,32 @@ export async function readBrowserTabs(): Promise<BrowserTab[] | null> {
   }
 }
 
-/** Switch, open or close; the tabs after it, or null when refused. */
+/**
+ * Switch, open or close; the tabs after it, or null when refused, or
+ * AGENT_WORKING when the tab became an agent's after the strip last read it
+ * and the close needs the person's confirm. `confirm` is sent only as true.
+ */
 export async function actOnBrowserTab(
   action: TabAction,
-  id?: string
-): Promise<BrowserTab[] | null> {
+  id?: string,
+  confirm = false
+): Promise<BrowserTab[] | null | typeof AGENT_WORKING> {
   try {
     const a = await apiFetch<{ tabs?: unknown }>(
       `${API_BASE}/api/browser/strip`,
-      { method: 'POST', body: JSON.stringify(id ? { action, id } : { action }) }
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          action,
+          ...(id ? { id } : {}),
+          ...(confirm ? { confirm: true } : {}),
+        }),
+      }
     )
     return tabsOf(a.tabs)
-  } catch {
+  } catch (e) {
+    const err = e as ApiError | undefined
+    if (err?.status === 409 && err.code === AGENT_WORKING) return AGENT_WORKING
     return null
   }
 }
