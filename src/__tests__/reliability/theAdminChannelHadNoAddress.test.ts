@@ -171,6 +171,7 @@ describe('nobody addresses the admin channel by hand', () => {
     const FETCH_SENDERS = [
       'src/services/provider-health-monitor.ts',
       'src/inngest_app/client.ts',
+      'src/helpers/error/sendToAdminChat.ts',
     ]
     for (const rel of FETCH_SENDERS) {
       const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -188,5 +189,32 @@ describe('nobody addresses the admin channel by hand', () => {
           `refused send is indistinguishable from a delivered one`
       ).toMatch(/if\s*\(!\s*resp\.ok\s*\)/)
     }
+  })
+
+  /*
+   * THE BLIND SPOT THE CHECK ABOVE COULD NOT SEE (2026-10-08).
+   *
+   * "No raw read of ADMIN_CHAT_ID" catches a sender that reads the variable
+   * wrong. It cannot catch a sender that never reads it at all -- and two
+   * error helpers did exactly that, hard-coding a stale '@neuro_coder_privat'.
+   * Service and payment errors went to a chat nobody read. A literal admin
+   * address in runtime code is the same five-copies defect in a new shape.
+   */
+  it('no runtime file hard-codes the stale admin chat', () => {
+    const STALE = 'neuro_coder_privat'
+    const offenders = sources()
+      .filter(f =>
+        fs
+          .readFileSync(f, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^\s*\/\/.*$/gm, '')
+          .includes(STALE)
+      )
+      .map(f => path.relative(ROOT, f))
+    expect(
+      offenders,
+      `Admin notices must go to resolveAdminChatId() (ADMIN_CHAT_ID), never a ` +
+        `hard-coded chat: ${STALE} is a stale address nobody reads.`
+    ).toEqual([])
   })
 })

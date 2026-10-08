@@ -1,9 +1,7 @@
-import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isDev } from '@/config'
 import logger from '@/utils/logger'
-
-const ADMIN_CHAT_ID = '@neuro_coder_privat' // Или используй переменную окружения
+import { resolveAdminChatId } from '@/helpers/adminChatId'
 
 /**
  * Отправляет сообщение об ошибке администратору напрямую через bot.telegram.
@@ -23,6 +21,17 @@ export const sendServiceErrorToAdmin = async (
     return
   }
 
+  // The configured admin channel, never a hard-coded one: this file used to
+  // send to a stale '@neuro_coder_privat' that nobody read.
+  const adminChatId = resolveAdminChatId()
+  if (!adminChatId) {
+    logger.warn('Admin channel not configured; service error not forwarded', {
+      culpritTelegramId,
+      error: error.message,
+    })
+    return
+  }
+
   try {
     const message = `❌ Произошла ошибка у пользователя ${culpritTelegramId}.\n\nОшибка: ${
       error.message
@@ -31,14 +40,14 @@ export const sendServiceErrorToAdmin = async (
     const truncatedMessage =
       message.length > 4000 ? message.substring(0, 4000) + '...' : message
 
-    await ctx.telegram.sendMessage(ADMIN_CHAT_ID, truncatedMessage)
-    logger.info(`Sent service error message to admin chat ${ADMIN_CHAT_ID}`, {
+    await ctx.telegram.sendMessage(adminChatId, truncatedMessage)
+    logger.info(`Sent service error message to admin chat ${adminChatId}`, {
       culpritTelegramId,
       error: error.message,
     })
   } catch (sendError) {
     logger.error('Failed to send service error message to admin', {
-      adminChatId: ADMIN_CHAT_ID,
+      adminChatId,
       culpritTelegramId,
       originalError: error.message,
       sendError,
