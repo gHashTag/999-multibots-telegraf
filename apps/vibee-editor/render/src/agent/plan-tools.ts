@@ -413,7 +413,7 @@ export const planTools: AgentTool[] = [
   {
     name: 'plan_course_add',
     description:
-      'Взять курс t27 (t27.ai/#/course) в контент-план: цель-курс и по карточке ' +
+      'Взять курс t27 (t27.ai/learn/course/) в контент-план: цель-курс и по карточке ' +
       'на урок, в заметке — цель урока и ссылка на него; рилс такой карточки ' +
       'заканчивается ссылкой на урок. Читается из спеки курса, повтор не задваивает. ' +
       'lesson — один урок (id или номер 1–27). Бесплатно.',
@@ -455,7 +455,11 @@ export const planTools: AgentTool[] = [
       await ctx.pool.query(
         `INSERT INTO content_plan_goals (telegram_id, title, intent)
          VALUES ($1, $2, $3) ON CONFLICT (telegram_id, title) DO NOTHING`,
-        [ctx.telegramId, course.title.slice(0, MAX_TITLE), 't27.ai/#/course']
+        [
+          ctx.telegramId,
+          course.title.slice(0, MAX_TITLE),
+          't27.ai/learn/course/',
+        ]
       )
       const goal = await ctx.pool.query(
         `SELECT id FROM content_plan_goals WHERE telegram_id = $1 AND title = $2`,

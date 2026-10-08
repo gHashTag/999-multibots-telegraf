@@ -60,19 +60,34 @@ if (!id.includes('/')) {
 }
 const name = id.split('/').pop()
 
-const run = (cmd, argv, cwd) => {
-  try {
-    execFileSync(cmd, argv, { cwd, stdio: 'inherit' })
-    return true
-  } catch {
-    return false
-  }
-}
-
 console.log(`== spec-sync ${id} from ${t27}`)
 const sync = [join(RENDER, 'scripts/sync-t27-spec.mjs'), t27, id]
 if (flags.has('--check')) sync.push('--check')
-if (!run('node', sync, RENDER)) {
+/*
+ * The sync script also runs the repository's checker after writing, and
+ * exits non-zero on ANY spec's finding. On 2026-10-08 it wrote plan-reel v2
+ * and exited 1 for crm-client-workspace (another branch's version): this
+ * said "plan-reel did not sync" about a spec that had. Only a line about
+ * this spec, or a sync that wrote nothing, is this spec's red.
+ */
+let said = ''
+let failed = false
+try {
+  said = execFileSync('node', sync, {
+    cwd: RENDER,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+} catch (e) {
+  failed = true
+  said = `${e.stdout ?? ''}${e.stderr ?? ''}`
+}
+const syncLines = said.split('\n').filter(l => l.trim())
+const ours = l =>
+  l.includes(`/${name}.`) || l.includes(`${id}`) || /no spec at/.test(l)
+for (const l of syncLines)
+  console.log(ours(l) ? l : `note elsewhere (not ${name}): ${l}`)
+if (failed && syncLines.filter(ours).some(l => !/^(wrote|in sync:)/.test(l))) {
   console.log(`RED  render: ${id} differs or did not sync`)
   process.exit(1)
 }

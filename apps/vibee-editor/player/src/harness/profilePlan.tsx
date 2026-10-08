@@ -19,7 +19,7 @@ import '@/components/Profile/Profile.css'
 import { ProfilePlan } from '@/components/Profile/ProfilePlan'
 import { answerCrmToolsInPage } from './crmFixtures'
 
-const LESSON = 'https://t27.ai/#/course/'
+const LESSON = 'https://t27.ai/learn/'
 const card = (
   id: number,
   title: string,
@@ -29,7 +29,7 @@ const card = (
 ) => ({
   id,
   ['название']: title, // cyrillic-ok: plan_list's own keys
-  ['заметка']: `${goal}\n${LESSON}${lesson}`, // cyrillic-ok: plan_list's own keys
+  ['заметка']: `${goal}\n${LESSON}${lesson}/`, // cyrillic-ok: plan_list's own keys
   ['статус']: 'замысел', // cyrillic-ok: plan_list's own keys
   ...extra,
 })
@@ -43,7 +43,7 @@ answerCrmToolsInPage({
       {
         id: 1,
         ['цель']: 'С нуля до чипа: программирование FPGA на t27', // cyrillic-ok: plan_list's own keys
-        ['зачем']: 't27.ai/#/course', // cyrillic-ok: plan_list's own keys
+        ['зачем']: 't27.ai/learn/course/', // cyrillic-ok: plan_list's own keys
         ['карточки']: [
           // cyrillic-ok: plan_list's own keys
           card(

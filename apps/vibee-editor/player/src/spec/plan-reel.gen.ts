@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "plan-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const STATUS_IDEA = 0 satisfies number;
 export const STATUS_DOING = 1 satisfies number;
 export const STATUS_DONE = 2 satisfies number;
@@ -17,7 +17,7 @@ export const CALL_LESSON = 1 satisfies number;
 export const COURSE_LESSONS = 27 satisfies number;
 export const COURSE_SOURCES = ["https://t27.ai/learn/course.t27", "https://raw.githubusercontent.com/gHashTag/trinity/main/apps/website/specs/course/course.t27"] as const satisfies readonly [string, string];
 export const COURSE_RU_SOURCE = "https://raw.githubusercontent.com/gHashTag/trinity/main/apps/website/i18n/course.ru.json" satisfies string;
-export const LESSON_ROUTE = "https://t27.ai/#/course/" satisfies string;
+export const LESSON_ROUTE = "https://t27.ai/learn/" satisfies string;
 export const PREVIEW_SEEK_MS = 1000 satisfies number;
 export const PREVIEW_W = 9 satisfies number;
 export const PREVIEW_H = 16 satisfies number;
