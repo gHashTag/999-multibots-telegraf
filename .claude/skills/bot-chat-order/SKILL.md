@@ -97,7 +97,21 @@ named, its answer opening with its name; the channel keeps its memory
 so the bot and the mini-app get it alike. Only the person's own turns: never
 a client's DM, a client thread, the Queen or a catalogue specialist. Live
 people join through a forum GROUP (a private chat holds one person) -- the
-office group is the next step, spec `bot-neuro-office.t27`.
+office is a forum group: `/office` (spec `bot-neuro-office.t27`,
+`topics/office.ts`) -- in a forum where the bot manages topics, at an admin's
+word -- makes the whole team's channels there. People talk freely; an agent
+answers only when spoken to (reply, `@bot`, command -- groupAddressing.ts) or,
+in an office only, when a message opens with a member's name. A channel speaks
+as its member (the bot sends `member`, the render gives the turn that trade,
+the room keeps its memory). A room carries no pay buttons. Each rule is a
+host function pinned by the spec's vectors; the numbers come from gen-ts.
+
+`t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
+the owner's label: `owner-approved-foreign` waives the path check only, never
+the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the
+lowering is 441 lines of Rust. Never build a host on a compiler PR that has not
+merged: 999#3895 had to revert its gen-backed re-exports. Body lowering has to
+come in t27 itself, not as hand-written Rust.
 
 Traps:
 
@@ -114,6 +128,15 @@ Traps:
 
 ## Common Issues
 
+- **An emoji inside an emoji (owner, 2026-10-08).** A topic with no icon of its
+  own is drawn as a coloured circle holding the FIRST CHARACTER of its name. A
+  tab named "🤖 Agent" therefore showed the robot inside the circle and again
+  beside it. Spec `bot-topic-tabs.t27` v5: the topic name is words only
+  (`topicRu`/`topicEn`, `NAME_CARRIES_EMOJI = false`); the emoji is set as the
+  icon by a second `editForumTopic` after the topic exists (`ICON_AFTER_CREATE`),
+  only when `getForumTopicIconStickers` lists it. Button labels and /team text
+  keep the emoji (`ru`/`en`): they are not topic names. Old tabs are renamed
+  once by `retitle` and get their icon then.
 - The fake database in `topicTabs.test.ts` matches SQL by shape. A new
   `UPDATE ... SET title = $4` needed its own branch; the generic one wrote the
   title into `thread_id`.

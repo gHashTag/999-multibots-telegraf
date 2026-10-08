@@ -9,74 +9,33 @@ export const REPO = "999-multibots-telegraf" satisfies string;
 export const VERSION = 2 satisfies number;
 export const TEAM_SIZE = 6 satisfies number;
 export const TEAM_CORE = 1 satisfies number;
-export function joins_at_start(index: number, named_by_link: boolean): boolean {
-  return ((index < TEAM_CORE) || named_by_link);
-}
-export function tended(stored: boolean, joins: boolean): boolean {
-  return (stored || joins);
-}
-export function offered(index: number, on_team: boolean): boolean {
-  return (((index >= TEAM_CORE) && (index < TEAM_SIZE)) && !on_team);
-}
+// t27c gen-ts: fn joins_at_start was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn tended was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn offered was not emitted -- this backend lowers declarations, not bodies.
 export const HIRE_BUTTONS_PER_ROW = 2 satisfies number;
 export const APP_CHAT_IS_TAB = true satisfies boolean;
-export function app_lists(on_team: boolean, bot_has_tabs: boolean): boolean {
-  return (on_team || !bot_has_tabs);
-}
-export function app_hire_makes_tab(offered_now: boolean, bot_has_tabs: boolean): boolean {
-  return (offered_now && bot_has_tabs);
-}
-export function speaker(addressed: number, channel: number): number {
-  if ((addressed < TEAM_SIZE)) {
-    return addressed;
-  }
-  return channel;
-}
-export function addressed(at_start: boolean, is_member_name: boolean): boolean {
-  return (at_start && is_member_name);
-}
+// t27c gen-ts: fn app_lists was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn app_hire_makes_tab was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn speaker was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn addressed was not emitted -- this backend lowers declarations, not bodies.
 export const GUEST_KEEPS_CHANNEL_MEMORY = true satisfies boolean;
-export function labelled(speaker_index: number, channel: number): boolean {
-  return (speaker_index !== channel);
-}
+// t27c gen-ts: fn labelled was not emitted -- this backend lowers declarations, not bodies.
 export const TURNS_AT_ONCE_PER_PERSON = 1 satisfies number;
-export function may_start(running: number): boolean {
-  return (running < TURNS_AT_ONCE_PER_PERSON);
-}
+// t27c gen-ts: fn may_start was not emitted -- this backend lowers declarations, not bodies.
 export const TURNS_WAITING_MAX = 6 satisfies number;
-export function may_wait(waiting: number): boolean {
-  return (waiting < TURNS_WAITING_MAX);
-}
+// t27c gen-ts: fn may_wait was not emitted -- this backend lowers declarations, not bodies.
 export const LIMIT_RETRIES = 3 satisfies number;
 export const LIMIT_PAUSE_MS = 4000 satisfies number;
-export function retry_pause_ms(retries_done: number): number {
-  let pause = LIMIT_PAUSE_MS;
-  let n = 0;
-  while ((n < retries_done)) {
-    pause = (pause * 2);
-    n = (n + 1);
-  }
-  return pause;
-}
-export function may_retry(retries_done: number): boolean {
-  return (retries_done < LIMIT_RETRIES);
-}
+// t27c gen-ts: fn retry_pause_ms was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_retry was not emitted -- this backend lowers declarations, not bodies.
 export const NAMES_ITSELF_FIRST = true satisfies boolean;
-export function money_buttons_here(has_tabs: boolean, in_treasurer_tab: boolean): boolean {
-  return (!has_tabs || in_treasurer_tab);
-}
+// t27c gen-ts: fn money_buttons_here was not emitted -- this backend lowers declarations, not bodies.
 export const TOOL_SCOPE_ALL = "*" satisfies string;
 export const TEAM_LEAD_TOOLS = ["*", "image_ video_ lipsync_generate audio_generate voice_clone_speak story_reel my_story_reel reel_ split_reel my_renders my_assets render_status templates_list feed_ social_", "browser_ web_read web_search", "tg_create_bot botfather_main_app tabs_ skills_ provider_setup providers_status projects_list project_get project_save code_run agent_avatars_make", "tokens_invoice club_invoice my_balance pricing", "hive_ plan_ leela_plan defects_open defect_close"] as const satisfies readonly [string, string, string, string, string, string];
 export const EVERY_TOOL_FOR_EVERY_MEMBER = true satisfies boolean;
-export function tool_shown(every_tool: boolean, in_trade: boolean): boolean {
-  return (every_tool || in_trade);
-}
-export function leads_with(scope_all: boolean, in_trade: boolean): boolean {
-  return (!scope_all && in_trade);
-}
-export function has_trade(fixed_tab: boolean, base: boolean): boolean {
-  return (fixed_tab && !base);
-}
+// t27c gen-ts: fn tool_shown was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn leads_with was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn has_trade was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.

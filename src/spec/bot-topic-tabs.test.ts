@@ -23,6 +23,8 @@ import {
   readsDb,
   retitle,
   clearsOld,
+  nameOk,
+  setsIcon,
   settleWon,
   tableColorsAllowed,
   tableColorsDistinct,
@@ -190,7 +192,32 @@ describe('spec bot-topic-tabs.t27', () => {
     expect(SPEC.TAB_CACHE_MAX).toBe(5000)
   })
 
+  it("a tab's name never opens with an emoji, or the emoji is drawn again inside the icon", () => {
+    expect(SPEC.NAME_CARRIES_EMOJI).toBe(false)
+    expect(nameOk(true)).toBe(false)
+    expect(nameOk(false)).toBe(true)
+    // the host's own topic names, in both languages
+    const opensWithEmoji = (n: string) => /^\p{Extended_Pictographic}/u.test(n)
+    for (const t of TABS) {
+      expect(nameOk(opensWithEmoji(t.topicRu))).toBe(true)
+      expect(nameOk(opensWithEmoji(t.topicEn))).toBe(true)
+      expect(t.emoji).toBe(
+        String.fromCodePoint(SPEC.TAB_EMOJI[TABS.indexOf(t)])
+      )
+    }
+  })
+
+  it("the emoji is the icon only of a made topic and only when Telegram's icon set has it", () => {
+    // The order (create first, icon second) runs through the host's
+    // ensureTabs in src/__tests__/navigation/topicTabs.test.ts, block v5.
+    expect(SPEC.ICON_AFTER_CREATE).toBe(true)
+    expect(setsIcon(true, true)).toBe(true)
+    expect(setsIcon(true, false)).toBe(false)
+    expect(setsIcon(false, true)).toBe(false)
+    expect(setsIcon(false, false)).toBe(false)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
   })
 })
