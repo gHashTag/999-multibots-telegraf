@@ -9,21 +9,26 @@ import { describe, expect, it } from 'vitest'
 import * as SPEC from './bot-agent-team.gen'
 import { TAB_KEYS } from './bot-topic-tabs.gen'
 import {
+  addressed,
   appHireMakesTab,
   appLists,
   hasTrade,
   inTrade,
   joinsAtStart,
+  labelled,
   leadTools,
   leadsWith,
   memberOfConversation,
   offered,
+  speaker,
   professionSection,
   shownTools,
   tended,
   toolShown,
 } from '../agent/profession'
 import { TOOLS } from '../agent/tools'
+import { addressedMember, speakerFor, speakerLabel } from '../agent/profession'
+import { teamSection } from '../agent/chat'
 
 const NAMES = TOOLS.map(t => t.name)
 
@@ -62,6 +67,19 @@ describe('spec bot-agent-team.t27', () => {
     expect(appHireMakesTab(true, true)).toBe(true)
     expect(appHireMakesTab(false, true)).toBe(false)
     expect(appHireMakesTab(true, false)).toBe(false)
+  })
+
+  it('every member is in every channel: a member named first speaks, the channel keeps its memory', () => {
+    expect(speaker(4, 1)).toBe(4)
+    expect(speaker(SPEC.TEAM_SIZE, 1)).toBe(1)
+    expect(speaker(SPEC.TEAM_SIZE - 1, 0)).toBe(SPEC.TEAM_SIZE - 1)
+    expect(speaker(0, 3)).toBe(0)
+    expect(addressed(true, true)).toBe(true)
+    expect(addressed(false, true)).toBe(false)
+    expect(addressed(true, false)).toBe(false)
+    expect(SPEC.GUEST_KEEPS_CHANNEL_MEMORY).toBe(true)
+    expect(labelled(4, 1)).toBe(true)
+    expect(labelled(1, 1)).toBe(false)
   })
 
   it('every member is shown every tool; its trade is what it leads with', () => {
@@ -300,5 +318,52 @@ describe('the same team in the mini-app', () => {
     )
     expect(r).toMatchObject({ ok: true, made: [], conversation: 'tabbrowser' })
     expect(api.made()).toBe(0)
+  })
+})
+
+describe('the neuro-office: every member in every channel', () => {
+  it('a member named first takes the turn; a name in passing does not', () => {
+    expect(addressedMember('Казначей, хватит на рилс?')).toBe(4) // cyrillic-ok: a person's words under test
+    expect(addressedMember('  @navigator open hh.ru')).toBe(2)
+    expect(addressedMember('режиссер сделай рилс')).toBe(1) // cyrillic-ok: a person's words under test
+    expect(addressedMember('спроси казначея потом')).toBe(SPEC.TEAM_SIZE) // cyrillic-ok: a person's words under test
+    expect(addressedMember('Казначейство закрыто')).toBe(SPEC.TEAM_SIZE) // cyrillic-ok: a person's words under test
+    expect(addressedMember('')).toBe(SPEC.TEAM_SIZE)
+    expect(speakerFor('tabreels', 'Казначей, сколько?')).toBe(4) // cyrillic-ok: a person's words under test
+    expect(speakerFor('tabreels', 'сделай рилс')).toBe(1) // cyrillic-ok: a person's words under test
+    expect(speakerFor(undefined, 'Штурман, открой hh')).toBe(2) // cyrillic-ok: a person's words under test
+    expect(speakerFor(undefined, 'привет')).toBe(0) // cyrillic-ok: a person's words under test
+  })
+
+  it("a guest answers in the channel's conversation, opening with its name", () => {
+    const guest = professionSection(
+      'tabreels',
+      NAMES,
+      'Казначей, сколько у меня?'
+    ) // cyrillic-ok: a person's words under test
+    expect(guest).toContain('КАЗНАЧЕЙ') // cyrillic-ok: prompt copy under test
+    expect(guest).toContain(speakerLabel(4))
+    expect(guest).toContain(speakerLabel(1))
+    expect(guest).toContain('tokens_invoice')
+    // The Agent named in its own channel has nothing to add.
+    expect(professionSection(undefined, NAMES, 'Агент, привет')).toBe('') // cyrillic-ok: a person's words under test
+    // Named in a member's channel, the Agent is a guest there too.
+    expect(professionSection('tabwallet', NAMES, 'Агент, привет')).toContain(
+      speakerLabel(0)
+    ) // cyrillic-ok: a person's words under test
+  })
+
+  it("only the person's own turns in the bot and the app: never a client, the Queen or a specialist", () => {
+    const said = [{ role: 'user' as const, content: 'Казначей, сколько?' }] // cyrillic-ok: a person's words under test
+    expect(teamSection({ surface: 'bot' }, said)).toContain('КАЗНАЧЕЙ') // cyrillic-ok: prompt copy under test
+    expect(
+      teamSection({ surface: 'miniapp', profession: 'tabreels' }, said)
+    ).toContain('КАЗНАЧЕЙ') // cyrillic-ok: prompt copy under test
+    expect(teamSection({ surface: 'business' }, said)).toBe('')
+    expect(teamSection({ surface: 'bot', client: '555' }, said)).toBe('')
+    expect(teamSection({ surface: 'bot', supervisor: true }, said)).toBe('')
+    expect(
+      teamSection({ surface: 'miniapp', marketplaceAgent: 'blogger' }, said)
+    ).toBe('')
   })
 })

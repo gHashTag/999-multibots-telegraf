@@ -10,14 +10,17 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import * as SPEC from './bot-agent-team.gen'
 import { TAB_KEYS } from './bot-topic-tabs.gen'
 import {
+  addressed,
   appHireMakesTab,
   appLists,
   hasTrade,
   hireRows,
   hireable,
   joinsAtStart,
+  labelled,
   leadsWith,
   offered,
+  speaker,
   offeredKinds,
   startingKinds,
   tended,
@@ -67,6 +70,19 @@ describe('spec bot-agent-team.t27', () => {
     expect(appHireMakesTab(true, true)).toBe(true)
     expect(appHireMakesTab(false, true)).toBe(false)
     expect(appHireMakesTab(true, false)).toBe(false)
+  })
+
+  it('every member is in every channel: a member named first speaks, the channel keeps its memory', () => {
+    expect(speaker(4, 1)).toBe(4)
+    expect(speaker(SPEC.TEAM_SIZE, 1)).toBe(1)
+    expect(speaker(SPEC.TEAM_SIZE - 1, 0)).toBe(SPEC.TEAM_SIZE - 1)
+    expect(speaker(0, 3)).toBe(0)
+    expect(addressed(true, true)).toBe(true)
+    expect(addressed(false, true)).toBe(false)
+    expect(addressed(true, false)).toBe(false)
+    expect(SPEC.GUEST_KEEPS_CHANNEL_MEMORY).toBe(true)
+    expect(labelled(4, 1)).toBe(true)
+    expect(labelled(1, 1)).toBe(false)
   })
 
   it('every member is shown every tool; its trade is what it leads with', () => {

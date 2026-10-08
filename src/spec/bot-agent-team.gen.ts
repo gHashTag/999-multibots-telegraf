@@ -16,6 +16,10 @@ export const HIRE_BUTTONS_PER_ROW = 2 satisfies number;
 export const APP_CHAT_IS_TAB = true satisfies boolean;
 // t27c gen-ts: fn app_lists was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn app_hire_makes_tab was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn speaker was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn addressed was not emitted -- this backend lowers declarations, not bodies.
+export const GUEST_KEEPS_CHANNEL_MEMORY = true satisfies boolean;
+// t27c gen-ts: fn labelled was not emitted -- this backend lowers declarations, not bodies.
 export const TOOL_SCOPE_ALL = "*" satisfies string;
 export const TEAM_LEAD_TOOLS = ["*", "image_ video_ lipsync_generate audio_generate voice_clone_speak story_reel my_story_reel reel_ split_reel my_renders my_assets render_status templates_list feed_ social_", "browser_ web_read web_search", "tg_create_bot botfather_main_app tabs_ skills_ provider_setup providers_status projects_list project_get project_save code_run agent_avatars_make", "tokens_invoice club_invoice my_balance pricing", "hive_ plan_ leela_plan defects_open defect_close"] as const satisfies readonly [string, string, string, string, string, string];
 export const EVERY_TOOL_FOR_EVERY_MEMBER = true satisfies boolean;
@@ -30,10 +34,11 @@ export const EVERY_TOOL_FOR_EVERY_MEMBER = true satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TEAM_SIZE", "TEAM_CORE", "HIRE_BUTTONS_PER_ROW", "APP_CHAT_IS_TAB", "TOOL_SCOPE_ALL", "TEAM_LEAD_TOOLS", "EVERY_TOOL_FOR_EVERY_MEMBER"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TEAM_SIZE", "TEAM_CORE", "HIRE_BUTTONS_PER_ROW", "APP_CHAT_IS_TAB", "GUEST_KEEPS_CHANNEL_MEMORY", "TOOL_SCOPE_ALL", "TEAM_LEAD_TOOLS", "EVERY_TOOL_FOR_EVERY_MEMBER"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

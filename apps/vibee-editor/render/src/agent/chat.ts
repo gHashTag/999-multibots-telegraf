@@ -2329,6 +2329,38 @@ export async function* withTurnEnd<T>(
   }
 }
 
+/**
+ * THE NEURO-OFFICE (bot-agent-team.t27): the trade of whoever speaks in this
+ * channel -- the channel's member, or the member the person's message names
+ * first ("Казначей, ..."). Only for the person's own turns in the bot and the
+ * mini-app: never a client's DM, a client thread, the Queen or a specialist.
+ */
+export function teamSection(
+  opts:
+    | {
+        surface?: string
+        profession?: string
+        client?: string
+        supervisor?: boolean
+        marketplaceAgent?: string
+      }
+    | undefined,
+  history: readonly ChatMessage[]
+): string {
+  const own =
+    (opts?.surface === 'bot' || opts?.surface === 'miniapp') &&
+    !opts?.client &&
+    !opts?.supervisor &&
+    !opts?.marketplaceAgent
+  if (!own) return ''
+  const last = [...history].reverse().find(m => m.role === 'user')
+  return professionSection(
+    opts?.profession,
+    [...TOOLS_BY_NAME.keys()],
+    typeof last?.content === 'string' ? last.content : null
+  )
+}
+
 export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext,
@@ -2786,7 +2818,7 @@ async function* runAgentTurn(
             })) +
         dmContext +
         specialistSkills +
-        professionSection(opts?.profession, [...TOOLS_BY_NAME.keys()]),
+        teamSection(opts, history),
     },
     ...history,
   ]
