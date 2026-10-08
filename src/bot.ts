@@ -51,6 +51,9 @@ import { message } from 'telegraf/filters'
 import { startApiServer } from './api_server'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
 
+/** A payment's news in the Treasurer's tab of the private chat (bot-event-tabs.t27). */
+const paidInTreasurerTab = inEventTab('payment', handleSuccessfulPayment as any)
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 
@@ -167,11 +170,8 @@ async function initializeBots() {
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on(
-      'successful_payment',
-      // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
-      inEventTab('payment', handleSuccessfulPayment as any) as any
-    )
+    // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+    bot.on('successful_payment', paidInTreasurerTab as any)
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
     // bot.on(message('text'), handleTextMessage)
@@ -274,11 +274,8 @@ async function initializeBots() {
 
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-        bot.on(
-          'successful_payment',
-          // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
-          inEventTab('payment', handleSuccessfulPayment as any) as any
-        )
+        // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+        bot.on('successful_payment', paidInTreasurerTab as any)
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)
