@@ -240,10 +240,22 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
     fs.writeFileSync(gh, `#!/bin/sh\ncat '${path.join(tmp, 'prs.json')}'\n`)
     fs.chmodSync(gh, 0o755)
 
+    /*
+     * Root reads a chmod 000 folder (CAP_DAC_READ_SEARCH), so where the
+     * suite runs as root -- the cloud container, a Linux runner -- the
+     * "unreadable" fixture was readable and its test red for the wrong
+     * reason. There the probe runs without the two capabilities that
+     * override permission bits; root still owns every file here, so nothing
+     * else it does changes.
+     */
+    const [run, pre] =
+      process.getuid?.() === 0
+        ? ['setpriv', ['--bounding-set=-dac_override,-dac_read_search', 'node']]
+        : ['node', []]
     const probe = (args: string[], env: Record<string, string>) => {
       const r = spawnSync(
-        'node',
-        [path.join(repo, 'scripts', 'probe-worktrees.cjs'), ...args],
+        run,
+        [...pre, path.join(repo, 'scripts', 'probe-worktrees.cjs'), ...args],
         {
           cwd: repo,
           encoding: 'utf8',
