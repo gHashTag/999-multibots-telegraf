@@ -30,13 +30,16 @@
 // owner -- the person replied to, else the one named, else the sender -- /todos shows the
 // open ones, /done closes one. Only its owner, its author or an admin closes it (Teams
 // Facilitator keeps action items; a group chat forgets them).
+// v6 (2026-10-08): /catchup shows the open tasks too. After the agent's summary of the room,
+// the open tasks of /todo follow with their owners, so a person back in the office asks
+// once; an empty list adds nothing.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 5;
+    pub const VERSION : u8 = 6;
 
     // ---- opening an office ----
 
@@ -180,6 +183,15 @@ module automation::bot_neuro_office {
     // /todos shows at most this many open tasks, oldest first.
     pub const OPEN_TASKS_SHOWN_MAX : u32 = 20;
 
+    // ---- the catch-up lists the tasks (v6) ----
+
+    pub const CATCHUP_SHOWS_TASKS : bool = true;
+
+    // The open tasks follow the summary when there are any.
+    fn catchup_lists_tasks(open_tasks: u32) -> bool {
+        return CATCHUP_SHOWS_TASKS && open_tasks > 0;
+    }
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -271,8 +283,15 @@ module automation::bot_neuro_office {
         assert(OPEN_TASKS_SHOWN_MAX == 20);
     }
 
+    test "a catch-up lists the open tasks after the summary, and nothing when there are none" {
+        assert(CATCHUP_SHOWS_TASKS);
+        assert(catchup_lists_tasks(1));
+        assert(catchup_lists_tasks(20));
+        assert(!catchup_lists_tasks(0));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 5);
+        assert(VERSION == 6);
     }
 }
 
