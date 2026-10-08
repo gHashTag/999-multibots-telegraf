@@ -1,0 +1,68 @@
+[
+  {
+    "name": "the guard is not set up",
+    "file": "vitest.config.mts",
+    "from": "    setupFiles: ['./test-support/no-network.ts'],\n",
+    "to": "\n"
+  },
+  {
+    "name": "a leak no longer fails the test",
+    "file": "test-support/no-network.ts",
+    "from": "afterEach(failIfReached)\n",
+    "to": "\n"
+  },
+  {
+    "name": "fetch passes to the network",
+    "file": "test-support/no-network.ts",
+    "from": "  if (host && !isLoopback(host)) return Promise.reject(refusal('fetch', host))",
+    "to": "  if (host && !isLoopback(host)) void 0"
+  },
+  {
+    "name": "dns.lookup passes to the network",
+    "file": "test-support/no-network.ts",
+    "from": "  if (!isLoopback(String(host))) {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "dns.promises passes to the network",
+    "file": "test-support/no-network.ts",
+    "from": "  isLoopback(String(host))\n    ? (realPromiseLookup",
+    "to": "  true\n    ? (realPromiseLookup"
+  },
+  {
+    "name": "every host is this machine",
+    "file": "test-support/no-network.ts",
+    "from": "    h === 'localhost' ||",
+    "to": "    true ||"
+  },
+  {
+    "name": "the blog-share path reads reddit.com again",
+    "file": "blog-share-wiring-path.test.ts",
+    "from": "  readAnonymously: async () => '<!doctype html><title>Blocked</title>',\n",
+    "to": "\n"
+  },
+  {
+    "name": "the X thread readback reads reddit.com again",
+    "file": "src/agent/x-thread-readback.test.ts",
+    "from": "  readAnonymously: async () => '<!doctype html><title>Blocked</title>',\n",
+    "to": "\n"
+  },
+  {
+    "name": "the sign-in notice reaches api.telegram.org again",
+    "file": "pairing-e2e.test.ts",
+    "from": "  sendToTelegram: async () => undefined,\n",
+    "to": "\n"
+  },
+  {
+    "name": "a public name passes as never-resolving",
+    "file": "test-support/no-network.ts",
+    "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
+    "to": "  return true"
+  },
+  {
+    "name": "a never-resolving name is a leak",
+    "file": "test-support/no-network.ts",
+    "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
+    "to": "  return false"
+  }
+]
