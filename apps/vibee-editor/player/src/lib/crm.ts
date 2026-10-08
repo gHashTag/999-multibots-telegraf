@@ -798,6 +798,8 @@ export interface StoryJob {
   topic: string
   status: string
   url: string | null
+  /** Its poster, drawn by the server (plan-reel v3); absent: the frame. */
+  poster?: string
   error: string | null
   createdAt: string
 }
@@ -980,6 +982,7 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
         topic: str(j['topic']) ?? '',
         status: str(j['status']) ?? '',
         url: str(j['url']),
+        ...(str(j['poster']) ? { poster: str(j['poster']) as string } : {}),
         error: str(j['error']),
         createdAt: str(j['created_at']) ?? '',
       })),

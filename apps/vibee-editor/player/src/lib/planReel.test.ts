@@ -10,6 +10,7 @@ import * as SPEC from '@/spec/plan-reel.gen'
 import {
   PREVIEW_CARD_PX,
   isTrial,
+  pictureOf,
   previewHeight,
   previewShown,
   previewSrc,
@@ -52,6 +53,16 @@ describe('plan-reel.t27, in the player', () => {
     expect(previewSrc('https://bucket.example/reel.mp4#t=9')).toBe(
       `https://bucket.example/reel.mp4#t=${SPEC.PREVIEW_SEEK_MS / 1000}`
     )
+  })
+
+  it('a kept poster is the picture, anything else leaves the frame to the browser', () => {
+    expect(pictureOf('https://shelf.example/s3/p.jpg')).toBe(
+      SPEC.PICTURE_POSTER
+    )
+    expect(pictureOf(undefined)).toBe(SPEC.PICTURE_FRAME)
+    expect(pictureOf(null)).toBe(SPEC.PICTURE_FRAME)
+    expect(pictureOf('')).toBe(SPEC.PICTURE_FRAME)
+    expect(pictureOf('javascript:alert(1)')).toBe(SPEC.PICTURE_FRAME)
   })
 
   it("the trial is the plan's first reel", () => {

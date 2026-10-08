@@ -80,6 +80,7 @@ import {
   type CardOutcome,
   type GroupCardOffer,
 } from './story-card'
+import { keepPoster, posterOf, sweepPosters } from './reel-poster'
 
 /*
  * THE NUMBERS BELOW ARE THE SPEC'S, NOT THIS FILE'S (owner, 2026-09-27: t27 is
@@ -583,7 +584,8 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS payer      text,
   ADD COLUMN IF NOT EXISTS end_card   jsonb,
   ADD COLUMN IF NOT EXISTS scene_count integer,
-  ADD COLUMN IF NOT EXISTS voice_mode integer`
+  ADD COLUMN IF NOT EXISTS voice_mode integer,
+  ADD COLUMN IF NOT EXISTS poster     text`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -631,6 +633,11 @@ export interface StoryDeps {
   ) => Promise<string | null>
   /** Her "my reels" page in her bot, for the caption. */
   pageOf?: (bot: string | null) => string
+  /**
+   * The reel's poster, drawn once by the server (plan-reel v3,
+   * reel-poster.ts); absent: the browser draws the frame from the video.
+   */
+  poster?: (video: string) => Promise<string | null>
   /** A heartbeat while a job runs; returns its stop. A test passes a no-op. */
   beat?: (fn: () => void, ms: number) => () => void
   /** Who this process is, as a runner; a test names two. */
@@ -678,6 +685,8 @@ export interface StoryJobRow {
   topic: string
   status: string
   url: string | null
+  /** Its poster, when one is kept (plan-reel v3); absent: the frame. */
+  poster?: string
   error: string | null
   created_at: string
 }
@@ -691,7 +700,8 @@ export async function storyJobsOf(
 ): Promise<StoryJobRow[]> {
   await ensureStoryJobs(pool)
   const r = await pool.query(
-    `SELECT id, COALESCE(topic, '') AS topic, status, url, error, created_at::text AS created_at
+    `SELECT id, COALESCE(topic, '') AS topic, status, url, poster, error,
+            created_at::text AS created_at
        FROM story_jobs WHERE seller_id = $1 AND lead_id = $2
       ORDER BY id DESC LIMIT $3`,
     [seller, lead, limit]
@@ -701,6 +711,7 @@ export async function storyJobsOf(
     topic: String(x.topic),
     status: String(x.status),
     url: x.url ? String(x.url) : null,
+    ...(x.url && posterOf(x.poster) ? { poster: posterOf(x.poster) } : {}),
     error: x.error ? String(x.error) : null,
     created_at: String(x.created_at),
   }))
@@ -1318,6 +1329,9 @@ async function runHeld(
     } else {
       await handToSeller(deps, { ...job, url, topic }, s.name, payer)
     }
+    // The reel is out and told; only now its poster (plan-reel v3), which
+    // never delays, fails or charges it.
+    if (deps.poster) await keepPoster(pool, deps.poster, id, url)
     return
   }
 
@@ -1698,6 +1712,7 @@ export async function sweepStoryJobs(deps: StoryDeps): Promise<number> {
   const ids: number[] = (r?.rows ?? []).map((x: any) => Number(x.id))
   for (const id of ids) void runStoryJob(deps, id).catch(() => undefined)
   void offerWaitingCards(deps).catch(() => undefined)
+  if (deps.poster) void sweepPosters(pool, deps.poster).catch(() => undefined)
   return ids.length
 }
 

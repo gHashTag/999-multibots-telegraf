@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "plan-reel" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const STATUS_IDEA = 0 satisfies number;
 export const STATUS_DOING = 1 satisfies number;
 export const STATUS_DONE = 2 satisfies number;
@@ -23,6 +23,14 @@ export const PREVIEW_W = 9 satisfies number;
 export const PREVIEW_H = 16 satisfies number;
 export const PREVIEW_CARD_PX = 72 satisfies number;
 export const PREVIEWS_MAX = 3 satisfies number;
+export const POSTER_DENSITY = 3 satisfies number;
+export const POSTER_W = 216 satisfies number;
+export const POSTER_SWEEP_MAX = 3 satisfies number;
+export const POSTER_NONE = 0 satisfies number;
+export const POSTER_TRIED = 1 satisfies number;
+export const POSTER_KEPT = 2 satisfies number;
+export const PICTURE_FRAME = 0 satisfies number;
+export const PICTURE_POSTER = 1 satisfies number;
 // t27c gen-ts: fn press_offered was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn card_taken was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn preview_shown was not emitted -- this backend lowers declarations, not bodies.
@@ -31,7 +39,13 @@ export const PREVIEWS_MAX = 3 satisfies number;
 // t27c gen-ts: fn course_whole was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn lesson_added was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn previews_shown was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn picture_of was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn poster_swept was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn posters_this_round was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn preview_height was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -42,7 +56,7 @@ export const PREVIEWS_MAX = 3 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "STATUS_IDEA", "STATUS_DOING", "STATUS_DONE", "TRIAL_SCENES", "FULL_SCENES", "CALL_OWN", "CALL_LESSON", "COURSE_LESSONS", "COURSE_SOURCES", "COURSE_RU_SOURCE", "LESSON_ROUTE", "PREVIEW_SEEK_MS", "PREVIEW_W", "PREVIEW_H", "PREVIEW_CARD_PX", "PREVIEWS_MAX"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "STATUS_IDEA", "STATUS_DOING", "STATUS_DONE", "TRIAL_SCENES", "FULL_SCENES", "CALL_OWN", "CALL_LESSON", "COURSE_LESSONS", "COURSE_SOURCES", "COURSE_RU_SOURCE", "LESSON_ROUTE", "PREVIEW_SEEK_MS", "PREVIEW_W", "PREVIEW_H", "PREVIEW_CARD_PX", "PREVIEWS_MAX", "POSTER_DENSITY", "POSTER_W", "POSTER_SWEEP_MAX", "POSTER_NONE", "POSTER_TRIED", "POSTER_KEPT", "PICTURE_FRAME", "PICTURE_POSTER"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

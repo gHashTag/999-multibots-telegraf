@@ -53,6 +53,13 @@ const PLAN = {
           статус: 'в работе', // cyrillic-ok: plan_list's own keys
           making: true,
         },
+        {
+          id: 13,
+          название: 'Тернарный сумматор', // cyrillic-ok: plan_list's own keys
+          статус: 'вышло', // cyrillic-ok: plan_list's own keys
+          reel: 'https://bucket.example/reel-13.mp4',
+          poster: 'https://shelf.example/s3/reel-13.jpg',
+        },
       ],
     },
   ],
@@ -128,6 +135,20 @@ describe('the plan, its cards and their reels', () => {
     )
     expect(video?.muted).toBe(true)
     expect(video?.autoplay).toBe(false)
+  })
+
+  it('a reel whose poster the server kept shows the poster, not the video (v3)', async () => {
+    await show()
+    const pic = [
+      ...host.querySelectorAll<HTMLAnchorElement>('a.reel-preview'),
+    ].find(a =>
+      a.closest('.profile-plan__item')?.textContent?.includes('Тернарный')
+    )
+    expect(pic?.getAttribute('href')).toBe('https://bucket.example/reel-13.mp4')
+    expect(pic?.querySelector('img')?.getAttribute('src')).toBe(
+      'https://shelf.example/s3/reel-13.jpg'
+    )
+    expect(pic?.querySelector('video')).toBeNull()
   })
 
   it('the press makes THAT card, and says it is being made', async () => {

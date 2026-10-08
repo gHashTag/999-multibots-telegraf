@@ -42,6 +42,8 @@ interface PlanItem {
   ролик?: string
   /** The reel made of this card that came out (plan-reel.t27). */
   reel?: string
+  /** Its poster, drawn by the server (plan-reel v3); absent: the frame. */
+  poster?: string
   /** Its reel is being made now. */
   making?: boolean
   /** The card offers the press: an idea, and nothing else is being made. */
@@ -442,6 +444,7 @@ export function ProfilePlan() {
                             {previewShown(item.reel) ? (
                               <ReelPreview
                                 url={item.reel as string}
+                                poster={item.poster}
                                 label={t('story.watch', {
                                   topic: item['название'],
                                 })}

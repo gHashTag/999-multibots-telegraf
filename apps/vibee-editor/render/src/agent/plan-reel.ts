@@ -13,6 +13,7 @@
 /** What these reads need of a pool: the story job's and a tool's both fit. */
 type Pool = { query: (sql: string, params?: unknown[]) => Promise<any> }
 import * as SPEC from '../spec/plan-reel.gen'
+import { posterOf } from './reel-poster'
 
 export type CardStatus = 'idea' | 'doing' | 'done'
 
@@ -174,15 +175,19 @@ export async function planReelsOf(
   freshMinutes: number
 ): Promise<{
   reels: Map<number, string>
+  posters: Map<number, string>
   making: Set<number>
   busy: boolean
 }> {
   const reels = new Map<number, string>()
+  const posters = new Map<number, string>()
   const making = new Set<number>()
   let busy = false
   try {
+    // The poster through to_jsonb: a process that has not added the column
+    // yet (plan-reel v3) reads no poster instead of losing every reel.
     const r = await pool.query(
-      `SELECT item_id, status, url,
+      `SELECT item_id, status, url, to_jsonb(story_jobs) ->> 'poster' AS poster,
               (status = 'running'
                 AND updated_at > now() - ($2 || ' minutes')::interval) AS live
          FROM story_jobs WHERE lead_id = $1 ORDER BY id DESC LIMIT 200`,
@@ -195,13 +200,17 @@ export async function planReelsOf(
       }
       if (x.item_id && x.status === 'done' && x.url) {
         const id = Number(x.item_id)
-        if (!reels.has(id)) reels.set(id, String(x.url))
+        if (!reels.has(id)) {
+          reels.set(id, String(x.url))
+          const poster = posterOf(x.poster)
+          if (poster) posters.set(id, poster)
+        }
       }
     }
   } catch {
     // No jobs table yet: no reels, nothing being made.
   }
-  return { reels, making, busy }
+  return { reels, posters, making, busy }
 }
 
 // ---- The course, read from its own spec --------------------------------------------------

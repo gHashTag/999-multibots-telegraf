@@ -30,7 +30,9 @@ import {
   STORY_DEFAULT_CTA,
   STORY_DEFAULT_STYLE,
   type StoryDeps,
+  storyJobsOf,
 } from './story-template'
+import * as PLAN from '../spec/plan-reel.gen'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
 import { templateOf } from './story-reel-templates'
 import {
@@ -77,6 +79,7 @@ interface Job {
   end_card?: string | null
   voice_mode?: number | null
   scene_count?: number | null
+  poster?: string | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -513,6 +516,35 @@ function fakeBase() {
         )
         .sort((a, b) => a.goal_id - b.goal_id || a.id - b.id)[0]
       return { rows: next ? [{ title: next.title }] : [] }
+    }
+    // The poster (plan-reel v3): claimed NULL -> '', then kept.
+    if (
+      q.startsWith(
+        "UPDATE story_jobs SET poster = '' WHERE id = $1 AND poster IS NULL RETURNING id"
+      )
+    ) {
+      const j = row(p[0])
+      if (!j || (j.poster ?? null) !== null) return { rows: [] }
+      j.poster = ''
+      return { rows: [{ id: j.id }] }
+    }
+    if (q.startsWith('UPDATE story_jobs SET poster = $2 WHERE id = $1')) {
+      row(p[0])!.poster = p[1]
+      return { rows: [] }
+    }
+    if (q.startsWith('SELECT id, url, poster FROM story_jobs')) {
+      return {
+        rows: db.jobs
+          .filter(
+            j =>
+              (!q.includes("status = 'done'") || j.status === 'done') &&
+              (!q.includes('url IS NOT NULL') || j.url) &&
+              (!q.includes('poster IS NULL') || (j.poster ?? null) === null)
+          )
+          .sort((a, b) => b.id - a.id)
+          .slice(0, Number(p[0]))
+          .map(j => ({ id: j.id, url: j.url, poster: j.poster ?? null })),
+      }
     }
     throw new Error(`unexpected SQL: ${q.slice(0, 90)}`)
   }
@@ -3272,5 +3304,120 @@ describe('a retry after a failed job (spec v28, 999#3815)', () => {
     expect(c.seen[0].clips).toEqual(['https://c/1', 'https://c/2', '', ''])
     expect(c.renders()).toBe(2)
     expect(base.db.jobs.at(-1)?.voice_mode).toBe(SPEC.VOICE_CLONE)
+  })
+})
+
+describe("the reel's poster (plan-reel v3)", () => {
+  const done = (id: number, poster?: string | null): Job =>
+    ({
+      ...({} as Job),
+      id,
+      lead_id: LENA,
+      seller_id: SELLER,
+      requester: LENA,
+      status: 'done',
+      url: `https://bucket.example/${id}.mp4`,
+      updated: 0,
+      ...(poster === undefined ? {} : { poster }),
+    }) as Job
+
+  it('the reel is out and told before its poster is drawn, then the poster is kept', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const order: string[] = []
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    const told = deps.notify
+    deps.notify = async (...a) => (order.push('told'), told(...a))
+    deps.poster = async video => {
+      order.push(`poster of ${video}`)
+      expect(base.db.jobs[0].status).toBe('done')
+      return 'https://shelf.example/poster.jpg'
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(order).toEqual(['told', 'poster of https://bucket.example/reel.mp4'])
+    expect(said).toHaveLength(1)
+    expect(base.db.jobs[0].poster).toBe('https://shelf.example/poster.jpg')
+    const [mine] = await storyJobsOf(base.pool as never, SELLER, LENA)
+    expect(mine).toMatchObject({
+      url: 'https://bucket.example/reel.mp4',
+      poster: 'https://shelf.example/poster.jpg',
+    })
+  })
+
+  it('a poster that fails never fails the reel, and is never tried again', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let drawn = 0
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    deps.poster = async () => {
+      drawn++
+      throw new Error('ffmpeg exited 1')
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(base.db.jobs[0]).toMatchObject({ status: 'done', poster: '' })
+    expect(said).toHaveLength(1)
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn).toBe(1)
+    const [mine] = await storyJobsOf(base.pool as never, SELLER, LENA)
+    expect(mine.poster).toBeUndefined()
+  })
+
+  it('the sweep draws the missing posters of reels that came out, newest first, a few a round', async () => {
+    const base = fakeBase()
+    base.db.jobs.push(
+      done(1),
+      done(2),
+      done(3, ''),
+      done(4),
+      done(5, 'https://shelf.example/5.jpg'),
+      done(6),
+      done(7),
+      { ...done(8), status: 'failed', url: null }
+    )
+    const drawn: string[] = []
+    const { deps } = depsOn(base, async () => ({ done: false }))
+    deps.poster = async video => (
+      drawn.push(video),
+      video.replace('.mp4', '.jpg')
+    )
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn).toEqual([
+      'https://bucket.example/7.mp4',
+      'https://bucket.example/6.mp4',
+      'https://bucket.example/4.mp4',
+    ])
+    expect(drawn).toHaveLength(PLAN.POSTER_SWEEP_MAX)
+    expect(base.db.jobs.find(j => j.id === 3)!.poster).toBe('')
+    expect(base.db.jobs.find(j => j.id === 1)!.poster).toBeUndefined()
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn.slice(3)).toEqual([
+      'https://bucket.example/2.mp4',
+      'https://bucket.example/1.mp4',
+    ])
+  })
+
+  it('without a poster port nothing is drawn and the reel is the same', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(base.db.jobs[0]).toMatchObject({ status: 'done' })
+    expect(base.db.jobs[0].poster).toBeUndefined()
+    expect(said).toHaveLength(1)
   })
 })

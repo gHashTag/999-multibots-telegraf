@@ -139,6 +139,7 @@ type StoryJob = {
   status: string
   url: string | null
   live?: boolean
+  poster?: string | null
 }
 
 function fakePlan() {
@@ -246,6 +247,7 @@ describe('plan_list carries the reels of its cards', () => {
       [1, 'done'],
       [2, 'doing'],
       [3, 'idea'],
+      [4, 'done'],
     ] as const)
       db.items.push({
         id,
@@ -258,22 +260,37 @@ describe('plan_list carries the reels of its cards', () => {
       })
     db.jobs.push(
       {
+        item_id: 4,
+        lead_id: ME,
+        status: 'done',
+        url: 'https://bucket.example/four.mp4',
+        // Tried, none drawn: the browser's frame stands, and the poster of a
+        // newer reel on another card never stands in for it.
+        poster: '',
+      },
+      {
         item_id: 1,
         lead_id: ME,
         status: 'done',
         url: 'https://bucket.example/old.mp4',
+        poster: 'https://shelf.example/old.jpg',
       },
       {
         item_id: 1,
         lead_id: ME,
         status: 'done',
         url: 'https://bucket.example/new.mp4',
+        poster: 'https://shelf.example/new.jpg',
       }
     )
     const r: any = await tool('plan_list').handler({}, ctxOf(pool))
     const cards = r['цели'][0]['карточки'] // cyrillic-ok: plan_list's own keys
     expect(cards[0].reel).toBe('https://bucket.example/new.mp4')
+    expect(cards[0].poster).toBe('https://shelf.example/new.jpg')
     expect(cards[1].reel).toBeUndefined()
+    expect(cards[1].poster).toBeUndefined()
+    expect(cards[3].reel).toBe('https://bucket.example/four.mp4')
+    expect(cards[3].poster).toBeUndefined()
     expect(cards[2].press).toBe(true)
     expect(r.reel_press).toMatchObject({
       scenes: SPEC.FULL_SCENES,

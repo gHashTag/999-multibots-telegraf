@@ -57,6 +57,7 @@ export function StoryCard({ isOwn }: StoryCardProps) {
             <ReelPreview
               key={j.id}
               url={j.url as string}
+              poster={j.poster}
               label={t('story.watch', { topic: j.topic || '—' })}
             />
           ))}

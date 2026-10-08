@@ -76,5 +76,41 @@
     "file": "src/components/Story/ReelPreview.tsx",
     "from": "        muted\n",
     "to": "        autoPlay\n"
+  },
+  {
+    "name": "a poster never shown",
+    "file": "src/lib/planReel.ts",
+    "from": "    ? SPEC.PICTURE_POSTER",
+    "to": "    ? SPEC.PICTURE_FRAME"
+  },
+  {
+    "name": "any string is a poster",
+    "file": "src/lib/planReel.ts",
+    "from": "  return typeof poster === 'string' && /^https?:\\/\\//.test(poster)",
+    "to": "  return typeof poster === 'string' && poster !== ''"
+  },
+  {
+    "name": "the server's poster dropped in reading",
+    "file": "src/lib/crm.ts",
+    "from": "        ...(str(j['poster']) ? { poster: str(j['poster']) as string } : {}),\n",
+    "to": "\n"
+  },
+  {
+    "name": "the plan card ignores its poster",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": "                                poster={item.poster}\n",
+    "to": "\n"
+  },
+  {
+    "name": "the cabinet ignores the poster",
+    "file": "src/components/Profile/StoryCard.tsx",
+    "from": "              poster={j.poster}\n",
+    "to": "\n"
+  },
+  {
+    "name": "my reels ignore the poster",
+    "file": "src/components/Story/MyStoryWidget.tsx",
+    "from": "                      poster={j.poster}\n",
+    "to": "\n"
   }
 ]
