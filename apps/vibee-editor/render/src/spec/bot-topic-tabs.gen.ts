@@ -6,10 +6,10 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-topic-tabs" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const TAB_COUNT = 6 satisfies number;
 export const TAB_KEYS = ["agent", "reels", "browser", "mybot", "wallet", "hive"] as const satisfies readonly [string, string, string, string, string, string];
-export const TAB_TITLES_EN = ["Agent", "Reels", "Browser", "My bot", "Balance & club", "Hive"] as const satisfies readonly [string, string, string, string, string, string];
+export const TAB_TITLES_EN = ["Agent", "Director", "Navigator", "Builder", "Treasurer", "Queen"] as const satisfies readonly [string, string, string, string, string, string];
 export const TAB_EMOJI = [129302, 127916, 127757, 128736, 128176, 128029] as const satisfies readonly [number, number, number, number, number, number];
 export const TAB_COLORS = [7322096, 16749490, 9367192, 16766590, 16478047, 13338331] as const satisfies readonly [number, number, number, number, number, number];
 export const TAB_ROUTES = ["chat", "story", "browser", "profile", "club", "hive"] as const satisfies readonly [string, string, string, string, string, string];
@@ -30,11 +30,13 @@ export const PROBE_METHOD = "editForumTopic" satisfies string;
 export const CLAIM_STALE_MS = 120000 satisfies number;
 // t27c gen-ts: fn claim_stale was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_rename was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn retitle was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_set_up was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn inject_thread was not emitted -- this backend lowers declarations, not bodies.
 export const TAB_CACHE_MAX = 5000 satisfies number;
 // t27c gen-ts: fn reads_db was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn evicts was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
