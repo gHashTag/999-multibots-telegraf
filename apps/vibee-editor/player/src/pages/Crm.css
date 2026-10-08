@@ -474,6 +474,53 @@
   transform: rotate(90deg);
 }
 
+/* The line: the heading's button takes what is left, the stop keeps its
+   own finger-sized box at the right (crm-first-screen v2). */
+.crm-auto__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-auto__line > .crm-auto__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* On, the word is two facts -- until when, how many more -- and on a phone
+   they do not fit beside the name and the stop. Where they do not, they go
+   under the name (the button wraps), and the chevron keeps the right edge of
+   both rows. The design system's button says nowrap, which ran the word on
+   past its own box and under the stop (tri shot crm-auto-on, spills right). */
+.crm-auto__line .crm-auto__fold {
+  position: relative;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  row-gap: 2px;
+  padding-right: 20px;
+}
+
+.crm-auto__line .crm-auto__fold::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+}
+
+.crm-auto__word {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.crm-auto__stop {
+  flex: none;
+  min-height: var(--touch-target, 44px);
+  padding: 8px 14px;
+}
+
 /* ── SEARCH AND THE "UNDER WAY" HEADING ───────────────────────────────── */
 
 /*
