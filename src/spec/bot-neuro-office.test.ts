@@ -31,6 +31,7 @@ import {
   catchUp,
   catchupAsk,
   CATCHUP_PARTS_TEXT,
+  catchupListsTasks,
   handsOff,
   handoffIn,
   handOffInOffice,
@@ -151,8 +152,15 @@ describe('spec bot-neuro-office.t27', () => {
     expect(SPEC.OPEN_TASKS_SHOWN_MAX).toBe(20)
   })
 
+  it('a catch-up lists the open tasks after the summary, and nothing when there are none', () => {
+    expect(SPEC.CATCHUP_SHOWS_TASKS).toBe(true)
+    expect(catchupListsTasks(1)).toBe(true)
+    expect(catchupListsTasks(20)).toBe(true)
+    expect(catchupListsTasks(0)).toBe(false)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })
@@ -459,6 +467,30 @@ describe('/catchup (v3)', () => {
       expect(asked).toBe(0)
       expect(ctx.replies[0]).toMatch(/office/)
     }
+  })
+
+  it('the open tasks follow the summary; none, or a list that fails, adds nothing', async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    const answer = async () => ({ текст: 'Decided: ship Friday.' }) // cyrillic-ok: field of the agent answer
+    const withTasks = ctxIn()
+    await catchUp(withTasks, answer, async () => ({
+      count: 2,
+      text: '#1 Anna: mockup\n#2 @boris: prices',
+    }))
+    expect(withTasks.replies).toEqual([
+      'Decided: ship Friday.',
+      'Open tasks:\n#1 Anna: mockup\n#2 @boris: prices',
+    ])
+    const none = ctxIn()
+    await catchUp(none, answer, async () => ({ count: 0, text: '' }))
+    expect(none.replies).toEqual(['Decided: ship Friday.'])
+    const broken = ctxIn()
+    expect(
+      await catchUp(broken, answer, async () => {
+        throw new Error('db down')
+      })
+    ).toBe('answered')
+    expect(broken.replies).toEqual(['Decided: ship Friday.'])
   })
 
   it('a failed or empty answer is said, never silence', async () => {

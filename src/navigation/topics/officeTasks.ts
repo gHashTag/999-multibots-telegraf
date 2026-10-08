@@ -219,12 +219,15 @@ export async function addTask(ctx: any): Promise<'added' | 'refused'> {
   return 'added'
 }
 
-/** /todos: the room's open tasks, oldest first. */
-export async function listTasks(ctx: any): Promise<number> {
-  const isRu = isRussianFromState(ctx as any)
-  if (await notAnOffice(ctx, isRu)) return 0
+/**
+ * The room's open tasks, oldest first, at most OPEN_TASKS_SHOWN_MAX, one
+ * line each ("#3 Anna: draft the mockup"). No database: none.
+ */
+export async function openTasks(
+  ctx: any
+): Promise<{ count: number; text: string }> {
   const d = await ready()
-  if (!d) return 0
+  if (!d) return { count: 0, text: '' }
   const { rows } = await d.query(
     'SELECT id, text, owner_name FROM office_tasks WHERE bot_username = $1 AND chat_id = $2 AND NOT done ORDER BY id LIMIT $3',
     [
@@ -233,12 +236,22 @@ export async function listTasks(ctx: any): Promise<number> {
       OFFICE.OPEN_TASKS_SHOWN_MAX,
     ]
   )
+  return {
+    count: rows.length,
+    text: rows.map(r => `#${r.id} ${r.owner_name}: ${r.text}`).join('\n'),
+  }
+}
+
+/** /todos: the room's open tasks, oldest first. */
+export async function listTasks(ctx: any): Promise<number> {
+  const isRu = isRussianFromState(ctx as any)
+  if (await notAnOffice(ctx, isRu)) return 0
+  const open = await openTasks(ctx)
+  if (!(await ready())) return 0
   await ctx.reply(
-    rows.length
-      ? rows.map(r => `#${r.id} ${r.owner_name}: ${r.text}`).join('\n')
-      : say(isRu, 'Открытых задач нет.', 'No open tasks.')
+    open.count ? open.text : say(isRu, 'Открытых задач нет.', 'No open tasks.')
   )
-  return rows.length
+  return open.count
 }
 
 /** /done <id>: close a task -- its owner, its author or an admin. */
