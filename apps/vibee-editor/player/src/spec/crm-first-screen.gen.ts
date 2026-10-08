@@ -6,12 +6,15 @@
 export const KIND = "automation" satisfies string;
 export const ID = "crm-first-screen" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const PHONE_MAX_PX = 480 satisfies number;
 export const PILLS_MIN_PX = 360 satisfies number;
 export const TG_DEVICE_TOP_PX = 59 satisfies number;
 export const TG_BUTTONS_TOP_PX = 46 satisfies number;
 export const TG_HOME_BOTTOM_PX = 34 satisfies number;
+export const ACTION_NONE = 0 satisfies number;
+export const ACTION_STOP = 1 satisfies number;
+export const ACTION_START = 2 satisfies number;
 export const ORDER_PHONE = ["auto", "waiting", "funnel"] as const satisfies readonly [string, string, string];
 export const ORDER_WIDE = ["funnel", "auto", "waiting"] as const satisfies readonly [string, string, string];
 export const FIRST_SCREEN_NAME = true satisfies boolean;
@@ -19,7 +22,8 @@ export const FIRST_SCREEN_REASON = true satisfies boolean;
 export const FIRST_SCREEN_PREPARE = true satisfies boolean;
 // t27c gen-ts: fn is_phone was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn pills was not emitted -- this backend lowers declarations, not bodies.
-// t27c gen-ts: fn auto_folds was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn auto_line was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn line_action was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn count_shown was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn waiting_before_funnel was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn tg_top was not emitted -- this backend lowers declarations, not bodies.
@@ -31,10 +35,11 @@ export const FIRST_SCREEN_PREPARE = true satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PHONE_MAX_PX", "PILLS_MIN_PX", "TG_DEVICE_TOP_PX", "TG_BUTTONS_TOP_PX", "TG_HOME_BOTTOM_PX", "ORDER_PHONE", "ORDER_WIDE", "FIRST_SCREEN_NAME", "FIRST_SCREEN_REASON", "FIRST_SCREEN_PREPARE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PHONE_MAX_PX", "PILLS_MIN_PX", "TG_DEVICE_TOP_PX", "TG_BUTTONS_TOP_PX", "TG_HOME_BOTTOM_PX", "ACTION_NONE", "ACTION_STOP", "ACTION_START", "ORDER_PHONE", "ORDER_WIDE", "FIRST_SCREEN_NAME", "FIRST_SCREEN_REASON", "FIRST_SCREEN_PREPARE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

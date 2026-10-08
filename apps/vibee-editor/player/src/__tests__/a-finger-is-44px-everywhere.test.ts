@@ -56,6 +56,24 @@ describe('a finger is 44px wherever it is attached', () => {
     expect(blocks.some(b => b.includes(TARGET))).toBe(true)
   })
 
+  it("the AUTO line's own Turn off is one touch target, at any pointer", () => {
+    // v2: on a phone the line holds the stop while AUTO writes to people; a
+    // mis-tap here fails to stop it, so no media query either.
+    const blocks = ruleFor(crm, '.crm-auto__stop')
+    expect(blocks.length, 'the selector must exist').toBeGreaterThan(0)
+    expect(blocks.some(b => b.includes(TARGET))).toBe(true)
+  })
+
+  it("the AUTO line's word wraps under the name, never under the stop", () => {
+    // design-system.css gives every button `white-space: nowrap`: inside the
+    // fold that ran "until 21:30 . 7/30 left" past the button's edge and
+    // under Turn off (tri shot crm-auto-on, 2026-10-08).
+    const word = ruleFor(crm, '.crm-auto__word')
+    expect(word.some(b => /white-space:\s*normal/.test(b))).toBe(true)
+    const fold = ruleFor(crm, '.crm-auto__line .crm-auto__fold')
+    expect(fold.some(b => /flex-wrap:\s*wrap/.test(b))).toBe(true)
+  })
+
   it('the chips and "a new conversation" carry it where the pointer is coarse', () => {
     for (const [css, sel] of [
       [crm, '.crm__chip'],

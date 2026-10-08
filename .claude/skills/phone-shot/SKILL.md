@@ -437,6 +437,19 @@ import.meta.url)), ...)` and `readFileSync`.
   this container never installed** (`@tonconnect/ui`, 9 errors). Look at the
   first error (`TS2307 Cannot find module`), install with `--no-save`, and
   check the shot's playwright still resolves afterwards.
+- **A button paints its words SIDEWAYS past its box, and cut/overlap stay 0.** design-system.css gives every `button` `white-space: nowrap`; the
+  AUTO line's word ("до 21:30 · осталось 7/30") ran on under its own
+  «Выключить» -- neither box moved, so overlap was 0, and the sideways cut
+  only looked at clipped boxes. Now a button with `overflow: visible` whose
+  `scrollWidth > clientWidth` is a cut, `spills N>M right` (2026-10-08,
+  negative control: RED on the old CSS). Cure in the page: the word gets
+  `white-space: normal` and the button `flex-wrap: wrap`, so it goes under
+  the name instead of under the neighbour. **Read the PNG even when green**:
+  this one was found by eye on a green run, then made measurable.
+- **A state is a link: the harness reads its own query.** `crm-auto-on` is
+  `page: 'crm', query: '?auto=on'` -- the same harness answering
+  `autopilot_status` switched on, with a FIXED hour (21:30) so two shots of
+  one state are the same picture.
 
 ## Пишем на .t27
 
