@@ -1,0 +1,110 @@
+[
+  {
+    "name": "the press offered while a reel is made",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return status === SPEC.STATUS_IDEA && !busy",
+    "to": "return status === SPEC.STATUS_IDEA"
+  },
+  {
+    "name": "no trial: the first reel from the plan is full",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return reelsOut === 0 ? SPEC.TRIAL_SCENES : SPEC.FULL_SCENES",
+    "to": "return SPEC.FULL_SCENES"
+  },
+  {
+    "name": "a lesson card ends on her own call",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return linksLesson ? SPEC.CALL_LESSON : SPEC.CALL_OWN",
+    "to": "return SPEC.CALL_OWN"
+  },
+  {
+    "name": "half a course taken in",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return lessons === SPEC.COURSE_LESSONS",
+    "to": "return lessons > 0"
+  },
+  {
+    "name": "a lesson added twice",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return !alreadyACard",
+    "to": "return true"
+  },
+  {
+    "name": "the cabinet shows every reel",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return Math.min(reelsOut, SPEC.PREVIEWS_MAX)",
+    "to": "return reelsOut"
+  },
+  {
+    "name": "the course's Russian ignored",
+    "file": "src/agent/plan-reel.ts",
+    "from": "title: pick(ui.TITLE, course.title),",
+    "to": "title: course.title,"
+  },
+  {
+    "name": "a course of mismatched titles taken in",
+    "file": "src/agent/plan-reel.ts",
+    "from": "  if (titles.length !== ids.length) return null\n",
+    "to": ""
+  },
+  {
+    "name": "the first source that fails ends the reading",
+    "file": "src/agent/plan-reel.ts",
+    "from": "      if (!res.ok) continue",
+    "to": "      if (!res.ok) return null"
+  },
+  {
+    "name": "a lesson card keeps its scheme in the call",
+    "file": "src/agent/plan-reel.ts",
+    "from": "    ? link.replace(/^https?:\\/\\//, '')",
+    "to": "    ? link"
+  },
+  {
+    "name": "the card's note never reaches the writer",
+    "file": "src/agent/story-template.ts",
+    "from": "          { title: topic, note: note.slice(0, 1200) },",
+    "to": "          { title: topic, note: '' },"
+  },
+  {
+    "name": "a card press is never the trial",
+    "file": "src/agent/story-template.ts",
+    "from": "            ? scenesFor(await planReelsOut(deps.pool, lead))",
+    "to": "            ? undefined"
+  },
+  {
+    "name": "a lesson card's reel ends on her profile's call",
+    "file": "src/agent/story-template.ts",
+    "from": "      text(who.cta, 120) ?? text(card ? cardCall(card.note) : '', 120),",
+    "to": "      text(who.cta, 120),"
+  },
+  {
+    "name": "a press on a card being made starts anyway",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (pressedCard && !card)",
+    "to": "  if (false)"
+  },
+  {
+    "name": "every card offers the press",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          press: pressOffered(statusCode(it.status), made.busy) || undefined,",
+    "to": "          press: true,"
+  },
+  {
+    "name": "plan_list hides the card's reel",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          reel: made.reels.get(Number(it.id)),",
+    "to": "          reel: undefined,"
+  },
+  {
+    "name": "plan_course_add adds a lesson twice",
+    "file": "src/agent/plan-tools.ts",
+    "from": "        if (!lessonAdded(titles.has(card.title))) continue\n",
+    "to": ""
+  },
+  {
+    "name": "my_story_reel drops the card it was pressed on",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "            ? { itemId: Number(args.item_id) }",
+    "to": "            ? {}"
+  }
+]

@@ -62,6 +62,13 @@ import {
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
 import {
+  cardCall,
+  planItemNote,
+  planReelsOut,
+  scenesFor,
+  takePlanItemById,
+} from './plan-reel'
+import {
   cardForReel,
   houseLineRefused,
   ownCallOf,
@@ -718,6 +725,12 @@ export async function startStory(
     scenes?: StoryScene[]
     /** How many scenes the writer makes (spec SCENES_MIN..MAX); a script sets its own. */
     sceneCount?: number
+    /**
+     * The plan card the press was made on (plan-reel.t27): the reel is made
+     * of THAT card -- never moved to another -- in the trial's scenes while
+     * nothing from the plan came out, ending on its lesson when it links one.
+     */
+    itemId?: number
     style?: string
     cta?: string
     /** The seller's palette for the end (spec v7): over her profile's, kept in the job. */
@@ -775,7 +788,17 @@ export async function startStory(
   // this turn (spec v22, line_way) -- refused here, before any spend.
   const houseLine = houseLineRefused(given, lead === s.owner, who.personSaid)
   if (houseLine) return { started: false, why: houseLine }
-  const count = given ? given.length : sceneCountOf(who.sceneCount)
+  // A press on a plan card with no count of its own makes the plan's trial
+  // first (plan-reel scenes_for): one scene until a reel from the plan came out.
+  const pressedCard = Number.isInteger(who.itemId) && Number(who.itemId) > 0
+  const count = given
+    ? given.length
+    : sceneCountOf(
+        who.sceneCount ??
+          (pressedCard
+            ? scenesFor(await planReelsOut(deps.pool, lead))
+            : undefined)
+      )
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
    * #hex is named back, and a palette whose call or button cannot be read
@@ -843,9 +866,19 @@ export async function startStory(
       return { started: false, why: capWhy(left, needed) }
     }
   }
-  // A script is its own topic; a plan card is taken only for a written reel.
-  const card =
-    asked || given ? null : await takeNextPlanItem(deps.pool, lead, s.done)
+  // A pressed card is taken itself, or the press is refused (card_taken): a
+  // card already being made, or not hers, is never swapped for the next one.
+  // Otherwise a script is its own topic; the next card only for a written reel.
+  const card = pressedCard
+    ? await takePlanItemById(deps.pool, lead, Number(who.itemId))
+    : asked || given
+      ? null
+      : await takeNextPlanItem(deps.pool, lead, s.done)
+  if (pressedCard && !card)
+    return {
+      started: false,
+      why: 'эта карточка уже в работе или её больше нет — обнови план',
+    }
   // A script with no topic is named by its first line.
   const topic =
     asked ||
@@ -877,7 +910,9 @@ export async function startStory(
           ? JSON.stringify(carried.scenes)
           : null,
       text(who.style, 600),
-      text(who.cta, 120),
+      // A lesson card ends on its lesson (plan-reel call_of); a call the
+      // seller typed still wins.
+      text(who.cta, 120) ?? text(card ? cardCall(card.note) : '', 120),
       // A client pressing for herself never sends into a group from here.
       deliverTo,
       deliverTo ? text(who.caption, SPEC.CAPTION_MAX) : null,
@@ -1066,10 +1101,13 @@ async function runHeld(
       .then((x: any) => (x?.rows ?? []).map((y: any) => String(y.topic)))
       .catch(() => [])
     const about = s.about || String(job.about ?? '')
+    // The card's own note -- the theses the plan screen asks for -- is the
+    // writer's material (plan-reel: it never reached here before v1).
+    const note = job.item_id ? await planItemNote(pool, job.item_id) : ''
     const text = await deps
       .write(
         writerMessages(
-          { title: topic, note: '' },
+          { title: topic, note: note.slice(0, 1200) },
           { ...s, about },
           [...s.done, ...had],
           sceneCountOf(job.scene_count)

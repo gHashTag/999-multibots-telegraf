@@ -2150,6 +2150,69 @@
   line-height: 1.45;
 }
 
+/* The press that makes this card's reel (plan-reel.t27): a finger's target,
+   at its own width under the card's words -- never stretched across them. */
+.profile-plan__reel {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  margin-top: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #3a5a3a;
+  background: transparent;
+  color: #9fe0a0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.profile-plan__reel:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.profile-plan__item-body > .reel-preview {
+  margin-top: 6px;
+}
+
+/* A FINGER ON THE PLAN (tri shot profile-plan, 2026-10-08): the first
+   measure of this screen on a phone found every status pill, the edit and
+   delete icons and "Goal" 26-28 px tall. Scoped to the plan: the skills tab
+   shares these classes and has its own measure to answer to. */
+@media (pointer: coarse) {
+  .profile-plan .profile-skills__add,
+  .profile-plan .profile-skills__actions button,
+  .profile-plan__status {
+    min-height: var(--touch-target, 44px);
+    min-width: var(--touch-target, 44px);
+  }
+  .profile-plan .profile-skills__actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* The head's long hint squeezed "+ Goal" until its icon was 0 px wide
+   (probed 2026-10-08): the button and its icon keep their own width. */
+.profile-plan .profile-skills__add,
+.profile-plan .profile-skills__add > svg {
+  flex-shrink: 0;
+}
+
+/* A goal's name is read whole: "From zero to a chip: FPGA programming with
+   t27" cut to "From zero to a chip: progr..." named nothing. The design
+   system's button has a fixed height; this one grows with its lines. */
+.profile-plan__goal-title {
+  height: auto;
+  white-space: normal;
+}
+
+.profile-plan__goal-title .profile-skills__name {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
 /* Статус — и метка, и кнопка: нажатие двигает карточку по кругу
    замысел → в работе → вышло. Отдельного меню на три значения не
    нужно, а лишний экран на телефоне дороже подсказки. */
