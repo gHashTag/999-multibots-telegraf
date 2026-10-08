@@ -26,13 +26,17 @@
 // The bot then asks that colleague once, in the person's name, and the colleague answers in
 // the room under its own name. One hand-off per person's message, so two agents cannot
 // pass a task back and forth.
+// v5 (2026-10-08): the office keeps its tasks. /todo puts a task on the room's list with an
+// owner -- the person replied to, else the one named, else the sender -- /todos shows the
+// open ones, /done closes one. Only its owner, its author or an admin closes it (Teams
+// Facilitator keeps action items; a group chat forgets them).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- opening an office ----
 
@@ -141,6 +145,41 @@ module automation::bot_neuro_office {
     // rights. An agent never spends in its own name (agent-hive-group.t27, the same law).
     pub const HANDOFF_IN_PERSONS_NAME : bool = true;
 
+    // ---- the office's tasks (v5) ----
+
+    // Tasks are kept in an office only; elsewhere /todo says where it works.
+    fn may_track(office: bool) -> bool {
+        return office;
+    }
+
+    // A task is one line of work, cut to this many characters.
+    pub const TASK_TEXT_MAX_CHARS : u32 = 300;
+
+    fn task_chars(chars: u32) -> u32 {
+        if chars > TASK_TEXT_MAX_CHARS { return TASK_TEXT_MAX_CHARS; }
+        return chars;
+    }
+
+    // Who owns a new task: the person the /todo replies to (0), else the person it names (1),
+    // else the sender (2). A reply is the clearest "you", so it wins.
+    pub const OWNER_FROM_REPLY : u32 = 0;
+    pub const OWNER_FROM_MENTION : u32 = 1;
+    pub const OWNER_FROM_SENDER : u32 = 2;
+
+    fn owner_source(has_reply: bool, has_mention: bool) -> u32 {
+        if has_reply { return OWNER_FROM_REPLY; }
+        if has_mention { return OWNER_FROM_MENTION; }
+        return OWNER_FROM_SENDER;
+    }
+
+    // A task is closed by its owner, its author or an admin of the group -- nobody else.
+    fn may_close(is_owner: bool, is_author: bool, is_admin: bool) -> bool {
+        return is_owner || is_author || is_admin;
+    }
+
+    // /todos shows at most this many open tasks, oldest first.
+    pub const OPEN_TASKS_SHOWN_MAX : u32 = 20;
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -216,8 +255,24 @@ module automation::bot_neuro_office {
         assert(HANDOFF_IN_PERSONS_NAME);
     }
 
+    test "the office keeps tasks with an owner, and only owner, author or admin closes one" {
+        assert(may_track(true));
+        assert(!may_track(false));
+        assert(TASK_TEXT_MAX_CHARS == 300);
+        assert(task_chars(300) == 300);
+        assert(task_chars(301) == 300);
+        assert(owner_source(true, true) == OWNER_FROM_REPLY);
+        assert(owner_source(false, true) == OWNER_FROM_MENTION);
+        assert(owner_source(false, false) == OWNER_FROM_SENDER);
+        assert(may_close(true, false, false));
+        assert(may_close(false, true, false));
+        assert(may_close(false, false, true));
+        assert(!may_close(false, false, false));
+        assert(OPEN_TASKS_SHOWN_MAX == 20);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 }
 

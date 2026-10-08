@@ -37,6 +37,12 @@ import {
   registerOfficeCommand,
 } from '@/navigation/topics/office'
 import { setTopicTabsDbForTests } from '@/navigation/topics/tabs'
+import {
+  mayClose,
+  mayTrack,
+  ownerSource,
+  taskChars,
+} from '@/navigation/topics/officeTasks'
 
 describe('spec bot-neuro-office.t27', () => {
   it("an office opens only in a forum, with the bot managing topics, at an admin's word", () => {
@@ -127,8 +133,26 @@ describe('spec bot-neuro-office.t27', () => {
     expect(SPEC.HANDOFF_IN_PERSONS_NAME).toBe(true)
   })
 
+  it('the office keeps tasks with an owner, and only owner, author or admin closes one', () => {
+    // the behaviour (the commands, the database) is in
+    // src/__tests__/navigation/officeTasks.test.ts
+    expect(mayTrack(true)).toBe(true)
+    expect(mayTrack(false)).toBe(false)
+    expect(SPEC.TASK_TEXT_MAX_CHARS).toBe(300)
+    expect(taskChars(300)).toBe(300)
+    expect(taskChars(301)).toBe(300)
+    expect(ownerSource(true, true)).toBe(SPEC.OWNER_FROM_REPLY)
+    expect(ownerSource(false, true)).toBe(SPEC.OWNER_FROM_MENTION)
+    expect(ownerSource(false, false)).toBe(SPEC.OWNER_FROM_SENDER)
+    expect(mayClose(true, false, false)).toBe(true)
+    expect(mayClose(false, true, false)).toBe(true)
+    expect(mayClose(false, false, true)).toBe(true)
+    expect(mayClose(false, false, false)).toBe(false)
+    expect(SPEC.OPEN_TASKS_SHOWN_MAX).toBe(20)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })
