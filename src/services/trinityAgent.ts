@@ -22,6 +22,7 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
+import * as MEMORY_SPEC from '@/spec/bot-agent-memory.gen'
 import {
   markReportedByAgent,
   markTurnHistory,
@@ -197,22 +198,52 @@ async function readConversation(
     if (thread.room) where.set('room', thread.room)
     if (thread.conversation) where.set('conversation', thread.conversation)
     const scoped = where.size ? `&${where}` : ''
+    /*
+     * ONE MORE READ (spec bot-agent-memory.t27 reads_again). A turn that runs
+     * on no history answers as if the person had never spoken -- the "it
+     * starts over" the owner reported on 2026-10-08 -- so a failed read is
+     * tried once more before the turn goes ahead without its past.
+     */
+    for (let tries = 1; ; tries++) {
+      const past = await readConversationOnce(
+        `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`
+      )
+      if (!readsAgain(tries, past !== null)) {
+        if (past === null)
+          logger.warn('[trinityAgent] history not read; the turn has no past', {
+            telegram_id: telegramId,
+            tries,
+          })
+        return past ?? []
+      }
+    }
+  } catch {
+    return []
+  }
+}
+
+/** spec bot-agent-memory.t27 reads_again: a failed read is tried once more, never more. */
+export const readsAgain = (triesDone: number, ok: boolean): boolean =>
+  !ok && triesDone < MEMORY_SPEC.HISTORY_READ_TRIES
+
+/** One history read; null when it failed (not when the conversation is empty). */
+async function readConversationOnce(
+  url: string
+): Promise<Array<{ role: string; content: string; surface?: string }> | null> {
+  try {
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
-    const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`,
-      {
-        headers: { 'X-Api-Key': apiKey() },
-        signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
-      }
-    )
-    if (!о.ok) return []
+    const о = await fetch(url, {
+      headers: { 'X-Api-Key': apiKey() },
+      signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
+    })
+    if (!о.ok) return null
     const д = (await о.json()) as {
       messages?: Array<{ role: string; content: string; surface?: string }>
     }
     return Array.isArray(д.messages) ? д.messages : []
   } catch {
-    return []
+    return null
   }
 }
 
@@ -420,8 +451,8 @@ export async function спроситьАгента(
     onTool?: (name: string | null) => void
     /**
      * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
-     * CONVERSATION_RE): a topic tab of the private chat keeps its own memory
-     * (navigation/topics/threads.ts agentConversationFor). Ignored when a
+     * CONVERSATION_RE): a fixed tab of the private chat other than the Agent
+     * tab keeps its own memory (navigation/topics/memory.ts). Ignored when a
      * room or an agent names the thread. Absent -> the base conversation.
      */
     conversation?: string
@@ -773,17 +804,34 @@ export async function спроситьАгента(
 export async function recordTurns(
   telegramId: string,
   turns: Array<{ role: 'user' | 'assistant'; content: string }>,
-  surface: 'bot' | 'business' = 'bot'
+  surface: 'bot' | 'business' = 'bot',
+  /*
+   * WHERE THE TURN WAS ASKED (spec bot-agent-memory.t27). A line written for
+   * a turn in a room or in a tab goes into that room's or tab's conversation;
+   * without this it landed in the person's base conversation, next to a
+   * question it never answered.
+   */
+  where: { room?: string; conversation?: string } = {}
 ): Promise<'recorded' | 'not recorded'> {
   const usable = turns.filter(turn => (turn.content || '').trim())
   if (!apiKey() || !telegramId || !usable.length) return 'not recorded'
+  const room = where.room && ROOM_RE.test(where.room) ? where.room : undefined
+  const conversation =
+    !room && where.conversation && CONVERSATION_ID_RE.test(where.conversation)
+      ? where.conversation
+      : undefined
   try {
     const response = await fetch(
       `${БАЗА}/api/agent/history?telegram_id=${encodeURIComponent(telegramId)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-        body: JSON.stringify({ turns: usable, surface }),
+        body: JSON.stringify({
+          turns: usable,
+          surface,
+          ...(room ? { room } : {}),
+          ...(conversation ? { conversation } : {}),
+        }),
         signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
       }
     )

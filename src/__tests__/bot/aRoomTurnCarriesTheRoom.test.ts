@@ -27,7 +27,11 @@ describe('a turn in a room carries the room', () => {
     const src = await source()
     const at = src.indexOf('const inRoom =')
     expect(at, 'nothing computes the room').toBeGreaterThan(-1)
-    const body = src.slice(at, at + 600)
+    // To the end of the agent call, not a character count: the comment on
+    // which conversation a private turn joins (bot-agent-memory.t27) sits
+    // between the two.
+    const call = src.indexOf('спроситьАгента(', at) // cyrillic-ok: pre-existing identifier
+    const body = src.slice(at, src.indexOf('})\n', call))
     expect(body).toContain("'supergroup'")
     expect(body).toContain('room: inRoom')
   })

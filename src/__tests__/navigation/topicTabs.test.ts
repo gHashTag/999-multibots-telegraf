@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  agentConversationFor,
   privateTopicOf,
   threadPayload,
   threadedTelegram,
@@ -199,12 +198,6 @@ describe('private topics: the answer goes back into the tab', () => {
     await topicThreadMiddleware(ctx, async () => undefined)
     expect(ctx.telegram).toBe(shared)
     expect(threadedTelegram(shared, 1, 2)).not.toBe(shared)
-  })
-
-  it('each tab is its own agent conversation', () => {
-    expect(agentConversationFor(42)).toBe('topic42')
-    expect(agentConversationFor(undefined)).toBeUndefined()
-    expect(agentConversationFor(1)).toBe('topic1')
   })
 
   it('names a topic from its first line', () => {
