@@ -22,12 +22,12 @@ fi
 echo -e "\n" = .repeat(60)
 echo "\n2️⃣ СРАВНЕНИЕ С РАБОЧИМИ КЛЮЧАМИ:"
 echo "ОЖИДАЕМЫЕ:"
-echo "INNGEST_EVENT_KEY: 4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q"
-echo "INNGEST_SIGNING_KEY: signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597"
+echo "INNGEST_EVENT_KEY: ${EXPECTED_INNGEST_EVENT_KEY:?set EXPECTED_INNGEST_EVENT_KEY}"
+echo "INNGEST_SIGNING_KEY: ${EXPECTED_INNGEST_SIGNING_KEY:?set EXPECTED_INNGEST_SIGNING_KEY}"
 
 echo -e "\n📋 ДОЛЖНО БЫТЬ В ОТВЕТЕ:"
-echo "✅ INNGEST_EVENT_KEY_preview: 4JiBiCBZ8en7jNo..."
-echo "✅ INNGEST_SIGNING_preview: signkey-test-c4..."
+echo "✅ INNGEST_EVENT_KEY_preview: ${EXPECTED_INNGEST_EVENT_KEY:0:18}"
+echo "✅ INNGEST_SIGNING_preview: ${EXPECTED_INNGEST_SIGNING_KEY:0:18}"
 
 echo -e "\n❌ ЕСЛИ ВСЕ ЕЩЕ:"
 echo "❌ INNGEST_EVENT_KEY_preview: 4JiBiCBZ8e..."

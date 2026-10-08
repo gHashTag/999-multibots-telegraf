@@ -12,14 +12,14 @@ The GLM-4.7 API key needs to be added to Infisical cloud.
 4. Click "Add Secret"
 5. Enter:
    - Name: `GLM_API_KEY`
-   - Value: `fcbb5dadc5ea462284f5475a04daa174.Ei5KkZb0WQMwasmd`
+   - Value: `<stored-in-infisical>`
 6. Click "Save"
 
 ### Via Infisical CLI (if installed)
 
 ```bash
 # Set secret for production
-infisical secrets set --env=prod --secret-name=GLM_API_KEY --secret-value="fcbb5dadc5ea462284f5475a04daa174.Ei5KkZb0WQMwasmd"
+infisical secrets set --env=prod --secret-name=GLM_API_KEY --secret-value="<stored-in-infisical>"
 
 # Verify
 infisical secrets list --env=prod | grep GLM_API_KEY
@@ -31,13 +31,10 @@ The AI chat fallback chain is now:
 
 1. **Grok (grok-2-latest)** - Primary (xAI)
    - Status: Out of credits (429 error)
-   
 2. **GLM-4.7 (glm-4)** - Fallback 1 (Zhipu AI) ⭐ NEW
    - Status: Should work
-   
 3. **DeepSeek (deepseek-chat)** - Fallback 2
    - Status: No balance (402 error)
-   
 4. **OpenAI (gpt-4o-mini)** - Fallback 3
    - Status: Should work
 
