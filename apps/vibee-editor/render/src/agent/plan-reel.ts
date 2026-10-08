@@ -70,17 +70,27 @@ export function previewHeight(width: number): number {
   return Math.floor((width * SPEC.PREVIEW_H) / SPEC.PREVIEW_W)
 }
 
-/** The address of one lesson of the course. */
+/**
+ * The address of one lesson: its static page (spec v2), which carries the
+ * lesson's own card. Never its SPA route: a crawler drops what follows '#'.
+ */
 export function lessonLink(id: string): string {
-  return SPEC.LESSON_ROUTE + id
+  return `${SPEC.LESSON_ROUTE}${id}/`
 }
 
 const escaped = SPEC.LESSON_ROUTE.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
 const LESSON_IN_TEXT = new RegExp(`${escaped}([a-z0-9-]+)`)
+/*
+ * A card written under v1 links the lesson by its SPA route
+ * (https://t27.ai/#/course/<id>); it is the same lesson, so it is read and
+ * answered with the lesson's page, not left to preview as the home page.
+ */
+const V1_LESSON_IN_TEXT = /https:\/\/t27\.ai\/#\/course\/([a-z0-9-]+)/
 
-/** The lesson a card's note links, as its full address; '' when none. */
+/** The lesson a card's note links, as its static page; '' when none. */
 export function lessonLinkIn(note: unknown): string {
-  const m = LESSON_IN_TEXT.exec(String(note ?? ''))
+  const text = String(note ?? '')
+  const m = LESSON_IN_TEXT.exec(text) ?? V1_LESSON_IN_TEXT.exec(text)
   return m ? lessonLink(m[1]) : ''
 }
 
