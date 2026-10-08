@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  agentConversationFor,
   privateTopicOf,
   threadPayload,
   threadedTelegram,
@@ -81,6 +80,12 @@ function memoryDb() {
         if (clash) return { rows: [] }
         rows.push({ bot, tid, thread_id, kind, title, created_at: new Date() })
         return { rows: [{ thread_id }] }
+      }
+      if (q.startsWith('UPDATE') && /SET title = \$4 /.test(q)) {
+        // spec v3 retitle: only the title moves, the thread stays.
+        const r = rows.find(x => mine(x, p) && x.thread_id === p[2])
+        if (r) r.title = p[3]
+        return { rows: [] }
       }
       if (q.startsWith('UPDATE')) {
         const r = rows.find(x => mine(x, p) && x.thread_id === p[2])
@@ -193,12 +198,6 @@ describe('private topics: the answer goes back into the tab', () => {
     await topicThreadMiddleware(ctx, async () => undefined)
     expect(ctx.telegram).toBe(shared)
     expect(threadedTelegram(shared, 1, 2)).not.toBe(shared)
-  })
-
-  it('each tab is its own agent conversation', () => {
-    expect(agentConversationFor(42)).toBe('topic42')
-    expect(agentConversationFor(undefined)).toBeUndefined()
-    expect(agentConversationFor(1)).toBe('topic1')
   })
 
   it('names a topic from its first line', () => {
@@ -669,5 +668,138 @@ describe('B. the table is made at launch, not at the first /start', () => {
       },
     })
     expect(await prepareTabsTable({ has_topics_enabled: true })).toBe('failed')
+  })
+})
+
+/*
+ * SPEC v3: TABS NAMED AFTER THEIR AGENTS, AND THE OLD NAMES RENAMED ONCE.
+ *
+ * Owner, 2026-10-08: "name the threads after the agents". Titles used to be
+ * applied only when a tab was made, so everyone who already had tabs would
+ * have kept "Reels", "Browser", "Hive" forever. A tab whose stored title is
+ * not the table's current one is renamed on the next /start or /tabs, and its
+ * row then holds the current title.
+ */
+describe('v3: a tab made under an older title is renamed to its agent', () => {
+  let db: ReturnType<typeof memoryDb>
+  beforeEach(() => {
+    db = memoryDb()
+    setTopicTabsDbForTests(db)
+  })
+
+  /** A Telegram where a named edit can be refused, or find the thread gone. */
+  const tg = (named: { gone?: number[]; refuse?: string } = {}) => {
+    let next = 100
+    const calls: any[] = []
+    return {
+      calls,
+      made: () => calls.filter(c => c[0] === 'createForumTopic'),
+      renames: () =>
+        calls.filter(c => c[0] === 'editForumTopic' && 'name' in c[1]),
+      async callApi(method: string, payload: any) {
+        calls.push([method, payload])
+        if (method === 'createForumTopic')
+          return { message_thread_id: next++, name: payload.name }
+        if (method === 'editForumTopic' && 'name' in payload) {
+          if (named.gone?.includes(payload.message_thread_id)) {
+            const e: any = new Error(
+              '400: Bad Request: message thread not found'
+            )
+            e.response = {
+              description: 'Bad Request: message thread not found',
+            }
+            throw e
+          }
+          if (named.refuse) {
+            const e: any = new Error(`400: Bad Request: ${named.refuse}`)
+            e.response = { description: `Bad Request: ${named.refuse}` }
+            throw e
+          }
+        }
+        return true
+      },
+    }
+  }
+
+  /** Make the tabs, then age the given kinds back to their v2 titles. */
+  const madeUnderV2 = async (api: any, kinds: Record<string, string>) => {
+    await ensureTabs(api, 'b', 777, false)
+    for (const r of db.rows) if (kinds[r.kind]) r.title = kinds[r.kind]
+    api.calls.length = 0
+  }
+
+  it('the table names the agents, not the features', () => {
+    expect(TABS.map(t => t.en)).toEqual([
+      '🤖 Agent',
+      '🎬 Director',
+      '🌍 Navigator',
+      '🛠 Builder',
+      '💰 Treasurer',
+      '🐝 Queen',
+    ])
+    expect(TABS.map(t => t.ru)).toEqual([
+      '🤖 Агент', // cyrillic-ok: tab titles are interface text
+      '🎬 Режиссёр', // cyrillic-ok: tab titles are interface text
+      '🌍 Штурман', // cyrillic-ok: tab titles are interface text
+      '🛠 Конструктор', // cyrillic-ok: tab titles are interface text
+      '💰 Казначей', // cyrillic-ok: tab titles are interface text
+      '🐝 Королева', // cyrillic-ok: tab titles are interface text
+    ])
+  })
+
+  it('renames an old-titled tab once, in place, and then leaves it alone', async () => {
+    const api = tg()
+    await madeUnderV2(api, { reels: '🎬 Reels', hive: '🐝 Hive' })
+    const threads = new Map(db.rows.map(r => [r.kind, r.thread_id]))
+
+    expect(await ensureTabs(api, 'b', 777, false)).toEqual([])
+    expect(api.made()).toEqual([])
+    expect(api.renames().map(c => [c[1].message_thread_id, c[1].name])).toEqual(
+      [
+        [threads.get('reels'), '🎬 Director'],
+        [threads.get('hive'), '🐝 Queen'],
+      ]
+    )
+    // Same threads, current titles: the tab and its history stay.
+    for (const r of db.rows) expect(r.thread_id).toBe(threads.get(r.kind))
+    expect(db.rows.find(r => r.kind === 'reels')!.title).toBe('🎬 Director')
+
+    api.calls.length = 0
+    await ensureTabs(api, 'b', 777, false)
+    expect(api.renames()).toEqual([])
+  })
+
+  it('a tab that already carries the current title is never edited', async () => {
+    const api = tg()
+    await madeUnderV2(api, {})
+    await ensureTabs(api, 'b', 777, false)
+    expect(api.renames()).toEqual([])
+  })
+
+  it('Telegram already showing the name only brings the row up to date', async () => {
+    const api = tg({ refuse: 'TOPIC_NOT_MODIFIED' })
+    await madeUnderV2(api, { browser: '🌍 Browser' })
+    await ensureTabs(api, 'b', 777, false)
+    expect(db.rows.find(r => r.kind === 'browser')!.title).toBe('🌍 Navigator')
+  })
+
+  it('a tab deleted behind our back is made again, not renamed', async () => {
+    const first = tg()
+    await madeUnderV2(first, { wallet: '💰 Balance & club' })
+    const gone = db.rows.find(r => r.kind === 'wallet')!.thread_id
+    const api = tg({ gone: [gone] })
+    expect(await ensureTabs(api, 'b', 777, false)).toEqual(['wallet'])
+    const wallet = db.rows.filter(r => r.kind === 'wallet')
+    expect(wallet).toHaveLength(1)
+    expect(wallet[0].thread_id).not.toBe(gone)
+    expect(wallet[0].title).toBe('💰 Treasurer')
+  })
+
+  it('any other refused rename keeps the tab and its old row', async () => {
+    const api = tg({ refuse: 'CHAT_ADMIN_REQUIRED' })
+    await madeUnderV2(api, { mybot: '🛠 My bot' })
+    expect(await ensureTabs(api, 'b', 777, false)).toEqual([])
+    expect(api.made()).toEqual([])
+    expect(db.rows.find(r => r.kind === 'mybot')!.title).toBe('🛠 My bot')
   })
 })

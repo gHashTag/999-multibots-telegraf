@@ -52,6 +52,7 @@ import {
   standardButtons,
   buttonsForAnswer,
 } from '@/navigation/helpers/actionButtons'
+import { leavePressedMenu } from '@/navigation/helpers/pressedMenu'
 import {
   type AgentMiss,
   fallbackFailedText,
@@ -240,7 +241,8 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
-import { topicThreadMiddleware, agentConversationFor } from './topics/threads'
+import { topicThreadMiddleware } from './topics/threads'
+import { agentConversationIn } from './topics/memory'
 import {
   ensureTabsQuietly,
   nameTopicQuietly,
@@ -1396,6 +1398,8 @@ If not, continue on your own and click the "I myself" button`
        */
       let miss: AgentMiss = { kind: 'unreachable' }
       let agentError: unknown
+      /** Where the turn was asked: a fallback line is recorded there too. */
+      let turnWhere: { room?: string; conversation?: string } = {}
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
        *
@@ -1464,9 +1468,20 @@ If not, continue on your own and click the "I myself" button`
             ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
               ? String(ctx.chat.id)
               : ''
+          /*
+           * ONE MEMORY (spec bot-agent-memory.t27). The Agent tab and every
+           * thread that is no fixed tab speak in the base conversation, the
+           * one the mini-app opens; only the other fixed tabs keep their own,
+           * keyed by kind. A message outside the tabs opens a new thread, and
+           * keying memory by thread made each one start over.
+           */
           const conversation = inRoom
             ? undefined
-            : agentConversationFor(ctx.state?.topicThreadId)
+            : await agentConversationIn(ctx)
+          turnWhere = {
+            ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
+          }
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
@@ -1700,9 +1715,12 @@ If not, continue on your own and click the "I myself" button`
         )
         await ctx.reply(line, markup)
         const { recordTurns } = await import('@/services/trinityAgent')
-        void recordTurns(String(ctx.from?.id ?? ''), [
-          { role: 'assistant', content: line },
-        ])
+        void recordTurns(
+          String(ctx.from?.id ?? ''),
+          [{ role: 'assistant', content: line }],
+          'bot',
+          turnWhere
+        )
         return
       }
 
@@ -1790,7 +1808,9 @@ If not, continue on your own and click the "I myself" button`
             : [
                 { role: 'user', content: text },
                 { role: 'assistant', content: replyClean },
-              ]
+              ],
+          'bot',
+          turnWhere
         )
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
@@ -2892,6 +2912,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
+    // The pressed message drops its menu: the answer below carries the live one
+    // (spec bot-menu-press.t27, owner 2026-10-08 "the same menu everywhere").
+    await leavePressedMenu(ctx)
     // "Top up" means the balance, never the plan somebody selected earlier and
     // abandoned: a stale selectedPayment would hijack this press.
     ctx.session.selectedPayment = undefined
@@ -2905,6 +2928,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_rub`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // A bot that hides rubles gets the chooser instead of a door it does not
     // have: the same press must never dead-end.
@@ -2918,6 +2942,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_crypto`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // Into the payment scene, straight onto its crypto menu: the
     // crypto_select_* presses are handled inside that scene only.
@@ -2926,6 +2951,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}balance`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
@@ -2943,6 +2969,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
    */
   bot.action(`${ACTION_PREFIX}can`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     /*
      * Answered from the preflight rather than from a written list: a menu
@@ -2967,6 +2994,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}human`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     // The support handle: the bot's avatar names one, else the house default.
     let support: string = SUPPORT_HANDLE
@@ -3791,7 +3819,15 @@ async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
   try {
     const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
     const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
-    const answer = await спроситьАгента(String(ctx.from?.id ?? ''), text) // cyrillic-ok: pre-existing export
+    // A press in a tab is part of that tab's conversation (bot-agent-memory.t27).
+    const conversation =
+      ctx.chat?.type === 'private' ? await agentConversationIn(ctx) : undefined
+    const answer = await спроситьАгента(
+      // cyrillic-ok: pre-existing export
+      String(ctx.from?.id ?? ''),
+      text,
+      conversation ? { conversation } : {}
+    )
     const { text: clean, markup } = buttonsForAnswer(
       answer.текст, // cyrillic-ok: field of ОтветАгента
       isRu,
