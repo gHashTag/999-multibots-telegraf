@@ -949,6 +949,22 @@ const en: Translations = {
   'story.card.note':
     'My face, my voice, any topic: a reel in one press, when both halves are set.',
   'story.card.open': 'Open story reels',
+  'story.card.recent': 'Latest reels',
+  'story.watch': 'Watch the reel: {topic}',
+  // A plan card one press from its reel (plan-reel.t27, ProfilePlan.tsx)
+  'plan.reel.make': '🎬 Reel',
+  'plan.reel.making': 'making…',
+  'plan.reel.trial':
+    'A reel from a card: your face, your voice, the story template. The first one is a trial: {scenes} scene · {price}',
+  'plan.reel.full':
+    'A reel from a card: your face, your voice, the story template. {scenes} scenes · {price}',
+  'plan.reel.tokens': '{n} tokens',
+  'plan.reel.noCharge': 'not charged',
+  'plan.reel.started': 'Making “{topic}”: 5–10 minutes, it comes to your bot',
+  'plan.reel.refused': 'Not started: {why}',
+  'plan.course.add': '+ Course t27',
+  'plan.course.added': 'Course in the plan: {n} new cards',
+  'plan.course.refused': 'Course not added: {why}',
   // The clone's networks, own profile only (components/Profile/CloneNetworksCard.tsx)
   'clone.networks.title': "🌐 My clone's networks",
   'clone.networks.note':
@@ -3990,6 +4006,21 @@ const ru: Translations = {
   'story.card.note':
     'Моё лицо, мой голос, любая тема: рилс одним нажатием, когда обе половины готовы.',
   'story.card.open': 'Открыть рилсы',
+  'story.card.recent': 'Последние рилсы',
+  'story.watch': 'Смотреть рилс: {topic}',
+  'plan.reel.make': '🎬 Рилс',
+  'plan.reel.making': 'делается…',
+  'plan.reel.trial':
+    'Рилс по карточке: твоё лицо, твой голос, шаблон рилса-истории. Первый — пробный: {scenes} сцена · {price}',
+  'plan.reel.full':
+    'Рилс по карточке: твоё лицо, твой голос, шаблон рилса-истории. {scenes} сцены · {price}',
+  'plan.reel.tokens': '{n} ток.',
+  'plan.reel.noCharge': 'без списания',
+  'plan.reel.started': 'Делаю «{topic}»: 5–10 минут, придёт в бот',
+  'plan.reel.refused': 'Не начат: {why}',
+  'plan.course.add': '+ Курс t27',
+  'plan.course.added': 'Курс в плане: новых карточек {n}',
+  'plan.course.refused': 'Курс не добавлен: {why}',
   'clone.networks.title': '🌐 Сети моего клона',
   'clone.networks.note':
     'Где ваш браузер уже вошёл — по его входам. Пароли не видит никто, даже агент.',

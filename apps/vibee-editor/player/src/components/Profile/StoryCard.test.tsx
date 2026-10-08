@@ -17,6 +17,19 @@ import { StoryCard } from './StoryCard'
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+// The newest reels that came out (plan-reel previews_shown), as the server says.
+const mine = vi.hoisted(() => ({
+  jobs: [] as Array<{
+    id: number
+    topic: string
+    status: string
+    url: string | null
+  }>,
+}))
+vi.mock('@/lib/crm', () => ({
+  loadMyStory: async () => ({ reachable: true, data: { jobs: mine.jobs } }),
+}))
+
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
     t: (key: string) =>
@@ -54,6 +67,7 @@ describe('the story-reels card', () => {
   }
 
   it('on my profile the door leads to /story', async () => {
+    mine.jobs = []
     await show(true)
     const link = host.querySelector('a')
     expect(link?.getAttribute('href')).toBe('/story')
@@ -64,5 +78,46 @@ describe('the story-reels card', () => {
     await show(false)
     expect(host.querySelector('a')).toBeNull()
     expect(host.textContent).toBe('')
+  })
+
+  it('shows the newest three reels that came out, as pictures', async () => {
+    mine.jobs = [
+      {
+        id: 6,
+        topic: 'f',
+        status: 'done',
+        url: 'https://bucket.example/6.mp4',
+      },
+      { id: 5, topic: 'e', status: 'running', url: null },
+      {
+        id: 4,
+        topic: 'd',
+        status: 'done',
+        url: 'https://bucket.example/4.mp4',
+      },
+      { id: 3, topic: 'c', status: 'failed', url: null },
+      {
+        id: 2,
+        topic: 'b',
+        status: 'done',
+        url: 'https://bucket.example/2.mp4',
+      },
+      {
+        id: 1,
+        topic: 'a',
+        status: 'done',
+        url: 'https://bucket.example/1.mp4',
+      },
+    ]
+    await show(true)
+    await act(async () => undefined)
+    const pics = [...host.querySelectorAll<HTMLAnchorElement>('a.reel-preview')]
+    expect(pics.map(a => a.getAttribute('href'))).toEqual([
+      'https://bucket.example/6.mp4',
+      'https://bucket.example/4.mp4',
+      'https://bucket.example/2.mp4',
+    ])
+    // The door to /story is still there, after the pictures.
+    expect(host.querySelector('a[href="/story"]')).not.toBeNull()
   })
 })

@@ -125,6 +125,7 @@ tri — оболочка Trinity S³AI
   tri mutants --reanchor <list.json>  follow an indent-only move (code wrapped in one more element): re-anchors `from`/`to` found once with only leading whitespace shifted; a changed token stays stale
   tri mutants --heal                            вернуть файл, в котором убитый прогон (перезапуск контейнера) оставил мутанта; сам зовётся в начале каждого прогона и в tri loop
   tri spec-controls <spec.t27> <controls.json>   отрицательные контроли спеки на копии: пойман/пропущен/не собралась (по таблице t27c)
+  tri spec-sync <id> [--player] [--check]      spec of record into the host in one step: sync-t27-spec (full or bare id), the player's gen copy byte-checked, check-t27-specs; code 1 differs, 2 cannot run
   tri spec-check <spec.t27> [controls.json] [--seal]  ворота спеки одной строкой: тесты по таблице (BLOCKED ≠ зелёно), пустые тесты на копии в своей папке, контроли, печать; запись в tri gate
   tri stale-route '<old>' <new> [dir]          где тексты для модели ещё ведут старым путём (старое имя без нового и без «только если»)
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
@@ -2097,6 +2098,7 @@ PYEOF
   image-gate) shift; node "$ROOT/bin/helpers/image-gate.mjs" "$@" ;;
   tail) shift; node "$ROOT/bin/helpers/tail.mjs" "$@" ;;
   spec-check) shift; node "$ROOT/bin/helpers/spec-check.mjs" "$@" ;;
+  spec-sync) shift; node "$ROOT/bin/helpers/spec-sync.mjs" "$@" ;;
   main-drift) shift; node "$ROOT/bin/helpers/main-drift.mjs" "$@" ;;
   shot) shift; if [ "${1:-}" = watch ]; then shift; node "$ROOT/bin/helpers/shot-watch.mjs" "$@"; else node "$ROOT/bin/helpers/shot.mjs" "$@"; fi ;;
 

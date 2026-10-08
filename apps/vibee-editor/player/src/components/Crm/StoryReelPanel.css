@@ -246,6 +246,11 @@
 .story-reel__go {
   width: 100%;
   min-height: 48px;
+  /* The design system's button is one line of a fixed height: at 320 px
+     "Make a reel . frames: 3 + call" ran 2 px past its own edge (tri shot
+     spills right, 2026-10-08). The label wraps and the button grows. */
+  height: auto;
+  white-space: normal;
   border: 0;
   border-radius: 14px;
   background: var(--vibee-green, #00ff88);

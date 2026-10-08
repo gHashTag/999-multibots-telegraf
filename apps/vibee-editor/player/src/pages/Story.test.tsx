@@ -155,10 +155,16 @@ describe('my reels', () => {
     expect(priceThenPress()).toBe(true)
   })
 
-  it('"watch" is a finger-sized link on her page, as on the seller\'s card', async () => {
+  it('a reel that came out is its own picture, bigger than a finger, opening it (plan-reel)', async () => {
     serve(() => READY)
     await draw()
-    expect(host.querySelector('a')?.className).toBe('crm-client__watch')
+    const pic = host.querySelector<HTMLAnchorElement>('a.reel-preview')!
+    expect(pic.getAttribute('href')).toBe(READY.jobs[0].url)
+    expect(pic.querySelector('video')?.getAttribute('src')).toBe(
+      `${READY.jobs[0].url}#t=1`
+    )
+    expect(parseInt(pic.style.width)).toBeGreaterThanOrEqual(44)
+    expect(parseInt(pic.style.height)).toBeGreaterThanOrEqual(44)
   })
 
   it('says a gift is a gift instead of naming a price', async () => {
