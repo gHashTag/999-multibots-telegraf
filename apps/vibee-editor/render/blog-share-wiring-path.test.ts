@@ -42,6 +42,18 @@ vi.mock('./src/browser/logins', async importOriginal => ({
   ],
 }))
 vi.mock('./src/agent/reach-log', () => ({ noteShape: async () => undefined }))
+/*
+ * The Reddit leg asks whether the community is open, the server's own read
+ * first (reddit.ts readAnonymously). Unstubbed, that was a real request to
+ * reddit.com from every run: ENOTFOUND in the cloud, r/t27ai's LIVE state on
+ * a machine with the network. Here it answers as Reddit answers an anonymous
+ * server -- a block page, read as "did not know" -- and the person's own
+ * browser below decides (test-support/no-network.ts).
+ */
+vi.mock('./src/agent/reddit', async importOriginal => ({
+  ...(await importOriginal<typeof import('./src/agent/reddit')>()),
+  readAnonymously: async () => '<!doctype html><title>Blocked</title>',
+}))
 vi.mock('./src/browser/cdp', () => ({
   newPage: async (_c: string, url: string) => {
     opened.push(url)

@@ -28,5 +28,8 @@ export default defineConfig({
     include: ['**/*.test.ts'],
     // e2e specs here belong to Playwright and fail on load under vitest.
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.spec.ts', 'e2e/**'],
+    // No test reaches the network: fetch and DNS to any host but this
+    // machine fail the test that asked (test-support/no-network.ts).
+    setupFiles: ['./test-support/no-network.ts'],
   },
 })
