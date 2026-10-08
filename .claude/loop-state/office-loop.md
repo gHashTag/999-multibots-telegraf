@@ -12,6 +12,12 @@ or undo what is merged. Epic gHashTag/999-multibots-telegraf#3896.
   budget. Rules stay host functions pinned by spec vectors.
 - Do not edit the working tree while `scripts/test-guard.cjs` and the push are
   running: the guard tests the tree and the push takes HEAD as it is then.
+- Start every tick with `tri office` (laws, suites); `tri office --mutants`
+  before a PR (the list is src/spec/bot-neuro-office.mutants.json; add a
+  mutant for every new rule, or the list goes stale).
+- A wait loop must not grep for its own command line: `pgrep -f "git push
+-q -u origin claude/vibrant"` inside an `until` matched itself and hung for
+  30 minutes (2026-10-08). Wait on a background task's notification instead.
 - Merge with a merge commit when the local gates are green. 999 GitHub
   Actions never start (billing); the local gates are the check.
 
