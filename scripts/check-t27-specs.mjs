@@ -164,7 +164,8 @@ export function checkSpec({
   const consts = specConsts(spec)
   const id = consts.get('ID')
 
-  const nonAscii = [...spec].findIndex(c => c.charCodeAt(0) > 0x7f)
+  // One scan, no array of the spec's characters (26% of a repo check did that).
+  const nonAscii = spec.search(/[^\x00-\x7f]/)
   if (nonAscii >= 0) say('ascii', `a non-ASCII character at offset ${nonAscii}`)
   const head = lines.slice(
     0,
@@ -315,6 +316,40 @@ function trackedCode(root) {
     .filter(p => !p.endsWith('.gen.ts'))
 }
 
+/**
+ * The tracked code that names a spec at all -- `.t27`, or a generated
+ * module's `.gen'` -- found by git grep in C. No law can match in any other
+ * file, and reading all ~4000 of them in JS was most of a repo check
+ * (profiled 2026-10-08: 482 ms before, 176 ms with this).
+ */
+function namingCode(root) {
+  try {
+    const out = execFileSync(
+      'git',
+      [
+        'grep',
+        '-l',
+        '-F',
+        '-e',
+        '.t27',
+        '-e',
+        ".gen'",
+        '--',
+        '*.ts',
+        '*.tsx',
+        '*.mjs',
+        '*.cjs',
+        '*.js',
+      ],
+      { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+    )
+    return new Set(out.split('\n').filter(Boolean))
+  } catch (e) {
+    if (e?.status === 1) return new Set() // git grep found nothing
+    throw e
+  }
+}
+
 /** Every vendored spec, and every law over it and over the citations. */
 export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
   const bad = []
@@ -322,8 +357,15 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
   const ignore = existsSync(join(root, '.prettierignore'))
     ? readFileSync(join(root, '.prettierignore'), 'utf8')
     : ''
-  const code = trackedCode(root)
-  const read = p => readFileSync(join(root, p), 'utf8')
+  const naming = namingCode(root)
+  const code = trackedCode(root).filter(p => naming.has(p))
+  // Each file once: the host files and the citation scan read the same code,
+  // and reading it twice was 41% of a repo check (profiled 2026-10-08).
+  const texts = new Map()
+  const read = p => {
+    if (!texts.has(p)) texts.set(p, readFileSync(join(root, p), 'utf8'))
+    return texts.get(p)
+  }
   const bound = new Map()
 
   for (const host of manifest.hosts) {

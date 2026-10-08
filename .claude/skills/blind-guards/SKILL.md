@@ -6083,7 +6083,7 @@ reddit.com, открыт ли r/t27ai (`readAnonymously`). Код считает
 отвечает никогда (одно слово `pod`, зоны `.test`/`.invalid`/`.example`),
 сторож отвечает сам `ENOTFOUND` и тест не роняет: код видит то же, что
 везде. Сторож проверен сквозным прогоном приманки
-(`test-support/leak-fixture/`) и 11 мутантами
+(`test-support/leak-fixture/`) и 12 мутантами
 (`test-support/no-network.mutants.json`).
 
 **Ловушки по дороге:**
@@ -6095,6 +6095,31 @@ reddit.com, открыт ли r/t27ai (`readAnonymously`). Код считает
   тест не потребовал, чтобы красным стал именно тот ТЕСТ, а не только файл;
 - `console.error` из файла настройки vitest в выводе не виден — ловушку
   писать в файл.
+
+**Тот же день, второй виток: сторож на всех трёх наборах.** Перепись плеера и
+корня нашла 62 вызова из 17 файлов, 40 из них — в ПРОДАКШЕН-рендер (маяк
+трафика приветствия, исход оплаты, синтез голоса, история бизнес-лички), плюс
+биржи курса и fal. Модуль один — `apps/vibee-editor/packages/test-guard/no-network.mjs`;
+его ставят `render/test-support/no-network.ts`, `player/src/test/setup.ts` и
+корневой `vitest.setup.ts`. Мутанты: 12 у рендера, 2 у плеера
+(`player/src/test/no-network.mutants.json`), 3 у корня
+(`src/__tests__/tools/noTestReachesTheNetwork.mutants.json`).
+
+- **Прокси на этой машине — тоже сеть.** В облачном контейнере
+  `HTTPS_PROXY=http://127.0.0.1:<порт>`; axios честно шёл в loopback, сторож
+  loopback пускает, а прокси выходил наружу: запрос к api.coingecko.com
+  покидал машину мимо всех проверок. Сторож первым шагом снимает
+  `*_proxy`, `GLOBAL_AGENT_*`, `NODE_USE_ENV_PROXY` (`dropProxyEnv`).
+- **TCP по адресу без имени DNS не спрашивает.** `net.connect(443, '1.1.1.1')`
+  проходит мимо `fetch` и `dns.lookup` — нужна третья дверь,
+  `net.Socket.prototype.connect`.
+- **Модуль, общий для плеера, не может жить выше `apps/vibee-editor/`.**
+  Первая версия лежала в `scripts/lib/`; `testGateExclude` покраснел: сборка
+  образа плеера видит только `apps/vibee-editor/`, и файл настройки
+  импортировал бы то, чего в образе нет. Общий код наборов — в
+  `apps/vibee-editor/packages/`.
+- **Старый «детектор сети» корня (`test:network`, `DETECT_NETWORK=1`) удалён:**
+  он писал отчёт и ничего не ронял, поэтому 62 вызова жили рядом с ним.
 
 ## Пишем на .t27
 

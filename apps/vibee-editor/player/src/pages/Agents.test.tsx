@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/Header', () => ({ Header: () => null }))
+vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
 /* Keeper or not is the server's answer (#2957); the test sets it. */
 let keeperAnswer: boolean | null = false
 vi.mock('@/hooks/useIsKeeper', () => ({ useIsKeeper: () => keeperAnswer }))
@@ -36,6 +37,15 @@ let root: Root
 beforeEach(() => {
   keeperAnswer = false
   verdictsAnswer = null
+  // The page asks the production render for the person's packages
+  // (/api/agents/packages/status): here the server is out of reach, as it
+  // always was in the cloud (apps/vibee-editor/packages/test-guard/no-network.mjs).
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    })
+  )
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -44,6 +54,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  vi.unstubAllGlobals()
 })
 
 describe('agent labour market', () => {

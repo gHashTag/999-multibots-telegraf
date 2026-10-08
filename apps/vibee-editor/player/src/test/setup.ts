@@ -21,7 +21,20 @@
  * между тестами, чтобы порядок их запуска не влиял на результат.
  */
 
-import { afterEach, vi } from 'vitest'
+import { afterAll, afterEach, expect, vi } from 'vitest'
+import { installNoNetwork } from '../../../packages/test-guard/no-network.mjs'
+
+// NO PLAYER TEST REACHES THE NETWORK. Measured 2026-10-08: seven test files
+// called the PRODUCTION render -- the welcome page's traffic beacon, a pay
+// outcome, a voice synthesis among them -- because API_BASE falls back to it.
+// fetch, DNS and TCP to any host but this machine now fail the test that
+// asked, by file and host. Why and how:
+// apps/vibee-editor/packages/test-guard/no-network.mjs.
+installNoNetwork({
+  afterEach,
+  afterAll,
+  testPath: () => expect.getState().testPath,
+})
 
 // Node 22.22 exposes an experimental global `localStorage` placeholder that
 // is undefined unless --localstorage-file is passed. It shadows jsdom's real

@@ -22,6 +22,18 @@ vi.mock('@/hooks/useTelegramWebApp', () => ({
   useTelegramWebApp: () => undefined,
 }))
 vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
+/* No traffic beacon from a test (apps/vibee-editor/packages/test-guard/no-network.mjs): it reached the
+ * production render; here a step is dropped, as a failed send is. */
+vi.mock('@/lib/traffic', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/traffic')>()),
+  reportArrival: async () => false,
+  reportWelcomeStep: async () => false,
+}))
+/* The acceptance verdicts are the server's (production, unstubbed): none here. */
+vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
+  useAgentAcceptance: () => null,
+}))
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ lang: 'ru', setLang: () => {}, t: (k: string) => k }),
 }))

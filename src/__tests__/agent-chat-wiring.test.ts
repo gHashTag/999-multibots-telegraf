@@ -164,7 +164,8 @@ describe('an album becomes one turn', () => {
    * one alone would go green while the other drifted.
    */
   it('the buffer is keyed by chat, so two people do not share an album', () => {
-    expect(CODE).toMatch(/const chatLane = String\(ctx\.chat\?\.id/)
+    // `=\s*`: #3544 added the topic to the lane and the line broke after `=`.
+    expect(CODE).toMatch(/const chatLane =\s*String\(ctx\.chat\?\.id/)
     expect(CODE).toMatch(/albums\.collect\(chatLane,/)
   })
 })

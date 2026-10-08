@@ -38,13 +38,16 @@ const real = {
 const laws = (p: Problem[]) => [...new Set(p.map(x => x.law))]
 
 describe('the specs of record in this repository', () => {
+  // A scan of the whole repository: ~0.2 s by itself (0.5 s before
+  // 2026-10-08), but a full run of 500+ files in parallel made it 6.7 s once,
+  // past vitest's default 5 s. The limit is the run's load, not this check.
   it('every vendored spec obeys every law, and every cited spec is bound or known', () => {
     const bad = checkRepo()
     expect(
       bad,
       bad.map(b => `${b.spec}: [${b.law}] ${b.what}`).join('\n')
     ).toEqual([])
-  })
+  }, 20_000)
 
   it('the real spec passes on the fixture harness (the controls below start from green)', () => {
     expect(checkSpec(real)).toEqual([])

@@ -33,6 +33,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Telegraf, Telegram } from 'telegraf'
 
+/* /price asks Binance, CoinGecko and open.er-api for the rate
+ * (apps/vibee-editor/packages/test-guard/no-network.mjs); here all three are out of reach, so the rate
+ * is the caller's fallback, as it is without a network. */
+vi.mock('@/modules/currency-rate', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/modules/currency-rate')>()),
+  getCurrentRate: async (o: { fallback?: number } = {}) => o.fallback ?? 103,
+}))
 vi.mock('@/services/aiChatService', () => ({
   chatWithAI: vi.fn(async () => 'AGENT'),
   AI_CHAT_MODELS: {},
