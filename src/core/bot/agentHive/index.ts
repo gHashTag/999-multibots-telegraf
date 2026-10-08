@@ -34,6 +34,7 @@ import {
   stopManagedBot,
   type RunnerDeps,
 } from '@/core/bot/managedBots/runner'
+import { replyToOne } from '@/navigation/helpers/answerDraft'
 import { HIVE_AGENTS, hiveAgent, type HiveAgent } from './catalogue'
 import * as SPEC from '@/spec/agent-hive-group.gen'
 import { agentBotUsername, briefFits, maySetBrief, summaryCount } from './rules'
@@ -501,7 +502,9 @@ const argOf = (text: string | undefined): string =>
 /**
  * /stop, /mute, /brief and /summary in a hive group (spec agent-hive-group.t27
  * v2, v3). The manager answers them; the agent bots ignore every command
- * (answer.ts), so one /stop is one reply, not nine.
+ * (answer.ts), so one /stop is one reply, not nine. What concerns only the
+ * person who asked -- a refusal, the brief in force, "nothing to sum up" -- is
+ * ephemeral (bot-agent-stream.t27 ephemeral); a stop or a mute is for all.
  */
 export function installRoomCommands(
   bot: Telegraf<any>,
@@ -548,7 +551,10 @@ export function installRoomCommands(
     const text = argOf(ctx.message?.text)
     // A bare /brief shows the brief in force; it changes nothing.
     if (!text) {
-      await ctx.reply(copy.briefShow(await briefFor(room.chat, room.thread)))
+      await replyToOne(
+        ctx,
+        copy.briefShow(await briefFor(room.chat, room.thread))
+      )
       return
     }
     const member = await ctx.telegram
@@ -557,13 +563,13 @@ export function installRoomCommands(
     const isAdmin =
       member?.status === 'creator' || member?.status === 'administrator'
     if (!maySetBrief(isAdmin, ctx.from.is_bot === true)) {
-      await ctx.reply(copy.briefAdmins)
+      await replyToOne(ctx, copy.briefAdmins)
       return
     }
     // "/brief -" clears it: an empty brief is accepted (spec brief_fits).
     const brief = text === '-' ? '' : text
     if (!briefFits([...brief].length)) {
-      await ctx.reply(copy.briefLong(SPEC.MAX_BRIEF_CHARS))
+      await replyToOne(ctx, copy.briefLong(SPEC.MAX_BRIEF_CHARS))
       return
     }
     try {
@@ -588,7 +594,7 @@ export function installRoomCommands(
     const count = summaryCount(Number.isInteger(asked) && asked > 0 ? asked : 0)
     const lines = lastLines(room.chat, room.thread, count)
     if (!lines.length) {
-      await ctx.reply(copy.summaryEmpty)
+      await replyToOne(ctx, copy.summaryEmpty)
       return
     }
     try {

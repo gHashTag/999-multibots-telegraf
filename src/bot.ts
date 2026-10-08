@@ -210,6 +210,7 @@ async function initializeBots() {
         'business_connection' as any,
         'business_message' as any,
         'inline_query',
+        'stopped_message_generation' as any,
       ],
     })
     logger.debug(
@@ -323,6 +324,7 @@ async function initializeBots() {
               'business_connection' as any,
               'business_message' as any,
               'inline_query',
+              'stopped_message_generation' as any,
             ],
           })
           logger.debug(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
@@ -353,6 +355,7 @@ async function initializeBots() {
               'business_connection' as any,
               'business_message' as any,
               'inline_query',
+              'stopped_message_generation' as any,
             ],
           })
           logger.debug(

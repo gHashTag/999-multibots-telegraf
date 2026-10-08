@@ -244,6 +244,12 @@ import { checkAll } from '@/services/capabilityPreflight'
 import { topicThreadMiddleware } from './topics/threads'
 import { agentConversationIn } from './topics/memory'
 import {
+  afterStop,
+  draftStopMiddleware,
+  startAnswerDraft,
+  type AnswerDraft,
+} from './helpers/answerDraft'
+import {
   ensureTabsQuietly,
   nameTopicQuietly,
   registerTabsCommand,
@@ -306,6 +312,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * agent lane's answer lands in the tab the person wrote in
      * (topics/threads.ts). Right after the nets, so every handler sees the view.
      */
+    // A stop press on a streamed answer ends its turn (bot-agent-stream.t27).
+    bot.use(draftStopMiddleware)
     bot.use(topicThreadMiddleware)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
@@ -1400,6 +1408,8 @@ If not, continue on your own and click the "I myself" button`
       let agentError: unknown
       /** Where the turn was asked: a fallback line is recorded there too. */
       let turnWhere: { room?: string; conversation?: string } = {}
+      /** The answer growing on screen with a stop button (private chats). */
+      let draft: AnswerDraft | undefined
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
        *
@@ -1482,12 +1492,20 @@ If not, continue on your own and click the "I myself" button`
             ...(inRoom ? { room: inRoom } : {}),
             ...(conversation ? { conversation } : {}),
           }
+          /*
+           * "Thinking…" with a stop button, then the answer as it is written
+           * (bot-agent-stream.t27). Inert in groups and on a bot whose Bot API
+           * server refused a draft; the real message still goes out below.
+           */
+          draft = startAnswerDraft(ctx)
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
             ...(conversation ? { conversation } : {}),
             // "sending a photo…" while a picture tool runs (#3665)
             onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
+            onText: soFar => draft?.grow(soFar),
+            ...(draft.signal ? { signal: draft.signal } : {}),
           })
           /*
            * The request reached the server, so the server already stored the
@@ -1498,6 +1516,7 @@ If not, continue on your own and click the "I myself" button`
           questionRecorded = true
         } finally {
           стоп()
+          draft?.close()
         }
         const isRuOtvet = isRussianFromState(ctx)
         /*
@@ -1662,6 +1681,29 @@ If not, continue on your own and click the "I myself" button`
           }
         )
       } catch (err: any) {
+        /*
+         * THE PERSON PRESSED STOP (bot-agent-stream.t27 after_stop). What was
+         * written so far is the answer; with nothing written, one line saying
+         * it stopped. Never the fallback model: a stop is not a failure.
+         */
+        if (draft?.stopped) {
+          const partial = draft.text.trim()
+          const line =
+            afterStop(partial.length) === 1
+              ? partial
+              : isRussianFromState(ctx)
+                ? 'Остановлено.' // cyrillic-ok: user-facing
+                : 'Stopped.'
+          await ctx.reply(line.slice(0, 4096)).catch(() => undefined)
+          const { recordTurns } = await import('@/services/trinityAgent')
+          void recordTurns(
+            String(ctx.from?.id ?? ''),
+            [{ role: 'assistant', content: line }],
+            'bot',
+            turnWhere
+          )
+          return
+        }
         agentError = err
         miss = missOfError(err)
         logger.error(

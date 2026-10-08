@@ -658,6 +658,10 @@ async function initializeBots() {
       'business_message',
       'inline_query',
       'managed_bot',
+      // A stop press on a streamed answer (Bot API 10.3, bot-agent-stream.t27).
+      // A server that does not know the name ignores it, as it already does
+      // for 'successful_payment', which is a message field, not an update.
+      'stopped_message_generation',
     ])
 
     if ((botInfo as { can_manage_bots?: boolean }).can_manage_bots)
