@@ -76,6 +76,7 @@ interface Job {
   payer?: string | null
   end_card?: string | null
   voice_mode?: number | null
+  scene_count?: number | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -216,6 +217,31 @@ function fakeBase() {
         .forEach(i => (i.status = 'done'))
       return { rows: [] }
     }
+    // A press on one card (plan-reel card_taken): that card, hers, an idea.
+    if (
+      q.startsWith(
+        "UPDATE content_plan_items SET status = 'doing', updated_at = now() WHERE id = $1"
+      )
+    ) {
+      const it = db.plan.find(
+        i => i.id === p[0] && i.telegram_id === p[1] && i.status === 'idea'
+      )
+      if (!it) return { rows: [] }
+      it.status = 'doing'
+      return { rows: [{ id: it.id, title: it.title, note: it.note }] }
+    }
+    if (
+      q.startsWith("SELECT COALESCE(note, '') AS note FROM content_plan_items")
+    ) {
+      const it = db.plan.find(i => i.id === p[0])
+      return { rows: it ? [{ note: it.note }] : [] }
+    }
+    if (q.startsWith('SELECT count(*)::int AS n FROM story_jobs')) {
+      const n = db.jobs.filter(
+        j => j.lead_id === p[0] && j.item_id && j.status === 'done'
+      ).length
+      return { rows: [{ n }] }
+    }
     if (q.startsWith("UPDATE content_plan_items SET status = 'doing'")) {
       const next = db.plan
         .filter(i => i.telegram_id === p[0] && i.status === 'idea')
@@ -301,6 +327,7 @@ function fakeBase() {
         caption: v.caption ?? null,
         end_card: v.end_card ?? null,
         voice_mode: v.voice_mode ?? null,
+        scene_count: v.scene_count ?? null,
         card_at: null,
       })
       return { rows: [{ id }] }
@@ -913,6 +940,106 @@ describe('the seller asks from the CRM', () => {
   })
 })
 
+describe('a press on a plan card (plan-reel.t27)', () => {
+  let base: ReturnType<typeof fakeBase>
+  const card = (id: number, title: string, note = '', status = 'idea') => ({
+    id,
+    goal_id: 1,
+    telegram_id: LENA,
+    title,
+    note,
+    status,
+  })
+  beforeEach(() => {
+    base = fakeBase()
+    qualify(base)
+    base.db.plan.push(
+      card(80, 'Ваза в интерьере'),
+      card(
+        81,
+        'Биты, триты и GF16',
+        'Как число хранится в битах.\nhttps://t27.ai/#/course/bits-and-trits'
+      ),
+      card(82, 'Букет недели', '', 'doing')
+    )
+  })
+
+  it('makes THAT card, not the next one, as the one-scene trial', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: LENA,
+      itemId: 81,
+    })
+    expect(out.started).toBe(true)
+    expect(out.topic).toBe('Биты, триты и GF16')
+    expect(base.db.plan.find(i => i.id === 81)!.status).toBe('doing')
+    expect(base.db.plan.find(i => i.id === 80)!.status).toBe('idea')
+    expect(base.db.jobs[0]).toMatchObject({ item_id: 81, scene_count: 1 })
+  })
+
+  it('makes the full three once a reel from the plan came out', async () => {
+    base.db.jobs.push({
+      ...({} as Job),
+      id: 1,
+      lead_id: LENA,
+      seller_id: SELLER,
+      requester: LENA,
+      item_id: 79,
+      status: 'done',
+      url: 'https://bucket.example/first.mp4',
+      updated: 0,
+    } as Job)
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 80 })
+    expect(base.db.jobs[1]).toMatchObject({ item_id: 80, scene_count: 3 })
+  })
+
+  it('a lesson card ends on its lesson', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 81 })
+    expect(base.db.jobs[0].cta).toBe('t27.ai/#/course/bits-and-trits')
+  })
+
+  it('any other card ends on her own call', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 80 })
+    expect(base.db.jobs[0].cta).toBeNull()
+  })
+
+  it('refuses a card being made, or not hers, and takes no other', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    for (const itemId of [82, 999]) {
+      const out = await startStory(deps, {
+        lead: LENA,
+        requester: LENA,
+        itemId,
+      })
+      expect(out.started).toBe(false)
+      expect(out.why).toMatch('карточка')
+    }
+    expect(base.db.jobs).toHaveLength(0)
+    expect(
+      base.db.plan.filter(i => i.status === 'idea').map(i => i.id)
+    ).toEqual([80, 81])
+  })
+
+  it("the writer is given the card's own note", async () => {
+    const asked: string[] = []
+    const { deps } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    deps.write = async m => {
+      asked.push(m.map(x => x.content).join('\n'))
+      return JSON.stringify({ title: 'Биты', scenes: [SCENES.scenes[0]] })
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 81 })
+    await drain()
+    expect(asked[0]).toContain('Заметка: Как число хранится в битах.')
+  })
+})
+
 describe('the client presses ?start=reel herself', () => {
   it('she pays, and the reel comes back to her with the next-reel button', async () => {
     const base = fakeBase()
@@ -1230,6 +1357,37 @@ describe('my_story_reel, the person herself (the /story page and her bot)', () =
       bot: 'example_bot',
     })
     expect(seen[0].telegramId).toBe(LENA)
+  })
+
+  it('item_id makes THAT card of her plan (plan-reel.t27)', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.plan.push(
+      {
+        id: 90,
+        goal_id: 1,
+        telegram_id: LENA,
+        title: 'Первая',
+        note: '',
+        status: 'idea',
+      },
+      {
+        id: 91,
+        goal_id: 1,
+        telegram_id: LENA,
+        title: 'Вторая',
+        note: '',
+        status: 'idea',
+      }
+    )
+    const t = tool(base, () => new Promise(() => undefined))
+    const out: any = await t.handler(
+      { start: true, item_id: 91 },
+      as(base, LENA)
+    )
+    expect(out).toMatchObject({ started: true, topic: 'Вторая' })
+    expect(base.db.jobs[0]).toMatchObject({ item_id: 91, scene_count: 1 })
+    expect(base.db.plan[0].status).toBe('idea')
   })
 
   it('refuses in a turn working for a client: that is crm_story_reel', async () => {

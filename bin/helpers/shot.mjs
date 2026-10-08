@@ -22,7 +22,8 @@
  *   - small: a button, input or link under the target on either side;
  *   - cut: text clipped by its own box (scrollWidth > clientWidth), or
  *     spilling out of a button, down (scrollHeight > clientHeight) or to
- *     the right (scrollWidth > clientWidth, the nowrap of design-system);
+ *     the right (scrollWidth > clientWidth, the nowrap of design-system),
+ *     or a button's sized icon squeezed to 0 px by its neighbours;
  *   - overlap: two controls whose boxes intersect;
  *   - order: what a harness says must be read first (its `before` pairs:
  *     the price above the button, spec v16) stands higher on the screen.
@@ -563,6 +564,30 @@ const HARNESSES = {
       },
     ],
   },
+  /*
+   * THE CONTENT PLAN IN THE CABINET (plan-reel.t27): the t27 course taken in
+   * as a goal, a card whose reel came out standing as its picture, and cards
+   * that offer the press. The price of the press is read before it, as on
+   * her own page (crm-story-reel v16). The page answers its own tool calls
+   * (src/harness/profilePlan.tsx); `tool` is never reached.
+   */
+  'profile-plan': {
+    tool: 'plan_list',
+    root: '.profile-plan',
+    scope: '.profile-plan',
+    within: 'root',
+    before: [['[data-testid=plan-reel-price]', '[data-testid=plan-reel-make]']],
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('[data-testid=plan-reel-make]').first().waitFor()
+          await p.locator('.profile-plan .reel-preview').first().waitFor()
+        },
+      },
+    ],
+  },
+
   /*
    * Her reels inside the chat with the agent (owner, 2026-10-02): the same
    * widget, open before the talk and folded after. The summary is the
@@ -1339,6 +1364,21 @@ function measure({
       el.scrollWidth > el.clientWidth + 1
     )
       cut.push(`${name(el)} spills ${el.scrollWidth}>${el.clientWidth} right`)
+  /*
+   * AN ICON SQUEEZED TO NOTHING: a flex button pressed by its neighbours
+   * shrinks its svg first -- "+ Goal" drew as "Goal", its plus 0 px wide,
+   * green on every other measure (profile-plan, 2026-10-08). An icon the
+   * markup sizes (width attribute) and the page draws narrower than a pixel
+   * is a cut.
+   */
+  for (const el of controls)
+    for (const icon of el.querySelectorAll('svg[width]'))
+      if (
+        Number(icon.getAttribute('width')) > 0 &&
+        getComputedStyle(icon).display !== 'none' &&
+        icon.getBoundingClientRect().width < 1
+      )
+        cut.push(`${name(el)} squeezes its icon to 0 px`)
   /*
    * What of a control is on screen: its box cut by every clipping ancestor
    * (a scrolled log). A starter half-scrolled under the log's edge does not

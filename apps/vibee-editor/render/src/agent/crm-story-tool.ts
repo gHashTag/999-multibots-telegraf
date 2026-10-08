@@ -528,6 +528,7 @@ export function makeMyStoryTool(o: {
       'ТВОЙ РИЛС-ИСТОРИЯ: твоё лицо (аватарка) в новой обстановке каждой сцены, твой голос (клон), ' +
       '3 сцены ~15 с и пауза с призывом. Без start — готово ли, следующая тема плана, цена и твои рилсы. ' +
       'start:true — сделать на ЛЮБУЮ тему (topic; пусто — следующая из твоего контент-плана). ' +
+      'item_id — рилс ИМЕННО этой карточки плана (первый рилс из плана — пробный, одна сцена). ' +
       'Готовый придёт в бот через 5–10 мин.',
     parameters: {
       type: 'object',
@@ -541,6 +542,11 @@ export function makeMyStoryTool(o: {
           type: 'string',
           description:
             'своё фото для рилсов вместо аватарки (https); пустая строка — снова аватарка',
+        },
+        item_id: {
+          type: 'integer',
+          description:
+            'id карточки контент-плана (plan_list): рилс этой карточки',
         },
       },
       additionalProperties: false,
@@ -573,6 +579,9 @@ export function makeMyStoryTool(o: {
           requester: me,
           bot: bot ?? null,
           topic: String(args.topic ?? '').slice(0, STORY_TOPIC_MAX),
+          ...(args.item_id !== undefined
+            ? { itemId: Number(args.item_id) }
+            : {}),
         })
         return out.started
           ? { ...out, note: 'рилс делается 5–10 минут; готовый придёт в бот' }

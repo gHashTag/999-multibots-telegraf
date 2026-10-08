@@ -1,0 +1,80 @@
+[
+  {
+    "name": "the picture is the dark first frame",
+    "file": "src/lib/planReel.ts",
+    "from": "return `${url.replace(/#.*$/, '')}#t=${SPEC.PREVIEW_SEEK_MS / 1000}`",
+    "to": "return url"
+  },
+  {
+    "name": "the picture is square",
+    "file": "src/lib/planReel.ts",
+    "from": "return Math.floor((width * SPEC.PREVIEW_H) / SPEC.PREVIEW_W)",
+    "to": "return width"
+  },
+  {
+    "name": "the cabinet shows every reel",
+    "file": "src/lib/planReel.ts",
+    "from": "return Math.min(reelsOut, SPEC.PREVIEWS_MAX)",
+    "to": "return reelsOut"
+  },
+  {
+    "name": "a reel with no address drawn as a picture",
+    "file": "src/lib/planReel.ts",
+    "from": "return typeof url === 'string' && /^https?:\\/\\//.test(url)",
+    "to": "return typeof url === 'string'"
+  },
+  {
+    "name": "the price names the full reel for the trial",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": "isTrial(reelPress.scenes) ? 'plan.reel.trial' : 'plan.reel.full'",
+    "to": "'plan.reel.full'"
+  },
+  {
+    "name": "the press makes another card",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": "{ start: true, item_id: item.id }",
+    "to": "{ start: true }"
+  },
+  {
+    "name": "every card offers the press",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": ") : item.press ? (",
+    "to": ") : true ? ("
+  },
+  {
+    "name": "the card hides its reel",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": "{previewShown(item.reel) ? (",
+    "to": "{false ? ("
+  },
+  {
+    "name": "the course button for everybody",
+    "file": "src/components/Profile/ProfilePlan.tsx",
+    "from": "{isAdmin() ? (",
+    "to": "{true ? ("
+  },
+  {
+    "name": "the story card shows every reel",
+    "file": "src/components/Profile/StoryCard.tsx",
+    "from": "setOut(done.slice(0, previewsShown(done.length)))",
+    "to": "setOut(done)"
+  },
+  {
+    "name": "the story card draws reels not yet out",
+    "file": "src/components/Profile/StoryCard.tsx",
+    "from": "const done = (r.data?.jobs ?? []).filter(j => previewShown(j.url))",
+    "to": "const done = r.data?.jobs ?? []"
+  },
+  {
+    "name": "my reels hides the reel that came out",
+    "file": "src/components/Story/MyStoryWidget.tsx",
+    "from": "{previewShown(j.url) ? (",
+    "to": "{false ? ("
+  },
+  {
+    "name": "the reel plays by itself, with sound",
+    "file": "src/components/Story/ReelPreview.tsx",
+    "from": "        muted\n",
+    "to": "        autoPlay\n"
+  }
+]
