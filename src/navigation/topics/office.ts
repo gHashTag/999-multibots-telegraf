@@ -115,6 +115,11 @@ export const CATCHUP_PARTS_TEXT: ReadonlyArray<{ ru: string; en: string }> = [
   { ru: 'кто что взял на себя (по именам)', en: 'who took what on, by name' },
 ]
 
+/** spec catchup_lists_tasks (v6): the open tasks follow the summary, if any. */
+export function catchupListsTasks(openTasks: number): boolean {
+  return OFFICE.CATCHUP_SHOWS_TASKS && openTasks > 0
+}
+
 /** The turn /catchup asks the agent, in the person's language. */
 export function catchupAsk(isRu: boolean): string {
   const parts = CATCHUP_PARTS_TEXT.map(
@@ -359,7 +364,9 @@ export async function catchUp(
     telegramId: string,
     text: string,
     opts: { room: string; member?: string; speaker?: string }
-  ) => Promise<{ текст: string }> // cyrillic-ok: pre-existing field of the agent answer
+  ) => Promise<{ текст: string }>, // cyrillic-ok: pre-existing field of the agent answer
+  /** The room's open tasks (officeTasks.ts openTasks); v6 lists them after. */
+  tasks?: (ctx: any) => Promise<{ count: number; text: string }>
 ): Promise<'answered' | 'not an office' | 'failed'> {
   const isRu = isRussianFromState(ctx as any)
   const office = isRoom(ctx) && (await officeRows(ctx)).length > 0
@@ -384,6 +391,13 @@ export async function catchUp(
     const chunks = разбитьДлинное(answer?.текст ?? '') // cyrillic-ok: pre-existing identifiers
     if (!chunks.length) throw new Error('empty answer')
     for (const chunk of chunks) await ctx.reply(chunk)
+    // The open tasks follow the summary (spec v6). A list that fails to read
+    // leaves the summary standing: it was the answer asked for.
+    const open = tasks ? await tasks(ctx).catch(() => null) : null
+    if (open && catchupListsTasks(open.count))
+      await ctx.reply(
+        (isRu ? 'Открытые задачи:\n' : 'Open tasks:\n') + open.text
+      )
     return 'answered'
   } catch (e) {
     logger.warn('[office] catch-up failed', {
@@ -404,7 +418,12 @@ export async function catchUp(
 export function registerOfficeCommand(bot: Telegraf<any>): void {
   bot.command('catchup', async ctx => {
     const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
-    await catchUp(ctx, (id, text, opts) => спроситьАгента(id, text, opts)) // cyrillic-ok: pre-existing export
+    const { openTasks } = await import('./officeTasks')
+    await catchUp(
+      ctx,
+      (id, text, opts) => спроситьАгента(id, text, opts), // cyrillic-ok: pre-existing export
+      openTasks
+    )
   })
   bot.command('office', async ctx => {
     const isRu = isRussianFromState(ctx as any)
