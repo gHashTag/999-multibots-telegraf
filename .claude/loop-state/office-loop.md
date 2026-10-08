@@ -18,6 +18,10 @@ or undo what is merged. Epic gHashTag/999-multibots-telegraf#3896.
 - A wait loop must not grep for its own command line: `pgrep -f "git push
 -q -u origin claude/vibrant"` inside an `until` matched itself and hung for
   30 minutes (2026-10-08). Wait on a background task's notification instead.
+- Hand-off rides the prompt that already exists: profession.ts tells every
+  member "call a colleague by naming them first". The bot scans the SENT
+  answer (after markers are stripped) for such a line, skips the member's own
+  "Director:" label, asks the colleague once (depth 1) in the person's name.
 - Merge with a merge commit when the local gates are green. 999 GitHub
   Actions never start (billing); the local gates are the check.
 

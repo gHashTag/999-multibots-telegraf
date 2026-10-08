@@ -21,13 +21,18 @@
 // while they were away; the agent answers from the room's memory -- decisions, open
 // questions, who owes what, by name (Teams Facilitator, Slack recaps). Only in an office:
 // elsewhere the room's memory is not the team's.
+// v4 (2026-10-08): hand-off. An agent hands a task to a colleague the way a person calls
+// one: a line of its answer opens with the colleague's name ("Treasurer, count the budget").
+// The bot then asks that colleague once, in the person's name, and the colleague answers in
+// the room under its own name. One hand-off per person's message, so two agents cannot
+// pass a task back and forth.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- opening an office ----
 
@@ -120,6 +125,22 @@ module automation::bot_neuro_office {
     // who took what on. Fewer is a recap nobody can act on.
     pub const CATCHUP_PARTS : u32 = 3;
 
+    // ---- hand-off between members (v4) ----
+
+    // How many hand-offs one person's message may start. A colleague's answer to a hand-off
+    // is never handed on: depth 1 is the last.
+    pub const HANDOFF_DEPTH_MAX : u32 = 1;
+
+    // A hand-off happens in an office, below the depth bound, when a line of the answer opens
+    // with a colleague's name -- never with the answering member's own.
+    fn hands_off(office: bool, depth: u32, names_colleague: bool, colleague_is_self: bool) -> bool {
+        return office && depth < HANDOFF_DEPTH_MAX && names_colleague && !colleague_is_self;
+    }
+
+    // The colleague's turn is asked as the person who wrote: their tools, their wallet, their
+    // rights. An agent never spends in its own name (agent-hive-group.t27, the same law).
+    pub const HANDOFF_IN_PERSONS_NAME : bool = true;
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -185,8 +206,18 @@ module automation::bot_neuro_office {
         assert(CATCHUP_PARTS == 3);
     }
 
+    test "an agent hands a task to a colleague once, in an office, never to itself" {
+        assert(HANDOFF_DEPTH_MAX == 1);
+        assert(hands_off(true, 0, true, false));
+        assert(!hands_off(true, 1, true, false));
+        assert(!hands_off(false, 0, true, false));
+        assert(!hands_off(true, 0, false, false));
+        assert(!hands_off(true, 0, true, true));
+        assert(HANDOFF_IN_PERSONS_NAME);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 3);
+        assert(VERSION == 4);
     }
 }
 
