@@ -56,6 +56,30 @@ export const AGENT_HIVE_TABLE = `CREATE TABLE IF NOT EXISTS agent_hive (
 )`
 
 /**
+ * Standing briefs of a hive (/brief, spec agent-hive-group.t27 v3): one for
+ * the group (thread 0) and one per topic. An empty brief is a deleted row.
+ */
+export const HIVE_BRIEFS_TABLE = `CREATE TABLE IF NOT EXISTS agent_hive_briefs (
+  chat_id bigint NOT NULL,
+  thread_id integer NOT NULL DEFAULT 0,
+  brief text NOT NULL,
+  set_by bigint NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (chat_id, thread_id)
+)`
+
+export const UPSERT_HIVE_BRIEF = `INSERT INTO agent_hive_briefs (chat_id, thread_id, brief, set_by)
+  VALUES ($1, $2, $3, $4)
+  ON CONFLICT (chat_id, thread_id) DO UPDATE SET brief = EXCLUDED.brief,
+    set_by = EXCLUDED.set_by, updated_at = now()`
+
+export const DELETE_HIVE_BRIEF = `DELETE FROM agent_hive_briefs
+  WHERE chat_id = $1 AND thread_id = $2`
+
+export const HIVE_BRIEFS_OF_CHAT = `SELECT thread_id, brief FROM agent_hive_briefs
+  WHERE chat_id = $1`
+
+/**
  * THE TRIAL A NEW BOT ANSWERS FOR, before anybody has paid for it.
  *
  * Every client message is a model call the platform pays for: on a business
@@ -205,6 +229,7 @@ function ensureSchema(d: Db): Promise<void> {
     .query(MANAGED_BOTS_TABLE)
     .then(() => d.query(MANAGED_BOTS_AGENT_COLUMNS))
     .then(() => d.query(AGENT_HIVE_TABLE))
+    .then(() => d.query(HIVE_BRIEFS_TABLE))
     .then(() => undefined)
     .catch(error => {
       // A failed attempt must not latch: the next call retries.
@@ -412,4 +437,21 @@ export async function hivesOf(
     chatId: Number(r.chat_id),
     ownerId: Number(r.owner_id),
   }))
+}
+
+/** Set (or, with an empty text, clear) a brief; thread 0 is the group's. */
+export async function setHiveBrief(
+  chatId: number,
+  threadId: number,
+  brief: string,
+  setBy: number
+): Promise<void> {
+  if (brief) await run(UPSERT_HIVE_BRIEF, [chatId, threadId, brief, setBy])
+  else await run(DELETE_HIVE_BRIEF, [chatId, threadId])
+}
+
+/** Every brief of a hive, by thread (0 is the group's). */
+export async function hiveBriefs(chatId: number): Promise<Map<number, string>> {
+  const rows = await run(HIVE_BRIEFS_OF_CHAT, [chatId])
+  return new Map(rows.map(r => [Number(r.thread_id), String(r.brief)]))
 }

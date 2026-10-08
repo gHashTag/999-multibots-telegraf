@@ -35,7 +35,9 @@ import {
   type RunnerDeps,
 } from '@/core/bot/managedBots/runner'
 import { HIVE_AGENTS, hiveAgent, type HiveAgent } from './catalogue'
-import { agentBotUsername } from './rules'
+import * as SPEC from '@/spec/agent-hive-group.gen'
+import { agentBotUsername, briefFits, maySetBrief, summaryCount } from './rules'
+import { briefFor, lastLines, noteMute, noteStop, saveBrief } from './room'
 import { claimAgent, claimedAgent } from './claims'
 import {
   answerAsAgent,
@@ -79,6 +81,21 @@ export const HIVE_COPY = {
     topicIntro: (a: HiveAgent, bot: string) =>
       `${a.icon} ${a.name.ru} — ${a.role.ru}\nПишите здесь: отвечает ${bot}. В общей теме зовите его тегом или @all.`,
     only: 'Эта команда — для команды платформы.',
+    stopped: (min: number) =>
+      `⏹ Агенты не отвечают друг другу ${min} мин. Людям отвечают как обычно.`,
+    muted: (who: string, min: number) =>
+      `🔕 ${who} в этой теме отвечает только на свой тег — ${min} мин.`,
+    everyone: 'Агенты',
+    briefSet: (topic: boolean) =>
+      topic ? '📌 Вводная темы сохранена.' : '📌 Вводная группы сохранена.',
+    briefCleared: '📌 Вводная убрана.',
+    briefLong: (max: number) => `Вводная длиннее ${max} знаков — сократите.`,
+    briefAdmins: 'Вводную задают только админы группы.',
+    briefShow: (b: string) =>
+      b ? `📌 Сейчас: ${b}` : '📌 Вводной нет. /brief текст — задать.',
+    summaryEmpty: 'В этой теме я пока ничего не видел — сводить нечего.',
+    summaryAsk: (n: number, lines: string) =>
+      `Сведи коротко, по-русски, последние ${n} сообщений темы: о чём договорились, что решено, кто что делает, что открыто.\n\n${lines}`,
   },
   en: {
     title: '🐝 Agents and their bots',
@@ -114,6 +131,23 @@ export const HIVE_COPY = {
     topicIntro: (a: HiveAgent, bot: string) =>
       `${a.icon} ${a.name.en} -- ${a.role.en}\nWrite here and ${bot} answers. In the general topic call it by tag or @all.`,
     only: 'This command is for the platform team.',
+    stopped: (min: number) =>
+      `⏹ The agents stop answering each other for ${min} min. People are answered as usual.`,
+    muted: (who: string, min: number) =>
+      `🔕 ${who} answers only its own tag in this topic for ${min} min.`,
+    everyone: 'Every agent',
+    briefSet: (topic: boolean) =>
+      topic ? '📌 Topic brief saved.' : '📌 Group brief saved.',
+    briefCleared: '📌 Brief cleared.',
+    briefLong: (max: number) =>
+      `The brief is longer than ${max} characters -- please shorten it.`,
+    briefAdmins: "Only the group's admins set a brief.",
+    briefShow: (b: string) =>
+      b ? `📌 Now: ${b}` : '📌 No brief. /brief text -- set one.',
+    summaryEmpty:
+      'I have not seen anything in this topic yet -- nothing to sum up.',
+    summaryAsk: (n: number, lines: string) =>
+      `Sum up briefly, in English, the last ${n} messages of this topic: what was agreed, what was decided, who does what, what is open.\n\n${lines}`,
   },
 } as const
 
@@ -378,6 +412,8 @@ export function installAgentHive(bot: Telegraf<any>, deps: RunnerDeps): void {
     }
   })
 
+  installRoomCommands(bot)
+
   bot.action(/^hive:(new|pause|live|token):([a-z0-9-]+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     if (!ctx.from || !isAdmin(ctx.from.id) || !canManage(ctx.botInfo)) return
@@ -437,6 +473,152 @@ export function installAgentHive(bot: Telegraf<any>, deps: RunnerDeps): void {
       await ctx.reply(copy.failed)
     }
   })
+}
+
+const minutes = (ms: number): number => Math.round(ms / 60_000)
+
+/** The hive group this update is in, with its thread; null elsewhere. */
+function hiveRoom(ctx: any): { chat: number; thread?: number } | null {
+  const chat = ctx.chat
+  if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup'))
+    return null
+  if (!runningAgentBots().some(b => b.hiveChatId === chat.id)) return null
+  const m = ctx.message as
+    | { is_topic_message?: boolean; message_thread_id?: number }
+    | undefined
+  return {
+    chat: chat.id,
+    ...(m?.is_topic_message ? { thread: m.message_thread_id } : {}),
+  }
+}
+
+/** The text after the command word, trimmed. */
+const argOf = (text: string | undefined): string =>
+  String(text ?? '')
+    .replace(/^\/\S+\s*/, '')
+    .trim()
+
+/**
+ * /stop, /mute, /brief and /summary in a hive group (spec agent-hive-group.t27
+ * v2, v3). The manager answers them; the agent bots ignore every command
+ * (answer.ts), so one /stop is one reply, not nine.
+ */
+export function installRoomCommands(
+  bot: Telegraf<any>,
+  ask: (
+    identity: string,
+    text: string,
+    room: string
+  ) => Promise<string> = defaultAsk
+): void {
+  bot.command('stop', async (ctx, next) => {
+    const room = hiveRoom(ctx)
+    if (!room || !ctx.from || ctx.from.is_bot) return next()
+    noteStop(room.chat)
+    await ctx.reply(
+      copyFor(ctx.from.language_code).stopped(minutes(SPEC.STOP_WINDOW_MS))
+    )
+  })
+
+  bot.command('mute', async (ctx, next) => {
+    const room = hiveRoom(ctx)
+    if (!room || !ctx.from || ctx.from.is_bot) return next()
+    const copy = copyFor(ctx.from.language_code)
+    // "/mute @t27_coder_bot" mutes one agent; a bare /mute, all of them.
+    const named = argOf(ctx.message?.text).replace(/^@/, '').toLowerCase()
+    const target = named
+      ? runningAgentBots().find(
+          b =>
+            b.hiveChatId === room.chat && b.botUsername.toLowerCase() === named
+        )
+      : undefined
+    noteMute(room.chat, room.thread, target?.botId)
+    await ctx.reply(
+      copy.muted(
+        target ? `@${target.botUsername}` : copy.everyone,
+        minutes(SPEC.MUTE_MS)
+      )
+    )
+  })
+
+  bot.command('brief', async (ctx, next) => {
+    const room = hiveRoom(ctx)
+    if (!room || !ctx.from) return next()
+    const copy = copyFor(ctx.from.language_code)
+    const text = argOf(ctx.message?.text)
+    // A bare /brief shows the brief in force; it changes nothing.
+    if (!text) {
+      await ctx.reply(copy.briefShow(await briefFor(room.chat, room.thread)))
+      return
+    }
+    const member = await ctx.telegram
+      .getChatMember(room.chat, ctx.from.id)
+      .catch(() => null)
+    const isAdmin =
+      member?.status === 'creator' || member?.status === 'administrator'
+    if (!maySetBrief(isAdmin, ctx.from.is_bot === true)) {
+      await ctx.reply(copy.briefAdmins)
+      return
+    }
+    // "/brief -" clears it: an empty brief is accepted (spec brief_fits).
+    const brief = text === '-' ? '' : text
+    if (!briefFits([...brief].length)) {
+      await ctx.reply(copy.briefLong(SPEC.MAX_BRIEF_CHARS))
+      return
+    }
+    try {
+      await saveBrief(room.chat, room.thread, brief, ctx.from.id)
+      await ctx.reply(
+        brief ? copy.briefSet(room.thread !== undefined) : copy.briefCleared
+      )
+    } catch (error) {
+      logger.error('[agent-hive] /brief not saved', {
+        chat: room.chat,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply(copy.failed)
+    }
+  })
+
+  bot.command('summary', async (ctx, next) => {
+    const room = hiveRoom(ctx)
+    if (!room || !ctx.from || ctx.from.is_bot) return next()
+    const copy = copyFor(ctx.from.language_code)
+    const asked = Number.parseInt(argOf(ctx.message?.text), 10)
+    const count = summaryCount(Number.isInteger(asked) && asked > 0 ? asked : 0)
+    const lines = lastLines(room.chat, room.thread, count)
+    if (!lines.length) {
+      await ctx.reply(copy.summaryEmpty)
+      return
+    }
+    try {
+      await ctx.sendChatAction('typing').catch(() => undefined)
+      const said = lines.map(l => `${l.who}: ${l.text}`).join('\n')
+      // The person who asked pays for the turn, as for any agent turn.
+      const answer = await ask(
+        String(ctx.from.id),
+        copy.summaryAsk(lines.length, said),
+        String(room.chat)
+      )
+      await ctx.reply(answer.slice(0, 4000) || copy.failed)
+    } catch (error) {
+      logger.error('[agent-hive] /summary failed', {
+        chat: room.chat,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply(copy.failed)
+    }
+  })
+}
+
+async function defaultAsk(
+  identity: string,
+  text: string,
+  room: string
+): Promise<string> {
+  const relay = await import('@/services/trinityAgent')
+  const answer = await relay.спроситьАгента(identity, text, { room }) // cyrillic-ok: pre-existing export
+  return answer.текст // cyrillic-ok: pre-existing field
 }
 
 /** At boot: the manager is known as a hive bot before any message arrives. */
