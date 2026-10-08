@@ -96,6 +96,7 @@ export const {
   readsDb,
   evicts,
   retitle,
+  clearsOld,
   tabsOf,
   knownTabs,
   tabCacheSize,

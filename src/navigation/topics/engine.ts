@@ -43,6 +43,8 @@ export interface TopicTabsSpec {
   readonly CLAIM_STALE_MS: number
   readonly TAB_CACHE_MAX: number
   readonly PROBE_METHOD: string
+  /** v4: a refused rename never remakes a tab. */
+  readonly RENAME_REMAKES: boolean
 }
 
 export interface TopicTabsLog {
@@ -244,6 +246,9 @@ export function createTopicTabs(deps: TopicTabsDeps) {
   const readsDb = (cached: boolean): boolean => !cached
   const evicts = (entries: number): boolean => entries >= SPEC.TAB_CACHE_MAX
   const retitle = (storedIsCurrent: boolean): boolean => !storedIsCurrent
+  /** spec v4 clears_old: a remade tab's old thread is deleted first. */
+  const clearsOld = (remaking: boolean, hadThread: boolean): boolean =>
+    remaking && hadThread
 
   // ---- the database ----
 
@@ -433,6 +438,17 @@ export function createTopicTabs(deps: TopicTabsDeps) {
       })
     } catch (e) {
       if (threadMissing(e)) {
+        // spec v4 RENAME_REMAKES: only the probe of /tabs decides a tab is
+        // gone. A rename that says "thread not found" -- the farm's own Bot API
+        // server has said so for topics that were there -- keeps the tab, or
+        // the person would see it twice.
+        if (!SPEC.RENAME_REMAKES) {
+          deps.log.warn('[topic-tabs] rename found no thread; tab kept', {
+            bot,
+            kind,
+          })
+          return false
+        }
         await forgetRowAt(bot, chatId, threadId)
         return true
       }
@@ -496,9 +512,14 @@ export function createTopicTabs(deps: TopicTabsDeps) {
           row = undefined
         }
         let alive = true
+        /** The thread a remade tab replaces: deleted before the new one (v4). */
+        let oldThread: number | undefined
         if (row && opts.probe) {
           alive = await stillThere(api, chatId, row.thread_id)
-          if (!alive) await forgetRowAt(bot, chatId, row.thread_id)
+          if (!alive) {
+            oldThread = row.thread_id
+            await forgetRowAt(bot, chatId, row.thread_id)
+          }
         }
         // A tab the bot named under an older title gets the current one, once:
         // the row then holds the current title, so the next /start does nothing.
@@ -506,6 +527,7 @@ export function createTopicTabs(deps: TopicTabsDeps) {
           if (
             await retitleRow(api, bot, chatId, row.thread_id, name, tab.kind)
           ) {
+            oldThread = row.thread_id
             row = undefined
             alive = false
           }
@@ -514,6 +536,22 @@ export function createTopicTabs(deps: TopicTabsDeps) {
 
         const claimId = newClaimId()
         if (!(await claimRow(bot, chatId, claimId, tab.kind, name))) continue
+        /*
+         * NEVER THE SAME TAB TWICE (spec v4 clears_old). The thread the row
+         * named is deleted before the new tab is made: really gone, the call
+         * is refused and costs nothing; only called gone by the server, it
+         * goes now instead of staying beside its twin. Only the winner of the
+         * claim does it. The tab's conversation is keyed by its kind
+         * (bot-agent-memory.t27), so nothing the agent knows is lost.
+         */
+        if (clearsOld(true, oldThread !== undefined)) {
+          await api
+            .callApi('deleteForumTopic', {
+              chat_id: chatId,
+              message_thread_id: oldThread,
+            })
+            .catch(() => undefined)
+        }
         let threadId = NaN
         try {
           const topic = await api.callApi('createForumTopic', {
@@ -652,6 +690,7 @@ export function createTopicTabs(deps: TopicTabsDeps) {
     readsDb,
     evicts,
     retitle,
+    clearsOld,
     ensureSchema,
     tabsOf,
     rowsOf,
