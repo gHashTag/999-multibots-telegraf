@@ -27,6 +27,13 @@
 
 import type { AgentTool, ToolContext } from './tools'
 import * as SPEC from '../spec/bot-topic-tabs.gen'
+import * as TEAM from '../spec/bot-agent-team.gen'
+import {
+  TAB_CONVERSATION_PREFIX,
+  appHireMakesTab,
+  appLists,
+  offered,
+} from './profession'
 import {
   createTopicTabs,
   errorText,
@@ -332,3 +339,107 @@ export function makeTabsTools(deps: TabsToolDeps = defaultDeps): AgentTool[] {
 }
 
 export const TABS_TOOLS: AgentTool[] = makeTabsTools()
+
+/*
+ * THE SAME TEAM IN THE MINI-APP (bot-agent-team.t27, owner 2026-10-08: "the
+ * same logic in the mini-app"). The team is the person's tabs in their bot:
+ * the app reads it here, and a hire in the app makes the member's tab in the
+ * bot -- one act, wherever it is pressed. A member's chat in the app is its
+ * tab's conversation (`tab<kind>`), so the bot tab and the app chat are one
+ * memory with one trade (profession.ts).
+ */
+
+export interface TeamMember {
+  kind: string
+  title: string
+  /** The conversation of the member's chat; null for the Agent (the base). */
+  conversation: string | null
+  onTeam: boolean
+  /** Shown in the app's team row (spec app_lists). */
+  listed: boolean
+  /** A hire button is offered (spec offered). */
+  offered: boolean
+}
+
+/** The bot whose tabs are the person's team: their own bot, else the one they have tabs in. */
+async function teamBot(
+  rows: readonly { bot: string; thread_id: number }[],
+  telegramId: string,
+  deps: TabsToolDeps
+): Promise<string> {
+  const home = await deps.homeBot(telegramId)
+  const withTabs = [
+    ...new Set(rows.filter(r => r.thread_id > 0).map(r => r.bot)),
+  ]
+  if (home && withTabs.includes(home)) return home
+  return withTabs[0] ?? home ?? DEFAULT_TABS_BOT
+}
+
+export async function teamView(
+  pool: Db,
+  telegramId: string,
+  isRu: boolean,
+  deps: TabsToolDeps = defaultDeps
+): Promise<{ bot: string; botHasTabs: boolean; members: TeamMember[] }> {
+  const rows = (await engineFor(pool).rowsOf(Number(telegramId))) ?? []
+  const bot = await teamBot(rows, telegramId, deps)
+  const kinds = new Set(
+    rows.filter(r => r.bot === bot && r.thread_id > 0).map(r => r.kind)
+  )
+  const botHasTabs = kinds.size > 0
+  const members = TABLE.TABS.map((t, i) => {
+    const core = i < TEAM.TEAM_CORE
+    const onTeam = core || kinds.has(t.kind)
+    return {
+      kind: t.kind,
+      title: isRu ? t.ru : t.en,
+      conversation: core ? null : `${TAB_CONVERSATION_PREFIX}${t.kind}`,
+      onTeam,
+      listed: appLists(onTeam, botHasTabs),
+      offered: botHasTabs && offered(i, onTeam),
+    }
+  })
+  return { bot, botHasTabs, members }
+}
+
+/**
+ * Hire a member from the app: its tab is made in the bot when the person has
+ * tabs there and the member is offered (spec app_hire_makes_tab). Either way
+ * the app opens the member's chat; `made` says whether a tab appeared.
+ */
+export async function hireFromApp(
+  pool: Db,
+  telegramId: string,
+  kind: string,
+  isRu: boolean,
+  deps: TabsToolDeps = defaultDeps
+): Promise<{
+  ok: boolean
+  made: string[]
+  conversation?: string | null
+  error?: string
+}> {
+  const view = await teamView(pool, telegramId, isRu, deps)
+  const member = view.members.find(m => m.kind === kind)
+  if (!member) return { ok: false, made: [], error: 'no such member' }
+  if (!appHireMakesTab(member.offered, view.botHasTabs))
+    return { ok: true, made: [], conversation: member.conversation }
+  const api = await deps.botApi(view.bot)
+  if (!api) return { ok: true, made: [], conversation: member.conversation }
+  let me: any = null
+  try {
+    me = await api.callApi('getMe', {})
+  } catch {
+    return { ok: true, made: [], conversation: member.conversation }
+  }
+  const username = String(me?.username ?? view.bot)
+  const made = await engineFor(pool).ensureTabs(
+    api,
+    username,
+    Number(telegramId),
+    isRu,
+    tab => tabMarkup(tab, username, isRu, me, telegramId),
+    { only: [kind] }
+  )
+  return { ok: true, made, conversation: member.conversation }
+}

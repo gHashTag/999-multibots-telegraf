@@ -349,7 +349,10 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
   const tabsCommand = () => {
     let handler: any
     registerTabsCommand({
-      command: (_: string, h: any) => (handler = h),
+      command: (name: string, h: any) => {
+        if (name === 'tabs') handler = h
+      },
+      action: () => undefined,
     } as any)
     return (tg: any) =>
       handler({

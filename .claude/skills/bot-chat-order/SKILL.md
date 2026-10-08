@@ -1,6 +1,6 @@
 ---
 name: 'Bot Chat Order'
-description: 'Order in the bot private chat: the tabs (forum topics) named after their agents, one agent memory shared by the bot and the mini-app, a pressed menu that leaves instead of piling up. Use when the conversation "resets and starts over", the bot and the mini-app show different chats, a tab has an old name, the same menu repeats under every message, or anything touches src/navigation/topics/ or the act:* handlers.'
+description: 'Order in the bot private chat: a TEAM of agents (one tab per member, the Agent at /start, the rest hired by a press or /team), each with its trade and every tool and the t27 spec bank, the tabs (forum topics) named after their agents, one agent memory shared by the bot and the mini-app, a pressed menu that leaves instead of piling up. Use when the conversation "resets and starts over", the bot and the mini-app show different chats, a tab has an old name, the same menu repeats under every message, or anything touches src/navigation/topics/ or the act:* handlers.'
 ---
 
 # Bot Chat Order
@@ -69,6 +69,36 @@ npx vitest run src/spec/bot-agent-memory.test.ts src/spec/bot-topic-tabs.test.ts
   | story reel news                               | Director  | `notifyInBot(…, 'reel')`                         |
 
   The render reads `bot_topic_tabs` from the same Postgres and compares the bot name without case. No tab, or a thread the sender named, and the message goes where it went before. The KIE webhook videos (`sendVideoDirectly`, Sora, `notifyJobCompletion`) and the lipsync result take `botInTab(bot, chatId, 'reel')` -- in the webhook AFTER `claimVideoJobDelivery`, because the claim must come before any await (`reelDeliveriesLandInTheDirectorTab.test.ts`).
+
+## The team of agents, every tool, every spec (2026-10-08)
+
+Owner: "as soon as a person enters the bot, chats with agents are made for his
+interests; each agent its own chat named after its profession -- a team of
+agents, not folders" (after OpenAI's dots), and the same hour: "give the agents
+access to every spec and every tool". Specs: `bot-agent-team.t27`,
+`agent-spec-bank.t27` (t27#7855).
+
+| What                                                                                                                                            | Where                                                                            | Law                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
+| First /start makes the Agent alone, plus the member the link named (`?start=app_story` brings the Director)                                     | `topics/team.ts` `startingKinds`, engine option `only`                           | `joins_at_start`, `tended`             |
+| The Agent tab's first card and `/team` offer the rest, 2 a row; `team:<kind>` makes that one tab                                                | `topics/wire.ts` `teamRows`, `registerTabsCommand`                               | `offered`, `HIRE_BUTTONS_PER_ROW`      |
+| /tabs looks after the stored tabs and makes nobody new                                                                                          | `ensureTabsQuietly` default `only`                                               | `tended`                               |
+| A fixed tab's turn is that member's: its trade and lead tools in the prompt                                                                     | render `agent/profession.ts`, `routes.ts` passes `profession: gate.conversation` | `has_trade`, `leads_with`              |
+| Every member is shown EVERY tool; a trade is a lead, never a fence                                                                              | `shownTools`                                                                     | `EVERY_TOOL_FOR_EVERY_MEMBER`          |
+| Every agent searches and reads `specs/` of gHashTag/t27 (free, listing kept 10 min, read cut at 16000, fallback to the render's own `src/spec`) | render `agent/spec-bank-tools.ts`, tool `t27_specs`                              | `found`, `path_readable`, `falls_back` |
+
+Traps:
+
+- `registerTabsCommand` now registers `/tabs`, `/team` and a `bot.action`. A
+  test double with only `command` silently loses `/tabs` to `/team` -- route
+  by name and give it an `action`.
+- A hire edit keeps the card's other buttons (`keptRows`): the Agent tab's
+  first card also carries the door to the app.
+- `teamMarkup` returns `{}` for a whole team: Telegram refuses an inline
+  keyboard with no buttons.
+- People who already had six tabs keep them: a stored tab is always tended.
+- The render's `tabs_setup` tool still makes every tab -- it is the person's
+  explicit ask through their agent, not the /start path.
 
 ## Common Issues
 
