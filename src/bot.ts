@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { inEventTab } from '@/navigation/topics/eventTabs'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { createClientTelemetryMiddleware } from '@/core/telemetry/telemetryMiddleware'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
@@ -49,6 +50,9 @@ import { message } from 'telegraf/filters'
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
+
+/** A payment's news in the Treasurer's tab of the private chat (bot-event-tabs.t27). */
+const paidInTreasurerTab = inEventTab('payment', handleSuccessfulPayment as any)
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -166,7 +170,8 @@ async function initializeBots() {
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
+    // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+    bot.on('successful_payment', paidInTreasurerTab as any)
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
     // bot.on(message('text'), handleTextMessage)
@@ -210,6 +215,7 @@ async function initializeBots() {
         'business_connection' as any,
         'business_message' as any,
         'inline_query',
+        'stopped_message_generation' as any,
       ],
     })
     logger.debug(
@@ -268,7 +274,8 @@ async function initializeBots() {
 
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-        bot.on('successful_payment', handleSuccessfulPayment as any)
+        // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+        bot.on('successful_payment', paidInTreasurerTab as any)
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)
@@ -323,6 +330,7 @@ async function initializeBots() {
               'business_connection' as any,
               'business_message' as any,
               'inline_query',
+              'stopped_message_generation' as any,
             ],
           })
           logger.debug(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
@@ -353,6 +361,7 @@ async function initializeBots() {
               'business_connection' as any,
               'business_message' as any,
               'inline_query',
+              'stopped_message_generation' as any,
             ],
           })
           logger.debug(
