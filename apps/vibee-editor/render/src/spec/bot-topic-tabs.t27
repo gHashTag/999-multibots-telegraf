@@ -18,13 +18,18 @@
 // v3 (2026-10-08): each tab is named after the agent who works in it -- Agent, Director,
 // Navigator, Builder, Treasurer, Queen -- not after a feature; a fixed tab whose stored title
 // is not the current one is renamed once, and its row then holds the current title.
+// v4 (2026-10-08): the owner's tabs were doubled. A refused rename never remakes a tab (a name
+// is a convenience), and before a tab reported missing is made again, its old thread is
+// deleted: a thread that is really gone costs one refused call, one the server only called
+// missing goes away, so a person never sees the same tab twice. The tab's memory is keyed by
+// its kind (bot-agent-memory.t27), so the conversation survives the new thread.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_topic_tabs {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-topic-tabs";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- the table, in the order of the tab column ----
 
@@ -152,6 +157,15 @@ module automation::bot_topic_tabs {
         return !stored_is_current;
     }
 
+    // A rename Telegram refuses, whatever it says, keeps the tab and its old name: only the
+    // probe of /tabs decides that a tab is gone, never a rename.
+    pub const RENAME_REMAKES : bool = false;
+
+    // Before a tab is made again, the thread its row named is deleted, when there was one.
+    fn clears_old(remaking: bool, had_thread: bool) -> bool {
+        return remaking && had_thread;
+    }
+
     // ---- setting the tabs up from outside the chat ----
 
     // An agent may read or make a person's tabs without that person pressing /start. Its
@@ -275,8 +289,16 @@ module automation::bot_topic_tabs {
         assert(evicts(5000));
     }
 
+    test "a tab is never doubled: a rename never remakes, a remake clears the old thread" {
+        assert(!RENAME_REMAKES);
+        assert(clears_old(true, true));
+        assert(!clears_old(true, false));
+        assert(!clears_old(false, true));
+        assert(!clears_old(false, false));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 3);
+        assert(VERSION == 4);
     }
 }
 
