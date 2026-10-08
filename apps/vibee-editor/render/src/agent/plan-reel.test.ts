@@ -99,10 +99,25 @@ describe('the course, read from its own spec', () => {
       title: 'Биты',
       goal: 'Как.',
     })
-    expect(card.note).toBe(`Как.\n${SPEC.LESSON_ROUTE}bits-and-trits`)
-    expect(lessonLinkIn(card.note)).toBe(`${SPEC.LESSON_ROUTE}bits-and-trits`)
-    expect(cardCall(card.note)).toBe('t27.ai/#/course/bits-and-trits')
+    expect(card.note).toBe(`Как.\n${SPEC.LESSON_ROUTE}bits-and-trits/`)
+    expect(lessonLinkIn(card.note)).toBe(`${SPEC.LESSON_ROUTE}bits-and-trits/`)
+    expect(cardCall(card.note)).toBe('t27.ai/learn/bits-and-trits/')
     expect(cardCall('no lesson here, t27.ai/#/blog')).toBe('')
+  })
+
+  // v2: a crawler drops what follows '#'; t27.ai/#/... previews as the home
+  // page wherever it is shared (owner's screenshot, 2026-10-08).
+  it('never hands out a #/ address, and reads a v1 card as its lesson page', () => {
+    expect(SPEC.LESSON_ROUTE).not.toContain('#')
+    expect(
+      cardCall(lessonCard({ id: 'x', title: 't', goal: 'g' }).note)
+    ).not.toContain('#')
+    expect(
+      lessonLinkIn('Old card.\nhttps://t27.ai/#/course/bits-and-trits')
+    ).toBe(`${SPEC.LESSON_ROUTE}bits-and-trits/`)
+    expect(cardCall('https://t27.ai/#/course/bits-and-trits')).toBe(
+      't27.ai/learn/bits-and-trits/'
+    )
   })
 })
 

@@ -106,5 +106,23 @@
     "file": "src/agent/crm-story-tool.ts",
     "from": "            ? { itemId: Number(args.item_id) }",
     "to": "            ? {}"
+  },
+  {
+    "name": "a v1 card's lesson is lost",
+    "file": "src/agent/plan-reel.ts",
+    "from": "const m = LESSON_IN_TEXT.exec(text) ?? V1_LESSON_IN_TEXT.exec(text)",
+    "to": "const m = LESSON_IN_TEXT.exec(text)"
+  },
+  {
+    "name": "a lesson's address is its #/ route again",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return `${SPEC.LESSON_ROUTE}${id}/`",
+    "to": "return `https://t27.ai/#/course/${id}`"
+  },
+  {
+    "name": "a lesson's page loses its slash",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return `${SPEC.LESSON_ROUTE}${id}/`",
+    "to": "return `${SPEC.LESSON_ROUTE}${id}`"
   }
 ]
