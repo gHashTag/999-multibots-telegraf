@@ -1186,7 +1186,11 @@ export async function handleAgentChat(
         telegramId,
         {
           role: 'user',
-          content: String(последняя.content ?? ''),
+          content: roomLine(
+            body.speaker,
+            String(последняя.content ?? ''),
+            gate.room
+          ),
           surface: поверхность,
         },
         thread
@@ -2075,6 +2079,23 @@ export async function handleAgentTeam(
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
+}
+
+/**
+ * The question as a room's memory keeps it (bot-neuro-office.t27 v2
+ * names_speaker): "Anna: ..." when the turn is in a room and the bot named
+ * who asked, the text as it came anywhere else. The bot cuts the name to the
+ * spec's bound; here it is only kept on one line. The model is asked the bare
+ * text, so a member named first ("Treasurer, ...") is still found.
+ */
+export function roomLine(
+  speaker: unknown,
+  content: string,
+  room: unknown
+): string {
+  if (!room || typeof speaker !== 'string') return content
+  const name = speaker.replace(/\s+/g, ' ').trim()
+  return name ? `${name}: ${content}` : content
 }
 
 /**

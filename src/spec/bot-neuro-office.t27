@@ -11,13 +11,19 @@
 // groupAddressing.ts stands: in a room the bot speaks only when spoken to.
 // v1 (2026-10-08): opening an office, the whole team in it, when an agent answers among
 // people, the member a channel speaks as, no pay buttons in a room.
+// v2 (2026-10-08): the agent hears the room. A person's message that is not addressed to the
+// agent is kept in the room's memory and never answered, so "Director, do what Anna said"
+// has something to go on (ChatGPT group chats and channel agents read the whole thread and
+// speak only when asked). Every person's line in a room names who said it, the name cut to
+// 64 characters. Only in an
+// office: a plain group the bot sits in is not heard.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- opening an office ----
 
@@ -57,6 +63,45 @@ module automation::bot_neuro_office {
         return !room || ROOM_PAY_BUTTONS;
     }
 
+    // ---- hearing the room (v2) ----
+
+    // In an office the agent keeps what people say to each other, so a turn asked later
+    // knows the conversation it is part of. It keeps it and says nothing: hearing is not
+    // answering (answers above still decides that).
+    pub const HEARS_PEOPLE : bool = true;
+
+    // A line is heard when it is in an office, nobody addressed the agent with it, a person
+    // (not a bot) wrote it, and it is no command.
+    fn hears(office: bool, addressed: bool, from_bot: bool, is_command: bool) -> bool {
+        return HEARS_PEOPLE && office && !addressed && !from_bot && !is_command;
+    }
+
+    // A heard line is kept up to this many characters; the rest is cut, so a pasted log
+    // cannot push the conversation out of the agent's window.
+    pub const HEARD_MAX_CHARS : u32 = 1000;
+
+    fn heard_chars(chars: u32) -> u32 {
+        if chars > HEARD_MAX_CHARS { return HEARD_MAX_CHARS; }
+        return chars;
+    }
+
+    // Several people share one room memory, so every person's line there -- heard or asked
+    // -- names who said it ("Anna: ..."). A private chat holds one person and names nobody.
+    pub const ROOM_LINE_NAMES_SPEAKER : bool = true;
+
+    fn names_speaker(room: bool) -> bool {
+        return room && ROOM_LINE_NAMES_SPEAKER;
+    }
+
+    // A speaker's name is a label, not a message: it is cut to this many characters before
+    // it names a line, so a name cannot carry a paragraph into the room's memory.
+    pub const SPEAKER_NAME_MAX_CHARS : u32 = 64;
+
+    fn speaker_chars(chars: u32) -> u32 {
+        if chars > SPEAKER_NAME_MAX_CHARS { return SPEAKER_NAME_MAX_CHARS; }
+        return chars;
+    }
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -89,8 +134,34 @@ module automation::bot_neuro_office {
         assert(pay_buttons_in(false));
     }
 
+    test "in an office the agent hears what people say to each other, and only that" {
+        assert(HEARS_PEOPLE);
+        assert(hears(true, false, false, false));
+        assert(!hears(false, false, false, false));
+        assert(!hears(true, true, false, false));
+        assert(!hears(true, false, true, false));
+        assert(!hears(true, false, false, true));
+    }
+
+    test "a heard line is kept up to a thousand characters" {
+        assert(HEARD_MAX_CHARS == 1000);
+        assert(heard_chars(999) == 999);
+        assert(heard_chars(1000) == 1000);
+        assert(heard_chars(1001) == 1000);
+        assert(heard_chars(0) == 0);
+    }
+
+    test "a person's line in a room names who said it; a private chat names nobody" {
+        assert(names_speaker(true));
+        assert(!names_speaker(false));
+        assert(SPEAKER_NAME_MAX_CHARS == 64);
+        assert(speaker_chars(64) == 64);
+        assert(speaker_chars(65) == 64);
+        assert(speaker_chars(3) == 3);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
