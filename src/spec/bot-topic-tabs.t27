@@ -15,19 +15,26 @@
 // when the claim was taken; no topic is named while a tab is being made; /tabs probes the
 // topic itself (editForumTopic, no change); a person's tabs are set up remotely only by
 // that person or a keeper.
+// v3 (2026-10-08): each tab is named after the agent who works in it -- Agent, Director,
+// Navigator, Builder, Treasurer, Queen -- not after a feature; a fixed tab whose stored title
+// is not the current one is renamed once, and its row then holds the current title.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_topic_tabs {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-topic-tabs";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- the table, in the order of the tab column ----
 
     pub const TAB_COUNT : u32 = 6;
     pub const TAB_KEYS : [6]str = ["agent", "reels", "browser", "mybot", "wallet", "hive"];
-    pub const TAB_TITLES_EN : [6]str = ["Agent", "Reels", "Browser", "My bot", "Balance & club", "Hive"];
+    // Each title names the agent who works in that tab (owner 2026-10-08: "name the threads
+    // after the agents"): the main agent, the one who directs reels, the one who drives the
+    // person's browser, the one who builds the person's own bot, the one who keeps the
+    // balance and the club, and the Queen of the hive.
+    pub const TAB_TITLES_EN : [6]str = ["Agent", "Director", "Navigator", "Builder", "Treasurer", "Queen"];
     // Unicode code points of the emoji that opens each title:
     // robot face, clapper board, globe Europe-Africa, hammer and wrench, money bag, honeybee.
     pub const TAB_EMOJI : [6]u32 = [129302, 127916, 127757, 128736, 128176, 128029];
@@ -136,6 +143,15 @@ module automation::bot_topic_tabs {
         return !known && !fixed_name && !is_command && !claim_pending;
     }
 
+    // A fixed tab keeps the title the bot gave it at creation; when the table's title changes
+    // (v3 renamed every tab), a tab whose stored title is not the current one is renamed with
+    // editForumTopic, once: after the rename its row holds the current title, so the next
+    // /start or /tabs finds nothing to do. Only the bot's own stored title is compared, so a
+    // tab already carrying the current title is never edited.
+    fn retitle(stored_is_current: bool) -> bool {
+        return !stored_is_current;
+    }
+
     // ---- setting the tabs up from outside the chat ----
 
     // An agent may read or make a person's tabs without that person pressing /start. Its
@@ -232,6 +248,11 @@ module automation::bot_topic_tabs {
         assert(!settle_won(2));
     }
 
+    test "a fixed tab named under an older title is renamed once to the current one" {
+        assert(retitle(false));
+        assert(!retitle(true));
+    }
+
     test "a person's tabs are set up by that person or a keeper" {
         assert(may_set_up(true, false));
         assert(may_set_up(false, true));
@@ -255,7 +276,7 @@ module automation::bot_topic_tabs {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 2);
+        assert(VERSION == 3);
     }
 }
 

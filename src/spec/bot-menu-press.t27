@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-menu-press.t27 -- what a pressed menu leaves behind in the bot's chat.
+// Host: 999-multibots-telegraf src/navigation/helpers/pressedMenu.ts (the act:* handlers in
+// src/navigation/registerCommands.ts).
+// Trace: owner 2026-10-08 "the agent keeps writing the same menu everywhere, asked and
+// unasked -- put the logic in order".
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: routing contract. A press on a standard menu button is answered with a new
+// message that carries what that answer earned. The pressed message then drops its standard
+// menu buttons, so the same menu does not pile up under every message, and keeps every other
+// button it had (a pay link, a look, the app). The rule needs no Bot API newer than 6.x:
+// editMessageReplyMarkup works on the cloud and on a self-hosted Bot API server alike.
+// v1 (2026-10-08): which buttons a pressed message keeps, when it is edited, when its keyboard
+// goes, and that the answer never waits for the old menu to go.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_menu_press {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-menu-press";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // A pressed message keeps a button unless it is a standard menu action (its callback names
+    // an action of the standard menu). A url button, a look, the app and any other callback stay.
+    fn keeps_button(is_menu_action: bool) -> bool {
+        return !is_menu_action;
+    }
+
+    // The pressed message is edited only when a button was removed: Telegram refuses an edit
+    // that changes nothing ("message is not modified").
+    fn edits_markup(removed: u32) -> bool {
+        return removed > 0;
+    }
+
+    // With no button left the keyboard is removed, never sent empty: Telegram rejects an inline
+    // keyboard without buttons.
+    fn removes_keyboard(kept: u32) -> bool {
+        return kept == 0;
+    }
+
+    // The answer to the press never waits for the old menu to go. An edit Telegram refuses (the
+    // message is too old to edit, or already changed) costs the person nothing.
+    pub const ANSWER_WAITS_FOR_EDIT : bool = false;
+
+    // ---- tests ----
+
+    test "a pressed message keeps every button but the standard menu" {
+        assert(keeps_button(false));
+        assert(!keeps_button(true));
+    }
+
+    test "the pressed message is edited only when a button was removed" {
+        assert(!edits_markup(0));
+        assert(edits_markup(1));
+        assert(edits_markup(5));
+    }
+
+    test "with no button left the keyboard is removed, not sent empty" {
+        assert(removes_keyboard(0));
+        assert(!removes_keyboard(1));
+        assert(!removes_keyboard(3));
+    }
+
+    test "the answer never waits for the old menu to go" {
+        assert(!ANSWER_WAITS_FOR_EDIT);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

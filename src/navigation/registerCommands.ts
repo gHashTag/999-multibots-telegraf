@@ -52,6 +52,7 @@ import {
   standardButtons,
   buttonsForAnswer,
 } from '@/navigation/helpers/actionButtons'
+import { leavePressedMenu } from '@/navigation/helpers/pressedMenu'
 import {
   type AgentMiss,
   fallbackFailedText,
@@ -2892,6 +2893,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
+    // The pressed message drops its menu: the answer below carries the live one
+    // (spec bot-menu-press.t27, owner 2026-10-08 "the same menu everywhere").
+    await leavePressedMenu(ctx)
     // "Top up" means the balance, never the plan somebody selected earlier and
     // abandoned: a stale selectedPayment would hijack this press.
     ctx.session.selectedPayment = undefined
@@ -2905,6 +2909,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_rub`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // A bot that hides rubles gets the chooser instead of a door it does not
     // have: the same press must never dead-end.
@@ -2918,6 +2923,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_crypto`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // Into the payment scene, straight onto its crypto menu: the
     // crypto_select_* presses are handled inside that scene only.
@@ -2926,6 +2932,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}balance`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
@@ -2943,6 +2950,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
    */
   bot.action(`${ACTION_PREFIX}can`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     /*
      * Answered from the preflight rather than from a written list: a menu
@@ -2967,6 +2975,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}human`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     // The support handle: the bot's avatar names one, else the house default.
     let support: string = SUPPORT_HANDLE

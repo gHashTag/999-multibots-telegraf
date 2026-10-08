@@ -93,6 +93,7 @@ export const {
   maySetUp,
   readsDb,
   evicts,
+  retitle,
   tabsOf,
   knownTabs,
   tabCacheSize,
