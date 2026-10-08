@@ -12,6 +12,11 @@ import { askBuyerModel } from './crm-duet-tool'
 import { allProviders, diagnose } from './provider'
 import { botNameOf, tokenForBot } from './bot-farm'
 import { telegramApiFor } from '../telegram-api'
+import {
+  eventThread,
+  eventThreadForToken,
+  type EventKey,
+} from '../topic-event-tabs'
 import { appLinkFor, isLinkableRoute } from '../app-links'
 import { PAGE_ROUTE } from '../spec/crm-story-reel.gen'
 import { issueFor, pendingFor } from './tg-proposals'
@@ -38,7 +43,9 @@ export async function notifyInBot(
   chatId: string,
   text: string,
   extra: Parameters<StoryDeps['notify']>[3] = {},
-  doFetch: typeof fetch = fetch
+  doFetch: typeof fetch = fetch,
+  /** The event this is (bot-event-tabs.t27): it lands in that agent's tab. */
+  event?: EventKey
 ): Promise<boolean> {
   const main = mainToken()
   const farm = bot ? await tokenForBot(bot).catch(() => null) : null
@@ -52,9 +59,21 @@ export async function notifyInBot(
         inline_keyboard: [[{ text: extra.button.text, url: extra.button.url }]],
       }
     : undefined
+  const thread = !event
+    ? undefined
+    : farm
+      ? await eventThread(bot, chatId, event)
+      : await eventThreadForToken(token, chatId, event)
+  const where = thread !== undefined ? { message_thread_id: thread } : {}
   const body = withVideo
-    ? { chat_id: chatId, video: extra!.video, caption: text, reply_markup }
-    : { chat_id: chatId, text, reply_markup }
+    ? {
+        chat_id: chatId,
+        ...where,
+        video: extra!.video,
+        caption: text,
+        reply_markup,
+      }
+    : { chat_id: chatId, ...where, text, reply_markup }
   try {
     const r = await doFetch(
       `${telegramApiFor(token)}/${withVideo ? 'sendVideo' : 'sendMessage'}`,
@@ -155,7 +174,9 @@ export function makeStoryDeps(
         })
       return tool.handler(args, ctx)
     },
-    notify: (bot, chatId, text, extra) => notifyInBot(bot, chatId, text, extra),
+    // A reel's news lands in the Director's tab (bot-event-tabs.t27).
+    notify: (bot, chatId, text, extra) =>
+      notifyInBot(bot, chatId, text, extra, fetch, 'reel'),
     botOf: lead => botNameOf(lead),
     offerCard: o => offerGroupCard(liveCardPort(pool, lookup), o),
     groupTitle: async (seller, lead, chat) => {
