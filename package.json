@@ -52,7 +52,6 @@
     "test:inngest:unit": "cd src/inngest_app && vitest run test/unit",
     "test:mcp": "npx tsx src/inngest_app/test-mcp.ts",
     "test:vitest": "vitest run",
-    "test:network": "DETECT_NETWORK=1 vitest run --silent && node scripts/report-network-tests.cjs",
     "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "tunnel:3001": "cloudflared tunnel --url http://localhost:3001",
     "typecheck": "tsc --noEmit",

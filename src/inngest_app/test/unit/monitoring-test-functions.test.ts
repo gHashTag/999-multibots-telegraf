@@ -157,8 +157,9 @@ describe('Monitoring & Test Functions', () => {
    * So this skip is load-bearing in a way the others are not: with a REAL
    * key in the environment these tests would spend money against OpenAI on
    * every run. Do not re-enable by adding a key. Re-enable only after the
-   * client is mocked, and confirm with `npm run test:network`, which exists
-   * to census exactly this.
+   * client is mocked: the root setup's network guard then fails the test
+   * by file and host if a call still leaves the machine
+   * (apps/vibee-editor/packages/test-guard/no-network.mjs).
    */
   describe.skip('criticalErrorMonitor', () => {
     it('должен проверять здоровье системы', async () => {
@@ -324,8 +325,9 @@ describe('Monitoring & Test Functions', () => {
    * So this skip is load-bearing in a way the others are not: with a REAL
    * key in the environment these tests would spend money against OpenAI on
    * every run. Do not re-enable by adding a key. Re-enable only after the
-   * client is mocked, and confirm with `npm run test:network`, which exists
-   * to census exactly this.
+   * client is mocked: the root setup's network guard then fails the test
+   * by file and host if a call still leaves the machine
+   * (apps/vibee-editor/packages/test-guard/no-network.mjs).
    */
   describe.skip('logMonitor', () => {
     it('должен мониторить логи с базовыми параметрами', async () => {
@@ -478,8 +480,9 @@ describe('Monitoring & Test Functions', () => {
    * So this skip is load-bearing in a way the others are not: with a REAL
    * key in the environment these tests would spend money against OpenAI on
    * every run. Do not re-enable by adding a key. Re-enable only after the
-   * client is mocked, and confirm with `npm run test:network`, which exists
-   * to census exactly this.
+   * client is mocked: the root setup's network guard then fails the test
+   * by file and host if a call still leaves the machine
+   * (apps/vibee-editor/packages/test-guard/no-network.mjs).
    */
   describe.skip('testSimpleFunction', () => {
     it('должен выполнять простой тест', async () => {
@@ -566,8 +569,9 @@ describe('Monitoring & Test Functions', () => {
    * So this skip is load-bearing in a way the others are not: with a REAL
    * key in the environment these tests would spend money against OpenAI on
    * every run. Do not re-enable by adding a key. Re-enable only after the
-   * client is mocked, and confirm with `npm run test:network`, which exists
-   * to census exactly this.
+   * client is mocked: the root setup's network guard then fails the test
+   * by file and host if a call still leaves the machine
+   * (apps/vibee-editor/packages/test-guard/no-network.mjs).
    */
   describe.skip('testSimpleMessageFunction', () => {
     it('должен отправлять простое сообщение', async () => {
@@ -673,8 +677,9 @@ describe('Monitoring & Test Functions', () => {
    * So this skip is load-bearing in a way the others are not: with a REAL
    * key in the environment these tests would spend money against OpenAI on
    * every run. Do not re-enable by adding a key. Re-enable only after the
-   * client is mocked, and confirm with `npm run test:network`, which exists
-   * to census exactly this.
+   * client is mocked: the root setup's network guard then fails the test
+   * by file and host if a call still leaves the machine
+   * (apps/vibee-editor/packages/test-guard/no-network.mjs).
    */
   describe.skip('testAdvancedLoopFunction', () => {
     it('должен выполнять простой цикл', async () => {

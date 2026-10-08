@@ -22,6 +22,12 @@ vi.mock('@/lib/traffic', () => ({
   },
 }))
 vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
+/* A pay outcome is a POST to the production render (apps/vibee-editor/packages/test-guard/no-network.mjs):
+ * kept here, never sent. */
+vi.mock('@/lib/payOutcome', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/payOutcome')>()),
+  reportPayOutcome: () => undefined,
+}))
 vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
   ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
   useAgentAcceptance: () => null,
