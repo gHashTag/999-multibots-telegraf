@@ -124,5 +124,71 @@
     "file": "src/agent/plan-reel.ts",
     "from": "return `${SPEC.LESSON_ROUTE}${id}/`",
     "to": "return `${SPEC.LESSON_ROUTE}${id}`"
+  },
+  {
+    "name": "no poster drawn when a reel comes out",
+    "file": "src/agent/story-template.ts",
+    "from": "    if (deps.poster) await keepPoster(pool, deps.poster, id, url)\n",
+    "to": "\n"
+  },
+  {
+    "name": "the sweep never draws a missing poster",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (deps.poster) void sweepPosters(pool, deps.poster).catch(() => undefined)\n",
+    "to": "\n"
+  },
+  {
+    "name": "a tried poster is drawn again",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return reelOut && poster === SPEC.POSTER_NONE",
+    "to": "  return reelOut && poster !== SPEC.POSTER_KEPT"
+  },
+  {
+    "name": "the sweep is unbounded",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return Math.min(waiting, SPEC.POSTER_SWEEP_MAX)",
+    "to": "  return waiting"
+  },
+  {
+    "name": "a tried poster read as kept",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return String(stored).trim() ? SPEC.POSTER_KEPT : SPEC.POSTER_TRIED",
+    "to": "  return SPEC.POSTER_KEPT"
+  },
+  {
+    "name": "ffmpeg handed a local path",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  if (!/^https?:\\/\\//.test(video)) return null",
+    "to": "  if (!video) return null"
+  },
+  {
+    "name": "the claim forgets a drawn poster",
+    "file": "src/agent/reel-poster.ts",
+    "from": "`UPDATE story_jobs SET poster = '' WHERE id = $1 AND poster IS NULL RETURNING id`",
+    "to": "`UPDATE story_jobs SET poster = '' WHERE id = $1 RETURNING id`"
+  },
+  {
+    "name": "the seek after the input",
+    "file": "src/agent/reel-poster.ts",
+    "from": "    '-ss',\n    (SPEC.PREVIEW_SEEK_MS / 1000).toFixed(3),\n    '-i',\n    video,",
+    "to": "    '-i',\n    video,\n    '-ss',\n    (SPEC.PREVIEW_SEEK_MS / 1000).toFixed(3),"
+  },
+  {
+    "name": "plan_list drops the poster",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          poster: made.posters.get(Number(it.id)),\n",
+    "to": "\n"
+  },
+  {
+    "name": "a card shows another card's poster",
+    "file": "src/agent/plan-reel.ts",
+    "from": "          const poster = posterOf(x.poster)",
+    "to": "          const poster = posterOf(x.poster) ?? [...posters.values()][0]"
+  },
+  {
+    "name": "my reels drop the poster",
+    "file": "src/agent/story-template.ts",
+    "from": "    ...(x.url && posterOf(x.poster) ? { poster: posterOf(x.poster) } : {}),\n",
+    "to": "\n"
   }
 ]

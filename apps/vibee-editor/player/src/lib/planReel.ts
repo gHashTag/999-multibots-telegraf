@@ -28,6 +28,17 @@ export function previewShown(url: string | null | undefined): boolean {
   return typeof url === 'string' && /^https?:\/\//.test(url)
 }
 
+/**
+ * spec picture_of, on what the server answers (plan-reel v3): it sends a
+ * poster only when one is kept, so a web address is POSTER_KEPT and anything
+ * else leaves the frame to the browser.
+ */
+export function pictureOf(poster: string | null | undefined): number {
+  return typeof poster === 'string' && /^https?:\/\//.test(poster)
+    ? SPEC.PICTURE_POSTER
+    : SPEC.PICTURE_FRAME
+}
+
 /** The trial is the plan's first reel (spec scenes_for): a smaller press. */
 export function isTrial(scenes: number): boolean {
   return scenes === SPEC.TRIAL_SCENES

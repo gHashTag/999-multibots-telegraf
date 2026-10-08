@@ -24,6 +24,7 @@ const mine = vi.hoisted(() => ({
     topic: string
     status: string
     url: string | null
+    poster?: string
   }>,
 }))
 vi.mock('@/lib/crm', () => ({
@@ -94,6 +95,7 @@ describe('the story-reels card', () => {
         topic: 'd',
         status: 'done',
         url: 'https://bucket.example/4.mp4',
+        poster: 'https://shelf.example/s3/4.jpg',
       },
       { id: 3, topic: 'c', status: 'failed', url: null },
       {
@@ -116,6 +118,17 @@ describe('the story-reels card', () => {
       'https://bucket.example/6.mp4',
       'https://bucket.example/4.mp4',
       'https://bucket.example/2.mp4',
+    ])
+    // The server's poster where one is kept (plan-reel v3), the frame else.
+    expect(pics.map(a => a.querySelector('img')?.getAttribute('src'))).toEqual([
+      undefined,
+      'https://shelf.example/s3/4.jpg',
+      undefined,
+    ])
+    expect(pics.map(a => !!a.querySelector('video'))).toEqual([
+      true,
+      false,
+      true,
     ])
     // The door to /story is still there, after the pictures.
     expect(host.querySelector('a[href="/story"]')).not.toBeNull()

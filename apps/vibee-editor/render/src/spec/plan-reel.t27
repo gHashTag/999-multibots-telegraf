@@ -8,7 +8,9 @@
 //       next press's price; plan_course_add takes the course in), crm-story-tool.ts
 //       (my_story_reel item_id), story-template.ts (the job made of THAT card); the player's
 //       components/Profile/ProfilePlan.tsx (the press and the preview on a card),
-//       components/Story/MyStoryWidget.tsx and components/Profile/StoryCard.tsx (previews).
+//       components/Story/MyStoryWidget.tsx and components/Profile/StoryCard.tsx (previews);
+//       the render's agent/reel-poster.ts (the poster, drawn when a reel is out and by the
+//       story sweep) and the player's components/Story/ReelPreview.tsx (poster or frame).
 // Generated: `t27c gen-ts` of this file is vendored into the host as
 //       apps/vibee-editor/render/src/spec/plan-reel.gen.ts and copied to the player's
 //       src/spec/. The host imports the numbers below and never restates them; a host test
@@ -38,6 +40,15 @@
 //   - A reel that came out stands on its card as a picture: its frame at PREVIEW_SEEK_MS,
 //     9:16, muted, never playing by itself; a press on it opens the reel.
 //   - The cabinet's story card shows the last PREVIEWS_MAX reels that came out.
+//   - A reel that came out gets a poster: its frame at PREVIEW_SEEK_MS, drawn once by the
+//     server, POSTER_W wide (the card's width at POSTER_DENSITY). Where the poster stands,
+//     the picture is the poster and the video is not fetched; where none does, the browser
+//     draws the frame (v3).
+//   - The reel is out before its poster is drawn: a poster that fails never delays the reel,
+//     never fails it, and is never charged.
+//   - A poster is tried once. The sweep draws the posters of reels that came out without one
+//     (before v3, or their process died), at most POSTER_SWEEP_MAX a round; a poster that
+//     could not be drawn is marked tried and left to the browser's frame (v3).
 // Claim status: v1 written 2026-10-08 with its host; the first trial reel is the owner's
 //       press on one lesson card after the deploy -- not yet made when this was written.
 // v1 (2026-10-08): the press on a card, the trial, the course's lesson call, the course
@@ -48,6 +59,11 @@
 //       the lesson's own static page, t27.ai/learn/<id>/ (one per lesson, ids unique across
 //       the courses), which carries the lesson's card: the call at the end of a reel and the
 //       link in a lesson card's note both name it.
+// v3 (2026-10-08, the owner: "measure the trial reel, and why do previews keep breaking"):
+//       the preview drew a story reel's frame in the browser from the video itself. Each card
+//       fetched the video's metadata to show one frame, and a phone's webview may draw
+//       nothing before playback. The feed's videos already carry a server-drawn cover; the
+//       story reel did not. Now the server draws the poster once and the card shows it.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::plan_reel {
@@ -55,7 +71,7 @@ module automation::plan_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "plan-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- A card's status, as the plan stores it ------------------------------------------
     pub const STATUS_IDEA : u8 = 0;   // not made yet
@@ -87,6 +103,16 @@ module automation::plan_reel {
     pub const PREVIEW_H : u8 = 16;
     pub const PREVIEW_CARD_PX : u16 = 72;  // its width on a plan card
     pub const PREVIEWS_MAX : u8 = 3;       // the cabinet's story card, newest first
+
+    // ---- The poster: the same frame, drawn once by the server (v3) ----------------------
+    pub const POSTER_DENSITY : u16 = 3;     // the densest phone screen's pixels per CSS px
+    pub const POSTER_W : u16 = 216;         // PREVIEW_CARD_PX * POSTER_DENSITY
+    pub const POSTER_SWEEP_MAX : u8 = 3;    // posters the sweep draws in one round
+    pub const POSTER_NONE : u8 = 0;         // never tried
+    pub const POSTER_TRIED : u8 = 1;        // tried, none drawn: the browser's frame stands
+    pub const POSTER_KEPT : u8 = 2;         // drawn and stored
+    pub const PICTURE_FRAME : u8 = 0;       // the browser draws the frame from the video
+    pub const PICTURE_POSTER : u8 = 1;      // the stored poster is shown
 
     // A card offers the press when it is not made yet and nothing of the person's is made now.
     fn press_offered(status: u8, busy: bool) -> bool {
@@ -135,6 +161,27 @@ module automation::plan_reel {
             return reels_out;
         }
         return PREVIEWS_MAX;
+    }
+
+    // What a card shows for a reel that came out: its poster, when one is kept.
+    fn picture_of(poster: u8) -> u8 {
+        if poster == POSTER_KEPT {
+            return PICTURE_POSTER;
+        }
+        return PICTURE_FRAME;
+    }
+
+    // The sweep draws a poster only for a reel that came out and was never tried.
+    fn poster_swept(reel_out: bool, poster: u8) -> bool {
+        return reel_out && poster == POSTER_NONE;
+    }
+
+    // How many posters one round of the sweep draws, given how many wait.
+    fn posters_this_round(waiting: u16) -> u16 {
+        if waiting < POSTER_SWEEP_MAX {
+            return waiting;
+        }
+        return POSTER_SWEEP_MAX;
     }
 
     // The height of a reel's picture of a given width.
@@ -188,6 +235,27 @@ module automation::plan_reel {
         assert(previews_shown(12) == PREVIEWS_MAX);
         assert(preview_height(PREVIEW_CARD_PX) == 128);
         assert(preview_height(90) == 160);
+    }
+
+    test "a kept poster is the picture, anything else leaves the frame to the browser" {
+        assert(picture_of(POSTER_KEPT) == PICTURE_POSTER);
+        assert(picture_of(POSTER_NONE) == PICTURE_FRAME);
+        assert(picture_of(POSTER_TRIED) == PICTURE_FRAME);
+    }
+
+    test "the poster is the card's width at the densest screen, 9:16" {
+        assert(POSTER_W == PREVIEW_CARD_PX * POSTER_DENSITY);
+        assert(preview_height(POSTER_W) == 384);
+    }
+
+    test "the sweep draws a poster once, only for a reel that came out" {
+        assert(poster_swept(true, POSTER_NONE));
+        assert(!poster_swept(true, POSTER_TRIED));
+        assert(!poster_swept(true, POSTER_KEPT));
+        assert(!poster_swept(false, POSTER_NONE));
+        assert(posters_this_round(0) == 0);
+        assert(posters_this_round(2) == 2);
+        assert(posters_this_round(40) == POSTER_SWEEP_MAX);
     }
 }
 
