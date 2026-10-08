@@ -129,10 +129,22 @@ describe('office.ts edges', () => {
       return h
     }
 
-    it('/catchup asks the agent client of the bot', async () => {
+    it('/catchup asks the agent client of the bot, then lists the open tasks', async () => {
+      setOfficeTasksDbForTests({
+        query: async (sql: string) =>
+          /^\s*SELECT/.test(sql)
+            ? {
+                rows: [{ id: 4, owner_name: 'Vera', text: 'send the invoice' }],
+              }
+            : { rows: [] },
+      })
       const ctx = ctxIn({ text: '/catchup' })
       await handlers().catchup(ctx)
-      expect(ctx.replies).toEqual(['Decided: ship Friday.'])
+      setOfficeTasksDbForTests(null)
+      expect(ctx.replies).toEqual([
+        'Decided: ship Friday.',
+        'Open tasks:\n#4 Vera: send the invoice',
+      ])
     })
 
     it('/office in a private chat says where an office opens', async () => {

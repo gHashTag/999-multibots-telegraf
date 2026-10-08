@@ -132,7 +132,10 @@ is said. The answering member's own label line is never a hand-off.
 <text>` (owner: the person replied to, else `@named`, else the sender; a forum
 topic's own first message is no reply), `/todos` (open, oldest first, at most
 `OPEN_TASKS_SHOWN_MAX`), `/done <id>` (owner, author or admin). Table
-`office_tasks` on the tokens database, made on first use.
+`office_tasks` on the tokens database, made on first use. `/catchup` lists the
+open tasks after the agent's summary (spec v6 `catchup_lists_tasks`); office.ts
+reaches officeTasks.ts through a dynamic import, because officeTasks imports
+office (a static import would be a cycle).
 
 `t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
 the owner's label: `owner-approved-foreign` waives the path check only, never

@@ -203,5 +203,33 @@
     "from": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3 AND NOT done'",
     "to": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3'",
     "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "a catch-up lists an empty task list",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return OFFICE.CATCHUP_SHOWS_TASKS && openTasks > 0",
+    "to": "return OFFICE.CATCHUP_SHOWS_TASKS",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a catch-up never lists the tasks",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (open && catchupListsTasks(open.count))\n",
+    "to": "    if (false)\n",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a failing task list breaks the catch-up",
+    "file": "src/navigation/topics/office.ts",
+    "from": "await tasks(ctx).catch(() => null)",
+    "to": "await tasks(ctx)",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "the /catchup command passes no task list",
+    "file": "src/navigation/topics/office.ts",
+    "from": "      openTasks\n    )",
+    "to": "    )",
+    "tests": ["src/__tests__/navigation/officeEdges.test.ts"]
   }
 ]
