@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri vision-bench [--sizes 448,768] [--image URL --expect "11:30,500"]  читает ли зрение рендера текст на картинке и за сколько мс (своё зрение, слот занят?)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
+  tri office [--mutants]  нейроофис одной командой: законы спек, тесты офиса, с --mutants все мутанты списка (выживший = код 1)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
@@ -1275,6 +1276,24 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/bridge.cjs" "$@"
+    ;;
+
+  office)
+    # THE NEURO-OFFICE IN ONE COMMAND (epic #3896, spec bot-neuro-office.t27).
+    # The spec laws, every office suite, and with --mutants every mutant of
+    # src/spec/bot-neuro-office.mutants.json (a survivor is exit 1). Local
+    # only: nothing is sent, nothing is spent. Loop memory and the weak-point
+    # table: .claude/loop-state/office-loop.md.
+    shift
+    cd "$ROOT" || exit 2
+    node scripts/check-t27-specs.mjs || exit 1
+    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
+    # shellcheck disable=SC2086
+    npx vitest run $OFFICE_TESTS || exit 1
+    if [ "${1:-}" = "--mutants" ]; then
+      # shellcheck disable=SC2086
+      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run $OFFICE_TESTS || exit 1
+    fi
     ;;
 
   pack)

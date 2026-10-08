@@ -115,6 +115,12 @@ turn carries `speaker` beside `room`; the render names the STORED line
 question itself: the render finds a member named first ("Treasurer, ...") at
 the start of the text, and "Anna: Treasurer, ..." would hide it.
 
+**`/catchup` (spec v3, #3899).** In an office only (`mayCatchUp`): the agent
+is asked, as the person, in the room, from the channel's member, to name what
+was decided, what is open and who took what on (`CATCHUP_PARTS`, the parts
+live in `CATCHUP_PARTS_TEXT`). An empty or failed answer is said, never
+silence. Check the whole office in one command: `tri office [--mutants]`.
+
 `t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
 the owner's label: `owner-approved-foreign` waives the path check only, never
 the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the
