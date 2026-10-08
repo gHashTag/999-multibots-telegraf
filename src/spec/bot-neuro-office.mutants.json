@@ -1,0 +1,107 @@
+[
+  {
+    "name": "a plain group is heard",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return OFFICE.HEARS_PEOPLE && office && !addressed && !fromBot && !isCommand",
+    "to": "return OFFICE.HEARS_PEOPLE && !addressed && !fromBot && !isCommand",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a bot's line costs a database read",
+    "file": "src/navigation/topics/office.ts",
+    "from": "if (fromBot || isCommand) return false",
+    "to": "if (isCommand) return false",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a heard line is never cut",
+    "file": "src/navigation/topics/office.ts",
+    "from": "const text = chars.slice(0, heardChars(chars.length)).join('')",
+    "to": "const text = raw.trim()",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a room line names nobody",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return namesSpeaker(room) && name ? `${name}: ${text}` : text",
+    "to": "return text",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a private turn carries the speaker",
+    "file": "src/services/trinityAgent.ts",
+    "from": "...(room && opts.speaker ? { speaker: opts.speaker } : {}),",
+    "to": "...(opts.speaker ? { speaker: opts.speaker } : {}),",
+    "tests": ["src/__tests__/services/theRoomNamesWhoAsked.test.ts"]
+  },
+  {
+    "name": "the render names a private line",
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "from": "if (!room || typeof speaker !== 'string') return content",
+    "to": "if (typeof speaker !== 'string') return content",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"]
+  },
+  {
+    "name": "the room gate drops the line unheard",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "hearInOffice(ctx, recordTurns)",
+    "to": "Promise.resolve(recordTurns)",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "the asked room turn names nobody",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "? { speaker: speakerName(ctx.from) }",
+    "to": "? {}",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "a catch-up outside an office",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return office || !OFFICE.CATCHUP_ONLY_IN_OFFICE",
+    "to": "return true",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "/catchup is not registered",
+    "file": "src/navigation/topics/office.ts",
+    "from": "bot.command('catchup', async ctx => {",
+    "to": "bot.command('catchup_off', async ctx => {",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a catch-up from no channel member",
+    "file": "src/navigation/topics/office.ts",
+    "from": "      ...(member ? { member } : {}),\n",
+    "to": "",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "an empty catch-up is silence",
+    "file": "src/navigation/topics/office.ts",
+    "from": "if (!chunks.length) throw new Error('empty answer')",
+    "to": "void 0",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a room may open an office without an admin",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return isForum && botManagesTopics && senderIsAdmin",
+    "to": "return isForum && botManagesTopics",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a member's name counts in any group",
+    "file": "src/navigation/topics/office.ts",
+    "from": "|| (office && memberNamedFirst)",
+    "to": "|| memberNamedFirst",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "pay buttons in a room",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return !room || OFFICE.ROOM_PAY_BUTTONS",
+    "to": "return true",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  }
+]

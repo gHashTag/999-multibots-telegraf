@@ -27,6 +27,10 @@ import {
   speakerName,
   speakerLine,
   hearInOffice,
+  mayCatchUp,
+  catchUp,
+  catchupAsk,
+  CATCHUP_PARTS_TEXT,
   registerOfficeCommand,
 } from '@/navigation/topics/office'
 import { setTopicTabsDbForTests } from '@/navigation/topics/tabs'
@@ -95,8 +99,23 @@ describe('spec bot-neuro-office.t27', () => {
     ]).toHaveLength(64)
   })
 
+  it('a catch-up is asked only in an office, and names decisions, open questions and owners', () => {
+    expect(SPEC.CATCHUP_ONLY_IN_OFFICE).toBe(true)
+    expect(mayCatchUp(true)).toBe(true)
+    expect(mayCatchUp(false)).toBe(false)
+    expect(SPEC.CATCHUP_PARTS).toBe(3)
+    // the host's own ask names exactly the spec's parts, numbered, in both languages
+    expect(CATCHUP_PARTS_TEXT).toHaveLength(SPEC.CATCHUP_PARTS)
+    for (const isRu of [true, false]) {
+      const ask = catchupAsk(isRu)
+      for (let i = 1; i <= SPEC.CATCHUP_PARTS; i++)
+        expect(ask).toContain(`${i}) `)
+      expect(ask).not.toContain(`${SPEC.CATCHUP_PARTS + 1}) `)
+    }
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })
@@ -175,7 +194,9 @@ describe('the office in a group', () => {
     }) => {
       let handler: any
       registerOfficeCommand({
-        command: (_: string, h: any) => (handler = h),
+        command: (name: string, h: any) => {
+          if (name === 'office') handler = h
+        },
       } as any)
       const replies: string[] = []
       let next = 300
@@ -327,6 +348,95 @@ describe('the office hears the room (v2)', () => {
     expect(speakerName({ id: 3, username: 'boris' })).toBe('@boris')
     expect(speakerName({ id: 3 })).toBe('3')
     expect(speakerName({ id: 3, first_name: ' Anna \n K ' })).toBe('Anna K')
+  })
+})
+
+describe('/catchup (v3)', () => {
+  const ROOM = -1001234567892
+  const db = (list: any[]) => ({
+    query: async (sql: string) =>
+      /^\s*SELECT/.test(sql) ? { rows: list } : { rows: [] },
+  })
+  let n = 0
+  const ctxIn = (chatType = 'supergroup', thread = 15): any => {
+    const replies: string[] = []
+    return {
+      replies,
+      chat: { id: chatType === 'private' ? 5 : ROOM, type: chatType },
+      botInfo: { username: `catchup_bot_${n++}`, id: 42 },
+      from: { id: 5, first_name: 'Anna' },
+      message: { text: '/catchup', message_thread_id: thread },
+      reply: async (t: string) => {
+        replies.push(t)
+      },
+    }
+  }
+  const office = [
+    { thread_id: 11, kind: 'agent', title: 'a', created_at: new Date() },
+    { thread_id: 15, kind: 'wallet', title: 'w', created_at: new Date() },
+  ]
+
+  it('in an office the agent is asked as the person, in the room, from the channel member', async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    const asked: any[] = []
+    const ctx = ctxIn()
+    const r = await catchUp(ctx, async (id, text, opts) => {
+      asked.push([id, text, opts])
+      return { текст: 'Decided: ship Friday.' } // cyrillic-ok: field of the agent answer
+    })
+    expect(r).toBe('answered')
+    expect(asked).toHaveLength(1)
+    expect(asked[0][0]).toBe('5')
+    expect(asked[0][1]).toBe(catchupAsk(false))
+    expect(asked[0][2]).toEqual({
+      room: String(ROOM),
+      member: 'wallet',
+      speaker: 'Anna',
+    })
+    expect(ctx.replies).toEqual(['Decided: ship Friday.'])
+  })
+
+  it('/catchup is registered beside /office', () => {
+    const names: string[] = []
+    registerOfficeCommand({
+      command: (name: string) => {
+        names.push(name)
+      },
+    } as any)
+    expect(names).toEqual(expect.arrayContaining(['office', 'catchup']))
+  })
+
+  it('outside an office it says where it works and asks nobody', async () => {
+    for (const [type, rows] of [
+      ['supergroup', []],
+      ['private', office],
+    ] as const) {
+      setTopicTabsDbForTests(db([...rows]) as any)
+      let asked = 0
+      const ctx = ctxIn(type)
+      const r = await catchUp(ctx, async () => {
+        asked++
+        return { текст: 'x' } // cyrillic-ok: field of the agent answer
+      })
+      expect(r).toBe('not an office')
+      expect(asked).toBe(0)
+      expect(ctx.replies[0]).toMatch(/office/)
+    }
+  })
+
+  it('a failed or empty answer is said, never silence', async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    for (const ask of [
+      async () => {
+        throw new Error('render down')
+      },
+      async () => ({ текст: '   ' }), // cyrillic-ok: field of the agent answer
+    ]) {
+      const ctx = ctxIn()
+      expect(await catchUp(ctx, ask as any)).toBe('failed')
+      expect(ctx.replies).toHaveLength(1)
+      expect(ctx.replies[0]).toMatch(/catchup/)
+    }
   })
 })
 

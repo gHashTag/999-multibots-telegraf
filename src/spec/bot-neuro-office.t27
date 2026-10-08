@@ -17,13 +17,17 @@
 // speak only when asked). Every person's line in a room names who said it, the name cut to
 // 64 characters. Only in an
 // office: a plain group the bot sits in is not heard.
+// v3 (2026-10-08): /catchup. A person back in the office asks what was said and decided
+// while they were away; the agent answers from the room's memory -- decisions, open
+// questions, who owes what, by name (Teams Facilitator, Slack recaps). Only in an office:
+// elsewhere the room's memory is not the team's.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- opening an office ----
 
@@ -102,6 +106,20 @@ module automation::bot_neuro_office {
         return chars;
     }
 
+    // ---- catching up (v3) ----
+
+    // /catchup is answered only in an office; in any other group or a private chat it says
+    // where it works and asks the agent nothing.
+    pub const CATCHUP_ONLY_IN_OFFICE : bool = true;
+
+    fn may_catch_up(office: bool) -> bool {
+        return office || !CATCHUP_ONLY_IN_OFFICE;
+    }
+
+    // A catch-up names three things, in this order: what was decided, what is still open, and
+    // who took what on. Fewer is a recap nobody can act on.
+    pub const CATCHUP_PARTS : u32 = 3;
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -160,8 +178,15 @@ module automation::bot_neuro_office {
         assert(speaker_chars(3) == 3);
     }
 
+    test "a catch-up is asked only in an office, and names decisions, open questions and owners" {
+        assert(CATCHUP_ONLY_IN_OFFICE);
+        assert(may_catch_up(true));
+        assert(!may_catch_up(false));
+        assert(CATCHUP_PARTS == 3);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 2);
+        assert(VERSION == 3);
     }
 }
 
