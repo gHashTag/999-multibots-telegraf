@@ -8,6 +8,12 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest'
 import * as SPEC from './bot-agent-team.gen'
+import {
+  mayRetry,
+  mayStart,
+  mayWait,
+  retryPauseMs,
+} from '@/services/personTurns'
 import { TAB_KEYS } from './bot-topic-tabs.gen'
 import {
   addressed,
@@ -18,6 +24,7 @@ import {
   hireable,
   joinsAtStart,
   labelled,
+  moneyButtonsHere,
   leadsWith,
   offered,
   speaker,
@@ -116,8 +123,28 @@ describe('spec bot-agent-team.t27', () => {
     expect(SPEC.TEAM_LEAD_TOOLS).toHaveLength(SPEC.TEAM_SIZE)
   })
 
+  it("a person's turns run one at a time, and a refused one is tried again with a growing pause", () => {
+    expect(mayStart(0)).toBe(true)
+    expect(mayStart(1)).toBe(false)
+    expect(mayWait(SPEC.TURNS_WAITING_MAX - 1)).toBe(true)
+    expect(mayWait(SPEC.TURNS_WAITING_MAX)).toBe(false)
+    expect(retryPauseMs(0)).toBe(4000)
+    expect(retryPauseMs(1)).toBe(8000)
+    expect(retryPauseMs(2)).toBe(16000)
+    expect(mayRetry(SPEC.LIMIT_RETRIES - 1)).toBe(true)
+    expect(mayRetry(SPEC.LIMIT_RETRIES)).toBe(false)
+    expect(SPEC.NAMES_ITSELF_FIRST).toBe(true)
+  })
+
+  it("the pay buttons live in the Treasurer's tab, or everywhere in a chat without tabs", () => {
+    expect(moneyButtonsHere(true, true)).toBe(true)
+    expect(moneyButtonsHere(true, false)).toBe(false)
+    expect(moneyButtonsHere(false, false)).toBe(true)
+    expect(moneyButtonsHere(false, true)).toBe(true)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 

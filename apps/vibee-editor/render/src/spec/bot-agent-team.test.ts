@@ -7,6 +7,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as SPEC from './bot-agent-team.gen'
+import {
+  mayRetry,
+  mayStart,
+  mayWait,
+  moneyButtonsHere,
+  retryPauseMs,
+} from '../agent/profession'
 import { TAB_KEYS } from './bot-topic-tabs.gen'
 import {
   addressed,
@@ -119,8 +126,28 @@ describe('spec bot-agent-team.t27', () => {
     expect(TAB_KEYS).toHaveLength(SPEC.TEAM_SIZE)
   })
 
+  it("a person's turns run one at a time, and a refused one is tried again with a growing pause", () => {
+    expect(mayStart(0)).toBe(true)
+    expect(mayStart(1)).toBe(false)
+    expect(mayWait(SPEC.TURNS_WAITING_MAX - 1)).toBe(true)
+    expect(mayWait(SPEC.TURNS_WAITING_MAX)).toBe(false)
+    expect(retryPauseMs(0)).toBe(4000)
+    expect(retryPauseMs(1)).toBe(8000)
+    expect(retryPauseMs(2)).toBe(16000)
+    expect(mayRetry(SPEC.LIMIT_RETRIES - 1)).toBe(true)
+    expect(mayRetry(SPEC.LIMIT_RETRIES)).toBe(false)
+    expect(SPEC.NAMES_ITSELF_FIRST).toBe(true)
+  })
+
+  it("the pay buttons live in the Treasurer's tab, or everywhere in a chat without tabs", () => {
+    expect(moneyButtonsHere(true, true)).toBe(true)
+    expect(moneyButtonsHere(true, false)).toBe(false)
+    expect(moneyButtonsHere(false, false)).toBe(true)
+    expect(moneyButtonsHere(false, true)).toBe(true)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 
@@ -157,9 +184,12 @@ describe("each member's trade", () => {
     expect(director).toContain('lipsync_generate')
     expect(director).toContain('t27_specs')
     expect(professionSection('tabwallet', NAMES)).toContain('tokens_invoice')
-    expect(professionSection('tabagent', NAMES)).toBe('')
-    expect(professionSection(undefined, NAMES)).toBe('')
-    expect(professionSection('c1a2b3', NAMES)).toBe('')
+    // The generalist has no trade; it names itself and its team (v2).
+    expect(professionSection('tabagent', NAMES)).toContain(speakerLabel(1))
+    expect(professionSection(undefined, NAMES)).not.toContain(
+      'lipsync_generate'
+    )
+    expect(professionSection('c1a2b3', NAMES)).toContain('ГЛАВНЫЙ') // cyrillic-ok: prompt copy under test
   })
 })
 
@@ -345,8 +375,10 @@ describe('the neuro-office: every member in every channel', () => {
     expect(guest).toContain(speakerLabel(4))
     expect(guest).toContain(speakerLabel(1))
     expect(guest).toContain('tokens_invoice')
-    // The Agent named in its own channel has nothing to add.
-    expect(professionSection(undefined, NAMES, 'Агент, привет')).toBe('') // cyrillic-ok: a person's words under test
+    // The Agent named in its own channel names itself and its team (v2).
+    expect(professionSection(undefined, NAMES, 'Агент, привет')).toContain(
+      'ГЛАВНЫЙ'
+    ) // cyrillic-ok: a person's words under test
     // Named in a member's channel, the Agent is a guest there too.
     expect(professionSection('tabwallet', NAMES, 'Агент, привет')).toContain(
       speakerLabel(0)

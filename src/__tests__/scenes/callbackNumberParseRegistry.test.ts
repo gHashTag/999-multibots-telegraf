@@ -59,6 +59,8 @@ const REGISTERED: Record<string, string> = {
   // unknown id reads as "no such lead". No money call is reachable from them.
   'navigation/helpers/crmMenu.ts':
     'crm:(verb):(d{5,15}) via parseCrmCallback; id is a lead key for a crm_leads lookup by an owner; no pricing, no charge',
+  'navigation/helpers/actionButtons.ts':
+    'the digit capture reads a star PRICE out of an answer text to label the invoice row; callback_data is only compared to fixed act:<id> strings (MONEY_ACTIONS), no number is parsed from it',
   'navigation/registerCommands.ts':
     'crm-prep-(d{5,15}) /start payload via crmPrepLead; admin-only, private chat only; id is a lead key, not an amount',
 }

@@ -16,7 +16,11 @@ import {
   type TabKind,
   type TabSpec,
 } from './tabs'
+import { moneyRows } from '@/navigation/helpers/startGreeting'
+import { actionButton } from '@/navigation/helpers/actionButtons'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import {
+  TREASURER_KIND,
   HIRE_PREFIX,
   hireRows,
   hireable,
@@ -104,7 +108,15 @@ export function tabMarkup(
     botUsername: botName(ctx) || null,
   })
   const team = tab.kind === TABS[0].kind && onTeam ? teamRows(onTeam, isRu) : []
-  const rows = [...team, ...(button ? [[button]] : [])]
+  // The Treasurer's tab is where the pay rows live (bot-agent-team.t27 v2).
+  const money =
+    tab.kind === TREASURER_KIND
+      ? [
+          ...moneyRows(isRu, shouldShowRubles(ctx)),
+          [actionButton('balance', isRu)],
+        ]
+      : []
+  const rows = [...team, ...money, ...(button ? [[button]] : [])]
   return rows.length ? { inline_keyboard: rows } : undefined
 }
 
