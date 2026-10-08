@@ -2179,15 +2179,21 @@ async function askForInputInTelegram(
   const { sendToTelegram } = await import('../auth/telegram-sender')
   const { openBrowserButton, BROWSER_TAB_URL } = await import('./announce')
   const pressed = kind === 'choice' || kind === 'action'
-  await sendToTelegram(telegramId, askText(kind, why, host), {
-    inline_keyboard: [
-      [
-        pressed
-          ? openBrowserButton('👆 Ответить', BROWSER_TAB_URL) // cyrillic-ok: button label
-          : openBrowserButton('⌨ Ввести', `${BROWSER_TAB_URL}?type=1`), // cyrillic-ok: button label
+  await sendToTelegram(
+    telegramId,
+    askText(kind, why, host),
+    {
+      inline_keyboard: [
+        [
+          pressed
+            ? openBrowserButton('👆 Ответить', BROWSER_TAB_URL) // cyrillic-ok: button label
+            : openBrowserButton('⌨ Ввести', `${BROWSER_TAB_URL}?type=1`), // cyrillic-ok: button label
+        ],
       ],
-    ],
-  })
+    },
+    // The Navigator's tab, when the person has one (bot-event-tabs.t27).
+    { event: 'browser' }
+  )
 }
 
 /**
@@ -2266,6 +2272,8 @@ async function askThePerson(
           },
         ],
       ],
-    }
+    },
+    // The Navigator's tab, when the person has one (bot-event-tabs.t27).
+    { event: 'browser' }
   )
 }
