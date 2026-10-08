@@ -20,13 +20,21 @@
 // members must be in these channels -- that is the point of the neuro-office": every member
 // is in every channel, and a message that opens with a member's name is answered there by
 // that member, the channel keeping its memory.
+// v2 (2026-10-08): every member answers, as itself, and the money is the Treasurer's.
+// Measured the same evening on production: the owner asked "who are you, what can you do"
+// in every channel within a minute; five turns ran at once, the free model refused them as
+// over its limit (z.ai code 1302), two channels stayed silent and the rest all answered
+// as the same reels agent. A person's turns now run one at a time in the order sent, a
+// refused one is tried again with a growing pause, and asked who it is, a member names
+// itself and its trade first. And (owner): "no payment menu in every window -- let the
+// Treasurer do it": with tabs, the pay buttons live in the Treasurer's tab.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_agent_team {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-agent-team";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- who is on the team ----
 
@@ -101,6 +109,52 @@ module automation::bot_agent_team {
     // A guest's answer opens with its name, so the person sees who is speaking.
     fn labelled(speaker_index: u32, channel: u32) -> bool {
         return speaker_index != channel;
+    }
+
+    // ---- every member answers, as itself ----
+
+    // A person's turns run one at a time, in the order sent: five channels written in one
+    // minute are five answers in a row, not five requests a shared model refuses at once.
+    pub const TURNS_AT_ONCE_PER_PERSON : u32 = 1;
+    fn may_start(running: u32) -> bool {
+        return running < TURNS_AT_ONCE_PER_PERSON;
+    }
+
+    // At most this many turns wait behind the running one (one per channel); one more is
+    // told to wait, never dropped in silence.
+    pub const TURNS_WAITING_MAX : u32 = 6;
+    fn may_wait(waiting: u32) -> bool {
+        return waiting < TURNS_WAITING_MAX;
+    }
+
+    // A turn the model refused as over its limit is tried again, at most this many times,
+    // after a pause that doubles: 4 s, 8 s, 16 s.
+    pub const LIMIT_RETRIES : u32 = 3;
+    pub const LIMIT_PAUSE_MS : u32 = 4000;
+    fn retry_pause_ms(retries_done: u32) -> u32 {
+        var pause : u32 = LIMIT_PAUSE_MS;
+        var n : u32 = 0;
+        while n < retries_done {
+            pause = pause * 2;
+            n = n + 1;
+        }
+        return pause;
+    }
+    fn may_retry(retries_done: u32) -> bool {
+        return retries_done < LIMIT_RETRIES;
+    }
+
+    // Asked who it is, a member opens with its own name and trade and names the tools of
+    // its trade before any other: the Treasurer is not the reels agent with another title.
+    pub const NAMES_ITSELF_FIRST : bool = true;
+
+    // ---- the money is the Treasurer's ----
+
+    // The pay buttons (top up, rubles, crypto, an invoice row, the balance) appear in the
+    // Treasurer's tab when the person has tabs; a chat without tabs keeps them everywhere,
+    // because there is no Treasurer's tab to send anyone to.
+    fn money_buttons_here(has_tabs: bool, in_treasurer_tab: bool) -> bool {
+        return !has_tabs || in_treasurer_tab;
     }
 
     // ---- each member's trade ----
@@ -217,8 +271,28 @@ module automation::bot_agent_team {
         assert(!offered(TEAM_SIZE, false));
     }
 
+    test "a person's turns run one at a time, and a refused one is tried again with a growing pause" {
+        assert(may_start(0));
+        assert(!may_start(1));
+        assert(may_wait(TURNS_WAITING_MAX - 1));
+        assert(!may_wait(TURNS_WAITING_MAX));
+        assert(retry_pause_ms(0) == 4000);
+        assert(retry_pause_ms(1) == 8000);
+        assert(retry_pause_ms(2) == 16000);
+        assert(may_retry(LIMIT_RETRIES - 1));
+        assert(!may_retry(LIMIT_RETRIES));
+        assert(NAMES_ITSELF_FIRST);
+    }
+
+    test "the pay buttons live in the Treasurer's tab, or everywhere in a chat without tabs" {
+        assert(money_buttons_here(true, true));
+        assert(!money_buttons_here(true, false));
+        assert(money_buttons_here(false, false));
+        assert(money_buttons_here(false, true));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 

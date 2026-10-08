@@ -23,6 +23,8 @@
  */
 import { logger } from '@/utils/logger'
 import * as MEMORY_SPEC from '@/spec/bot-agent-memory.gen'
+import * as TEAM_SPEC from '@/spec/bot-agent-team.gen'
+import { retryPauseMs } from './personTurns'
 import {
   markReportedByAgent,
   markTurnHistory,
@@ -338,14 +340,19 @@ export function isLimitError(error: string | undefined): boolean {
   return !!error && LIMIT_RE.test(error)
 }
 
-/** Only once, only on a limit, only when the failed attempt paid for nothing. */
+/**
+ * Only on a limit, only when the failed attempt paid for nothing; once for a
+ * customer's business turn, LIMIT_RETRIES times for the person's own turn
+ * (bot-agent-team.t27 v2, `limit`).
+ */
 export function retryAllowed(
   retriesDone: number,
   error: string | undefined,
-  toolsUsed: string[]
+  toolsUsed: string[],
+  limit: number = RETRY_ON_LIMIT
 ): boolean {
   return (
-    retriesDone < RETRY_ON_LIMIT &&
+    retriesDone < limit &&
     isLimitError(error) &&
     !toolsUsed.some(name => SIDE_EFFECT_TOOL.test(name))
   )
@@ -375,7 +382,36 @@ const ROOM_RE = /^-\d{5,20}$/
 /** A catalogue agent id, as agent-marketplace.ts writes them. */
 const AGENT_ID_RE = /^[a-z][a-z0-9-]{1,31}$/
 
-export async function спроситьАгента(
+/**
+ * THE PERSON'S OWN TURN (bot-agent-team.t27 v2): their private chat or the
+ * mini-app, not a customer's business DM, not the unattended sweep and not a
+ * group room. Only these queue one per person and retry with a growing pause;
+ * a customer waiting in a business DM keeps the one short retry above.
+ */
+export function ownTurn(opts: {
+  surface?: string
+  toolsOnly?: boolean
+  room?: string
+}): boolean {
+  return opts.surface !== 'business' && !opts.toolsOnly && !opts.room
+}
+
+/**
+ * Ask the agent. The person's own turns wait for each other (personTurns.ts):
+ * five tabs written in one minute are five answers in a row, not five
+ * requests a shared model refuses at once.
+ */
+export async function спроситьАгента( // cyrillic-ok: pre-existing export
+  telegramId: string,
+  текст: string, // cyrillic-ok: pre-existing parameter
+  opts: Parameters<typeof askAgentNow>[2] = {}
+): ReturnType<typeof askAgentNow> {
+  if (!ownTurn(opts)) return askAgentNow(telegramId, текст, opts) // cyrillic-ok: pre-existing parameter
+  const { inPersonQueue } = await import('./personTurns')
+  return inPersonQueue(telegramId, () => askAgentNow(telegramId, текст, opts)) // cyrillic-ok: pre-existing parameter
+}
+
+async function askAgentNow(
   telegramId: string,
   текст: string,
   /** Where the answer will be shown; the server shapes the prompt by it. */
@@ -757,17 +793,20 @@ export async function спроситьАгента(
         return await attempt()
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
-        if (!retryAllowed(retries, message, toolsUsed)) throw e
+        const own = ownTurn(opts)
+        const limit = own ? TEAM_SPEC.LIMIT_RETRIES : RETRY_ON_LIMIT
+        if (!retryAllowed(retries, message, toolsUsed, limit)) throw e
+        const pauseMs = own ? retryPauseMs(retries) : RETRY_PAUSE_MS
         // Still ERROR-free on purpose: this attempt failed but the customer
         // has not been failed yet. The throw above is what pages when the
         // second attempt loses too.
-        logger.warn('[trinityAgent] provider limit, one short retry', {
+        logger.warn('[trinityAgent] provider limit, retrying', {
           telegram_id: telegramId,
           upstream: `${БАЗА}/api/agent/chat`,
-          pause_ms: RETRY_PAUSE_MS,
+          pause_ms: pauseMs,
           error: message.slice(0, 200),
         })
-        await pause(RETRY_PAUSE_MS)
+        await pause(pauseMs)
         // The shared deadline may have passed while we waited; a second
         // attempt on an aborted signal would only rename the error.
         if (прерыватель.signal.aborted) throw e // cyrillic-ok: pre-existing identifiers of this parser

@@ -22,6 +22,8 @@
  */
 import * as TEAM from '@/spec/bot-agent-team.gen'
 import * as TABS_SPEC from '@/spec/bot-topic-tabs.gen'
+import { knownTabs } from './tabs'
+import { privateTopicOf } from './threads'
 
 /** spec joins_at_start: the core, or the member the person's link named. */
 export const joinsAtStart = (index: number, namedByLink: boolean): boolean =>
@@ -113,4 +115,35 @@ export function hireRows(
     )
   }
   return rows
+}
+
+/** spec money_buttons_here: in the Treasurer's tab, or anywhere without tabs. */
+export const moneyButtonsHere = (
+  hasTabs: boolean,
+  inTreasurerTab: boolean
+): boolean => !hasTabs || inTreasurerTab
+
+/** The tab kind whose member keeps the money (bot-event-tabs: payment). */
+export const TREASURER_KIND = 'wallet'
+
+/**
+ * May this message carry pay buttons? Outside a private chat, or when the
+ * tabs cannot be read, yes -- as before. Never throws.
+ */
+export async function moneyHere(ctx: any): Promise<boolean> {
+  try {
+    if (ctx?.chat?.type !== 'private') return true
+    const bot = String(ctx.botInfo?.username ?? '')
+    if (!bot) return true
+    const rows = (await knownTabs(bot, Number(ctx.chat.id))) ?? []
+    const live = rows.filter(r => r.thread_id > 0)
+    const thread = privateTopicOf(ctx.update ?? ctx)
+    const treasurer = live.find(r => r.kind === TREASURER_KIND)
+    return moneyButtonsHere(
+      live.length > 0,
+      !!treasurer && thread !== undefined && treasurer.thread_id === thread
+    )
+  } catch {
+    return true
+  }
 }

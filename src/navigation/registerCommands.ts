@@ -254,6 +254,7 @@ import {
   nameTopicQuietly,
   registerTabsCommand,
 } from './topics/wire'
+import { moneyHere } from './topics/team'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -1637,6 +1638,8 @@ If not, continue on your own and click the "I myself" button`
             {
               app: ctx.chat?.type === 'private',
               bot: ctx.botInfo,
+              // Pay buttons only in the Treasurer's tab (bot-agent-team.t27 v2).
+              money: await moneyHere(ctx),
               ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
               ctx.chat?.type === 'private'
                 ? { tail: hubRows() }
@@ -1681,6 +1684,19 @@ If not, continue on your own and click the "I myself" button`
           }
         )
       } catch (err: any) {
+        /*
+         * TOO MANY OF THIS PERSON'S TURNS WAITING (bot-agent-team.t27 v2
+         * may_wait): said, never dropped -- the earlier ones are being
+         * answered one by one.
+         */
+        if (err?.name === 'PersonQueueFull') {
+          await ctx.reply(
+            isRussianFromState(ctx)
+              ? 'Я ещё отвечаю на ваши прошлые сообщения в других вкладках. Пришлите это чуть позже.' // cyrillic-ok: user-facing copy
+              : 'I am still answering your earlier messages in other tabs. Please send this a little later.'
+          )
+          return
+        }
         /*
          * THE PERSON PRESSED STOP (bot-agent-stream.t27 after_stop). What was
          * written so far is the answer; with nothing written, one line saying
@@ -1729,6 +1745,7 @@ If not, continue on your own and click the "I myself" button`
       const missButtons = {
         app: ctx.chat?.type === 'private',
         bot: ctx.botInfo,
+        money: await moneyHere(ctx),
         ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
         ctx.chat?.type === 'private'
           ? { tail: hubRows() }
@@ -3873,7 +3890,11 @@ async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
     const { text: clean, markup } = buttonsForAnswer(
       answer.текст, // cyrillic-ok: field of ОтветАгента
       isRu,
-      { app: ctx.chat?.type === 'private', bot: ctx.botInfo }
+      {
+        app: ctx.chat?.type === 'private',
+        bot: ctx.botInfo,
+        money: await moneyHere(ctx),
+      }
     )
     const parts = разбитьДлинное(clean) // cyrillic-ok: pre-existing export
     if (!parts.length) {
