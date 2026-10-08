@@ -165,7 +165,76 @@ describe('spec bot-topic-tabs.t27 (render engine)', () => {
     expect(E.evicts(5000)).toBe(true)
   })
 
+  it("a tab's name never opens with an emoji, or the emoji is drawn again inside the icon", async () => {
+    expect(SPEC.NAME_CARRIES_EMOJI).toBe(false)
+    expect(E.nameOk(true)).toBe(false)
+    expect(E.nameOk(false)).toBe(true)
+    // the names the render's engine really gives the topics it makes
+    const store = tinyDb()
+    const engine = createTopicTabs({
+      spec: SPEC,
+      db: () => store,
+      log: quiet,
+    })
+    let next = 700
+    const names: string[] = []
+    const api = {
+      async callApi(method: string, p: any) {
+        if (method === 'createForumTopic') {
+          names.push(p.name)
+          return { message_thread_id: next++ }
+        }
+        return true
+      },
+    }
+    await engine.ensureTabs(api, 'b', 777, true, () => undefined)
+    expect(names).toHaveLength(SPEC.TAB_COUNT)
+    for (const n of names)
+      expect(E.nameOk(/^\p{Extended_Pictographic}/u.test(n))).toBe(true)
+  })
+
+  it("the emoji is the icon only of a made topic and only when Telegram's icon set has it", async () => {
+    expect(SPEC.ICON_AFTER_CREATE).toBe(true)
+    expect(E.setsIcon(true, true)).toBe(true)
+    expect(E.setsIcon(true, false)).toBe(false)
+    expect(E.setsIcon(false, true)).toBe(false)
+    expect(E.setsIcon(false, false)).toBe(false)
+    // through the engine: the icon edit follows the create of its topic
+    const store = tinyDb()
+    const engine = createTopicTabs({
+      spec: SPEC,
+      db: () => store,
+      log: quiet,
+    })
+    let next = 800
+    const calls: any[][] = []
+    const api = {
+      async callApi(method: string, p: any) {
+        calls.push([method, p])
+        if (method === 'getForumTopicIconStickers')
+          return [
+            {
+              emoji: String.fromCodePoint(SPEC.TAB_EMOJI[0]),
+              custom_emoji_id: 'e0',
+            },
+          ]
+        if (method === 'createForumTopic') return { message_thread_id: next++ }
+        return true
+      },
+    }
+    await engine.ensureTabs(api, 'b', 777, false, () => undefined)
+    const created = calls.findIndex(c => c[0] === 'createForumTopic')
+    expect(calls[created][1]).not.toHaveProperty('icon_custom_emoji_id')
+    const icons = calls.filter(
+      c => c[0] === 'editForumTopic' && 'icon_custom_emoji_id' in c[1]
+    )
+    expect(
+      icons.map(c => [c[1].message_thread_id, c[1].icon_custom_emoji_id])
+    ).toEqual([[800, 'e0']])
+    expect(calls.indexOf(icons[0])).toBeGreaterThan(created)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
   })
 })
