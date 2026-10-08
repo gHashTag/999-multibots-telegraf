@@ -1287,7 +1287,7 @@ PYEOF
     shift
     cd "$ROOT" || exit 2
     node scripts/check-t27-specs.mjs || exit 1
-    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
+    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/navigation/officeTasks.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
     # shellcheck disable=SC2086
     npx vitest run $OFFICE_TESTS || exit 1
     if [ "${1:-}" = "--mutants" ]; then

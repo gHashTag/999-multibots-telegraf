@@ -22,6 +22,11 @@ or undo what is merged. Epic gHashTag/999-multibots-telegraf#3896.
   member "call a colleague by naming them first". The bot scans the SENT
   answer (after markers are stripped) for such a line, skips the member's own
   "Director:" label, asks the colleague once (depth 1) in the person's name.
+- A database fake filters only by what its SQL names (blind-guards): the
+  office_tasks fake hid done tasks by itself and a mutant "/todos shows done
+  tasks" survived until the fake read `NOT done` from the SQL (2026-10-08).
+- In a forum topic every message "replies" to the topic's first message:
+  `repliedPerson` drops it, or every /todo would belong to the topic's maker.
 - Merge with a merge commit when the local gates are green. 999 GitHub
   Actions never start (billing); the local gates are the check.
 

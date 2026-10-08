@@ -264,6 +264,7 @@ import {
   speakerName,
   registerOfficeCommand,
 } from './topics/office'
+import { registerOfficeTasks } from './topics/officeTasks'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -3451,6 +3452,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   registerTabsCommand(bot)
   // The neuro-office: people and the team in one forum group (bot-neuro-office.t27).
   registerOfficeCommand(bot)
+  // The office's tasks: /todo, /todos, /done (bot-neuro-office.t27 v5).
+  registerOfficeTasks(bot)
 
   // Команда /help
   bot.command('help', async ctx => {
