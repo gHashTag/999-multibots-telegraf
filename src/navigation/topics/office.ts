@@ -100,6 +100,31 @@ export function speakerName(from: any): string {
   return chars.slice(0, speakerChars(chars.length)).join('')
 }
 
+/** spec may_catch_up (v3): /catchup is answered in an office only. */
+export function mayCatchUp(office: boolean): boolean {
+  return office || !OFFICE.CATCHUP_ONLY_IN_OFFICE
+}
+
+/**
+ * What a catch-up names, in the spec's order (CATCHUP_PARTS): what was
+ * decided, what is still open, who took what on. Interface text only.
+ */
+export const CATCHUP_PARTS_TEXT: ReadonlyArray<{ ru: string; en: string }> = [
+  { ru: 'что решили', en: 'what was decided' },
+  { ru: 'что осталось открытым', en: 'what is still open' },
+  { ru: 'кто что взял на себя (по именам)', en: 'who took what on, by name' },
+]
+
+/** The turn /catchup asks the agent, in the person's language. */
+export function catchupAsk(isRu: boolean): string {
+  const parts = CATCHUP_PARTS_TEXT.map(
+    (p, i) => `${i + 1}) ${isRu ? p.ru : p.en}`
+  ).join('; ')
+  return isRu
+    ? `Я был(а) не здесь. Коротко по памяти этой комнаты: ${parts}. Только то, что люди здесь сказали; чего не было — так и скажи.`
+    : `I was away. Briefly, from this room's memory: ${parts}. Only what people here said; if something was not said, say so.`
+}
+
 /** The line as the room's memory keeps it: "Anna: ..." in a room, as is elsewhere. */
 export function speakerLine(from: any, text: string, room: boolean): string {
   const name = speakerName(from)
@@ -223,8 +248,65 @@ export async function hearInOffice(
   }
 }
 
+/**
+ * /catchup (spec v3, issue #3899): a person back in the office asks what was
+ * said and decided; the agent answers from the room's memory. Asked as that
+ * person, in the room, from the channel's member. Elsewhere it says where it
+ * works and asks the agent nothing. Never throws.
+ */
+export async function catchUp(
+  ctx: any,
+  ask: (
+    telegramId: string,
+    text: string,
+    opts: { room: string; member?: string; speaker?: string }
+  ) => Promise<{ текст: string }> // cyrillic-ok: pre-existing field of the agent answer
+): Promise<'answered' | 'not an office' | 'failed'> {
+  const isRu = isRussianFromState(ctx as any)
+  const office = isRoom(ctx) && (await officeRows(ctx)).length > 0
+  if (!mayCatchUp(office)) {
+    await ctx
+      .reply(
+        isRu
+          ? 'Сводка работает в нейроофисе: в группе с темами после /office.'
+          : 'The catch-up works in a neuro-office: a group with topics after /office.'
+      )
+      .catch(() => undefined)
+    return 'not an office'
+  }
+  try {
+    const member = await officeChannelKind(ctx)
+    const answer = await ask(String(ctx.from?.id ?? ''), catchupAsk(isRu), {
+      room: String(ctx.chat.id),
+      ...(member ? { member } : {}),
+      ...(ctx.from ? { speaker: speakerName(ctx.from) } : {}),
+    })
+    const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
+    const chunks = разбитьДлинное(answer?.текст ?? '') // cyrillic-ok: pre-existing identifiers
+    if (!chunks.length) throw new Error('empty answer')
+    for (const chunk of chunks) await ctx.reply(chunk)
+    return 'answered'
+  } catch (e) {
+    logger.warn('[office] catch-up failed', {
+      error: e instanceof Error ? e.message.slice(0, 120) : String(e),
+    })
+    await ctx
+      .reply(
+        isRu
+          ? 'Сводку сейчас собрать не вышло. Попробуйте /catchup через минуту.'
+          : 'The catch-up did not come together. Try /catchup in a minute.'
+      )
+      .catch(() => undefined)
+    return 'failed'
+  }
+}
+
 /** /office: make this forum group the team's office. */
 export function registerOfficeCommand(bot: Telegraf<any>): void {
+  bot.command('catchup', async ctx => {
+    const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
+    await catchUp(ctx, (id, text, opts) => спроситьАгента(id, text, opts)) // cyrillic-ok: pre-existing export
+  })
   bot.command('office', async ctx => {
     const isRu = isRussianFromState(ctx as any)
     if (!isRoom(ctx)) {
