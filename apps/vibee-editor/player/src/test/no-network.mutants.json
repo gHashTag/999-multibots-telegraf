@@ -1,0 +1,14 @@
+[
+  {
+    "name": "the player suite runs without the guard",
+    "file": "src/test/setup.ts",
+    "from": "installNoNetwork({\n  afterEach,",
+    "to": "void ({\n  afterEach,"
+  },
+  {
+    "name": "fetch passes to the network",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (host && !isLoopback(host)) return Promise.reject(refusal('fetch', host))",
+    "to": "    if (host && !isLoopback(host)) void 0"
+  }
+]

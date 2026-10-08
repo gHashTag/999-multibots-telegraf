@@ -7,31 +7,31 @@
   },
   {
     "name": "a leak no longer fails the test",
-    "file": "test-support/no-network.ts",
-    "from": "afterEach(failIfReached)\n",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "  afterEach(failIfReached)\n",
     "to": "\n"
   },
   {
     "name": "fetch passes to the network",
-    "file": "test-support/no-network.ts",
-    "from": "  if (host && !isLoopback(host)) return Promise.reject(refusal('fetch', host))",
-    "to": "  if (host && !isLoopback(host)) void 0"
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (host && !isLoopback(host)) return Promise.reject(refusal('fetch', host))",
+    "to": "    if (host && !isLoopback(host)) void 0"
   },
   {
     "name": "dns.lookup passes to the network",
-    "file": "test-support/no-network.ts",
-    "from": "  if (!isLoopback(String(host))) {",
-    "to": "  if (false) {"
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (!isLoopback(host)) {\n      const cb = rest[rest.length - 1]",
+    "to": "    if (false) {\n      const cb = rest[rest.length - 1]"
   },
   {
     "name": "dns.promises passes to the network",
-    "file": "test-support/no-network.ts",
-    "from": "  isLoopback(String(host))\n    ? (realPromiseLookup",
-    "to": "  true\n    ? (realPromiseLookup"
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    isLoopback(host)\n      ? realPromiseLookup(host, ...rest)",
+    "to": "    true\n      ? realPromiseLookup(host, ...rest)"
   },
   {
     "name": "every host is this machine",
-    "file": "test-support/no-network.ts",
+    "file": "../packages/test-guard/no-network.mjs",
     "from": "    h === 'localhost' ||",
     "to": "    true ||"
   },
@@ -55,14 +55,20 @@
   },
   {
     "name": "a public name passes as never-resolving",
-    "file": "test-support/no-network.ts",
+    "file": "../packages/test-guard/no-network.mjs",
     "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
     "to": "  return true"
   },
   {
     "name": "a never-resolving name is a leak",
-    "file": "test-support/no-network.ts",
+    "file": "../packages/test-guard/no-network.mjs",
     "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
     "to": "  return false"
+  },
+  {
+    "name": "a connect to an address passes",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (host !== null && net.isIP(strip(host)) && !isLoopback(host)) {",
+    "to": "    if (false) {"
   }
 ]

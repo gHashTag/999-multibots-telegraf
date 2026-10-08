@@ -93,10 +93,10 @@ export default defineConfig({
     setupFiles: [
       // Фиктивные env для юнит-тестов (FAL_KEY и пр.): сервисы проверяют
       // ключ на входе, до моков — без этого чистые тесты падают (43 шт).
+      // ...and the network guard (apps/vibee-editor/packages/test-guard/no-network.mjs): no test
+      // reaches a host but this machine. It replaced the DETECT_NETWORK
+      // observer, which only logged and once reported "0 calls".
       './vitest.setup.ts',
-      ...(process.env.DETECT_NETWORK
-        ? ['scripts/detect-network-tests.mjs']
-        : []),
     ],
     exclude: [
       '**/node_modules/**',

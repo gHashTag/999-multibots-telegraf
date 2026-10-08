@@ -33,6 +33,18 @@ const updateUserBalance = vi.fn()
 const getUserBalance = vi.fn()
 const error = vi.fn()
 
+/* The lip sync goes to fal (queue.fal.run) with the test's fake key
+ * (apps/vibee-editor/packages/test-guard/no-network.mjs): here fal is out of reach, as it was in the
+ * cloud, so the generation fails and the refund path runs. */
+vi.mock('@fal-ai/client', async importOriginal => ({
+  ...(await importOriginal<typeof import('@fal-ai/client')>()),
+  fal: {
+    config: () => undefined,
+    subscribe: async () => {
+      throw new TypeError('fetch failed')
+    },
+  },
+}))
 vi.mock('@/core/supabase/updateUserBalance', () => ({
   updateUserBalance: (...a: unknown[]) => updateUserBalance(...a),
 }))
