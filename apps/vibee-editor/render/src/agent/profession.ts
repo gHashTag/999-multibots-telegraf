@@ -139,7 +139,7 @@ export const MEMBER_NAMES: Record<string, readonly string[]> = {
 }
 
 /**
- * The member a message opens with ("Казначей, ...", "@navigator ..."), or
+ * The member a message opens with ("Казначей, ...", or a name after an at-sign), or
  * TEAM_SIZE when it names nobody first (spec addressed: the start only).
  */
 export function addressedMember(text: string | null | undefined): number {
