@@ -128,6 +128,12 @@ person's name, with `speaker` = the handing member's label; the colleague
 answers in the room as "💰 Treasurer: ...". A failed or empty colleague turn
 is said. The answering member's own label line is never a hand-off.
 
+**The office's tasks (spec v5, #3901, `topics/officeTasks.ts`).** `/todo
+<text>` (owner: the person replied to, else `@named`, else the sender; a forum
+topic's own first message is no reply), `/todos` (open, oldest first, at most
+`OPEN_TASKS_SHOWN_MAX`), `/done <id>` (owner, author or admin). Table
+`office_tasks` on the tokens database, made on first use.
+
 `t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
 the owner's label: `owner-approved-foreign` waives the path check only, never
 the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the

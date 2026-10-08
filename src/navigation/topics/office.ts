@@ -257,6 +257,11 @@ const isRoom = (ctx: any): boolean =>
   ctx?.chat?.type === 'group' || ctx?.chat?.type === 'supergroup'
 
 /** The office's channels in this group: its stored tabs, or none. */
+/** Is this group an office (it has the team's channels)? Never throws. */
+export async function isOffice(ctx: any): Promise<boolean> {
+  return (await officeRows(ctx)).length > 0
+}
+
 async function officeRows(ctx: any) {
   const bot = String(ctx?.botInfo?.username ?? '')
   if (!bot || !isRoom(ctx)) return []
