@@ -22,6 +22,7 @@
  * somewhere; every web_app link is a start_param the mini app maps to a route
  * (TelegramProvider.tsx, guarded by startParamContract.test).
  */
+import { moneyHere } from '@/navigation/topics/team'
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import type { MyContext } from '@/interfaces'
@@ -116,6 +117,8 @@ export interface StartGreetingOptions {
   app: boolean
   /** Whether this bot sells in rubles (shouldShowRubles). */
   rubles: boolean
+  /** False when the person has tabs: the pay rows are the Treasurer's (bot-agent-team.t27 v2). */
+  money?: boolean
 }
 
 /**
@@ -198,13 +201,24 @@ export function startGreetingKeyboard(
     rows.push([actionButton('human', isRu)])
   }
 
-  rows.push([actionButton('topup', isRu)])
-  const pay = [actionButton('pay_crypto', isRu)]
-  if (opts.rubles) pay.unshift(actionButton('pay_rub', isRu))
-  rows.push(pay)
-  rows.push([actionButton('balance', isRu), actionButton('can', isRu)])
+  if (opts.money !== false) rows.push(...moneyRows(isRu, opts.rubles))
+  rows.push(
+    opts.money !== false
+      ? [actionButton('balance', isRu), actionButton('can', isRu)]
+      : [actionButton('can', isRu)]
+  )
 
   return Markup.inlineKeyboard(rows)
+}
+
+/** The pay rows: top up, then the other two doors to the same balance. */
+export function moneyRows(
+  isRu: boolean,
+  rubles: boolean
+): InlineKeyboardButton[][] {
+  const pay = [actionButton('pay_crypto', isRu)]
+  if (rubles) pay.unshift(actionButton('pay_rub', isRu))
+  return [[actionButton('topup', isRu)], pay]
 }
 
 /** Send the greeting and the buttons. Used by /start for an existing person. */
@@ -232,6 +246,7 @@ export async function showStartGreeting(ctx: MyContext): Promise<void> {
       startGreetingKeyboard(isRu, {
         app: ctx.chat?.type === 'private',
         rubles,
+        money: await moneyHere(ctx),
       })
     )
   } catch (error) {
