@@ -97,7 +97,14 @@ named, its answer opening with its name; the channel keeps its memory
 so the bot and the mini-app get it alike. Only the person's own turns: never
 a client's DM, a client thread, the Queen or a catalogue specialist. Live
 people join through a forum GROUP (a private chat holds one person) -- the
-office group is the next step, spec `bot-neuro-office.t27`.
+office is a forum group: `/office` (spec `bot-neuro-office.t27`,
+`topics/office.ts`) -- in a forum where the bot manages topics, at an admin's
+word -- makes the whole team's channels there. People talk freely; an agent
+answers only when spoken to (reply, `@bot`, command -- groupAddressing.ts) or,
+in an office only, when a message opens with a member's name. A channel speaks
+as its member (the bot sends `member`, the render gives the turn that trade,
+the room keeps its memory). A room carries no pay buttons. The rules are the
+spec's own generated functions (`t27c gen-ts` lowers pure bodies, t27#7872).
 
 Traps:
 

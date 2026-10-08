@@ -453,6 +453,11 @@ async function askAgentNow(
      * asker's -- tools, wallet and rights are personal -- but the history is
      * the chat's, which is what a person writing there assumes.
      */
+    /**
+     * The office channel this room turn is in (bot-neuro-office.t27): a
+     * bot-topic-tabs kind; the render gives the turn that member's trade.
+     */
+    member?: string
     room?: string
     /**
      * One line about the person, from what Telegram openly shows
@@ -608,6 +613,7 @@ async function askAgentNow(
            * client pattern (positive digits) would have refused it.
            */
           ...(room ? { room } : {}),
+          ...(room && opts.member ? { member: opts.member } : {}),
           ...(agent ? { agent } : {}),
           ...(conversation ? { conversation } : {}),
         }),
