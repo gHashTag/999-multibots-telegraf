@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-neuro-office" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 3 satisfies number;
+export const VERSION = 4 satisfies number;
 // t27c gen-ts: fn may_open_office was not emitted -- this backend lowers declarations, not bodies.
 export const OFFICE_TEAM_SIZE = 6 satisfies number;
 // t27c gen-ts: fn answers was not emitted -- this backend lowers declarations, not bodies.
@@ -24,6 +24,10 @@ export const SPEAKER_NAME_MAX_CHARS = 64 satisfies number;
 export const CATCHUP_ONLY_IN_OFFICE = true satisfies boolean;
 // t27c gen-ts: fn may_catch_up was not emitted -- this backend lowers declarations, not bodies.
 export const CATCHUP_PARTS = 3 satisfies number;
+export const HANDOFF_DEPTH_MAX = 1 satisfies number;
+// t27c gen-ts: fn hands_off was not emitted -- this backend lowers declarations, not bodies.
+export const HANDOFF_IN_PERSONS_NAME = true satisfies boolean;
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -36,7 +40,7 @@ export const CATCHUP_PARTS = 3 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "OFFICE_TEAM_SIZE", "ROOM_PAY_BUTTONS", "HEARS_PEOPLE", "HEARD_MAX_CHARS", "ROOM_LINE_NAMES_SPEAKER", "SPEAKER_NAME_MAX_CHARS", "CATCHUP_ONLY_IN_OFFICE", "CATCHUP_PARTS"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "OFFICE_TEAM_SIZE", "ROOM_PAY_BUTTONS", "HEARS_PEOPLE", "HEARD_MAX_CHARS", "ROOM_LINE_NAMES_SPEAKER", "SPEAKER_NAME_MAX_CHARS", "CATCHUP_ONLY_IN_OFFICE", "CATCHUP_PARTS", "HANDOFF_DEPTH_MAX", "HANDOFF_IN_PERSONS_NAME"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

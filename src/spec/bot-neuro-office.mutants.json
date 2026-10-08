@@ -103,5 +103,40 @@
     "from": "return !room || OFFICE.ROOM_PAY_BUTTONS",
     "to": "return true",
     "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a hand-off goes past the depth bound",
+    "file": "src/navigation/topics/office.ts",
+    "from": "depth < OFFICE.HANDOFF_DEPTH_MAX &&",
+    "to": "depth <= OFFICE.HANDOFF_DEPTH_MAX &&",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a member hands a task to itself",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (kind === from) continue\n",
+    "to": "",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a hand-off outside an office",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    office &&\n    depth < OFFICE.HANDOFF_DEPTH_MAX",
+    "to": "    depth < OFFICE.HANDOFF_DEPTH_MAX",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a silent failed hand-off",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (!text) throw new Error('empty answer')\n    for (const chunk",
+    "to": "    for (const chunk",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "the room answer is never offered to a colleague",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "await handOffInOffice(ctx, text, ochishcheno,",
+    "to": "void (ctx, text, ochishcheno,",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
   }
 ]

@@ -259,6 +259,7 @@ import {
   namedInOffice,
   officeChannelKind,
   hearInOffice,
+  handOffInOffice,
   namesSpeaker,
   speakerName,
   registerOfficeCommand,
@@ -1672,7 +1673,18 @@ If not, continue on your own and click the "I myself" button`
            * parts, the loop above sends nothing, and returning here was
            * silence. Such a turn falls through to the empty-answer line below.
            */
-          if (chasti.length > 0) return
+          if (chasti.length > 0) {
+            // A colleague named first on a line of the answer takes the task,
+            // once (bot-neuro-office.t27 v4 hands_off).
+            if (turnWhere.room) {
+              const agent = await import('@/services/trinityAgent')
+              const askColleague = agent.спроситьАгента // cyrillic-ok: pre-existing export
+              await handOffInOffice(ctx, text, ochishcheno, (id, t, o) =>
+                askColleague(id, t, o)
+              )
+            }
+            return
+          }
         }
         /*
          * A draft card with no words around it IS the answer: recipient, text
