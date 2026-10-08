@@ -121,6 +121,15 @@ Traps:
 
 ## Common Issues
 
+- **An emoji inside an emoji (owner, 2026-10-08).** A topic with no icon of its
+  own is drawn as a coloured circle holding the FIRST CHARACTER of its name. A
+  tab named "🤖 Agent" therefore showed the robot inside the circle and again
+  beside it. Spec `bot-topic-tabs.t27` v5: the topic name is words only
+  (`topicRu`/`topicEn`, `NAME_CARRIES_EMOJI = false`); the emoji is set as the
+  icon by a second `editForumTopic` after the topic exists (`ICON_AFTER_CREATE`),
+  only when `getForumTopicIconStickers` lists it. Button labels and /team text
+  keep the emoji (`ru`/`en`): they are not topic names. Old tabs are renamed
+  once by `retitle` and get their icon then.
 - The fake database in `topicTabs.test.ts` matches SQL by shape. A new
   `UPDATE ... SET title = $4` needed its own branch; the generic one wrote the
   title into `thread_id`.
