@@ -42,6 +42,7 @@ import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
+import { TeamRow } from '@/components/Chat/TeamRow'
 import { SendCardView } from '@/components/Chat/SendCardView'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
@@ -717,6 +718,9 @@ function ChatThread({
     <div className={`chat-page${client ? ' chat-page--client' : ''}`}>
       <Header />
       <ChatThreads current={client} />
+      {/* The person's team of agents, the same as the bot's tabs
+          (bot-agent-team.t27): each member's chat is its tab's conversation. */}
+      {splits && !marketplaceAgent ? <TeamRow current={conversation} /> : null}
       {/*
         THE CONVERSATION AND, FOR A CLIENT THREAD, THE CLIENT'S CARD BESIDE IT.
 

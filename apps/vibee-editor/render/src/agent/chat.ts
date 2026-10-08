@@ -78,6 +78,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { SOCIAL_PROMPT_LINE } from './social-tools'
+import { professionSection } from './profession'
 import {
   MARKETPLACE_AGENTS,
   marketplaceAgentById,
@@ -1448,7 +1449,9 @@ function ownerSideSection(surface?: string): string {
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
-    'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run.' // cyrillic-ok: prompt copy
+    'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run. ' + // cyrillic-ok: prompt copy
+    /* automation/agent-spec-bank.t27: every agent reads the whole spec bank. */
+    'Правило, число или порог проекта — сверяй со спекой .t27: t27_specs (поиск и чтение, бесплатно).' // cyrillic-ok: prompt copy
   )
 }
 
@@ -2358,6 +2361,12 @@ async function* runAgentTurn(
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
     /**
+     * The conversation the bot named: a fixed tab's `tab<kind>` makes the
+     * turn that member's, with its trade in the prompt (profession.ts,
+     * bot-agent-team.t27). Every tool stays shown.
+     */
+    profession?: string
+    /**
      * THE QUEEN: a supervisor's turn about `client` (routes.ts threadFor
      * role=supervisor). No tools at all -- she reads, reasons and writes
      * tasks for the agent; she cannot send, pay or open anything.
@@ -2776,7 +2785,8 @@ async function* runAgentTurn(
               giftIsDown: imagesLookDown()?.why ?? null,
             })) +
         dmContext +
-        specialistSkills,
+        specialistSkills +
+        professionSection(opts?.profession, [...TOOLS_BY_NAME.keys()]),
     },
     ...history,
   ]

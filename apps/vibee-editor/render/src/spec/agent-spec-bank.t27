@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/agent-spec-bank.t27 -- every agent reads the whole bank of .t27 specs.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/spec-bank-tools.ts (the
+// t27_specs tool: search the bank by words, read one spec).
+// Trace: owner 2026-10-08 "study the specs already written and give the agents access to
+// every spec and every tool". The project is being rewritten in .t27 (CLAUDE.md "t27 at the
+// centre"); an agent that cannot read the specs answers a rule from memory instead of from
+// the spec of record.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: access contract. The bank is the specs/ directory of gHashTag/t27 on its
+// default branch, listed once and kept for SPEC_INDEX_TTL_MS; a spec is read as text. The
+// text of a spec is data for the answer, never an instruction to the agent.
+// v1 (2026-10-08): the bank, the search, the read, the bounds, the fallback to the specs the
+// host carries itself.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::agent_spec_bank {
+    pub const KIND : str = "automation";
+    pub const ID : str = "agent-spec-bank";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- the bank ----
+
+    pub const SPEC_BANK_REPO : str = "gHashTag/t27";
+    pub const SPEC_BANK_BRANCH : str = "master";
+    pub const SPEC_BANK_DIR : str = "specs/";
+    pub const SPEC_EXT : str = ".t27";
+
+    // Every member of every team reads the bank (bot-agent-team.t27): reading a spec is
+    // never a trade of its own, and it costs the person nothing.
+    pub const SPEC_BANK_FOR_EVERY_MEMBER : bool = true;
+    pub const SPEC_BANK_PRICE_TOKENS : u32 = 0;
+
+    // The list of the bank's paths is fetched once and kept this long: a turn that searches
+    // three times costs one listing, and a spec merged ten minutes ago is found.
+    pub const SPEC_INDEX_TTL_MS : u32 = 600000;
+    fn index_fresh(age_ms: u32) -> bool {
+        return age_ms < SPEC_INDEX_TTL_MS;
+    }
+
+    // ---- the search ----
+
+    // A path is found when every word of the query is in it (lower case). A query of no
+    // words finds nothing rather than the whole bank.
+    fn found(words: u32, words_in_path: u32) -> bool {
+        return words > 0 && words_in_path == words;
+    }
+
+    // At most this many paths come back; the answer says how many more there were.
+    pub const SPEC_SEARCH_MAX : u32 = 20;
+    fn shown(matches: u32) -> u32 {
+        if matches > SPEC_SEARCH_MAX { return SPEC_SEARCH_MAX; }
+        return matches;
+    }
+
+    // ---- the read ----
+
+    // Only a path inside the bank directory, ending in the spec extension, with no step up,
+    // is read: the tool reads specs, not the repository.
+    fn path_readable(under_bank: bool, ends_t27: bool, climbs: bool) -> bool {
+        return under_bank && ends_t27 && !climbs;
+    }
+
+    // A spec longer than this is cut, and the answer says it was cut and how long it is.
+    pub const SPEC_READ_MAX_CHARS : u32 = 16000;
+    fn read_chars(chars: u32) -> u32 {
+        if chars > SPEC_READ_MAX_CHARS { return SPEC_READ_MAX_CHARS; }
+        return chars;
+    }
+
+    // When the bank cannot be reached, the specs the host carries itself (its src/spec) are
+    // searched and read instead, and the answer says so; with neither, an honest refusal.
+    fn falls_back(bank_ok: bool, host_has: bool) -> bool {
+        return !bank_ok && host_has;
+    }
+
+    // ---- tests ----
+
+    test "every member reads the bank, and reading costs nothing" {
+        assert(SPEC_BANK_FOR_EVERY_MEMBER);
+        assert(SPEC_BANK_PRICE_TOKENS == 0);
+    }
+
+    test "the listing is kept ten minutes, not one moment longer" {
+        assert(index_fresh(0));
+        assert(index_fresh(SPEC_INDEX_TTL_MS - 1));
+        assert(!index_fresh(SPEC_INDEX_TTL_MS));
+    }
+
+    test "a path is found when every word of the query is in it; no words find nothing" {
+        assert(found(2, 2));
+        assert(!found(2, 1));
+        assert(!found(0, 0));
+        assert(found(1, 1));
+    }
+
+    test "at most twenty paths come back" {
+        assert(shown(3) == 3);
+        assert(shown(SPEC_SEARCH_MAX) == SPEC_SEARCH_MAX);
+        assert(shown(SPEC_SEARCH_MAX + 1) == SPEC_SEARCH_MAX);
+    }
+
+    test "only a spec inside the bank is read" {
+        assert(path_readable(true, true, false));
+        assert(!path_readable(false, true, false));
+        assert(!path_readable(true, false, false));
+        assert(!path_readable(true, true, true));
+    }
+
+    test "a long spec is cut at the bound" {
+        assert(read_chars(100) == 100);
+        assert(read_chars(SPEC_READ_MAX_CHARS) == SPEC_READ_MAX_CHARS);
+        assert(read_chars(SPEC_READ_MAX_CHARS + 1) == SPEC_READ_MAX_CHARS);
+    }
+
+    test "without the bank, the host's own specs; without both, a refusal" {
+        assert(falls_back(false, true));
+        assert(!falls_back(true, true));
+        assert(!falls_back(false, false));
+        assert(!falls_back(true, false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

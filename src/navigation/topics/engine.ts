@@ -91,6 +91,12 @@ export interface EnsureOptions {
   /** /tabs: ask Telegram about every stored tab and remake the gone ones. */
   probe?: boolean
   now?: number
+  /**
+   * The kinds that may join now (bot-agent-team.t27 tended): a tab the person
+   * has no row for is made only when its kind is here. A stored tab is always
+   * looked after. Absent, every fixed tab may be made.
+   */
+  only?: readonly string[]
 }
 
 /**
@@ -107,9 +113,9 @@ export const TAB_TEXT: Record<
   agent: {
     ru: 'Агент',
     introRu:
-      'Здесь главный разговор с агентом. Пишите или говорите голосом — он видит все свои инструменты.',
+      'Здесь главный разговор с агентом. Пишите или говорите голосом — он видит все свои инструменты. Ниже — ваша команда: позовите агента, и у него появится своя вкладка.',
     introEn:
-      'Your main conversation with the agent. Write or send a voice note; every tool is here.',
+      'Your main conversation with the agent. Write or send a voice note; every tool is here. Below is your team: call an agent and it gets a tab of its own.',
   },
   reels: {
     ru: 'Режиссёр',
@@ -504,6 +510,9 @@ export function createTopicTabs(deps: TopicTabsDeps) {
       const name = isRu ? tab.ru : tab.en
       try {
         let row = have.find(r => r.kind === tab.kind)
+        // Not on the team and not joining now: nothing is made behind the
+        // person's back (bot-agent-team.t27 tended).
+        if (!row && opts.only && !opts.only.includes(tab.kind)) continue
         if (row && row.thread_id < 0) {
           // Somebody's claim: respected while it is fresh, dropped when dead.
           const age = now - (row.created_at?.getTime() ?? now)
