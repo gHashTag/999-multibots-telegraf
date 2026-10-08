@@ -29,6 +29,8 @@
 //   - The price is named before the press, for the scenes that press would make.
 //   - A card whose note links a lesson of the course ends its reel on that lesson: the
 //     call is the lesson's address. Any other card ends on the person's own call.
+//   - A lesson's address is its static page (LESSON_ROUTE + id + "/"), never its SPA
+//     route: what follows '#' never reaches a crawler (v2).
 //   - The course is read from its own spec, never from a hand copy, and its Russian from
 //     the bundle its translation contract names; a field missing there is the English one.
 //     A course that does not read as LESSONS lessons is refused whole, not half taken in.
@@ -40,6 +42,12 @@
 //       press on one lesson card after the deploy -- not yet made when this was written.
 // v1 (2026-10-08): the press on a card, the trial, the course's lesson call, the course
 //       sources, the preview and the cabinet's count.
+// v2 (2026-10-08, the owner, a screenshot: course 0 posted to X as t27.ai/#/t27-basics showed
+//       the home page's card): a crawler drops what follows '#', so a lesson linked by its
+//       SPA route previews as the home page wherever the link is shared. LESSON_ROUTE is now
+//       the lesson's own static page, t27.ai/learn/<id>/ (one per lesson, ids unique across
+//       the courses), which carries the lesson's card: the call at the end of a reel and the
+//       link in a lesson card's note both name it.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::plan_reel {
@@ -47,7 +55,7 @@ module automation::plan_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "plan-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- A card's status, as the plan stores it ------------------------------------------
     pub const STATUS_IDEA : u8 = 0;   // not made yet
@@ -71,7 +79,7 @@ module automation::plan_reel {
     ];
     // The Russian bundle course-ru.t27 names (BUNDLE_REPO trinity, BUNDLE_PATH).
     pub const COURSE_RU_SOURCE : str = "https://raw.githubusercontent.com/gHashTag/trinity/main/apps/website/i18n/course.ru.json";
-    pub const LESSON_ROUTE : str = "https://t27.ai/#/course/";  // + the lesson id
+    pub const LESSON_ROUTE : str = "https://t27.ai/learn/";  // + the lesson id + "/" (v2)
 
     // ---- The picture of a reel -----------------------------------------------------------
     pub const PREVIEW_SEEK_MS : u16 = 1000;  // past the first frame, which may be dark

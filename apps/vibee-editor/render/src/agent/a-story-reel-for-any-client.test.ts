@@ -958,7 +958,7 @@ describe('a press on a plan card (plan-reel.t27)', () => {
       card(
         81,
         'Биты, триты и GF16',
-        'Как число хранится в битах.\nhttps://t27.ai/#/course/bits-and-trits'
+        'Как число хранится в битах.\nhttps://t27.ai/learn/bits-and-trits/'
       ),
       card(82, 'Букет недели', '', 'doing')
     )
@@ -998,7 +998,7 @@ describe('a press on a plan card (plan-reel.t27)', () => {
   it('a lesson card ends on its lesson', async () => {
     const { deps } = depsOn(base, () => new Promise(() => undefined))
     await startStory(deps, { lead: LENA, requester: LENA, itemId: 81 })
-    expect(base.db.jobs[0].cta).toBe('t27.ai/#/course/bits-and-trits')
+    expect(base.db.jobs[0].cta).toBe('t27.ai/learn/bits-and-trits/')
   })
 
   it('any other card ends on her own call', async () => {
