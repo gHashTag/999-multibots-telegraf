@@ -15,6 +15,7 @@ vi.mock('@/navigation/topics/tabs', () => ({
 }))
 
 import {
+  botInTab,
   eventPayload,
   inEventTab,
   routesToTab,
@@ -161,5 +162,53 @@ describe('a payment lands in the Treasurer tab', () => {
     const { handler } = await run('supergroup')
     expect(handler).toHaveBeenCalled()
     expect(knownTabs).not.toHaveBeenCalled()
+  })
+})
+
+describe('a delivery outside any update lands in the Director tab', () => {
+  afterEach(() => knownTabs.mockReset())
+
+  const botOf = (username?: string) => {
+    const sent: any[] = []
+    const telegram = {
+      callApi: vi.fn(async (method: string, payload: any) => {
+        sent.push({ method, payload })
+        return true
+      }),
+      getMe: vi.fn(async () => ({ username: 'from_getme_bot' })),
+    }
+    return {
+      bot: { telegram, ...(username ? { botInfo: { username } } : {}) },
+      sent,
+    }
+  }
+
+  it('a KIE or lipsync delivery to a person with a Director tab goes there', async () => {
+    knownTabs.mockResolvedValue([{ thread_id: 21, kind: 'reels', title: null }])
+    const { bot, sent } = botOf('test_bot')
+    const view = await botInTab(bot, 777, 'reel')
+    await view.telegram.callApi('sendVideo', { chat_id: 777, video: 'v' })
+    expect(sent[0].payload.message_thread_id).toBe(21)
+    expect(knownTabs).toHaveBeenCalledWith('test_bot', 777)
+    // The shared instance itself is untouched.
+    await bot.telegram.callApi('sendVideo', { chat_id: 777, video: 'v' })
+    expect(sent[1].payload.message_thread_id).toBeUndefined()
+  })
+
+  it('asks getMe for the name when the instance has no botInfo', async () => {
+    knownTabs.mockResolvedValue([{ thread_id: 21, kind: 'reels', title: null }])
+    const { bot } = botOf()
+    await botInTab(bot, 777, 'reel')
+    expect(knownTabs).toHaveBeenCalledWith('from_getme_bot', 777)
+  })
+
+  it('no tab, a group, or a refused getMe: the same instance', async () => {
+    knownTabs.mockResolvedValue([])
+    const { bot } = botOf('test_bot')
+    expect(await botInTab(bot, 777, 'reel')).toBe(bot)
+    expect(await botInTab(bot, -100123, 'reel')).toBe(bot)
+    const nameless = botOf()
+    nameless.bot.telegram.getMe.mockRejectedValue(new Error('401'))
+    expect(await botInTab(nameless.bot, 777, 'reel')).toBe(nameless.bot)
   })
 })

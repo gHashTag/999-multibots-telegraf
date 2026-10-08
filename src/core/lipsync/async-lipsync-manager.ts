@@ -1,3 +1,4 @@
+import { botInTab } from '@/navigation/topics/eventTabs'
 import { logger } from '@/utils/logger'
 import { lipSyncOrchestrator } from './lipsync-orchestrator'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
@@ -311,11 +312,13 @@ export class AsyncLipSyncManager {
     job: AsyncLipSyncJob,
     result: LipSyncOutput
   ): Promise<void> {
-    const bot = this.getBotForJob(job)
+    let bot = this.getBotForJob(job)
     if (!bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
     }
+    // The finished lipsync is the Director's news (bot-event-tabs.t27).
+    bot = await botInTab(bot, job.chatId, 'reel')
 
     try {
       const processingTime = Math.round((Date.now() - job.startTime) / 1000)
