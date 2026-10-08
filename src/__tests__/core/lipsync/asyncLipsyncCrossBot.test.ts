@@ -64,9 +64,12 @@ describe('AsyncLipSyncManager delivers via the per-job bot, not the singleton', 
 
   it('resolves a per-job bot in every delivery method before sending', () => {
     const s = code()
-    // one `const bot = this.getBotForJob(job)` per delivery method
-    const resolves = (s.match(/const bot = this\.getBotForJob\(job\)/g) || [])
-      .length
+    // one `const bot = this.getBotForJob(job)` per delivery method -- `let`
+    // where the success path then takes the person's Director tab view of
+    // that same bot (bot-event-tabs.t27, botInTab)
+    const resolves = (
+      s.match(/(?:const|let) bot = this\.getBotForJob\(job\)/g) || []
+    ).length
     // every telegram send now goes through the resolved `bot`
     const sends = (s.match(/\bbot\.telegram\.send/g) || []).length
     expect(resolves, 'expected 3 delivery methods to resolve per-job bot').toBe(
