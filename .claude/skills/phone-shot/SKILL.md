@@ -66,6 +66,18 @@ scheduler reads the exit code. `--from FILE` parses saved `all` output (that
 is how `scripts/shot-watch.test.ts` drives it without a browser);
 `--state FILE` keeps a second history, e.g. one per branch.
 
+### After every deploy: `tri stands-after-deploy`
+
+`tri stands-after-deploy run` (launchd `ai.t27.stands-after-deploy`, every
+15 min, installed by `tri stands-after-deploy install`) waits for a new
+SUCCESS deploy of vibee-editor, runs `all` on THAT commit in a detached
+worktree `~/.local/state/stands/tree`, plus the read-only `tri browser
+doctor`, and files one issue per failing stand + deploy (label
+`stands-after-deploy`, a delegatable spec with `## Boundary`). State, ledger
+and the red screenshots live in `~/.local/state/stands/`. The how, the
+numbers and the dedupe rule are in the header of
+`bin/helpers/stands-after-deploy.mjs`; `status` shows the last runs.
+
 ## Что меряется
 
 - **small** — кнопка, поле или ссылка меньше цели по любой стороне. Цель
@@ -76,12 +88,27 @@ is how `scripts/shot-watch.test.ts` drives it without a browser);
   scroller counts. A visually hidden (sr-only) word does NOT: it is hidden on
   purpose (`clip-path: inset(50%)`, `clip: rect(0…)`, or a 1px absolute box).
   Teach the checker only a false positive like that one; a real cut is fixed
-  in the page.
+  in the page. A button whose wrapped words spill out of its fixed height
+  (`scrollHeight > clientHeight`, painted over the next row, not clipped)
+  counts too: `cut button «…» spills 60>44 down`.
 - **overlap** — две цели наложились.
 - **order** — пары `before` стенда: первое стоит ВЫШЕ второго на экране.
   Цена над кнопкой (спека v16): «до нажатия» — это место, а не слово.
   Пара, где первого нет, — тоже нарушение: «цена над кнопкой» неверно о
   цене, которой нет.
+- **fold** — what a STATE names in `fold` must END on the first screen: above
+  the bars fixed to the bottom of the viewport (the app's tab bar, found by
+  `position: fixed` in the lower half), counted from the top of the page
+  (scrolled ancestors added back). `[selector, minWidth]` asks only from that
+  width up. The margin is printed green or red (`ends at 708px of 787px`):
+  2 px above the line is not 200. A state's `foldInsets` ({top, bottom})
+  take off what a host keeps: the CRM's `load` state uses TELEGRAM -- its
+  Close/menu row and the status bar on top, the home indicator below
+  (59 + 46 and 34, read from `crm-first-screen.t27`'s gen, never typed) --
+  so `ends at 617px of 648px (less 105 top, 34 bottom)` is the owner's
+  phone, not the stand. Added for P31 (07.10.2026): the CRM work
+  tab passed size, cut and overlap while the first person waiting for an
+  answer began at 868 px of a 844 px phone.
 
 ## Solution Steps: снять новый экран
 
@@ -368,6 +395,87 @@ import.meta.url)), ...)` and `readFileSync`.
   (`a.crm__tme`, a 44×44 sibling) and a grid column on a phone. Look for the
   same speck in the screen's other lists, even if the stand's fixture leaves
   them empty (CRM hot leads).
+
+- **Green on every control measure, and nobody on the first screen.** The
+  CRM work tab (07.10.2026): 29 controls, all 44 px, nothing cut -- and the
+  first person waiting for an answer ended at 926 px under a tab bar at 787.
+  Size measures say whether a thumb CAN press; they never said whether there
+  is anything to press without scrolling. Name what the screen is FOR in
+  `fold`, measure it RED first, then fix.
+- **Spend the first screen by state, not by feature.** What stood above the
+  person: a switch that was OFF at full size (220 px), a tester's level
+  chips on two lines, count chips stacked two rows high. Off-and-safe folds
+  to one line (on -- the state that acts without the owner -- never does);
+  the tester's chips become label + native select; count pills go side by
+  side. Each piece is a jsdom guard; the shot holds the sum.
+- **A shot's fold is not the owner's phone -- unless it says whose.** The
+  stand is 844 px with no Telegram chrome; Telegram fullscreen on an iPhone
+  also takes 105 px on top and 34 below. P31 measured the stand and called
+  the name "on the first screen" at 668 of 787 -- on the phone it was at the
+  edge. P32 gave `fold` the insets from the spec; measure against the line
+  the person actually has.
+- **A player test must not open bin/ (or anything above apps/vibee-editor).**
+  The player's image is built from apps/vibee-editor only; a test that reads
+  `bin/helpers/shot.mjs` passes in the hooks and dies with ENOENT in the
+  deploy's test gate, stopping every later player deploy (#3244 did it once).
+  `testGateExclude.test.ts` catches it in the full player run -- P32's
+  binding test tripped it on 07.10.2026. Checks of a tool live at the root
+  (`src/__tests__/tools/`), and their mutants in a root list
+  (`bin/helpers/shotFold.mutants.json`), not in the CRM loop's list, whose
+  marker runs player tests only.
+- **Numbers a tool reads come from the spec's gen, not from the tool.**
+  `shot.mjs` imports `player/src/spec/crm-first-screen.gen.ts` directly
+  (Node 22 strips the types of a .ts import); a root test
+  (`src/__tests__/tools/shotFoldFromCrmSpec.test.ts`) greps the tool for
+  the import and for `foldInsets: TELEGRAM`, so a hand-typed 34 in the tool
+  is a red test, not a quiet drift.
+- **A width rule that saves a row at 390 can cost one at 320.** Side-by-side
+  funnel pills: 126 -> 78 px at 390, but three rows at 320 (as tall as two
+  stacked). Measure every width before scoping; scope the rule
+  (`min-width: 360px`).
+- **Type gate red on files you never touched = a dependency main added and
+  this container never installed** (`@tonconnect/ui`, 9 errors). Look at the
+  first error (`TS2307 Cannot find module`), install with `--no-save`, and
+  check the shot's playwright still resolves afterwards.
+- **A button paints its words SIDEWAYS past its box, and cut/overlap stay 0.** design-system.css gives every `button` `white-space: nowrap`; the
+  AUTO line's word ("до 21:30 · осталось 7/30") ran on under its own
+  «Выключить» -- neither box moved, so overlap was 0, and the sideways cut
+  only looked at clipped boxes. Now a button with `overflow: visible` whose
+  `scrollWidth > clientWidth` is a cut, `spills N>M right` (2026-10-08,
+  negative control: RED on the old CSS). Cure in the page: the word gets
+  `white-space: normal` and the button `flex-wrap: wrap`, so it goes under
+  the name instead of under the neighbour. **Read the PNG even when green**:
+  this one was found by eye on a green run, then made measurable.
+- **A state is a link: the harness reads its own query.** `crm-auto-on` is
+  `page: 'crm', query: '?auto=on'` -- the same harness answering
+  `autopilot_status` switched on, with a FIXED hour (21:30) so two shots of
+  one state are the same picture.
+
+- **An icon squeezed to 0 px, every other measure green.** «+ Цель» drew
+  as «Цель»: the plan head's long hint pressed the flex button, and its svg
+  shrank first (probed in Chromium: width 0). Now a control's sized icon
+  (`svg[width]`) drawn narrower than a pixel is a cut, `squeezes its icon
+to 0 px` (negative control: RED with `flex-shrink: 1`). Cure:
+  `flex-shrink: 0` on the button and its icon.
+- **A new measure is a sweep of every stand, the same day.** P33's
+  `spills right` landed in main and turned `story-palette` and `crm-client`
+  RED at 320 px («Сделать рилс · кадров: 3» 276>274): the design system's
+  `nowrap` + fixed `height` on `.story-reel__go`. Run `tri shot all` before
+  merging a measure, not after (cure: `height: auto; white-space: normal`).
+- **The first measure of a screen nobody shot finds old debt.** The
+  content plan (`tri shot profile-plan`, 2026-10-08): 12 targets 26–28 px
+  (status pills, edit/delete icons, «Цель»), the goal's name cut by an
+  ellipsis. Fixed scoped to `.profile-plan` (the skills tab shares the
+  classes and answers to its own measure).
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
 
 ## Related Resources
 

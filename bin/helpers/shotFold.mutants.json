@@ -1,0 +1,74 @@
+[
+  {
+    "name": "tri shot measures the stand, not Telegram",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        foldInsets: TELEGRAM,\n      },\n      {",
+    "to": "      },\n      {"
+  },
+  {
+    "name": "tri shot types its own home indicator",
+    "file": "bin/helpers/shot.mjs",
+    "from": "  bottom: FIRST.TG_HOME_BOTTOM_PX,",
+    "to": "  bottom: 34,"
+  },
+  {
+    "name": "tri shot stops asking for Prepare",
+    "file": "bin/helpers/shot.mjs",
+    "from": "          ['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX],\n        ],\n        foldInsets: TELEGRAM,\n      },\n      {",
+    "to": "        ],\n        foldInsets: TELEGRAM,\n      },\n      {"
+  },
+  {
+    "name": "tri shot forgets the AUTO line's Turn off",
+    "file": "bin/helpers/shot.mjs",
+    "from": "          '.crm-auto__stop',\n",
+    "to": ""
+  },
+  {
+    "name": "tri shot measures AUTO off as AUTO on",
+    "file": "bin/helpers/shot.mjs",
+    "from": "    query: '?auto=on',",
+    "to": "    query: '',"
+  },
+  {
+    "name": "tri shot lets a button paint past its right edge",
+    "file": "bin/helpers/shot.mjs",
+    "from": "      cut.push(`${name(el)} spills ${el.scrollWidth}>${el.clientWidth} right`)",
+    "to": "      void 0"
+  },
+  {
+    "name": "tri shot counts a right spill only on clipped buttons",
+    "file": "bin/helpers/shot.mjs",
+    "from": "      getComputedStyle(el).overflowX === 'visible' &&\n      el.scrollWidth > el.clientWidth + 1",
+    "to": "      getComputedStyle(el).overflowX !== 'visible' &&\n      el.scrollWidth > el.clientWidth + 1"
+  },
+  {
+    "name": "tri shot measures AUTO on against the stand, not Telegram",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        foldInsets: TELEGRAM,\n      },\n    ],\n  },\n\n  /*\n   * HER OWN PAGE",
+    "to": "      },\n    ],\n  },\n\n  /*\n   * HER OWN PAGE"
+  },
+  {
+    "name": "tri shot lets a button squeeze its icon to nothing",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        cut.push(`${name(el)} squeezes its icon to 0 px`)",
+    "to": "        void 0"
+  },
+  {
+    "name": "tri shot calls a drawn icon squeezed",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        icon.getBoundingClientRect().width < 1",
+    "to": "        icon.getBoundingClientRect().width < 100"
+  },
+  {
+    "name": "tri shot forgets the plan's price before its press",
+    "file": "bin/helpers/shot.mjs",
+    "from": "    before: [['[data-testid=plan-reel-price]', '[data-testid=plan-reel-make]']],\n",
+    "to": ""
+  },
+  {
+    "name": "tri shot measures the plan without a reel's picture",
+    "file": "bin/helpers/shot.mjs",
+    "from": "          await p.locator('.profile-plan .reel-preview').first().waitFor()\n",
+    "to": ""
+  }
+]

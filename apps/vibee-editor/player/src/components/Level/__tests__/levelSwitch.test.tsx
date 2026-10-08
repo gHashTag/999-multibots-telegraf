@@ -126,6 +126,41 @@ describe('the level switch', () => {
     expect(dashboard()?.getAttribute('data-level')).toBe('admin')
   })
 
+  it('on a phone it is one line: the label and a select that switches', async () => {
+    // P31: the chips took two lines of the CRM's first screen on a phone.
+    const { LevelSwitch } = await import('../LevelSwitch')
+    const { LevelDashboard } = await import('../LevelDashboard')
+    const { useUserLevel } = await import('@/hooks/useUserLevel')
+    function Row() {
+      const { level, switched } = useUserLevel()
+      return (
+        <>
+          <LevelSwitch variant="row" />
+          <LevelDashboard level={level} switched={switched} lang="ru" />
+        </>
+      )
+    }
+    await draw(<Row />)
+    const row = host.querySelector('[data-testid="level-switch"]')!
+    expect(row.tagName).toBe('LABEL')
+    expect(row.querySelector('.level-switch__label')?.textContent).toBe(
+      'Смотреть как' // cyrillic-ok
+    )
+    const select = row.querySelector('select')!
+    expect([...select.options].map(o => o.value)).toEqual([
+      '',
+      'admin',
+      'manager',
+      'blogger',
+      'developer',
+    ])
+    await act(async () => {
+      select.value = 'blogger'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(dashboard()?.getAttribute('data-level')).toBe('blogger')
+  })
+
   it('is not there for a customer, and a stale switch in storage is ignored', async () => {
     admin.yes = false
     window.localStorage.setItem(STORAGE_KEYS.viewLevel, '"developer"')

@@ -30,8 +30,11 @@ import {
   STORY_DEFAULT_CTA,
   STORY_DEFAULT_STYLE,
   type StoryDeps,
+  storyJobsOf,
 } from './story-template'
+import * as PLAN from '../spec/plan-reel.gen'
 import { makeCrmStoryTool, makeMyStoryTool } from './crm-story-tool'
+import { templateOf } from './story-reel-templates'
 import {
   storyPriceEstimate,
   storyPriceEstimateNotes,
@@ -40,8 +43,7 @@ import {
   CAP_WAIT_MARK,
 } from './story-template'
 import type { AgentTool, ToolContext } from './tools'
-import { readableShade } from './story-reel-tool'
-import { END_CARD_DEFAULT_TITLE } from '../spec/crm-story-reel.gen'
+import { readableShade, slotRenders } from './story-reel-tool'
 import * as SPEC from '../spec/crm-story-reel.gen'
 
 const SELLER = '900000001'
@@ -75,6 +77,9 @@ interface Job {
   still_tasks?: string
   payer?: string | null
   end_card?: string | null
+  voice_mode?: number | null
+  scene_count?: number | null
+  poster?: string | null
 }
 
 /** A base that answers exactly the statements the engine sends. */
@@ -215,6 +220,31 @@ function fakeBase() {
         .forEach(i => (i.status = 'done'))
       return { rows: [] }
     }
+    // A press on one card (plan-reel card_taken): that card, hers, an idea.
+    if (
+      q.startsWith(
+        "UPDATE content_plan_items SET status = 'doing', updated_at = now() WHERE id = $1"
+      )
+    ) {
+      const it = db.plan.find(
+        i => i.id === p[0] && i.telegram_id === p[1] && i.status === 'idea'
+      )
+      if (!it) return { rows: [] }
+      it.status = 'doing'
+      return { rows: [{ id: it.id, title: it.title, note: it.note }] }
+    }
+    if (
+      q.startsWith("SELECT COALESCE(note, '') AS note FROM content_plan_items")
+    ) {
+      const it = db.plan.find(i => i.id === p[0])
+      return { rows: it ? [{ note: it.note }] : [] }
+    }
+    if (q.startsWith('SELECT count(*)::int AS n FROM story_jobs')) {
+      const n = db.jobs.filter(
+        j => j.lead_id === p[0] && j.item_id && j.status === 'done'
+      ).length
+      return { rows: [{ n }] }
+    }
     if (q.startsWith("UPDATE content_plan_items SET status = 'doing'")) {
       const next = db.plan
         .filter(i => i.telegram_id === p[0] && i.status === 'idea')
@@ -246,6 +276,25 @@ function fakeBase() {
       return {
         rows: db.jobs.filter(j => j.lead_id === p[0] && j.status === 'running'),
       }
+    if (
+      q.startsWith(
+        'SELECT scenes, stills, clips, topic, style, voice_mode FROM story_jobs'
+      )
+    ) {
+      return {
+        rows: db.jobs
+          .filter(
+            j =>
+              j.lead_id === p[0] &&
+              j.seller_id === p[1] &&
+              // Only when the statement itself says so.
+              (!q.includes("status = 'failed'") || j.status === 'failed')
+          )
+          .sort((a, b) => b.id - a.id)
+          .slice(0, 5)
+          .map(j => ({ ...j })),
+      }
+    }
     if (q.startsWith('INSERT INTO story_jobs')) {
       const id = db.jobs.length + 1
       // Values by the statement's own column list, so a column the engine
@@ -267,8 +316,8 @@ function fakeBase() {
         topic: v.topic,
         about: v.about,
         runner: v.runner,
-        stills: '[]',
-        clips: '[]',
+        stills: v.stills ?? '[]',
+        clips: v.clips ?? '[]',
         status: 'running',
         url: null,
         error: null,
@@ -280,6 +329,8 @@ function fakeBase() {
         deliver_to: v.deliver_to ?? null,
         caption: v.caption ?? null,
         end_card: v.end_card ?? null,
+        voice_mode: v.voice_mode ?? null,
+        scene_count: v.scene_count ?? null,
         card_at: null,
       })
       return { rows: [{ id }] }
@@ -396,6 +447,7 @@ function fakeBase() {
         clips: p[2],
         still_tasks: p[3],
         payer: p[4],
+        voice_mode: p[5],
         updated: clock,
       })
       return { rows: [] }
@@ -464,6 +516,35 @@ function fakeBase() {
         )
         .sort((a, b) => a.goal_id - b.goal_id || a.id - b.id)[0]
       return { rows: next ? [{ title: next.title }] : [] }
+    }
+    // The poster (plan-reel v3): claimed NULL -> '', then kept.
+    if (
+      q.startsWith(
+        "UPDATE story_jobs SET poster = '' WHERE id = $1 AND poster IS NULL RETURNING id"
+      )
+    ) {
+      const j = row(p[0])
+      if (!j || (j.poster ?? null) !== null) return { rows: [] }
+      j.poster = ''
+      return { rows: [{ id: j.id }] }
+    }
+    if (q.startsWith('UPDATE story_jobs SET poster = $2 WHERE id = $1')) {
+      row(p[0])!.poster = p[1]
+      return { rows: [] }
+    }
+    if (q.startsWith('SELECT id, url, poster FROM story_jobs')) {
+      return {
+        rows: db.jobs
+          .filter(
+            j =>
+              (!q.includes("status = 'done'") || j.status === 'done') &&
+              (!q.includes('url IS NOT NULL') || j.url) &&
+              (!q.includes('poster IS NULL') || (j.poster ?? null) === null)
+          )
+          .sort((a, b) => b.id - a.id)
+          .slice(0, Number(p[0]))
+          .map(j => ({ id: j.id, url: j.url, poster: j.poster ?? null })),
+      }
     }
     throw new Error(`unexpected SQL: ${q.slice(0, 90)}`)
   }
@@ -672,7 +753,7 @@ describe('a client with her own visual ends on it', () => {
     expect(seen[0].cta).toBe('Приходите со своим вопросом.')
   })
 
-  it('a client without a visual gets no card', async () => {
+  it("a client without a visual gets a card in ink, never the house's gold (v25)", async () => {
     const base = fakeBase()
     qualify(base)
     const seen: any[] = []
@@ -687,7 +768,15 @@ describe('a client with her own visual ends on it', () => {
       topic: 'Ваза',
     })
     await drain()
-    expect(seen[0].end_card).toBeUndefined()
+    // Her call still shows on the pause, so the card is drawn -- on the
+    // spec's ground, in the ink that reads there, not in END_CARD_DEFAULT_*.
+    expect(seen[0].cta).toBeTruthy()
+    expect(seen[0].end_card).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 })
 
@@ -746,6 +835,34 @@ describe('the seller asks from the CRM', () => {
     expect(bare.db.jobs).toHaveLength(0)
   })
 
+  it("a writer's line naming the house on her reel fails the job before any still is drawn (v22)", async () => {
+    let calls = 0
+    const { deps } = depsOn(
+      base,
+      async () => ((calls += 1), { done: true, url: 'x' })
+    )
+    deps.write = async () =>
+      JSON.stringify({
+        title: 'Ваза',
+        scenes: [
+          { setting: '', line: 'Я выбираю вазу под комнату.' },
+          { setting: '', line: 'Здесь — нежные тона.' },
+          { setting: '', line: 'Напишите Тринити — подберёт вашу.' }, // cyrillic-ok: a house name the writer slipped in
+        ],
+      })
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    expect(out.started).toBe(true)
+    await drain()
+    expect(calls).toBe(0)
+    expect(base.db.jobs[0]).toMatchObject({ status: 'failed' })
+    expect(String(base.db.jobs[0].error)).toMatch('строка 3') // cyrillic-ok: the refusal names the line
+  })
+
   it('makes it on the given topic, as the seller, and hands it to the SELLER only', async () => {
     const seen: Array<{ args: any; ctx: ToolContext }> = []
     const { deps, said } = depsOn(base, async (args, ctx) => {
@@ -774,6 +891,9 @@ describe('the seller asks from the CRM', () => {
       cta: STORY_DEFAULT_CTA,
     })
     expect(seen[0].args.scenes).toHaveLength(3)
+    // The writer named three places; a topic reel stays in the studio anyway
+    // (spec v21, setting_drawn): no still is drawn, no face is checked.
+    expect(seen[0].args.scenes.map((s: any) => s.setting)).toEqual(['', '', ''])
     expect(said.map(x => x.chat)).toEqual([SELLER])
     expect(said[0].text).toMatch('перешли клиенту сам')
     expect(said[0].text).toContain(nextLink('example_bot'))
@@ -849,6 +969,106 @@ describe('the seller asks from the CRM', () => {
     })
     expect(again.started).toBe(false)
     expect(again.why).toMatch('уже делается')
+  })
+})
+
+describe('a press on a plan card (plan-reel.t27)', () => {
+  let base: ReturnType<typeof fakeBase>
+  const card = (id: number, title: string, note = '', status = 'idea') => ({
+    id,
+    goal_id: 1,
+    telegram_id: LENA,
+    title,
+    note,
+    status,
+  })
+  beforeEach(() => {
+    base = fakeBase()
+    qualify(base)
+    base.db.plan.push(
+      card(80, 'Ваза в интерьере'),
+      card(
+        81,
+        'Биты, триты и GF16',
+        'Как число хранится в битах.\nhttps://t27.ai/learn/bits-and-trits/'
+      ),
+      card(82, 'Букет недели', '', 'doing')
+    )
+  })
+
+  it('makes THAT card, not the next one, as the one-scene trial', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    const out = await startStory(deps, {
+      lead: LENA,
+      requester: LENA,
+      itemId: 81,
+    })
+    expect(out.started).toBe(true)
+    expect(out.topic).toBe('Биты, триты и GF16')
+    expect(base.db.plan.find(i => i.id === 81)!.status).toBe('doing')
+    expect(base.db.plan.find(i => i.id === 80)!.status).toBe('idea')
+    expect(base.db.jobs[0]).toMatchObject({ item_id: 81, scene_count: 1 })
+  })
+
+  it('makes the full three once a reel from the plan came out', async () => {
+    base.db.jobs.push({
+      ...({} as Job),
+      id: 1,
+      lead_id: LENA,
+      seller_id: SELLER,
+      requester: LENA,
+      item_id: 79,
+      status: 'done',
+      url: 'https://bucket.example/first.mp4',
+      updated: 0,
+    } as Job)
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 80 })
+    expect(base.db.jobs[1]).toMatchObject({ item_id: 80, scene_count: 3 })
+  })
+
+  it('a lesson card ends on its lesson', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 81 })
+    expect(base.db.jobs[0].cta).toBe('t27.ai/learn/bits-and-trits/')
+  })
+
+  it('any other card ends on her own call', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 80 })
+    expect(base.db.jobs[0].cta).toBeNull()
+  })
+
+  it('refuses a card being made, or not hers, and takes no other', async () => {
+    const { deps } = depsOn(base, () => new Promise(() => undefined))
+    for (const itemId of [82, 999]) {
+      const out = await startStory(deps, {
+        lead: LENA,
+        requester: LENA,
+        itemId,
+      })
+      expect(out.started).toBe(false)
+      expect(out.why).toMatch('карточка')
+    }
+    expect(base.db.jobs).toHaveLength(0)
+    expect(
+      base.db.plan.filter(i => i.status === 'idea').map(i => i.id)
+    ).toEqual([80, 81])
+  })
+
+  it("the writer is given the card's own note", async () => {
+    const asked: string[] = []
+    const { deps } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    deps.write = async m => {
+      asked.push(m.map(x => x.content).join('\n'))
+      return JSON.stringify({ title: 'Биты', scenes: [SCENES.scenes[0]] })
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, itemId: 81 })
+    await drain()
+    expect(asked[0]).toContain('Заметка: Как число хранится в битах.')
   })
 })
 
@@ -1169,6 +1389,37 @@ describe('my_story_reel, the person herself (the /story page and her bot)', () =
       bot: 'example_bot',
     })
     expect(seen[0].telegramId).toBe(LENA)
+  })
+
+  it('item_id makes THAT card of her plan (plan-reel.t27)', async () => {
+    const base = fakeBase()
+    qualify(base)
+    base.db.plan.push(
+      {
+        id: 90,
+        goal_id: 1,
+        telegram_id: LENA,
+        title: 'Первая',
+        note: '',
+        status: 'idea',
+      },
+      {
+        id: 91,
+        goal_id: 1,
+        telegram_id: LENA,
+        title: 'Вторая',
+        note: '',
+        status: 'idea',
+      }
+    )
+    const t = tool(base, () => new Promise(() => undefined))
+    const out: any = await t.handler(
+      { start: true, item_id: 91 },
+      as(base, LENA)
+    )
+    expect(out).toMatchObject({ started: true, topic: 'Вторая' })
+    expect(base.db.jobs[0]).toMatchObject({ item_id: 91, scene_count: 1 })
+    expect(base.db.plan[0].status).toBe('idea')
   })
 
   it('refuses in a turn working for a client: that is crm_story_reel', async () => {
@@ -2060,6 +2311,7 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(seen[0].end_card).toEqual({
       bg: '#000',
       title: '#d4af37',
+      text: SPEC.INK_WHITE_HEX,
       accent: '#ffffff',
     })
   })
@@ -2093,7 +2345,13 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(await sweepStoryJobs(b.deps)).toBe(1)
     await drain()
     expect(calls).toHaveLength(2)
-    expect(calls[1].end_card).toEqual({ bg: '#1a1a1a', title: '#f5f5f5' })
+    expect(calls[1].end_card).toEqual({
+      bg: '#1a1a1a',
+      title: '#f5f5f5',
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+    expect(calls[1].end_card).toEqual(calls[0].end_card)
   })
 
   it("an unreadable palette of the seller's is refused before anything is spent", async () => {
@@ -2104,16 +2362,16 @@ describe("the seller's palette at the end (spec v7)", () => {
       seen.push(args)
       return reel
     })
-    // The default gold call on the white background he gave: 1,4:1.
+    // His own pale call on the white background he gave: 1,2:1.
     const out = await startStory(deps, {
       lead: LENA,
       requester: SELLER,
       seller: SELLER,
       topic: 'Ваза',
-      endCard: { bg: '#ffffff' },
+      endCard: { bg: '#ffffff', title: '#f0e68c' },
     })
     expect(out.started).toBe(false)
-    expect(out.why).toMatch('призыв цветом #FFD700 на фоне #ffffff')
+    expect(out.why).toMatch('призыв цветом #f0e68c на фоне #ffffff')
     expect(out.why).toMatch('нужно не меньше 4,5:1')
     await drain()
     expect(base.db.jobs).toHaveLength(0)
@@ -2153,7 +2411,12 @@ describe("the seller's palette at the end (spec v7)", () => {
     })
     expect(out.started).toBe(true)
     await drain()
-    expect(seen[0].end_card).toEqual({ bg: '#ffffff', title: '#ffd700' })
+    expect(seen[0].end_card).toEqual({
+      bg: '#ffffff',
+      title: '#ffd700',
+      text: SPEC.INK_BLACK_HEX,
+      accent: SPEC.INK_BLACK_HEX,
+    })
   })
 
   it('a client pressing for herself never brings a palette', async () => {
@@ -2174,7 +2437,13 @@ describe("the seller's palette at the end (spec v7)", () => {
     expect(out.started).toBe(true)
     await drain()
     expect(base.db.jobs[0].end_card).toBeNull()
-    expect(seen[0].end_card).toBeUndefined()
+    // Nothing of what she sent: the card is only the ink her call needs.
+    expect(seen[0].end_card).toEqual({
+      bg: SPEC.END_CARD_DEFAULT_BG,
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it('crm_story_reel shows the card and what does not read, before any start', async () => {
@@ -2192,6 +2461,7 @@ describe("the seller's palette at the end (spec v7)", () => {
     const plain: any = await tool.handler({ lead: LENA }, ctx)
     expect(plain.end_card).toMatchObject({ bg: '#0b0d0f' })
     expect(plain.end_card_why).toBeUndefined()
+    // Her profile's own gold call (#ffd700) on the pale ground he asks for.
     const pale: any = await tool.handler(
       { lead: LENA, end_card: { bg: '#fafafa' } },
       ctx
@@ -2318,7 +2588,11 @@ describe('her palette, kept for every next reel (spec v10)', () => {
     )
     expect(out.started).toBe(true)
     await drain()
-    expect(seen[0].end_card).toEqual(KIT)
+    expect(seen[0].end_card).toEqual({
+      ...KIT,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
   })
 
   it('a card that fails the checks keeps nothing and starts nothing', async () => {
@@ -2335,9 +2609,13 @@ describe('her palette, kept for every next reel (spec v10)', () => {
     )
     expect(bad).toMatchObject({ started: false, kept: false })
     expect(bad.why).toMatch('end_card.bg: «black»')
-    // The default gold call on the white he gave: 1,4:1.
+    // His own pale call on the white he gave: 1,2:1.
     const pale: any = await tool(base).handler(
-      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      {
+        lead: LENA,
+        end_card: { bg: '#ffffff', title: '#f0e68c' },
+        save_end_card: true,
+      },
       ctxOf(base)
     )
     expect(pale.why).toMatch('нужно не меньше 4,5:1')
@@ -2454,14 +2732,17 @@ describe('the shade that reads, named on a refusal (spec v12)', () => {
   it('a card refused at keeping carries its shade; a colour that is not #hex does not', async () => {
     const base = fakeBase()
     qualify(base)
+    // Her own pale call on white (a ground alone is drawn in ink, v25).
     const pale: any = await tool(base).handler(
-      { lead: LENA, end_card: { bg: '#ffffff' }, save_end_card: true },
+      {
+        lead: LENA,
+        end_card: { bg: '#ffffff', title: '#f0e68c' },
+        save_end_card: true,
+      },
       ctxOf(base)
     )
     expect(pale).toMatchObject({ kept: false, started: false })
-    expect(pale.end_card_fix?.title).toBe(
-      readableShade(END_CARD_DEFAULT_TITLE, '#ffffff')
-    )
+    expect(pale.end_card_fix?.title).toBe(readableShade('#f0e68c', '#ffffff'))
     const black: any = await tool(base).handler(
       {
         lead: LENA,
@@ -2572,11 +2853,51 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     ])
   })
 
-  it('a pressed template speaks its lines in the studio, the seller edit included, with its call and button', async () => {
+  /** Her own English call, so the template's last line can carry it. */
+  const herCall = (base: ReturnType<typeof fakeBase>, cta = 'Book a fitting') =>
+    base.db.profiles.push({
+      owner_id: SELLER,
+      telegram_id: LENA,
+      updated: 2,
+      profile: { story_reel: { cta } },
+    })
+  /** The seller as his own lead: his face and his clone, in his own CRM. */
+  const qualifySelf = (base: ReturnType<typeof fakeBase>) => {
+    base.db.people.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      first_name: 'Seller',
+      avatar_url: FACE,
+    })
+    base.db.voices.push({
+      owner_id: SELLER,
+      lead_id: SELLER,
+      username: 'example_seller',
+      voice_id: 'seller-voice-1',
+      seconds: 30,
+      created: 2,
+    })
+  }
+  const seen = (base: ReturnType<typeof fakeBase>) => {
+    const args: any[] = []
+    const tool = makeCrmStoryTool({
+      deps: () =>
+        depsOn(base, async a => {
+          args.push(a)
+          return reel
+        }).deps,
+      lookup: () => undefined,
+    })
+    return { tool, args }
+  }
+
+  it("a pressed template speaks its client version in the studio, the seller edit included; a client's ends with her call and no house button (v22)", async () => {
     const base = fakeBase()
     qualify(base)
-    const mine = 'Trinity answers my clients at night.'
-    const out: any = await press(base).handler(
+    herCall(base)
+    const mine = 'Lena answers her clients at night.'
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
       {
         lead: LENA,
         start: true,
@@ -2587,18 +2908,187 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
       as(base)
     )
     expect(out.started).toBe(true)
+    expect(out.house_replaced).toBeUndefined()
     await drain()
     const job = base.db.jobs[0]
     const scenes = JSON.parse(String(job.scenes))
+    // Every template line is its client version, the first as much as the
+    // last; the seller's own line, naming no house, stands.
+    const client = templateOf(SPEC.TEMPLATE_HOOK_STUDIO, 'en')!.client
     expect(scenes.map((s: any) => s.line)).toEqual([
-      SPEC.TEMPLATE_LINE_EN_1,
+      client[0],
       mine,
-      SPEC.TEMPLATE_LINE_EN_3,
-      SPEC.TEMPLATE_LINE_EN_4,
+      client[2],
+      `${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`,
     ])
     expect(scenes.every((s: any) => s.setting === '')).toBe(true)
+    // No call of the house's in the job: hers is read from her profile.
+    expect(job.cta).not.toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(job.end_card).toBeNull()
+    // And what the reel engine renders is hers, end to end.
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe('Book a fitting')
+    expect(args[0].end_card?.button ?? '').not.toMatch(SPEC.TEMPLATE_BUTTON)
+    // Nothing the engine is given -- any line, the call, the card -- names
+    // the house: the reel speaks and captions only what it is given.
+    expect(
+      JSON.stringify([args[0].scenes, args[0].cta, args[0].end_card])
+    ).not.toMatch(/Trinity|Тринити|t27ai_bot|\bT27\b/i) // cyrillic-ok: a house mark
+  })
+
+  it("a template on the seller's OWN reel keeps the house call and the house button, end to end (v22)", async () => {
+    const base = fakeBase()
+    qualifySelf(base)
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
+      {
+        lead: SELLER,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+      },
+      as(base)
+    )
+    expect(out.started).toBe(true)
+    await drain()
+    const job = base.db.jobs[0]
     expect(job.cta).toBe(SPEC.TEMPLATE_CALL_EN)
     expect(JSON.parse(String(job.end_card)).button).toBe(SPEC.TEMPLATE_BUTTON)
+    expect(JSON.parse(String(job.scenes)).at(-1).line).toBe(
+      SPEC.TEMPLATE_LINE_EN_4
+    )
+    // The runner treats the seller as his own lead and still keeps his card.
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe(SPEC.TEMPLATE_CALL_EN)
+    expect(args[0].end_card?.button).toBe(SPEC.TEMPLATE_BUTTON)
+  })
+
+  it("the seller's call or button naming the house is replaced by hers on her reel, and the answer says so", async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const { tool, args } = seen(base)
+    const out: any = await tool.handler(
+      {
+        lead: LENA,
+        start: true,
+        template: SPEC.TEMPLATE_HOOK_STUDIO,
+        language: 'en',
+        cta: SPEC.TEMPLATE_CALL_EN,
+        end_card: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+      },
+      as(base)
+    )
+    expect(out.started).toBe(true)
+    expect(out.house_replaced).toMatch(SPEC.TEMPLATE_CALL_EN)
+    expect(out.house_replaced).toMatch(SPEC.TEMPLATE_BUTTON)
+    expect(out.house_replaced).toMatch('Book a fitting')
+    await drain()
+    const job = base.db.jobs[0]
+    expect(job.cta).not.toBe(SPEC.TEMPLATE_CALL_EN)
+    // Her colour stays; only the house's button is gone.
+    expect(JSON.parse(String(job.end_card))).toEqual({ bg: '#10182a' })
+    expect(args[0].cta).toBe('Book a fitting')
+    // Her ground; what she gave no colour for is ink, never gold (v25).
+    expect(args[0].end_card).toEqual({
+      bg: '#10182a',
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+  })
+
+  it("the seller's own last line stays on her reel; one naming the house is refused before anything is spent", async () => {
+    const lastOf = async (line: string) => {
+      const base = fakeBase()
+      qualify(base)
+      herCall(base)
+      const out: any = await press(base).handler(
+        {
+          lead: LENA,
+          start: true,
+          template: SPEC.TEMPLATE_HOOK_STUDIO,
+          language: 'en',
+          scenes: [
+            { line: SPEC.TEMPLATE_LINE_EN_1 },
+            { line: SPEC.TEMPLATE_LINE_EN_2 },
+            { line: SPEC.TEMPLATE_LINE_EN_3 },
+            { line },
+          ],
+        },
+        as(base)
+      )
+      await drain()
+      return {
+        out,
+        jobs: base.db.jobs.length,
+        last: base.db.jobs[0]
+          ? JSON.parse(String(base.db.jobs[0].scenes)).at(-1).line
+          : '',
+      }
+    }
+    const kept = await lastOf('Come to my studio on Sunday.')
+    expect(kept.last).toBe('Come to my studio on Sunday.')
+    expect(kept.out.house_replaced).toBeUndefined()
+    // Not swapped for hers behind the seller's back: refused, and he is told.
+    const house = await lastOf('Ask Trinity for one too.')
+    expect(house.out.started).toBe(false)
+    expect(house.out.why).toMatch('Ask Trinity for one too.')
+    expect(house.jobs).toBe(0)
+  })
+
+  it("the panel's gallery for her ends with her call and carries no house button", async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const out: any = await press(base).handler({ lead: LENA }, as(base))
+    const en = out.templates.find((t: any) => t.language === 'en')
+    expect(en.button).toBe('')
+    expect(en.call).toBe('Book a fitting')
+    expect(en.lines.at(-1)).toBe(`${SPEC.TEMPLATE_LEAD_EN_4} Book a fitting.`)
+    // The gallery shows her the client versions only: no line names us.
+    for (const t of out.templates)
+      expect(JSON.stringify(t.lines)).not.toMatch(
+        /Trinity|Тринити|t27ai_bot|\bT27\b/i // cyrillic-ok: a house mark
+      )
+  })
+
+  it('a job row carrying the house call and button is stripped at the run on her reel', async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base)
+    const args: any[] = []
+    const { deps } = depsOn(base, async a => {
+      args.push(a)
+      return reel
+    })
+    const r = await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+      cta: SPEC.TEMPLATE_CALL_EN,
+      endCard: { bg: '#10182a', button: SPEC.TEMPLATE_BUTTON },
+    })
+    expect(r.started).toBe(true)
+    await drain()
+    expect(args).toHaveLength(1)
+    expect(args[0].cta).toBe('Book a fitting')
+    // Her ground; what she gave no colour for is ink, never gold (v25).
+    expect(args[0].end_card).toEqual({
+      bg: '#10182a',
+      title: SPEC.INK_WHITE_HEX,
+      text: SPEC.INK_WHITE_HEX,
+      accent: SPEC.INK_WHITE_HEX,
+    })
+  })
+
+  it('her profile call naming the house is not hers: her reel ends with the default call', async () => {
+    const base = fakeBase()
+    qualify(base)
+    herCall(base, SPEC.TEMPLATE_CALL_EN)
+    const s = await storySettingsOf(base.pool, LENA, SELLER)
+    expect(s?.cta).toBe(STORY_DEFAULT_CTA)
   })
 
   it('a template line past the editor is refused, and nothing starts', async () => {
@@ -2617,5 +3107,317 @@ describe('the CRM presses a template for any client (crm-story-reel v20)', () =>
     expect(out.started).toBe(false)
     expect(out.why).toMatch(`${SPEC.LINE_MAX_CHARS}`)
     expect(base.db.jobs).toHaveLength(0)
+  })
+})
+
+describe('a retry after a failed job (spec v28, 999#3815)', () => {
+  const SCRIPT4 = [
+    { setting: 'a dark quiet room', line: 'Я веду игру.' },
+    { setting: 'a dim library', line: 'Здесь нет правильного ответа.' },
+    { setting: 'a tall window at dusk', line: 'Приходите со своим вопросом.' },
+    { setting: 'a bright hall', line: 'Жду вас.' },
+  ]
+  // Counts the renders a story run would order: one per slot not yet done.
+  function counting(base: ReturnType<typeof fakeBase>) {
+    let renders = 0
+    const seen: any[] = []
+    const { deps } = depsOn(base, async args => {
+      seen.push(args)
+      const stills = (args.stills ?? []) as string[]
+      const clips = (args.clips ?? []) as string[]
+      ;(args.scenes as unknown[]).forEach((_, i) => {
+        if (slotRenders(!!(stills[i] || clips[i]))) renders += 1
+      })
+      return { done: true, url: 'https://bucket.example/reel.mp4' }
+    })
+    return { deps, seen, renders: () => renders }
+  }
+  function failedJob(base: ReturnType<typeof fakeBase>, over: any = {}) {
+    base.db.jobs.push({
+      id: base.db.jobs.length + 1,
+      lead_id: LENA,
+      seller_id: SELLER,
+      topic: 'Я веду игру',
+      scenes: JSON.stringify(SCRIPT4),
+      stills: JSON.stringify(['https://s/1', 'https://s/2', '', '']),
+      clips: JSON.stringify(['https://c/1', 'https://c/2', '', '']),
+      style: null,
+      voice_mode: SPEC.VOICE_CLONE,
+      status: 'failed',
+      runner: null,
+      attempts: 3,
+      updated: 0,
+      ...over,
+    })
+  }
+
+  it('renders only the 2 empty slots of 4, and the day cap counts only them', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base)
+    const c = counting(base)
+    const asked: number[] = []
+    c.deps.generationsLeft = async () => {
+      const left = slotsNeeded(4, 2, 2, true)
+      asked.push(left)
+      return left
+    }
+    const out = await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    expect(out.started).toBe(true)
+    await drain()
+    expect(c.seen).toHaveLength(1)
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['https://c/1', 'https://c/2', '', ''])
+    expect(c.renders()).toBe(2)
+  })
+
+  it("another client's or another script's failed job is never carried", async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { lead_id: 'someone-else' })
+    failedJob(base, { scenes: JSON.stringify(SCRIPT4.slice(0, 3)) })
+    failedJob(base, { status: 'done' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.renders()).toBe(4)
+  })
+
+  it('a retry of the same asked topic reuses the written scenes and their slots', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { topic: 'Ваза' })
+    const c = counting(base)
+    let written = 0
+    c.deps.write = async () => ((written += 1), JSON.stringify(SCENES))
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      topic: 'Ваза',
+    })
+    await drain()
+    expect(written).toBe(0)
+    expect(c.seen[0].scenes).toEqual(SCRIPT4)
+    expect(c.renders()).toBe(2)
+  })
+
+  // 999#3817: a carried clip must not speak in the voice of the failed job.
+  it('a changed voice mode keeps the stills and renders the clips again', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { voice_mode: SPEC.VOICE_NOTES })
+    const c = counting(base)
+    c.deps.voiceNotes = async () => ({ urls: [] }) as any
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['', '', '', ''])
+  })
+
+  it('a failed job that never recorded its voice carries no clips', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { voice_mode: null })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['', '', '', ''])
+  })
+
+  it('a changed look carries neither stills nor clips', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { style: 'warm film grain' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+      style: 'cold blue noir',
+    })
+    await drain()
+    expect(c.seen[0].stills.filter(Boolean)).toEqual([])
+    expect(c.seen[0].clips.filter(Boolean)).toEqual([])
+    expect(c.renders()).toBe(4)
+  })
+
+  it('a clip saved mid-run is saved with the voice it speaks', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { deps } = depsOn(base, async (_args, ctx) => {
+      await ctx.storyProgress?.({
+        stills: ['https://s/1', '', '', ''],
+        clips: ['https://c/1', '', '', ''],
+        stillTasks: [],
+      })
+      return { done: false, reason: 'lipsync failed' }
+    })
+    await startStory(deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+    })
+    await drain()
+    const job = base.db.jobs.at(-1)
+    expect(job?.clips).toBe(JSON.stringify(['https://c/1', '', '', '']))
+    expect(job?.voice_mode).toBe(SPEC.VOICE_CLONE)
+  })
+
+  it('the same look and voice carry everything, and the new job records its voice', async () => {
+    const base = fakeBase()
+    qualify(base)
+    failedJob(base, { style: 'warm film grain' })
+    const c = counting(base)
+    await startStory(c.deps, {
+      lead: LENA,
+      requester: SELLER,
+      seller: SELLER,
+      scenes: SCRIPT4,
+      style: 'warm film grain',
+    })
+    await drain()
+    expect(c.seen[0].stills).toEqual(['https://s/1', 'https://s/2', '', ''])
+    expect(c.seen[0].clips).toEqual(['https://c/1', 'https://c/2', '', ''])
+    expect(c.renders()).toBe(2)
+    expect(base.db.jobs.at(-1)?.voice_mode).toBe(SPEC.VOICE_CLONE)
+  })
+})
+
+describe("the reel's poster (plan-reel v3)", () => {
+  const done = (id: number, poster?: string | null): Job =>
+    ({
+      ...({} as Job),
+      id,
+      lead_id: LENA,
+      seller_id: SELLER,
+      requester: LENA,
+      status: 'done',
+      url: `https://bucket.example/${id}.mp4`,
+      updated: 0,
+      ...(poster === undefined ? {} : { poster }),
+    }) as Job
+
+  it('the reel is out and told before its poster is drawn, then the poster is kept', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const order: string[] = []
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    const told = deps.notify
+    deps.notify = async (...a) => (order.push('told'), told(...a))
+    deps.poster = async video => {
+      order.push(`poster of ${video}`)
+      expect(base.db.jobs[0].status).toBe('done')
+      return 'https://shelf.example/poster.jpg'
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(order).toEqual(['told', 'poster of https://bucket.example/reel.mp4'])
+    expect(said).toHaveLength(1)
+    expect(base.db.jobs[0].poster).toBe('https://shelf.example/poster.jpg')
+    const [mine] = await storyJobsOf(base.pool as never, SELLER, LENA)
+    expect(mine).toMatchObject({
+      url: 'https://bucket.example/reel.mp4',
+      poster: 'https://shelf.example/poster.jpg',
+    })
+  })
+
+  it('a poster that fails never fails the reel, and is never tried again', async () => {
+    const base = fakeBase()
+    qualify(base)
+    let drawn = 0
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    deps.poster = async () => {
+      drawn++
+      throw new Error('ffmpeg exited 1')
+    }
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(base.db.jobs[0]).toMatchObject({ status: 'done', poster: '' })
+    expect(said).toHaveLength(1)
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn).toBe(1)
+    const [mine] = await storyJobsOf(base.pool as never, SELLER, LENA)
+    expect(mine.poster).toBeUndefined()
+  })
+
+  it('the sweep draws the missing posters of reels that came out, newest first, a few a round', async () => {
+    const base = fakeBase()
+    base.db.jobs.push(
+      done(1),
+      done(2),
+      done(3, ''),
+      done(4),
+      done(5, 'https://shelf.example/5.jpg'),
+      done(6),
+      done(7),
+      { ...done(8), status: 'failed', url: null }
+    )
+    const drawn: string[] = []
+    const { deps } = depsOn(base, async () => ({ done: false }))
+    deps.poster = async video => (
+      drawn.push(video),
+      video.replace('.mp4', '.jpg')
+    )
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn).toEqual([
+      'https://bucket.example/7.mp4',
+      'https://bucket.example/6.mp4',
+      'https://bucket.example/4.mp4',
+    ])
+    expect(drawn).toHaveLength(PLAN.POSTER_SWEEP_MAX)
+    expect(base.db.jobs.find(j => j.id === 3)!.poster).toBe('')
+    expect(base.db.jobs.find(j => j.id === 1)!.poster).toBeUndefined()
+    await sweepStoryJobs(deps)
+    await drain()
+    expect(drawn.slice(3)).toEqual([
+      'https://bucket.example/2.mp4',
+      'https://bucket.example/1.mp4',
+    ])
+  })
+
+  it('without a poster port nothing is drawn and the reel is the same', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const { deps, said } = depsOn(base, async () => ({
+      done: true,
+      url: 'https://bucket.example/reel.mp4',
+    }))
+    await startStory(deps, { lead: LENA, requester: LENA, bot: 'example_bot' })
+    await drain()
+    expect(base.db.jobs[0]).toMatchObject({ status: 'done' })
+    expect(base.db.jobs[0].poster).toBeUndefined()
+    expect(said).toHaveLength(1)
   })
 })

@@ -32,6 +32,12 @@ vi.mock('../browser/logins', async importOriginal => ({
   readMarks: async () => [],
 }))
 vi.mock('../agent/reach-log', () => ({ noteShape: async () => undefined }))
+/* No real read of reddit.com: an anonymous server gets Reddit's block page
+ * (test-support/no-network.ts; the same stub as blog-share-wiring-path). */
+vi.mock('./reddit', async importOriginal => ({
+  ...(await importOriginal<typeof import('./reddit')>()),
+  readAnonymously: async () => '<!doctype html><title>Blocked</title>',
+}))
 vi.mock('../browser/cdp', () => ({
   newPage: async (_c: string, url: string) => {
     opened.push(url)

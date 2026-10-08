@@ -1,0 +1,194 @@
+[
+  {
+    "name": "the press offered while a reel is made",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return status === SPEC.STATUS_IDEA && !busy",
+    "to": "return status === SPEC.STATUS_IDEA"
+  },
+  {
+    "name": "no trial: the first reel from the plan is full",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return reelsOut === 0 ? SPEC.TRIAL_SCENES : SPEC.FULL_SCENES",
+    "to": "return SPEC.FULL_SCENES"
+  },
+  {
+    "name": "a lesson card ends on her own call",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return linksLesson ? SPEC.CALL_LESSON : SPEC.CALL_OWN",
+    "to": "return SPEC.CALL_OWN"
+  },
+  {
+    "name": "half a course taken in",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return lessons === SPEC.COURSE_LESSONS",
+    "to": "return lessons > 0"
+  },
+  {
+    "name": "a lesson added twice",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return !alreadyACard",
+    "to": "return true"
+  },
+  {
+    "name": "the cabinet shows every reel",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return Math.min(reelsOut, SPEC.PREVIEWS_MAX)",
+    "to": "return reelsOut"
+  },
+  {
+    "name": "the course's Russian ignored",
+    "file": "src/agent/plan-reel.ts",
+    "from": "title: pick(ui.TITLE, course.title),",
+    "to": "title: course.title,"
+  },
+  {
+    "name": "a course of mismatched titles taken in",
+    "file": "src/agent/plan-reel.ts",
+    "from": "  if (titles.length !== ids.length) return null\n",
+    "to": ""
+  },
+  {
+    "name": "the first source that fails ends the reading",
+    "file": "src/agent/plan-reel.ts",
+    "from": "      if (!res.ok) continue",
+    "to": "      if (!res.ok) return null"
+  },
+  {
+    "name": "a lesson card keeps its scheme in the call",
+    "file": "src/agent/plan-reel.ts",
+    "from": "    ? link.replace(/^https?:\\/\\//, '')",
+    "to": "    ? link"
+  },
+  {
+    "name": "the card's note never reaches the writer",
+    "file": "src/agent/story-template.ts",
+    "from": "          { title: topic, note: note.slice(0, 1200) },",
+    "to": "          { title: topic, note: '' },"
+  },
+  {
+    "name": "a card press is never the trial",
+    "file": "src/agent/story-template.ts",
+    "from": "            ? scenesFor(await planReelsOut(deps.pool, lead))",
+    "to": "            ? undefined"
+  },
+  {
+    "name": "a lesson card's reel ends on her profile's call",
+    "file": "src/agent/story-template.ts",
+    "from": "      text(who.cta, 120) ?? text(card ? cardCall(card.note) : '', 120),",
+    "to": "      text(who.cta, 120),"
+  },
+  {
+    "name": "a press on a card being made starts anyway",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (pressedCard && !card)",
+    "to": "  if (false)"
+  },
+  {
+    "name": "every card offers the press",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          press: pressOffered(statusCode(it.status), made.busy) || undefined,",
+    "to": "          press: true,"
+  },
+  {
+    "name": "plan_list hides the card's reel",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          reel: made.reels.get(Number(it.id)),",
+    "to": "          reel: undefined,"
+  },
+  {
+    "name": "plan_course_add adds a lesson twice",
+    "file": "src/agent/plan-tools.ts",
+    "from": "        if (!lessonAdded(titles.has(card.title))) continue\n",
+    "to": ""
+  },
+  {
+    "name": "my_story_reel drops the card it was pressed on",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "            ? { itemId: Number(args.item_id) }",
+    "to": "            ? {}"
+  },
+  {
+    "name": "a v1 card's lesson is lost",
+    "file": "src/agent/plan-reel.ts",
+    "from": "const m = LESSON_IN_TEXT.exec(text) ?? V1_LESSON_IN_TEXT.exec(text)",
+    "to": "const m = LESSON_IN_TEXT.exec(text)"
+  },
+  {
+    "name": "a lesson's address is its #/ route again",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return `${SPEC.LESSON_ROUTE}${id}/`",
+    "to": "return `https://t27.ai/#/course/${id}`"
+  },
+  {
+    "name": "a lesson's page loses its slash",
+    "file": "src/agent/plan-reel.ts",
+    "from": "return `${SPEC.LESSON_ROUTE}${id}/`",
+    "to": "return `${SPEC.LESSON_ROUTE}${id}`"
+  },
+  {
+    "name": "no poster drawn when a reel comes out",
+    "file": "src/agent/story-template.ts",
+    "from": "    if (deps.poster) await keepPoster(pool, deps.poster, id, url)\n",
+    "to": "\n"
+  },
+  {
+    "name": "the sweep never draws a missing poster",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (deps.poster) void sweepPosters(pool, deps.poster).catch(() => undefined)\n",
+    "to": "\n"
+  },
+  {
+    "name": "a tried poster is drawn again",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return reelOut && poster === SPEC.POSTER_NONE",
+    "to": "  return reelOut && poster !== SPEC.POSTER_KEPT"
+  },
+  {
+    "name": "the sweep is unbounded",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return Math.min(waiting, SPEC.POSTER_SWEEP_MAX)",
+    "to": "  return waiting"
+  },
+  {
+    "name": "a tried poster read as kept",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  return String(stored).trim() ? SPEC.POSTER_KEPT : SPEC.POSTER_TRIED",
+    "to": "  return SPEC.POSTER_KEPT"
+  },
+  {
+    "name": "ffmpeg handed a local path",
+    "file": "src/agent/reel-poster.ts",
+    "from": "  if (!/^https?:\\/\\//.test(video)) return null",
+    "to": "  if (!video) return null"
+  },
+  {
+    "name": "the claim forgets a drawn poster",
+    "file": "src/agent/reel-poster.ts",
+    "from": "`UPDATE story_jobs SET poster = '' WHERE id = $1 AND poster IS NULL RETURNING id`",
+    "to": "`UPDATE story_jobs SET poster = '' WHERE id = $1 RETURNING id`"
+  },
+  {
+    "name": "the seek after the input",
+    "file": "src/agent/reel-poster.ts",
+    "from": "    '-ss',\n    (SPEC.PREVIEW_SEEK_MS / 1000).toFixed(3),\n    '-i',\n    video,",
+    "to": "    '-i',\n    video,\n    '-ss',\n    (SPEC.PREVIEW_SEEK_MS / 1000).toFixed(3),"
+  },
+  {
+    "name": "plan_list drops the poster",
+    "file": "src/agent/plan-tools.ts",
+    "from": "          poster: made.posters.get(Number(it.id)),\n",
+    "to": "\n"
+  },
+  {
+    "name": "a card shows another card's poster",
+    "file": "src/agent/plan-reel.ts",
+    "from": "          const poster = posterOf(x.poster)",
+    "to": "          const poster = posterOf(x.poster) ?? [...posters.values()][0]"
+  },
+  {
+    "name": "my reels drop the poster",
+    "file": "src/agent/story-template.ts",
+    "from": "    ...(x.url && posterOf(x.poster) ? { poster: posterOf(x.poster) } : {}),\n",
+    "to": "\n"
+  }
+]

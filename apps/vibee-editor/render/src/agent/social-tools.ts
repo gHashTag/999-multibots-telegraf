@@ -1,10 +1,17 @@
 /**
  * THE SOCIAL DESK: the owner's agent posts to the owner's networks.
  *
- * WHOSE NETWORKS. The tokens in `social_tokens` are the owner's: he connected
+ * WHOSE NETWORKS. The tokens in `social_tokens` are the owner's: he connects
  * Threads, Facebook (+ Instagram), LinkedIn and X himself, by OAuth, in the
- * app (Profile -> MetaConnectCard). Every tool here is the owner's alone
- * (requireOwner, fail-closed), like the mailbox in mail-tools.ts.
+ * app (Profile -> MetaConnectCard) -- any of them may be missing. Every tool
+ * here is the owner's alone (requireOwner, fail-closed), like the mailbox in
+ * mail-tools.ts.
+ *
+ * WHERE HE CAN POST IS READ, NEVER RECITED. Asked "where can you post", the
+ * agent once answered from a list in its prompt -- Threads and Instagram,
+ * neither connected -- and left out Reddit, a desk network in his browser.
+ * `social_status` returns `reach`: one line per network from the live tokens
+ * and the browser's logins, and `canPost`, the only names it may give.
  *
  * WHO MAY POST. The model may not. `social_post` PREPARES a post and puts the
  * very text each network will get on the owner's Telegram permission card
@@ -17,8 +24,11 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import { requireOwner } from './telegram-tools'
-import { threadsPost, type Network, type Post } from './meta-connect'
+import { canSeal, threadsPost, type Network, type Post } from './meta-connect'
+import { connectStates } from './connect-card'
 import { linkedInCommentary, xPost } from './social-api'
+import { isNotConnected } from './rounds'
+import type { NetworkLogin } from '../browser/logins'
 
 /** Opens the app on Profile, where MetaConnectCard connects each network. */
 export const CONNECT_LINK = 'https://t.me/t27ai_bot?start=app_profile'
@@ -115,6 +125,10 @@ export interface SocialStatus {
   /** Which networks have their app id/secret on vibee-render. */
   apps: Record<Network, boolean>
   networks: NetworkState[]
+  /** Whether META_TOKEN_KEY is set, so a new token could be sealed; never the key. */
+  sealable?: boolean
+  /** The owner's browser logins (browser/logins.ts); null = unreadable. */
+  logins?: NetworkLogin[] | null
 }
 
 /** What is left for each network before the agent can post there. Pure. */
@@ -132,6 +146,88 @@ export function todoOf(s: SocialStatus): Record<Network, string> {
   }
   return out
 }
+
+/** Every network the owner's agent might be asked about, API or browser. */
+export const REACH_NETWORKS = [
+  'x',
+  'facebook',
+  'instagram',
+  'linkedin',
+  'threads',
+  'reddit',
+] as const
+export type ReachNetwork = (typeof REACH_NETWORKS)[number]
+
+/*
+ * The networks the browser desks open, by a page of each: blog-share-wiring.ts
+ * shares to X, LinkedIn and Threads there, reddit-wiring.ts runs the Reddit
+ * desk. Facebook and Instagram have no browser route.
+ */
+const BROWSER_PAGE: Partial<Record<ReachNetwork, string>> = {
+  x: 'https://x.com/',
+  linkedin: 'https://www.linkedin.com/',
+  threads: 'https://www.threads.net/',
+  reddit: 'https://www.reddit.com/',
+}
+
+/**
+ * How each network can be posted to RIGHT NOW: `api` (social_post), `browser`
+ * (the blog-share desk in his browser), `desk` (Reddit's desk, a comment per
+ * tap), `not connected`, or `unknown` when the browser's logins could not be
+ * read. A network is never called reachable on anything weaker than a usable
+ * token or a `signed_in` login. Pure.
+ */
+export function reachOf(s: SocialStatus): Record<ReachNetwork, string> {
+  const todo = todoOf(s)
+  const token = (n: Network) =>
+    s.networks.find(x => x.network === n && x.usable)
+  const logins = s.logins ?? null
+  const out = {} as Record<ReachNetwork, string>
+  for (const n of REACH_NETWORKS) {
+    if (n === 'instagram') {
+      out[n] = token('facebook')?.instagram
+        ? 'api: through the Facebook page, social_post with image_url'
+        : 'not connected: no Instagram account is linked to the Facebook page'
+      continue
+    }
+    if (n !== 'reddit' && token(n)) {
+      out[n] = 'api: social_post'
+      continue
+    }
+    const page = BROWSER_PAGE[n]
+    const login = logins?.find(l => l.id === n)?.state
+    if (page && !isNotConnected(page, logins) && login === 'signed_in') {
+      out[n] =
+        n === 'reddit'
+          ? 'desk: the Reddit desk in his browser, a comment per tap; not social_post'
+          : 'browser: the blog-share desk posts in his browser; not social_post'
+      continue
+    }
+    const why = n === 'reddit' ? 'not connected' : todo[n as Network]
+    out[n] =
+      page && (!logins || login === 'unknown')
+        ? `unknown: the browser's logins could not be read; ${why}`
+        : n === 'reddit'
+          ? 'not connected: the browser is not signed into Reddit'
+          : why
+  }
+  return out
+}
+
+/** The networks the agent may name as "can post". Pure. */
+export function canPostOf(reach: Record<ReachNetwork, string>): ReachNetwork[] {
+  return REACH_NETWORKS.filter(n => /^(api|browser|desk):/.test(reach[n]))
+}
+
+/**
+ * The prompt's one line about the owner's networks. It names NO network: the
+ * list comes from social_status, called before any network is named.
+ */
+export const SOCIAL_PROMPT_LINE =
+  'Его соцсети: куда можно постить и как — ТОЛЬКО по social_status ' + // cyrillic-ok: prompt copy
+  '(поля canPost и reach), вызови его ПЕРЕД тем, как назвать хоть одну сеть; ' + // cyrillic-ok: prompt copy
+  'по памяти сети не перечисляй. Пост по API — social_post, уходит только ' + // cyrillic-ok: prompt copy
+  'по нажатию. '
 
 export interface SocialDeps {
   ask: (ctx: ToolContext, what: string) => Promise<string>
@@ -184,13 +280,32 @@ const realDeps: SocialDeps = {
     return { ...meta, ...social }
   },
   async status(ctx) {
-    const { readTokens, statusView, appOf } = await import('./meta-connect')
-    const held = await readTokens(ctx.pool, String(ctx.telegramId))
+    const { readTokensRelinked, statusView, appOf } = await import(
+      './meta-connect'
+    )
+    const { loginsOfPerson } = await import('../browser/logins')
+    const owner = String(ctx.telegramId)
+    const [held, logins] = await Promise.all([
+      /* An Instagram linked to the Page after Connect is found here (v2). */
+      readTokensRelinked(
+        ctx.pool,
+        ((url: string, init?: object) =>
+          fetch(url, {
+            ...init,
+            signal: AbortSignal.timeout(10_000),
+          })) as never,
+        owner,
+        Date.now()
+      ),
+      loginsOfPerson(ctx.pool, owner).catch(() => null),
+    ])
     const apps = {} as Record<Network, boolean>
     for (const n of SOCIAL_NETWORKS) apps[n] = !!appOf(n)
     return {
       apps,
       networks: statusView(held, Date.now()) as unknown as NetworkState[],
+      sealable: canSeal(),
+      logins,
     }
   },
 }
@@ -299,14 +414,30 @@ export const SOCIAL_TOOLS: AgentTool[] = [
   {
     name: 'social_status',
     description:
-      'Соцсети владельца: какие подключены (Threads, Facebook+Instagram, ' + // cyrillic-ok: tool description for the model
-      'LinkedIn, X), сколько дней живёт вход и что осталось сделать до ' + // cyrillic-ok: tool description for the model
-      'первого поста. Токены не показывает.', // cyrillic-ok: tool description for the model
+      'Соцсети владельца ПО ЖИВОМУ СОСТОЯНИЮ: canPost — единственные сети, ' + // cyrillic-ok: tool description for the model
+      'которые можно назвать; reach — как постить в каждую (api, browser, ' + // cyrillic-ok: tool description for the model
+      'desk, not connected, unknown), сколько живёт вход и что осталось ' + // cyrillic-ok: tool description for the model
+      'сделать. Вызывай ПЕРЕД тем, как назвать сети. Токены не показывает.', // cyrillic-ok: tool description for the model
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler(_args, ctx?: ToolContext) {
       requireOwner(ctx)
-      const s = await deps.status(ctx!)
-      return { ...s, todo: todoOf(s), connect: CONNECT_LINK }
+      const st = await deps.status(ctx!)
+      const reach = reachOf(st)
+      /* The login list stays inside: reach already says what it means. */
+      const { logins: _seen, ...s } = st
+      return {
+        ...s,
+        canPost: canPostOf(reach),
+        reach,
+        todo: todoOf(s),
+        /* connected | needs-connect | no-client-id | no-seal-key (connect-card.t27). */
+        connectState: connectStates(
+          s.apps,
+          s.networks,
+          s.sealable ?? canSeal()
+        ),
+        connect: CONNECT_LINK,
+      }
     },
   },
   {

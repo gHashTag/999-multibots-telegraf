@@ -1,0 +1,74 @@
+[
+  {
+    "name": "the guard is not set up",
+    "file": "vitest.config.mts",
+    "from": "    setupFiles: ['./test-support/no-network.ts'],\n",
+    "to": "\n"
+  },
+  {
+    "name": "a leak no longer fails the test",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "  afterEach(failIfReached)\n",
+    "to": "\n"
+  },
+  {
+    "name": "fetch passes to the network",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (host && !isLoopback(host)) return Promise.reject(refusal('fetch', host))",
+    "to": "    if (host && !isLoopback(host)) void 0"
+  },
+  {
+    "name": "dns.lookup passes to the network",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (!isLoopback(host)) {\n      const cb = rest[rest.length - 1]",
+    "to": "    if (false) {\n      const cb = rest[rest.length - 1]"
+  },
+  {
+    "name": "dns.promises passes to the network",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    isLoopback(host)\n      ? realPromiseLookup(host, ...rest)",
+    "to": "    true\n      ? realPromiseLookup(host, ...rest)"
+  },
+  {
+    "name": "every host is this machine",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    h === 'localhost' ||",
+    "to": "    true ||"
+  },
+  {
+    "name": "the blog-share path reads reddit.com again",
+    "file": "blog-share-wiring-path.test.ts",
+    "from": "  readAnonymously: async () => '<!doctype html><title>Blocked</title>',\n",
+    "to": "\n"
+  },
+  {
+    "name": "the X thread readback reads reddit.com again",
+    "file": "src/agent/x-thread-readback.test.ts",
+    "from": "  readAnonymously: async () => '<!doctype html><title>Blocked</title>',\n",
+    "to": "\n"
+  },
+  {
+    "name": "the sign-in notice reaches api.telegram.org again",
+    "file": "pairing-e2e.test.ts",
+    "from": "  sendToTelegram: async () => undefined,\n",
+    "to": "\n"
+  },
+  {
+    "name": "a public name passes as never-resolving",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
+    "to": "  return true"
+  },
+  {
+    "name": "a never-resolving name is a leak",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "  return !h.includes('.') || /\\.(test|invalid|example)$/.test(h)",
+    "to": "  return false"
+  },
+  {
+    "name": "a connect to an address passes",
+    "file": "../packages/test-guard/no-network.mjs",
+    "from": "    if (host !== null && net.isIP(strip(host)) && !isLoopback(host)) {",
+    "to": "    if (false) {"
+  }
+]

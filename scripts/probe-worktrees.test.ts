@@ -43,6 +43,49 @@ function tree(name: string, ...addArgs: string[]) {
   return dir
 }
 
+// a branch created `hours` ago: the reflog line `-b` writes carries the
+// committer date, which is what the probe reads as the branch's age
+function oldTree(name: string, branch: string, hours: number) {
+  const dir = path.join(tmp, name)
+  const when = `${Math.floor(Date.now() / 1000 - hours * 3600)} +0000`
+  execFileSync(
+    'git',
+    ['worktree', 'add', '-q', '-b', branch, dir, 'origin/main'],
+    {
+      cwd: repo,
+      stdio: 'pipe',
+      env: { ...process.env, GIT_COMMITTER_DATE: when },
+    }
+  )
+  return dir
+}
+
+// an existing branch created `branchHours` ago, checked out into a worktree
+// added `treeHours` ago (#3751): a bee that reuses an old branch name today
+function reusedTree(
+  name: string,
+  branch: string,
+  branchHours: number,
+  treeHours: number
+) {
+  const dir = path.join(tmp, name)
+  const at = (h: number) => ({
+    ...process.env,
+    GIT_COMMITTER_DATE: `${Math.floor(Date.now() / 1000 - h * 3600)} +0000`,
+  })
+  execFileSync('git', ['branch', branch, 'origin/main'], {
+    cwd: repo,
+    stdio: 'pipe',
+    env: at(branchHours),
+  })
+  execFileSync('git', ['worktree', 'add', '-q', dir, branch], {
+    cwd: repo,
+    stdio: 'pipe',
+    env: at(treeHours),
+  })
+  return dir
+}
+
 function commit(dir: string, file: string) {
   fs.writeFileSync(path.join(dir, file), file + '\n')
   git(dir, 'add', file)
@@ -156,6 +199,22 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
       path.join(parent, '.claude', 'worktrees', 'child'),
       'origin/main'
     )
+    // fresh: a bee's tree a minute old -- named, clean, 0 commits ahead (#3745)
+    tree('fresh', '-q', '-b', 'fix/fresh', '@', 'origin/main')
+    // stale: the same shape, but its branch was created two days ago
+    oldTree('stale', 'fix/stale', 48)
+    // reused: a branch two days old, checked out into a tree a minute old
+    reusedTree('reused-old', 'fix/reused-old', 48, 0)
+    // reused-stale: a branch two days old in a tree two days old
+    reusedTree('reused-stale', 'fix/reused-stale', 48, 48)
+    // reused-merged: a fresh tree on a branch NAME whose PR already merged,
+    // tip at that PR's head (#3756) -- a bee about to start, not a leftover
+    reusedTree('reused-merged', 'fix/reused-merged', 48, 0)
+    // reused-merged-other: same, but the merged PR's head is another commit
+    reusedTree('reused-merged-other', 'fix/reused-merged-other', 48, 0)
+    // reused-merged-stale: a merged name in a tree two days old
+    reusedTree('reused-merged-stale', 'fix/reused-merged-stale', 48, 48)
+    const mainOid = git(repo, 'rev-parse', 'origin/main')
     // locked: already in main, but locked by its owner
     tree('locked', '-q', '--detach', '@', 'origin/main')
     git(repo, 'worktree', 'lock', path.join(tmp, 'locked'))
@@ -164,16 +223,39 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
       { number: 1, headRefName: 'feat/merged', headRefOid: mergedOid },
       { number: 2, headRefName: 'feat/dirty', headRefOid: dirtyOid },
       { number: 3, headRefName: 'feat/reused', headRefOid: 'f'.repeat(40) },
+      { number: 4, headRefName: 'fix/reused-merged', headRefOid: mainOid },
+      {
+        number: 5,
+        headRefName: 'fix/reused-merged-other',
+        headRefOid: 'e'.repeat(40),
+      },
+      {
+        number: 6,
+        headRefName: 'fix/reused-merged-stale',
+        headRefOid: mainOid,
+      },
     ]
     const gh = path.join(tmp, 'gh')
     fs.writeFileSync(path.join(tmp, 'prs.json'), JSON.stringify(prs))
     fs.writeFileSync(gh, `#!/bin/sh\ncat '${path.join(tmp, 'prs.json')}'\n`)
     fs.chmodSync(gh, 0o755)
 
+    /*
+     * Root reads a chmod 000 folder (CAP_DAC_READ_SEARCH), so where the
+     * suite runs as root -- the cloud container, a Linux runner -- the
+     * "unreadable" fixture was readable and its test red for the wrong
+     * reason. There the probe runs without the two capabilities that
+     * override permission bits; root still owns every file here, so nothing
+     * else it does changes.
+     */
+    const [run, pre] =
+      process.getuid?.() === 0
+        ? ['setpriv', ['--bounding-set=-dac_override,-dac_read_search', 'node']]
+        : ['node', []]
     const probe = (args: string[], env: Record<string, string>) => {
       const r = spawnSync(
-        'node',
-        [path.join(repo, 'scripts', 'probe-worktrees.cjs'), ...args],
+        run,
+        [...pre, path.join(repo, 'scripts', 'probe-worktrees.cjs'), ...args],
         {
           cwd: repo,
           encoding: 'utf8',
@@ -273,6 +355,48 @@ describe.skipIf(!hasTools)('tri worktrees --apply', () => {
 
   it('keeps a detached tree with a commit not in main', () => {
     expect(exists('unmerged/u.txt'), out).toBe(true)
+  })
+
+  it('keeps a fresh named branch with no commits yet: new, not finished', () => {
+    expect(exists('fresh'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/fresh/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/fresh/) // cyrillic-ok
+  })
+
+  it('removes a clean named branch with no commits past the age threshold', () => {
+    expect(exists('stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/stale/) // cyrillic-ok
+  })
+
+  it('keeps an old branch checked out into a fresh tree: new, not finished', () => {
+    expect(exists('reused-old'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-old/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/reused-old/) // cyrillic-ok
+  })
+
+  it('removes an old branch in an old tree with no commits', () => {
+    expect(exists('reused-stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/reused-stale/) // cyrillic-ok
+  })
+
+  it('keeps a fresh tree on a merged PR name and head: new, not finished', () => {
+    expect(exists('reused-merged'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-merged\s/) // cyrillic-ok
+    expect(out).not.toMatch(/ЗАВЕРШЕНО\s+fix\/reused-merged\s/) // cyrillic-ok
+  })
+
+  it('keeps a fresh tree on a merged PR name with another tip: new', () => {
+    expect(exists('reused-merged-other'), out).toBe(true)
+    expect(out).toMatch(/НОВАЯ\s+fix\/reused-merged-other/) // cyrillic-ok
+  })
+
+  it('removes an old tree on a merged PR name with no commits', () => {
+    expect(exists('reused-merged-stale'), out).toBe(false)
+    expect(out).toMatch(/ЗАВЕРШЕНО\s+fix\/reused-merged-stale/) // cyrillic-ok
+  })
+
+  it('keeps a detached tree at a main commit finished', () => {
+    expect(dry).toMatch(/ЗАВЕРШЕНО\s+\(detached/) // cyrillic-ok
   })
 
   it('keeps a tree with a live process inside', () => {

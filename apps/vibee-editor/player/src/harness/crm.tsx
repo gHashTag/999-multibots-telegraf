@@ -21,14 +21,21 @@ import CrmPage from '@/pages/Crm'
 import CrmClientPage from '@/pages/CrmClient'
 import ChatPage from '@/pages/Chat'
 import { TelegramTabBar } from '@/components/Navigation/TelegramTabBar'
-import { answerCrmToolsInPage, CRM_FIXTURES } from './crmFixtures'
+import { answerCrmToolsInPage, CRM_AUTO_ON, CRM_FIXTURES } from './crmFixtures'
 import cardFixtures from './crmClientFixtures.json'
 
 // The list's tools and the card's, so a row opens the REAL card and Back
 // comes to the real list: the round trip is what the list has to survive
 // (scroll, search, chip). The story tool passes on to the network.
+// ?auto=on is AUTO switched on (tri shot crm-auto-on): the phone's one line
+// then carries its own Turn off. The hour is fixed, so a shot is a shot.
+const autoOn = new URLSearchParams(window.location.search).get('auto') === 'on'
 answerCrmToolsInPage(
-  { ...CRM_FIXTURES, ...cardFixtures },
+  {
+    ...CRM_FIXTURES,
+    ...cardFixtures,
+    ...(autoOn ? { autopilot_status: CRM_AUTO_ON } : {}),
+  },
   { passThrough: true }
 )
 

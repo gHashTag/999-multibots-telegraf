@@ -36,6 +36,13 @@ const ui = vi.hoisted(() => ({
 }))
 
 vi.mock('@/hooks/useAgentAvatars', () => ({ useAgentAvatars: () => ({}) }))
+/* No traffic beacon from a test (apps/vibee-editor/packages/test-guard/no-network.mjs): it reached the
+ * production render; here a step is dropped, as a failed send is. */
+vi.mock('@/lib/traffic', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/traffic')>()),
+  reportArrival: async () => false,
+  reportWelcomeStep: async () => false,
+}))
 vi.mock('@/hooks/useAgentAcceptance', async importOriginal => ({
   ...(await importOriginal<typeof import('@/hooks/useAgentAcceptance')>()),
   useAgentAcceptance: () => ui.verdicts,

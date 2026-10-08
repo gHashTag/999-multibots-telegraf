@@ -63,14 +63,16 @@ const CITE = /specs\/([a-z0-9_-]+(?:\/[a-z0-9_.-]+)+)\.t27/g
 export function specConsts(text) {
   const out = new Map()
   // A string literal is read whole: a `;` inside it does not end the const.
+  // An array const (`: [6]str = ["a", "b"]`) is read whole too: its literal
+  // is JSON, and a `;` inside one of its strings does not end it either.
   const re =
-    /^\s*pub const (\w+)\s*:\s*(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|[^;]+?)\s*;/gm
+    /^\s*pub const (\w+)\s*:\s*(\[\d+\]\w+|\w+)\s*=\s*("(?:[^"\\]|\\.)*"|\[(?:"(?:[^"\\]|\\.)*"|[^\]";])*\]|[^;]+?)\s*;/gm
   for (const [, name, type, raw] of text.matchAll(re)) {
     const v = raw.trim()
     let value
     try {
       value =
-        type === 'str'
+        type === 'str' || type.startsWith('[')
           ? JSON.parse(v)
           : type === 'bool'
             ? v === 'true'
@@ -109,6 +111,11 @@ export function genModule(text) {
   const consts = new Map()
   const re = /^export const (\w+) = (.+?) satisfies \w+;$/gm
   for (const [, name, raw] of text.matchAll(re))
+    consts.set(name, JSON.parse(raw))
+  // gen-ts prints an array const as `[...] as const satisfies readonly [...]`.
+  const arrays =
+    /^export const (\w+) = (\[.*\]) as const satisfies readonly \[.*\];$/gm
+  for (const [, name, raw] of text.matchAll(arrays))
     consts.set(name, JSON.parse(raw))
   const list = name => {
     const m = new RegExp(
@@ -157,7 +164,8 @@ export function checkSpec({
   const consts = specConsts(spec)
   const id = consts.get('ID')
 
-  const nonAscii = [...spec].findIndex(c => c.charCodeAt(0) > 0x7f)
+  // One scan, no array of the spec's characters (26% of a repo check did that).
+  const nonAscii = spec.search(/[^\x00-\x7f]/)
   if (nonAscii >= 0) say('ascii', `a non-ASCII character at offset ${nonAscii}`)
   const head = lines.slice(
     0,
@@ -226,7 +234,7 @@ export function checkSpec({
     for (const [name, value] of consts) {
       if (!g.consts.has(name))
         say('gen-values', `${name} is missing from the generated module`)
-      else if (g.consts.get(name) !== value)
+      else if (JSON.stringify(g.consts.get(name)) !== JSON.stringify(value))
         say(
           'gen-values',
           `${name} is ${JSON.stringify(g.consts.get(name))} there, ${JSON.stringify(value)} in the spec`
@@ -308,6 +316,40 @@ function trackedCode(root) {
     .filter(p => !p.endsWith('.gen.ts'))
 }
 
+/**
+ * The tracked code that names a spec at all -- `.t27`, or a generated
+ * module's `.gen'` -- found by git grep in C. No law can match in any other
+ * file, and reading all ~4000 of them in JS was most of a repo check
+ * (profiled 2026-10-08: 482 ms before, 176 ms with this).
+ */
+function namingCode(root) {
+  try {
+    const out = execFileSync(
+      'git',
+      [
+        'grep',
+        '-l',
+        '-F',
+        '-e',
+        '.t27',
+        '-e',
+        ".gen'",
+        '--',
+        '*.ts',
+        '*.tsx',
+        '*.mjs',
+        '*.cjs',
+        '*.js',
+      ],
+      { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+    )
+    return new Set(out.split('\n').filter(Boolean))
+  } catch (e) {
+    if (e?.status === 1) return new Set() // git grep found nothing
+    throw e
+  }
+}
+
 /** Every vendored spec, and every law over it and over the citations. */
 export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
   const bad = []
@@ -315,8 +357,15 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
   const ignore = existsSync(join(root, '.prettierignore'))
     ? readFileSync(join(root, '.prettierignore'), 'utf8')
     : ''
-  const code = trackedCode(root)
-  const read = p => readFileSync(join(root, p), 'utf8')
+  const naming = namingCode(root)
+  const code = trackedCode(root).filter(p => naming.has(p))
+  // Each file once: the host files and the citation scan read the same code,
+  // and reading it twice was 41% of a repo check (profiled 2026-10-08).
+  const texts = new Map()
+  const read = p => {
+    if (!texts.has(p)) texts.set(p, readFileSync(join(root, p), 'utf8'))
+    return texts.get(p)
+  }
   const bound = new Map()
 
   for (const host of manifest.hosts) {

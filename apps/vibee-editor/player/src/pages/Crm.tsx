@@ -9,6 +9,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useUserLevel } from '@/hooks/useUserLevel'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import {
+  CRM_PHONE_QUERY,
+  waitingCounts,
+  workOrder,
+  type WorkBlock,
+} from '@/lib/crmPhone'
 import { crmShows, type CrmBlock } from '@vibee/atoms'
 import { LevelSwitch } from '@/components/Level/LevelSwitch'
 import { LevelDashboard } from '@/components/Level/LevelDashboard'
@@ -212,6 +219,8 @@ export default function CrmPage() {
    */
   const { level, switched } = useUserLevel()
   const shows = (block: CrmBlock) => crmShows(level, block)
+  // The level switch is one line on a phone (LevelSwitch's `row` face).
+  const phone = useMediaQuery(CRM_PHONE_QUERY)
   const navigate = useNavigate()
   /*
    * LEADS ARE CLIENT WORK, SO THEY ARE SECTIONS HERE.
@@ -1029,6 +1038,55 @@ export default function CrmPage() {
       : []),
   ]
 
+  /* How many stand at each stage; nothing at all when unknown. */
+  const funnelStrip = shows('funnel') ? <FunnelStrip state={funnel} /> : null
+
+  /*
+   * The one control that changes what happens without the owner. "Everyone
+   * waiting" fills its `chosen` list, so it lives beside that choice, not in
+   * the list of people (P32: it was 55 px above the first person).
+   */
+  const autoPanel = shows('autopilot') ? (
+    <AutoPanel
+      pickAll={
+        w && picked !== null && w.ours > 0
+          ? { n: w.ours, pick: () => void pickEveryoneWaiting() }
+          : null
+      }
+    />
+  ) : null
+
+  // A zero is not news: only the kinds of waiting that have somebody.
+  const counts = w ? waitingCounts(w.ours, w.due, w.theirs) : []
+
+  const waitingPanel =
+    shows('waiting') &&
+    panel(
+      t('crm.waiting.title'),
+      waiting,
+      w && w.total === 0 ? (
+        <p className="crm__empty">{t('crm.waiting.none')}</p>
+      ) : (
+        <>
+          {counts.length ? (
+            <p className="crm__counts">
+              {counts
+                .map(([kind, n]) => t(`crm.waiting.count.${kind}`, { n }))
+                .join(' · ')}
+            </p>
+          ) : null}
+          <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
+        </>
+      )
+    )
+
+  // The three blocks whose place depends on the width (workOrder).
+  const workBlocks: Record<WorkBlock, ReactNode> = {
+    funnel: funnelStrip,
+    auto: autoPanel,
+    waiting: waitingPanel,
+  }
+
   return (
     <div className="crm">
       <header className="crm__top">
@@ -1038,7 +1096,7 @@ export default function CrmPage() {
         </button>
       </header>
 
-      <LevelSwitch variant="chips" />
+      <LevelSwitch variant={phone ? 'row' : 'chips'} />
 
       {noticeFailure ? (
         <AllRefused reason={crmErrorText(noticeFailure, lang, t)} />
@@ -1105,42 +1163,15 @@ export default function CrmPage() {
             />
           </label>
 
-          {/* How many stand at each stage; nothing at all when unknown. */}
-          {shows('funnel') ? <FunnelStrip state={funnel} /> : null}
-
-          {/* The one control that changes what happens without the owner. */}
-          {shows('autopilot') ? <AutoPanel /> : null}
-
-          {shows('waiting') &&
-            panel(
-              t('crm.waiting.title'),
-              waiting,
-              w && w.total === 0 ? (
-                <p className="crm__empty">{t('crm.waiting.none')}</p>
-              ) : (
-                <>
-                  {w && (
-                    <p className="crm__counts">
-                      {t('crm.waiting.counts', {
-                        ours: w.ours,
-                        due: w.due,
-                        theirs: w.theirs,
-                      })}
-                    </p>
-                  )}
-                  {w && picked !== null && w.ours > 0 ? (
-                    <button
-                      type="button"
-                      className="crm__pick-all"
-                      onClick={() => void pickEveryoneWaiting()}
-                    >
-                      {t('crm.waiting.pickAll', { n: w.ours })}
-                    </button>
-                  ) : null}
-                  <ul className="crm__list">{(w?.waiting ?? []).map(row)}</ul>
-                </>
-              )
-            )}
+          {/*
+            THE ORDER IS THE PHONE'S FIRST SCREEN (crm-first-screen.t27).
+            On a phone the people waiting come before the funnel; a wide
+            screen keeps the funnel first. Keyed, so a turn of the phone
+            moves the blocks instead of remounting them.
+          */}
+          {workOrder(phone).map(block => (
+            <Fragment key={block}>{workBlocks[block]}</Fragment>
+          ))}
 
           {shows('leads') &&
             panel(

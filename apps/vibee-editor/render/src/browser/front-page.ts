@@ -26,45 +26,128 @@ export interface PageLike {
 /** A choice older than this is not a choice any more. */
 export const CHOICE_TTL_MS = 30 * 60_000
 
-const chosen = new Map<string, { id: string; at: number }>()
+/**
+ * THE LANE A CHOICE BELONGS TO (lanes.ts). A person may run a few chats at
+ * once in their one browser, and each chat chooses its own tab -- otherwise
+ * the second chat's `browser_open` would move the first chat's hands. A
+ * caller that names no lane is in this one, and everything below answers it
+ * exactly as it did before lanes existed.
+ */
+export const MAIN_LANE = 'main'
+
+/**
+ * Who made a choice. The tab strip (tab-strip.ts) records the PERSON's tap
+ * here too, so the agent follows what they look at -- but that tab is not one
+ * the agent is working in, and the strip must not mark it so.
+ */
+export type ChoiceBy = 'agent' | 'person'
+
+/** Whose choice, then which lane's: telegram id -> lane -> the tab. */
+const chosen = new Map<
+  string,
+  Map<string, { id: string; at: number; by: ChoiceBy }>
+>()
+
+export function rememberLaneFront(
+  telegramId: string,
+  lane: string,
+  id: string,
+  now: number = Date.now(),
+  by: ChoiceBy = 'agent'
+): void {
+  const lanes = chosen.get(telegramId) ?? new Map()
+  lanes.set(lane, { id, at: now, by })
+  chosen.set(telegramId, lanes)
+}
+
+/** Drops that lane's choice; with an id, only while it is still that tab. */
+export function forgetLaneFront(
+  telegramId: string,
+  lane: string,
+  id?: string
+): void {
+  const lanes = chosen.get(telegramId)
+  if (!lanes) return
+  if (!id || lanes.get(lane)?.id === id) lanes.delete(lane)
+  if (!lanes.size) chosen.delete(telegramId)
+}
+
+export function chosenLaneFront(
+  telegramId: string,
+  lane: string,
+  now: number = Date.now()
+): string | null {
+  const had = chosen.get(telegramId)?.get(lane)
+  if (!had) return null
+  if (now - had.at > CHOICE_TTL_MS) {
+    forgetLaneFront(telegramId, lane)
+    return null
+  }
+  return had.id
+}
 
 export function rememberFront(
   telegramId: string,
   id: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  by: ChoiceBy = 'agent'
 ): void {
-  chosen.set(telegramId, { id, at: now })
+  rememberLaneFront(telegramId, MAIN_LANE, id, now, by)
 }
 
+/**
+ * Without an id: the default lane lets go of its choice. With one: that tab
+ * was closed, and a closed tab is nobody's choice, whichever lane made it.
+ */
 export function forgetFront(telegramId: string, id?: string): void {
-  const had = chosen.get(telegramId)
-  if (!id || had?.id === id) chosen.delete(telegramId)
+  if (!id) return forgetLaneFront(telegramId, MAIN_LANE)
+  for (const lane of [...(chosen.get(telegramId)?.keys() ?? [])])
+    forgetLaneFront(telegramId, lane, id)
 }
 
 export function chosenFront(
   telegramId: string,
   now: number = Date.now()
 ): string | null {
-  const had = chosen.get(telegramId)
-  if (!had) return null
-  if (now - had.at > CHOICE_TTL_MS) {
-    chosen.delete(telegramId)
-    return null
-  }
-  return had.id
+  return chosenLaneFront(telegramId, MAIN_LANE, now)
 }
 
-/**
- * Every live choice, whoever made it. A desk knows the pod, not always whose
- * it is, and must not spend the tab a tool is working in (desk-page.ts).
- */
-export function chosenFrontIds(now: number = Date.now()): string[] {
+/** Every live choice of one person, one per lane. */
+export function chosenFrontsOf(
+  telegramId: string,
+  now: number = Date.now()
+): string[] {
   const out: string[] = []
-  for (const who of [...chosen.keys()]) {
-    const id = chosenFront(who, now)
+  for (const lane of [...(chosen.get(telegramId)?.keys() ?? [])]) {
+    const id = chosenLaneFront(telegramId, lane, now)
     if (id) out.push(id)
   }
   return out
+}
+
+/**
+ * The tabs an agent chose and still holds, one per lane: the person's own
+ * taps on the strip are left out. What the strip marks "chat".
+ */
+export function agentChosenFrontsOf(
+  telegramId: string,
+  now: number = Date.now()
+): string[] {
+  const out: string[] = []
+  for (const lane of [...(chosen.get(telegramId)?.keys() ?? [])]) {
+    const id = chosenLaneFront(telegramId, lane, now)
+    if (id && chosen.get(telegramId)?.get(lane)?.by === 'agent') out.push(id)
+  }
+  return out
+}
+
+/**
+ * Every live choice, whoever made it, in whichever lane. A desk knows the
+ * pod, not always whose it is, and must not spend the tab a tool is working
+ * in (desk-page.ts).
+ */
+export function chosenFrontIds(now: number = Date.now()): string[] {
+  return [...chosen.keys()].flatMap(who => chosenFrontsOf(who, now))
 }
 
 /** A real page of the person's browsing, not an extension's own page. Pure. */

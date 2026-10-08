@@ -1,6 +1,6 @@
 ---
-name: "Mandatory Webhook Verification"
-description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explains why this check is mandatory and how it ensures webhook functionality before deployment completion."
+name: 'Mandatory Webhook Verification'
+description: 'CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explains why this check is mandatory and how it ensures webhook functionality before deployment completion.'
 ---
 
 # Mandatory Webhook Verification in deploy.sh
@@ -16,6 +16,7 @@ description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explai
 ## 📋 Why This Check Exists
 
 ### User's Core Principle:
+
 > **"Если она не собирается, значит, смысла в этом боте нет, потому что он работать не будет"**
 >
 > (Translation: "If it [webhook] doesn't work, then this bot is useless because it won't function")
@@ -23,6 +24,7 @@ description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explai
 ### The Problem History:
 
 **January 2025** - Critical deployment issue discovered:
+
 1. ✅ Docker builds succeeded
 2. ✅ Containers started successfully
 3. ✅ Bots initialized and ran in polling mode
@@ -31,6 +33,7 @@ description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explai
 **Root Cause**: Webhook endpoint was broken, but deployment reported "SUCCESS" because only container health was checked, not webhook functionality.
 
 **Impact**:
+
 - User wasted money on video generation (Veo 3 costs per request)
 - Videos were generated successfully by provider
 - Webhooks arrived but were processed incorrectly (wrong provider detection)
@@ -38,6 +41,7 @@ description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explai
 - **Economic loss + poor user experience**
 
 **User's Frustration** (direct quotes):
+
 - "Почему не пришла?" (Why didn't it arrive?)
 - "Я же экономлю деньги там" (I'm saving money there)
 - "Почему он не работает до сих пор?" (Why doesn't it work still?)
@@ -89,6 +93,7 @@ description: "CRITICAL: Webhook verification in deploy.sh - NEVER REMOVE! Explai
 ```
 
 **Why this structure?**
+
 - `successFlag: true` → Identifies as Veo 3 / WAN webhook (not Sora)
 - `taskId + resultUrl` → Matches real Kie.ai WAN webhook format
 - Should be detected as `'kie-wan'`, NOT `'kie-ai'`
@@ -109,6 +114,7 @@ exit 1
 ```
 
 **Why abort?**
+
 - Container may be running
 - Bots may be in polling mode
 - **BUT**: Video generation webhooks don't work
@@ -130,6 +136,7 @@ exit 1
 ```
 
 **Confirms**:
+
 1. Endpoint is accessible
 2. POST requests are processed
 3. Provider detection logic works (kie-wan, not kie-ai!)
@@ -140,21 +147,25 @@ exit 1
 ## 📝 Common Failure Scenarios
 
 ### 1. HTTP Timeout (>10 seconds)
+
 **Symptom**: `HTTP_CODE: (empty)`
 **Cause**: Server not responding, webhook endpoint down
 **Fix**: Check container logs, ensure Express API started
 
 ### 2. HTTP 404 Not Found
+
 **Symptom**: `HTTP_CODE: 404`
 **Cause**: Webhook route not registered
 **Fix**: Check `kie-ai-webhook.routes.ts` is loaded
 
 ### 3. HTTP 500 Internal Error
+
 **Symptom**: `HTTP_CODE: 500`
 **Cause**: Webhook processing crashed
 **Fix**: Check logs for TypeScript errors, missing dependencies
 
 ### 4. Provider Detection Fails
+
 **Symptom**: `Warning: Webhook provider detection unclear`
 **Cause**: `detectVideoProvider()` returns wrong value
 **Fix**: Verify `kie-ai-webhook.routes.ts:detectVideoProvider()` logic
@@ -166,11 +177,13 @@ exit 1
 ### ✅ ALLOWED Changes:
 
 1. **Adjust timeout** (currently 10s)
+
    ```bash
    curl -s --max-time 15 ...  # Increase if network slow
    ```
 
 2. **Update test payload** (if webhook structure changes)
+
    ```bash
    TEST_PAYLOAD='{ ... new structure ... }'
    ```
@@ -184,12 +197,14 @@ exit 1
 ### ❌ FORBIDDEN Changes:
 
 1. **Remove the entire check**
+
    ```bash
    # ❌ NEVER DO THIS:
    # Commenting out webhook verification
    ```
 
 2. **Skip on errors**
+
    ```bash
    # ❌ NEVER DO THIS:
    if [ "$HTTP_CODE" != "200" ]; then
@@ -243,6 +258,7 @@ exit 1
 ```
 
 **Benefits**:
+
 - Automated verification
 - No manual testing needed
 - Fast feedback (<15 seconds)
@@ -285,6 +301,7 @@ Status: PERMANENT - backed by user requirement
 ```
 
 ### Escalate To:
+
 - Project owner decision
 - Reference this SKILL document
 - Review git history: commits 8bcea779, 6d9a72a5
@@ -308,3 +325,12 @@ Status: PERMANENT - backed by user requirement
 > With it, we catch problems early and fix them BEFORE they cost money.
 >
 > **NEVER REMOVE THIS CHECK.**
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

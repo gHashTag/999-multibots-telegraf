@@ -22,6 +22,7 @@ let n = 0
 const typed: string[] = []
 const hrefs = new Map<string, number>()
 const waits: number[] = []
+const opened: string[] = []
 
 vi.mock('../browser/sessions', () => ({
   readSession: async () => ({ state: 'live', cdpEndpoint: 'cdp' }),
@@ -36,8 +37,17 @@ vi.mock('../browser/logins', async importOriginal => ({
   readMarks: async () => [],
 }))
 vi.mock('../agent/reach-log', () => ({ noteShape: async () => undefined }))
+/* What Reddit says about the community: no network from a test. */
+let community = 'unknown'
+vi.mock('../agent/reddit-wiring', async importOriginal => ({
+  ...(await importOriginal<typeof import('../agent/reddit-wiring')>()),
+  communityStateFor: () => async () => community,
+}))
 vi.mock('../browser/cdp', () => ({
-  newPage: async (_c: string, url: string) => ({ id: `p${++n}`, url }),
+  newPage: async (_c: string, url: string) => {
+    opened.push(url)
+    return { id: `p${++n}`, url }
+  },
   evaluateOn: async (_c: string, id: string, expr: string) => {
     if (expr === 'location.href') {
       const k = (hrefs.get(id) ?? 0) + 1
@@ -128,6 +138,42 @@ async function tickWith(answer: string, ageMs: number) {
     tell: async t => void told.push(t),
   })
   return { said, told, updates }
+}
+
+/** A feed, newest first; "done" was asked about already. */
+const FEED = ['newest', 'b', 'a', 'done']
+  .map(
+    s =>
+      `<item><title>T ${s}</title><link>https://t27.ai/#/blog/${s}</link>` +
+      `<guid isPermaLink="false">${s}</guid><description>x</description></item>`
+  )
+  .join('')
+
+/** One tick with no open question and a day gone: which article is asked about. */
+async function nextQuestion(queue?: () => Promise<string>) {
+  const { blogShareTick } = await import('../agent/blog-share')
+  const asked: string[] = []
+  const said = await blogShareTick({
+    pool: {
+      async query(sql: string) {
+        if (sql.trim() === 'SELECT slug FROM blog_shares')
+          return { rows: [{ slug: 'done' }] }
+        return { rows: [] }
+      },
+    } as never,
+    owner: '1',
+    now: () => 2_000_000_000_000,
+    fetchRss: async () => FEED,
+    ask: async what => {
+      asked.push(what)
+      return 'q'
+    },
+    answerOf: async () => 'pending' as never,
+    publish: async () => ({}),
+    tell: async () => undefined,
+    ...(queue ? { queue } : {}),
+  })
+  return { said, asked }
 }
 
 describe('spec automation/blog-share against the host', () => {
@@ -297,8 +343,201 @@ describe('spec automation/blog-share against the host', () => {
     ])
   })
 
-  it('the desk is live, a confirmed post is not yet', () => {
-    expect(SPEC.RUN_LIVE).toBe(false)
-    expect(SPEC.VERSION).toBe(2)
+  it("the owner's queue comes first, the newest only after it", async () => {
+    const { nextArticle, queueOrder } = await import('../agent/blog-share')
+    const feed = ['newest', 'b', 'a'].map(
+      slug => ({ ...(article as object), slug }) as never
+    )
+    const slugOf = (p: { article: { slug: string } } | undefined) =>
+      p?.article.slug
+    /* offerable: the feed carries it and nobody was asked about it. */
+    expect(slugOf(nextArticle(feed, new Set(), ['a']))).toBe('a')
+    expect(slugOf(nextArticle(feed, new Set(['a']), ['a', 'b']))).toBe('b')
+    expect(slugOf(nextArticle(feed, new Set(), ['gone', 'b']))).toBe('b')
+    /* newest_goes_next: only when no queued article is offerable. */
+    expect(nextArticle(feed, new Set(['a', 'b']), ['a', 'b'])).toEqual({
+      article: feed[0],
+      queued: false,
+    })
+    expect(nextArticle(feed, new Set(), ['b'])?.queued).toBe(true)
+    expect(nextArticle(feed, new Set(['newest', 'a', 'b']), ['a'])).toBe(
+      undefined
+    )
+    /* The order is the owner's text: first mention first, a slug only whole. */
+    expect(queueOrder('1 b; 2 a; then b again', ['newest', 'b', 'a'])).toEqual([
+      'b',
+      'a',
+    ])
+    expect(queueOrder('1 a-longer; 2 b', ['a', 'b'])).toEqual(['b'])
+    expect(queueOrder('', ['a', 'b'])).toEqual([])
+    /* The tick: the queue first, and the log says which order it used. */
+    expect((await nextQuestion()).said).toBe('asked about newest')
+    const queued = await nextQuestion(async () => '1 done; 2 b; 3 a')
+    expect(queued.said).toBe("asked about b (the owner's queue)")
+    expect(queued.asked[0]).toContain('«T b»') // cyrillic-ok: the question's quotes
+    expect((await nextQuestion(async () => '1 done')).said).toBe(
+      'asked about newest'
+    )
+    expect(
+      (
+        await nextQuestion(async () => {
+          throw new Error('no table')
+        })
+      ).said
+    ).toBe('asked about newest (newest: the queue could not be read)')
+  })
+
+  it("a fresh article goes first, then the owner's queue, then the newest", async () => {
+    const { nextArticle, isFresh, FRESH_MS } = await import(
+      '../agent/blog-share'
+    )
+    expect(FRESH_MS).toBe(SPEC.FRESH_MS)
+    expect(SPEC.FRESH_MS).toBe(604800000)
+    /* is_fresh: the edge is included, one millisecond past it is not. */
+    expect(isFresh(0)).toBe(true)
+    expect(isFresh(604800000)).toBe(true)
+    expect(isFresh(604800001)).toBe(false)
+    const now = Date.UTC(2026, 9, 6)
+    const at = (slug: string, ageMs?: number) =>
+      ({
+        ...(article as object),
+        slug,
+        ...(ageMs === undefined ? {} : { published: now - ageMs }),
+      }) as never
+    const slugOf = (p: { article: { slug: string } } | undefined) =>
+      p?.article.slug
+    /* Feed newest first: two fresh, one exactly at the edge, one past it. */
+    const feed = [
+      at('fresh-new', 1000),
+      at('fresh-old', 2000),
+      at('edge', 604800000),
+      at('stale', 604800001),
+      at('undated'),
+    ]
+    /* next_source "fresh": ahead of the queue, the newest fresh first. */
+    expect(nextArticle(feed, new Set(), ['stale'], now)).toEqual({
+      article: feed[0],
+      queued: false,
+    })
+    expect(
+      slugOf(nextArticle(feed, new Set(['fresh-new']), ['stale'], now))
+    ).toBe('fresh-old')
+    /* The boundary vector: exactly FRESH_MS old still goes first. */
+    expect(
+      slugOf(
+        nextArticle(feed, new Set(['fresh-new', 'fresh-old']), ['stale'], now)
+      )
+    ).toBe('edge')
+    /* next_source "queue": no fresh one left, the queue orders the rest. */
+    const noFresh = new Set(['fresh-new', 'fresh-old', 'edge'])
+    expect(nextArticle(feed, noFresh, ['undated', 'stale'], now)).toEqual({
+      article: feed[4],
+      queued: true,
+    })
+    /* next_source "newest": no fresh, no queued -- the newest remaining. */
+    expect(nextArticle(feed, noFresh, ['gone'], now)).toEqual({
+      article: feed[3],
+      queued: false,
+    })
+    /* next_source "none". */
+    expect(
+      nextArticle(feed, new Set([...noFresh, 'stale', 'undated']), [], now)
+    ).toBe(undefined)
+  })
+
+  it('a network switched off is neither asked about nor posted to', async () => {
+    const { subredditOf, shareUrls, questionFor } = await import(
+      '../agent/blog-share'
+    )
+    expect(subredditOf(undefined)).toBe('t27ai')
+    expect(subredditOf('')).toBe('t27ai')
+    expect(subredditOf('fpga')).toBe('fpga')
+    expect(subredditOf('off')).toBe(null)
+    expect(subredditOf(' OFF ')).toBe(null)
+    expect(shareUrls(article, null).reddit).toBe(null)
+    expect(shareUrls(article, 't27ai').reddit).toContain('/r/t27ai/submit')
+    expect(questionFor(article, 't27ai')).toContain('r/t27ai')
+    expect(questionFor(article, null)).not.toContain('r/')
+    expect(questionFor(article, null)).toContain('LinkedIn')
+    /* The wiring: on, Reddit's page is opened; off, it is not opened at all. */
+    const pool = { query: async () => ({ rows: [] }) } as never
+    const reddit = () => opened.filter(u => u.includes('reddit.com/r/'))
+    buttonDrawn = true
+    profileShows = true
+    opened.length = 0
+    const on = await (
+      await import('../agent/blog-share-wiring')
+    ).publishEverywhere(pool, '1', article)
+    expect(reddit()).toHaveLength(1)
+    expect(Object.keys(on)).toContain('Reddit')
+    vi.stubEnv('BLOG_SHARE_SUBREDDIT', 'off')
+    vi.resetModules()
+    try {
+      opened.length = 0
+      const off = await (
+        await import('../agent/blog-share-wiring')
+      ).publishEverywhere(pool, '1', article)
+      expect(reddit()).toHaveLength(0)
+      /* Not reported either: the owner is told only about places it posts to. */
+      expect(Object.keys(off)).not.toContain('Reddit')
+      expect(opened.some(u => u.includes('linkedin.com'))).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
+  it('a community Reddit closed is not opened at all (r/t27ai, banned 2026-10-03)', async () => {
+    const pool = { query: async () => ({ rows: [] }) } as never
+    const submit = () => opened.filter(u => u.includes('reddit.com/r/'))
+    buttonDrawn = true
+    profileShows = true
+    try {
+      for (const state of ['banned', 'private'] as const) {
+        community = state
+        opened.length = 0
+        const out = await (
+          await import('../agent/blog-share-wiring')
+        ).publishEverywhere(pool, '1', article)
+        /* No submit page, so no unfinished form left in the browser. */
+        expect(submit()).toHaveLength(0)
+        expect(out.Reddit).toBe(
+          `сообщество r/t27ai закрыто Reddit-ом (${state}) — ничего не открыто` // cyrillic-ok: the words publishEverywhere writes
+        )
+        /* The other networks still get their turn. */
+        expect(opened.some(u => u.includes('linkedin.com'))).toBe(true)
+      }
+      /* Reddit's answer unknown (its filter blocks the server): as before. */
+      community = 'unknown'
+      opened.length = 0
+      const out = await (
+        await import('../agent/blog-share-wiring')
+      ).publishEverywhere(pool, '1', article)
+      expect(submit()).toHaveLength(1)
+      /* The press names its community, for the Reddit desk to read. */
+      expect(out.Reddit).toMatch(/· r\/t27ai$/)
+    } finally {
+      community = 'unknown'
+    }
+  })
+
+  it('an article the Reddit desk already offered there is not opened again', async () => {
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) =>
+        sql.includes('FROM reddit_acts') && params[0] === 't27ai/s'
+          ? { rows: [{ '?column?': 1 }] }
+          : { rows: [] },
+    } as never
+    opened.length = 0
+    const out = await (
+      await import('../agent/blog-share-wiring')
+    ).publishEverywhere(pool, '1', article)
+    expect(opened.filter(u => u.includes('reddit.com/r/'))).toHaveLength(0)
+    expect(out.Reddit).toContain('Reddit-столом')
+  })
+
+  it('the desk is live, and its posts were seen on the profile', () => {
+    expect(SPEC.RUN_LIVE).toBe(true)
+    expect(SPEC.VERSION).toBe(4)
   })
 })

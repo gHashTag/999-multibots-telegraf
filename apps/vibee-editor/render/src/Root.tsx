@@ -127,7 +127,6 @@ export const RemotionRoot: React.FC = () => {
             },
           ],
           ctaText: 'COMMENT PERSONA',
-          ctaHighlight: 'PERSONA',
           captions: [],
           showCaptions: true,
           captionStyle: {

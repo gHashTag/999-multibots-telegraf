@@ -580,6 +580,42 @@ describe('the funnel and the win-back list', () => {
     ).toBeTruthy()
   })
 
+  /*
+   * crm-first-screen.t27 (P32, owner 07.10.2026): on a phone the people
+   * waiting come before the funnel, the AUTO line above them; measured in
+   * Telegram's first screen by `tri shot crm`. jsdom holds the order.
+   */
+  describe('on a phone', () => {
+    const asPhone = () =>
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches: query === '(max-width: 480px)',
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }),
+      })
+    afterEach(() => {
+      delete (window as { matchMedia?: unknown }).matchMedia
+    })
+    const follows = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+    it('the people waiting come before the funnel, the AUTO line before them', async () => {
+      asPhone()
+      serve()
+      await draw()
+      const strip = host.querySelector('[data-testid="crm-funnel"]')!
+      const waitingRow = host.querySelector('.crm__row--ours')!
+      const auto = host.querySelector('.crm-auto')!
+      expect(strip && waitingRow && auto).toBeTruthy()
+      expect(follows(waitingRow, strip)).toBe(true)
+      expect(follows(auto, waitingRow)).toBe(true)
+    })
+  })
+
   it('an unreachable summary draws no funnel at all, not zeros', async () => {
     serve({ fail: ['crm_summary'] })
     await draw()

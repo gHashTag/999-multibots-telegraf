@@ -1,5 +1,30 @@
 import { defineConfig } from 'vitest/config'
+import { createRequire } from 'module'
 import path from 'path'
+
+const { localGitVars } = createRequire(__filename)(
+  './scripts/lib/hook-free-env.cjs'
+)
+
+// A TEST RUN NEVER INHERITS THE HOOK'S REPOSITORY.
+//
+// A git hook exports GIT_DIR (and GIT_INDEX_FILE, ...) for the repository it
+// guards. A test that builds a throwaway repo and runs git in it then talks to
+// the REAL repository instead, because GIT_DIR outranks the cwd. Measured
+// 2026-10-03 with the hook's GIT_DIR: tri-worktree-pr.test.ts created branch
+// docs/x in the real repo and moved a worktree's HEAD; three scripts tests
+// failed only under pre-push; and `git init --bare` with no path reinitialises
+// the GIT_DIR repo as bare. A watcher logged 68 flips of the shared core.bare
+// between 16:01 and 18:30, each one stopping every git command on the machine.
+// test-guard hands vitest a clean env since #3524, but the boots gate, verify
+// and by-hand runs inside a hook do not go through it.
+//
+// Deleting the names here covers every runner of this config: workers are
+// forked from this process and inherit its env. The list comes from git
+// itself (`git rev-parse --local-env-vars`), so identity vars like
+// GIT_AUTHOR_NAME stay. A suite that needs a repository discovers it from its
+// cwd, which is what an unhooked run already does.
+for (const name of localGitVars()) delete process.env[name]
 
 export default defineConfig({
   // ONE CACHE PER TREE, NOT ONE CACHE FOR ALL OF THEM.
@@ -68,10 +93,10 @@ export default defineConfig({
     setupFiles: [
       // Фиктивные env для юнит-тестов (FAL_KEY и пр.): сервисы проверяют
       // ключ на входе, до моков — без этого чистые тесты падают (43 шт).
+      // ...and the network guard (apps/vibee-editor/packages/test-guard/no-network.mjs): no test
+      // reaches a host but this machine. It replaced the DETECT_NETWORK
+      // observer, which only logged and once reported "0 calls".
       './vitest.setup.ts',
-      ...(process.env.DETECT_NETWORK
-        ? ['scripts/detect-network-tests.mjs']
-        : []),
     ],
     exclude: [
       '**/node_modules/**',

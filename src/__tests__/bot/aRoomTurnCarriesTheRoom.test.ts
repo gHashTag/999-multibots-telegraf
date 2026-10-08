@@ -27,7 +27,11 @@ describe('a turn in a room carries the room', () => {
     const src = await source()
     const at = src.indexOf('const inRoom =')
     expect(at, 'nothing computes the room').toBeGreaterThan(-1)
-    const body = src.slice(at, at + 600)
+    // To the end of the agent call, not a character count: the comment on
+    // which conversation a private turn joins (bot-agent-memory.t27) sits
+    // between the two.
+    const call = src.indexOf('спроситьАгента(', at) // cyrillic-ok: pre-existing identifier
+    const body = src.slice(at, src.indexOf('})\n', call))
     expect(body).toContain("'supergroup'")
     expect(body).toContain('room: inRoom')
   })
@@ -39,7 +43,15 @@ describe('a turn in a room carries the room', () => {
      */
     const src = await source()
     const at = src.indexOf('const inRoom =')
-    const body = src.slice(at, at + 400)
+    // The body runs to the end of the agent call (`})` closing a line, not
+    // the `{})` of a spread), not to a character count: #3544 put the
+    // topic's conversation between the two, and a 400-character window lost
+    // the spread at 405.
+    const call = src.indexOf('спроситьАгента(', at) // cyrillic-ok: pre-existing identifier
+    expect(call, 'the room is not computed for the agent call').toBeGreaterThan(
+      at
+    )
+    const body = src.slice(at, src.indexOf('})\n', call))
     // The ternary yields an empty string outside a group, and the spread
     // below is guarded by it.
     expect(body).toMatch(/\?\s*String\(ctx\.chat\.id\)\s*:\s*''/)
@@ -53,8 +65,10 @@ describe('a turn in a room carries the room', () => {
       join(__dirname, '../../services/trinityAgent.ts'),
       'utf8'
     )
-    const at = agent.indexOf('opts.room')
-    expect(at).toBeGreaterThan(-1)
-    expect(agent.slice(at, at + 200)).toContain('/^-\\d{5,20}$/')
+    // The pattern lives in one constant and the room is read only through it.
+    expect(agent).toMatch(/^const ROOM_RE = \/\^-\\d\{5,20\}\$\/$/m)
+    expect(agent).toContain(
+      'opts.room && ROOM_RE.test(opts.room) ? opts.room : undefined'
+    )
   })
 })

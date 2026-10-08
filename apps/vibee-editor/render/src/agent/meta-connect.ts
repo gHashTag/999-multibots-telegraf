@@ -31,6 +31,7 @@ import {
   CARD_H,
   CARD_W,
   IG_CAPTION_MAX,
+  IG_RELINK_EVERY_MS,
   POLL_EVERY_MS,
   POLLS,
   REFRESH_DAYS_LEFT,
@@ -39,6 +40,7 @@ import {
   THREADS_LINKS_MAX,
   THREADS_TEXT_MAX,
 } from '../spec/meta-connect.gen'
+import { THREADS_SCOPES } from '../spec/connect-card.gen'
 
 export { CARD_H, CARD_W }
 
@@ -87,6 +89,18 @@ export function lastPollMs(): number {
   return (POLLS - 1) * POLL_EVERY_MS
 }
 
+export function shouldRelink(
+  igKnown: boolean,
+  publishFailed: boolean,
+  sinceLastMs: number
+): boolean {
+  return (!igKnown || publishFailed) && sinceLastMs >= IG_RELINK_EVERY_MS
+}
+
+export function retryAfterRelink(oldId: string, newId: string): boolean {
+  return newId !== '' && newId !== oldId
+}
+
 /* ---------------------------------------------------------------------------
  * Configuration: which apps, which callback.
  * ------------------------------------------------------------------------- */
@@ -124,7 +138,8 @@ export function appOf(
   return id && secret ? { id, secret } : null
 }
 
-export const THREADS_SCOPES = 'threads_basic,threads_content_publish'
+/* What the consent asks for is the spec's (connect-card.t27). */
+export { THREADS_SCOPES }
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_manage_posts',
@@ -566,6 +581,78 @@ export async function refreshIfDue(
   return { ...next, refreshedAt: new Date(nowMs) }
 }
 
+/**
+ * AN INSTAGRAM LINKED AFTER CONNECT IS FOUND AGAIN (meta-connect.t27 v2).
+ *
+ * The Page's Instagram account used to be read only by finishConnect. On
+ * 2026-10-06 the owner linked t27_dev to the Page afterwards, the row kept an
+ * empty ig_id, and every approved post skipped Instagram until he pressed
+ * Connect again. Here the Page is asked again with the Page token already
+ * held -- no new consent -- when the row does not know the account or a
+ * publish just failed, and never twice inside IG_RELINK_EVERY_MS: the moment
+ * of the last look is kept in the row itself (meta.ig_checked_at), so a
+ * redeploy or a second replica does not ask again.
+ *
+ * Only the facebook row's meta is touched -- the sealed token and its
+ * refreshed_at stay as they are. A Graph error leaves the account as it was;
+ * a Page that answers with no Instagram clears it. Never throws.
+ */
+export async function relinkInstagram(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  t: HeldToken,
+  nowMs: number,
+  publishFailed = false,
+  env: Env = process.env
+): Promise<HeldToken> {
+  if (t.network !== 'facebook') return t
+  const last = Number(t.meta.ig_checked_at || 0)
+  const since = last > 0 ? nowMs - last : Infinity
+  if (!shouldRelink(Boolean(t.meta.ig_id), publishFailed, since)) return t
+  const patch: Record<string, unknown> = { ig_checked_at: nowMs }
+  try {
+    const j = await call(f, `${graph(env)}/${t.accountId}`, {
+      fields: 'instagram_business_account{id,username}',
+      access_token: t.token,
+    })
+    const ig = j.instagram_business_account
+    patch.ig_id = ig?.id ? String(ig.id) : null
+    patch.ig_username = ig?.id ? ig.username || null : null
+  } catch {
+    /* Graph did not answer: the account stays as it was until the next window. */
+  }
+  try {
+    await ensureSocialTables(q)
+    await q.query(
+      `UPDATE social_tokens SET meta = meta || $3::jsonb
+        WHERE owner = $1 AND network = $2`,
+      [owner, t.network, JSON.stringify(patch)]
+    )
+  } catch {
+    /* Not written: the next look comes sooner, nothing else is lost. */
+  }
+  return { ...t, meta: { ...t.meta, ...patch } }
+}
+
+/** Every held token, a Facebook Page's Instagram looked up again when due. */
+export async function readTokensRelinked(
+  q: Queryable,
+  f: Fetch,
+  owner: string,
+  nowMs: number,
+  env: Env = process.env
+): Promise<HeldToken[]> {
+  const held = await readTokens(q, owner, env)
+  return Promise.all(
+    held.map(t => relinkInstagram(q, f, owner, t, nowMs, false, env))
+  )
+}
+
+/** Said when the Page has no Instagram account, instead of a silent skip. */
+export const IG_NOT_LINKED =
+  'Instagram не привязан к странице Facebook — привяжите его в настройках страницы, агент найдёт сам' // cyrillic-ok: told to the owner
+
 /* ---------------------------------------------------------------------------
  * Publishing: the receipt is the id Meta returns.
  * ------------------------------------------------------------------------- */
@@ -711,20 +798,29 @@ export async function publishInstagram(
       ),
     d.sleep
   )
-  const done = await call(
-    d.fetch,
-    `${g}/${ig}/media_publish`,
-    { creation_id: String(c.id), access_token: t.token },
-    'POST'
-  )
-  return await permalinkOr(
-    d.fetch,
-    `${g}/${done.id}`,
-    'permalink',
-    t.token,
-    String(done.id || '')
-  )
+  /* From here on the post may exist even when the call fails (a timeout, an
+     answer with no id): such a failure is marked and never retried. */
+  try {
+    const done = await call(
+      d.fetch,
+      `${g}/${ig}/media_publish`,
+      { creation_id: String(c.id), access_token: t.token },
+      'POST'
+    )
+    return await permalinkOr(
+      d.fetch,
+      `${g}/${done.id}`,
+      'permalink',
+      t.token,
+      String(done.id || '')
+    )
+  } catch (e) {
+    throw new MaybePosted(e instanceof Error ? e.message : String(e))
+  }
 }
+
+/** A failure after media_publish was sent: the post may already be up. */
+class MaybePosted extends Error {}
 
 async function permalinkOr(
   f: Fetch,
@@ -789,10 +885,43 @@ export async function postByApi(
       .then(say)
       .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
     /* Instagram takes a picture or nothing: a post without a card skips it. */
-    if (t.meta.ig_id && p.cardUrl)
-      out.Instagram = await publishInstagram(t, p, d)
-        .then(say)
-        .catch(e => `ошибка API: ${scrub(String(e))}`) // cyrillic-ok: told to the owner
+    if (p.cardUrl)
+      out.Instagram = await postInstagram(q, owner, t, p, d, now, env)
   }
   return out
+}
+
+/**
+ * Instagram through the Page, healing a stale row first (relinkInstagram):
+ * an account linked after Connect is found and used in the same post, a
+ * failed publish looks once more, and is retried once only when a different
+ * account came back (retry_after_relink, IG_PUBLISH_RETRIES) and the failure
+ * came before media_publish was sent -- a post that may exist is never sent
+ * again. Never throws.
+ */
+async function postInstagram(
+  q: Queryable,
+  owner: string,
+  held: HeldToken,
+  p: Post,
+  d: PublishDeps,
+  now: () => number,
+  env: Env
+): Promise<string> {
+  const say = (r: string) => `${VIA_API} · ${r}`
+  const fail = (e: unknown) => `ошибка API: ${scrub(String(e))}` // cyrillic-ok: told to the owner
+  let t = await relinkInstagram(q, d.fetch, owner, held, now(), false, env)
+  if (!t.meta.ig_id) return IG_NOT_LINKED
+  try {
+    return say(await publishInstagram(t, p, d))
+  } catch (e) {
+    /* Maybe already posted: a second publish could post it twice. */
+    if (e instanceof MaybePosted) return fail(e)
+    const before = String(t.meta.ig_id || '')
+    t = await relinkInstagram(q, d.fetch, owner, t, now(), true, env)
+    const after = String(t.meta.ig_id || '')
+    if (!after) return IG_NOT_LINKED
+    if (!retryAfterRelink(before, after)) return fail(e)
+    return publishInstagram(t, p, d).then(say).catch(fail)
+  }
 }

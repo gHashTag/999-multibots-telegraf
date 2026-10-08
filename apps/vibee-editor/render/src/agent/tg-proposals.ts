@@ -32,6 +32,11 @@
  */
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import {
+  isDeadSession,
+  telegramErrorText,
+  telegramWaitSeconds,
+} from './tg-errors'
 
 /**
  * A file that IS the service: made on the owner's turn, shown on the card.
@@ -1177,7 +1182,7 @@ const LOOKS_NUMERIC = /^-?\d+$/
  * GramJS resolves the peer inside the call (`getInputEntity`), and for a bare
  * numeric id every fast path is empty on a fresh client: the per-instance
  * entity cache is populated only by results of calls made on that same
- * instance, and `checkAuthorization` (`updates.GetState`) carries no users or
+ * instance, and the login probe (`updates.GetState`) carries no users or
  * chats, so it warms nothing.
  *
  * Reproduced against the installed telegram@2.26.22:
@@ -1531,6 +1536,24 @@ async function afterSend(
   sent: unknown,
   paid: number | null
 ): Promise<void> {
+  /*
+   * The bot sees this message come back as "the owner typed" and would pause
+   * the AI in that chat; remember the id so it asks and stays on (see
+   * agent-sent.ts). The call was lost when `execute` became this table
+   * (#2402) and the registry stayed empty: 2026-10-05 an autopilot send to a lead
+   * logged "Owner replied manually, AI paused". An album comes back
+   * as an array of messages; each id is remembered.
+   */
+  if (sent !== null && p.lead) {
+    const { recordAgentSent } = await import('./agent-sent')
+    for (const m of Array.isArray(sent) ? sent : [sent]) {
+      recordAgentSent(
+        ctx.telegramId,
+        p.lead,
+        (m as { id?: unknown } | null | undefined)?.id
+      )
+    }
+  }
   if (sent !== null) await mirrorSent(ctx, p, sent)
   if (p.lead && ctx.pool) {
     try {
@@ -1881,14 +1904,29 @@ export async function execute(
  * wrong" would erase the only clue anybody has, and this repository has already
  * paid an evening for exactly that on the login screen.
  */
-function inPlainWords(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e)
+export function inPlainWords(e: unknown): string {
+  const raw = telegramErrorText(e)
   if (/input entity|Could not find/i.test(raw)) {
     return 'не нашёл этот чат в вашем Telegram — назовите адресата по @имени'
   }
-  if (/FLOOD_WAIT_(\d+)/i.test(raw)) {
-    const secs = Number(/FLOOD_WAIT_(\d+)/i.exec(raw)?.[1] ?? 0)
-    return `Telegram просит подождать ${Math.ceil(secs / 60)} мин — слишком много действий подряд`
+  const secs = telegramWaitSeconds(e)
+  if (secs !== null) {
+    const wait =
+      secs < 60 ? `${Math.max(1, secs)} сек` : `${Math.ceil(secs / 60)} мин`
+    return `Telegram просит подождать ${wait} — слишком много действий подряд`
+  }
+  if (/PEER_FLOOD/i.test(raw)) {
+    return (
+      'Telegram ограничил ваш аккаунт за подозрение в спаме — отправка ' +
+      'приостановлена, повторять сейчас не нужно. Подробности и срок ' +
+      'объяснит @SpamBot'
+    )
+  }
+  if (isDeadSession(e)) {
+    return (
+      'вход в Telegram больше недействителен — подключите аккаунт заново ' +
+      'в приложении'
+    )
   }
   if (/PEER_ID_INVALID/i.test(raw)) return 'такого адресата не существует'
   if (/USER_IS_BLOCKED|USER_PRIVACY/i.test(raw)) {

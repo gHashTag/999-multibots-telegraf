@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-agent-memory.t27 -- which conversation a turn in the bot's private chat joins.
+// Host: 999-multibots-telegraf src/navigation/topics/memory.ts (callers in
+// src/navigation/registerCommands.ts and src/services/trinityAgent.ts).
+// Trace: owner 2026-10-08 "check that the chats are in sync in the bot and in the mini-app, and
+// that the session keeps every exchange with the client -- now it resets and starts over, this
+// is a bug".
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: routing contract. The cause measured on 2026-10-08: each Telegram thread of the
+// private chat had its own memory, keyed by its thread id. A message written outside the tabs
+// opens a new thread, so every such message began a conversation with no past, and none of it
+// was the conversation the mini-app shows. Now the Agent tab and every thread that is not a
+// fixed tab speak in the base conversation -- the one the mini-app opens -- and each other
+// fixed tab keeps its own memory under its kind, so a tab that is deleted and made again, or
+// the same tab in another bot, finds the memory it had.
+// v1 (2026-10-08): the base conversation, the tab memory keyed by kind, one more history read.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_agent_memory {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-agent-memory";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // The fixed tab that speaks in the base conversation: index 0 of bot-topic-tabs TAB_KEYS,
+    // the Agent tab. The mini-app's chat opens the same conversation.
+    pub const BASE_TAB_INDEX : u8 = 0;
+
+    // A fixed tab's own memory is named TAB_MEMORY_PREFIX followed by the tab's kind
+    // ("tabreels"), a name the render accepts as a conversation id (lowercase letters and
+    // digits, 4 to 24 of them).
+    pub const TAB_MEMORY_PREFIX : str = "tab";
+
+    // A turn joins the base conversation unless it is in a fixed tab other than the Agent tab.
+    // A thread the person opened, a message outside any thread, and a thread the bot does not
+    // know all join the base: a missing record never starts a conversation from nothing.
+    fn joins_base(is_fixed_tab: bool, tab_index: u8) -> bool {
+        return !is_fixed_tab || tab_index == BASE_TAB_INDEX;
+    }
+
+    // A tab's memory moves only when its kind changes. A new thread id -- the tab deleted and
+    // made again, the same tab in another bot -- keeps the memory it had.
+    fn memory_moves(kind_changed: bool, thread_changed: bool) -> bool {
+        return kind_changed;
+    }
+
+    // The bot reads the conversation before every turn. A read that failed is tried once more;
+    // a turn that runs on no history answers as if the person had never spoken.
+    pub const HISTORY_READ_TRIES : u8 = 2;
+
+    fn reads_again(tries_done: u8, ok: bool) -> bool {
+        return !ok && tries_done < HISTORY_READ_TRIES;
+    }
+
+    // ---- tests ----
+
+    test "the Agent tab and every thread that is no fixed tab share the mini-app's conversation" {
+        assert(joins_base(false, 0));
+        assert(joins_base(false, 3));
+        assert(joins_base(true, 0));
+        assert(!joins_base(true, 1));
+        assert(!joins_base(true, 5));
+    }
+
+    test "a tab's memory is keyed by its kind, not by its thread" {
+        assert(!memory_moves(false, true));
+        assert(!memory_moves(false, false));
+        assert(memory_moves(true, false));
+        assert(memory_moves(true, true));
+    }
+
+    test "a failed history read is tried once more, never more" {
+        assert(reads_again(1, false));
+        assert(!reads_again(2, false));
+        assert(!reads_again(1, true));
+        assert(!reads_again(0, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

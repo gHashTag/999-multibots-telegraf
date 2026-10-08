@@ -38,13 +38,16 @@ const real = {
 const laws = (p: Problem[]) => [...new Set(p.map(x => x.law))]
 
 describe('the specs of record in this repository', () => {
+  // A scan of the whole repository: ~0.2 s by itself (0.5 s before
+  // 2026-10-08), but a full run of 500+ files in parallel made it 6.7 s once,
+  // past vitest's default 5 s. The limit is the run's load, not this check.
   it('every vendored spec obeys every law, and every cited spec is bound or known', () => {
     const bad = checkRepo()
     expect(
       bad,
       bad.map(b => `${b.spec}: [${b.law}] ${b.what}`).join('\n')
     ).toEqual([])
-  })
+  }, 20_000)
 
   it('the real spec passes on the fixture harness (the controls below start from green)', () => {
     expect(checkSpec(real)).toEqual([])
@@ -60,6 +63,30 @@ describe('each law fails when it should', () => {
   it('gen-values: the generated module says another number', () => {
     const gen = swap(real.gen, 'OP_TOKENS = 12', 'OP_TOKENS = 13')
     expect(laws(checkSpec({ ...real, gen }))).toEqual(['gen-values'])
+  })
+
+  it('gen-values: an array const of the table drifts in the generated module', () => {
+    // bot-topic-tabs.t27 keeps its tab table in array consts (`: [6]u32`);
+    // the checker once read only scalars, and a drifted colour slipped by.
+    const ROOT_SPEC = join(HERE, '..', '..', '..', '..', '..', 'src', 'spec')
+    const tabs = {
+      file: 'src/spec/bot-topic-tabs.t27',
+      spec: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.t27'), 'utf8'),
+      gen: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.gen.ts'), 'utf8'),
+      test: readFileSync(join(ROOT_SPEC, 'bot-topic-tabs.test.ts'), 'utf8'),
+      hostFiles: [
+        {
+          path: 'src/navigation/topics/tabs.ts',
+          text: "import * as SPEC from '@/spec/bot-topic-tabs.gen'\n",
+        },
+      ],
+      ignore: 'src/spec/*.gen.ts\n',
+    }
+    expect(checkSpec(tabs)).toEqual([])
+    const gen = swap(tabs.gen, '[7322096, 16749490,', '[7322096, 9363846,')
+    expect(laws(checkSpec({ ...tabs, gen }))).toEqual(['gen-values'])
+    const spec = swap(tabs.spec, '"wallet", "hive"]', '"wallet", "bees"]')
+    expect(laws(checkSpec({ ...tabs, spec }))).toContain('gen-values')
   })
 
   it('gen-extra: the generated module declares something the spec does not', () => {

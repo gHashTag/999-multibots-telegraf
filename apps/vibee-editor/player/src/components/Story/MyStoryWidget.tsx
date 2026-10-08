@@ -5,6 +5,8 @@ import '@/components/Crm/StoryReelPanel.css'
 import { useLanguage } from '@/hooks/useLanguage'
 import { crmErrorText } from '@/lib/crmErrorText'
 import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
+import { ReelPreview } from '@/components/Story/ReelPreview'
+import { previewShown } from '@/lib/planReel'
 import {
   loadMyStory,
   saveMyStoryFace,
@@ -188,15 +190,14 @@ export function MyStoryWidget({
                       {t(`crm.client.story.state.${j.status}`)}
                     </span>
                   </div>
-                  {j.url ? (
-                    <a
-                      href={j.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="crm-client__watch"
-                    >
-                      {t('crm.client.story.watch')}
-                    </a>
+                  {/* A reel that came out is a picture of itself, its
+                      press opens it (plan-reel.t27). */}
+                  {previewShown(j.url) ? (
+                    <ReelPreview
+                      url={j.url as string}
+                      poster={j.poster}
+                      label={t('story.watch', { topic: j.topic || '—' })}
+                    />
                   ) : j.status === 'failed' && j.error ? (
                     <p className="crm__why">{j.error}</p>
                   ) : null}

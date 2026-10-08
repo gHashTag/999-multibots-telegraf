@@ -19,6 +19,8 @@ not merge it.
      (Bearer `TRIOS_API_TOKEN`, read from Railway, never printed).
    - Open issues labelled `queen-watch`:
      `gh issue list --repo gHashTag/999-multibots-telegraf --label queen-watch --state open`.
+   - Open issues labelled `stands-after-deploy` (a phone stand that failed
+     after a mini-app deploy, `tri stands-after-deploy`), same delegatable shape.
    - The last queen-watch runs: `railway logs --service queen-watch` with
      `--project 564d9ebd-7aa8-44fe-93ec-e0b03c87158d --environment e4d200ad-b8a9-4edf-9b25-190a32613b32`
      (always all three ids: `railway link` flaps between projects).
@@ -44,9 +46,19 @@ not merge it.
      `Reviewer bee: not merged.` followed by the reason.
    - A review jam is your problem in the same turn: dispatch the next reviewer,
      do not wait for the owner.
-5. **Prove it on Railway.** After a merge the deploy goes by itself. Wait for it,
-   then read the next queen-watch run (or trigger the cron once from the Railway
-   dashboard) -- "merged" is not "fixed" until the watch says ok.
+5. **Prove it on Railway.** A merge does not reliably deploy. Of the three
+   commits that changed `deployment/queen-watch/` by 2026-10-04, Railway
+   skipped two (a50dfd5bf, a2ccd6a52) as "No changes to watched files", with
+   the watch pattern `/deployment/queen-watch/**` matching them (#3597). So
+   after a merge read the newest deployment, all three ids:
+   `railway deployment list --service queen-watch --limit 3 --json`, its
+   `.status`, `.meta.commitHash` and `.meta.skippedReason`. SKIPPED means
+   nothing was deployed: run `railway redeploy --from-source --yes` with the
+   same three ids (it builds main from the configured source; 2026-10-04 it
+   took a2ccd6a52 to SUCCESS in under two minutes). Then read the next
+   queen-watch run (cron `0 * * * *`) -- "merged" is not "deployed" until the
+   newest SUCCESS carries the merge commit, and not "fixed" until the watch
+   says ok.
 6. **Report to the owner, in Russian**, ending with three options and your
    recommendation (`.claude/skills/three-options-at-the-end/SKILL.md`). Say
    what was measured, what was healed, what a bee is on, what waits for him.

@@ -22,6 +22,7 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
+import * as MEMORY_SPEC from '@/spec/bot-agent-memory.gen'
 import {
   markReportedByAgent,
   markTurnHistory,
@@ -47,6 +48,9 @@ const БАЗА = 'https://vibee-render-production.up.railway.app'
  * means dead, and TURN_CEILING_MS is only the backstop for a stream that
  * chatters forever without finishing.
  */
+/** Mirrors render conversation.ts CONVERSATION_RE. */
+export const CONVERSATION_ID_RE = /^[a-z0-9]{4,24}$/
+
 export const SILENCE_MS = 90_000
 export const TURN_CEILING_MS = 420_000
 
@@ -180,25 +184,66 @@ export async function fetchHistory(
 }
 
 async function readConversation(
-  telegramId: string
+  telegramId: string,
+  /*
+   * The thread the turn will be written into: an agent's own, a room's, or
+   * one of the person's own conversations (a topic tab of the private chat).
+   * Without it a group turn carried the asker's PRIVATE history as context.
+   */
+  thread: { agent?: string; room?: string; conversation?: string } = {}
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
+  try {
+    const where = new URLSearchParams()
+    if (thread.agent) where.set('agent', thread.agent)
+    if (thread.room) where.set('room', thread.room)
+    if (thread.conversation) where.set('conversation', thread.conversation)
+    const scoped = where.size ? `&${where}` : ''
+    /*
+     * ONE MORE READ (spec bot-agent-memory.t27 reads_again). A turn that runs
+     * on no history answers as if the person had never spoken -- the "it
+     * starts over" the owner reported on 2026-10-08 -- so a failed read is
+     * tried once more before the turn goes ahead without its past.
+     */
+    for (let tries = 1; ; tries++) {
+      const past = await readConversationOnce(
+        `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`
+      )
+      if (!readsAgain(tries, past !== null)) {
+        if (past === null)
+          logger.warn('[trinityAgent] history not read; the turn has no past', {
+            telegram_id: telegramId,
+            tries,
+          })
+        return past ?? []
+      }
+    }
+  } catch {
+    return []
+  }
+}
+
+/** spec bot-agent-memory.t27 reads_again: a failed read is tried once more, never more. */
+export const readsAgain = (triesDone: number, ok: boolean): boolean =>
+  !ok && triesDone < MEMORY_SPEC.HISTORY_READ_TRIES
+
+/** One history read; null when it failed (not when the conversation is empty). */
+async function readConversationOnce(
+  url: string
+): Promise<Array<{ role: string; content: string; surface?: string }> | null> {
   try {
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
-    const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
-      {
-        headers: { 'X-Api-Key': apiKey() },
-        signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
-      }
-    )
-    if (!о.ok) return []
+    const о = await fetch(url, {
+      headers: { 'X-Api-Key': apiKey() },
+      signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
+    })
+    if (!о.ok) return null
     const д = (await о.json()) as {
       messages?: Array<{ role: string; content: string; surface?: string }>
     }
     return Array.isArray(д.messages) ? д.messages : []
   } catch {
-    return []
+    return null
   }
 }
 
@@ -325,6 +370,11 @@ const pause = (ms: number): Promise<void> =>
 import { STOPPED_BY_OWNER } from './agentStop'
 export { STOPPED_BY_OWNER, wasStoppedByOwner } from './agentStop'
 
+/** A Telegram group id: negative digits. */
+const ROOM_RE = /^-\d{5,20}$/
+/** A catalogue agent id, as agent-marketplace.ts writes them. */
+const AGENT_ID_RE = /^[a-z][a-z0-9-]{1,31}$/
+
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
@@ -385,13 +435,53 @@ export async function спроситьАгента(
      * the owner's.
      */
     faceOf?: string
+    /**
+     * A catalogue agent answering as itself (its own bot, agentHive): the
+     * render brings its persona and keeps its memory under `agent:<id>`, or
+     * the room's when `room` is set too. The render checks the id against
+     * the catalogue and the asker's right to it.
+     */
+    agent?: string
+    /**
+     * The tool now running, from the stream: its name on `инструмент`, null
+     * on its result (#3665). The bot shows it as the chat action, so a
+     * minute of image_edit reads as "sending a photo…", not a hung bot.
+     * Errors thrown here are swallowed: an indicator never fails a turn.
+     */
+    onTool?: (name: string | null) => void
+    /**
+     * The answer as written so far, after each text event of the stream
+     * (bot-agent-stream.t27 drafts). Errors thrown here are swallowed.
+     */
+    onText?: (soFar: string) => void
+    /**
+     * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
+     * CONVERSATION_RE): a fixed tab of the private chat other than the Agent
+     * tab keeps its own memory (navigation/topics/memory.ts). Ignored when a
+     * room or an agent names the thread. Absent -> the base conversation.
+     */
+    conversation?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
   }
 
-  const past = await readConversation(telegramId)
+  const agent =
+    opts.agent && AGENT_ID_RE.test(opts.agent) ? opts.agent : undefined
+  const room = opts.room && ROOM_RE.test(opts.room) ? opts.room : undefined
+  const conversation =
+    !agent &&
+    !room &&
+    opts.conversation &&
+    CONVERSATION_ID_RE.test(opts.conversation)
+      ? opts.conversation
+      : undefined
+  const past = await readConversation(telegramId, {
+    agent,
+    room,
+    conversation,
+  })
   const messages = [
     ...past.map(turn => ({
       role: turn.role,
@@ -481,9 +571,9 @@ export async function спроситьАгента(
            * Negative, because that is what a Telegram group id is, and the
            * client pattern (positive digits) would have refused it.
            */
-          ...(opts.room && /^-\d{5,20}$/.test(opts.room)
-            ? { room: opts.room }
-            : {}),
+          ...(room ? { room } : {}),
+          ...(agent ? { agent } : {}),
+          ...(conversation ? { conversation } : {}),
         }),
         signal: прерыватель.signal,
       }
@@ -518,6 +608,14 @@ export async function спроситьАгента(
      */
     let turnId: string | undefined
 
+    const tellTool = (name: string | null) => {
+      try {
+        opts.onTool?.(name)
+      } catch {
+        // An indicator never fails a turn.
+      }
+    }
+
     const строку = (s: string) => {
       const t = s.trim()
       if (!t) return
@@ -532,14 +630,25 @@ export async function спроситьАгента(
         }
         if (ev.тип === 'ход' && ev.id)
           turnId = ev.id // cyrillic-ok: pre-existing event envelope
-        else if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        else if (ev.тип === 'текст' && typeof ev.текст === 'string') {
           части.push(ev.текст)
-        else if (ev.тип === 'провайдер' && ev.id)
+          // The answer so far, for a draft that grows on screen
+          // (bot-agent-stream.t27). A failing listener never fails the turn.
+          try {
+            opts.onText?.(части.join('')) // cyrillic-ok: pre-existing identifier of this parser
+          } catch {
+            /* an indicator only */
+          }
+        } else if (ev.тип === 'провайдер' && ev.id)
           // cyrillic-ok: pre-existing event envelope
           // The last one wins: a provider that failed mid-stream before any
           // text was handed over is replaced by the one that answered.
           provider = `${ev.id}/${ev.model ?? '?'}`
-        else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
+        else if (ev.тип === 'инструмент' && ev.имя) {
+          // cyrillic-ok: pre-existing event envelope
+          инструменты.push(ev.имя) // cyrillic-ok: pre-existing identifiers of this parser
+          tellTool(ev.имя) // cyrillic-ok: pre-existing event field
+        } else if (ev['тип'] === 'результат') tellTool(null)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
         // A prepared message and its one-time secret, from this same turn.
         // Bracket access with a string literal: the envelope's field name is
@@ -707,17 +816,34 @@ export async function спроситьАгента(
 export async function recordTurns(
   telegramId: string,
   turns: Array<{ role: 'user' | 'assistant'; content: string }>,
-  surface: 'bot' | 'business' = 'bot'
+  surface: 'bot' | 'business' = 'bot',
+  /*
+   * WHERE THE TURN WAS ASKED (spec bot-agent-memory.t27). A line written for
+   * a turn in a room or in a tab goes into that room's or tab's conversation;
+   * without this it landed in the person's base conversation, next to a
+   * question it never answered.
+   */
+  where: { room?: string; conversation?: string } = {}
 ): Promise<'recorded' | 'not recorded'> {
   const usable = turns.filter(turn => (turn.content || '').trim())
   if (!apiKey() || !telegramId || !usable.length) return 'not recorded'
+  const room = where.room && ROOM_RE.test(where.room) ? where.room : undefined
+  const conversation =
+    !room && where.conversation && CONVERSATION_ID_RE.test(where.conversation)
+      ? where.conversation
+      : undefined
   try {
     const response = await fetch(
       `${БАЗА}/api/agent/history?telegram_id=${encodeURIComponent(telegramId)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-        body: JSON.stringify({ turns: usable, surface }),
+        body: JSON.stringify({
+          turns: usable,
+          surface,
+          ...(room ? { room } : {}),
+          ...(conversation ? { conversation } : {}),
+        }),
         signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
       }
     )

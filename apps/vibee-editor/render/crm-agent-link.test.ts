@@ -69,7 +69,6 @@ function leelaBot() {
   }
   const clientFor = (by: string) => ({
     connect: async () => {},
-    checkAuthorization: async () => true,
     disconnect: async () => {},
     destroy: async () => {},
     sendMessage: async (_t: string, o: { message: string }) => {
@@ -99,7 +98,8 @@ async function mockTelegram(bot: ReturnType<typeof leelaBot>, order: string[]) {
     TelegramClient: class {
       private who = order[n++] ?? OWNER
       connect = async () => {}
-      checkAuthorization = async () => true
+      // The login probe client() runs (updates.GetState) answers fine.
+      invoke = async () => ({})
       disconnect = async () => {}
       destroy = async () => {}
       sendMessage = (t: string, o: { message: string }) =>
@@ -107,6 +107,7 @@ async function mockTelegram(bot: ReturnType<typeof leelaBot>, order: string[]) {
       getMessages = (c: string, o: { limit: number }) =>
         bot.clientFor(this.who).getMessages(c, o)
     },
+    Api: { updates: { GetState: class {} } },
   }))
   vi.doMock('telegram/sessions', () => ({
     StringSession: class {

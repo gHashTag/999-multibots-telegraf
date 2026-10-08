@@ -1,0 +1,20 @@
+[
+  {
+    "name": "the root suite runs without the guard",
+    "file": "vitest.setup.ts",
+    "from": "installNoNetwork({\n  afterEach,",
+    "to": "void ({\n  afterEach,"
+  },
+  {
+    "name": "a proxy variable survives and carries the call out",
+    "file": "apps/vibee-editor/packages/test-guard/no-network.mjs",
+    "from": "      delete env[k]\n",
+    "to": "\n"
+  },
+  {
+    "name": "a TCP connect to an address passes",
+    "file": "apps/vibee-editor/packages/test-guard/no-network.mjs",
+    "from": "    if (host !== null && net.isIP(strip(host)) && !isLoopback(host)) {",
+    "to": "    if (false) {"
+  }
+]

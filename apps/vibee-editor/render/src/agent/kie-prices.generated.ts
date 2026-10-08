@@ -63,7 +63,7 @@ export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
   'gpt-5-2': null,
   'gemini-3-pro': null,
   'gemini-2.5-flash': null,
-  'glm-5.3': null,
+  'glm-4.7-flash': null,
 }
 
 /** Единица измерения цены: «за секунду», «за картинку» и т. п. */
@@ -116,7 +116,7 @@ export const ЕДИНИЦА_ЦЕНЫ: Record<string, string | null> = {
   'gpt-5-2': 'за млн токенов',
   'gemini-3-pro': 'за млн токенов',
   'gemini-2.5-flash': 'за млн токенов',
-  'glm-5.3': null,
+  'glm-4.7-flash': null,
 }
 
 /**
@@ -175,5 +175,5 @@ export const DEAREST_VARIANT_USD: Record<string, number | null> = {
   'gpt-5-2': null,
   'gemini-3-pro': null,
   'gemini-2.5-flash': null,
-  'glm-5.3': null,
+  'glm-4.7-flash': null,
 }

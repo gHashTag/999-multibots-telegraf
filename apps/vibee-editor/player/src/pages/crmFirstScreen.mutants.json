@@ -1,0 +1,86 @@
+[
+  {
+    "name": "the phone order lost: funnel first everywhere",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return phone ? SPEC.ORDER_PHONE : SPEC.ORDER_WIDE",
+    "to": "return SPEC.ORDER_WIDE"
+  },
+  {
+    "name": "the orders swapped",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return phone ? SPEC.ORDER_PHONE : SPEC.ORDER_WIDE",
+    "to": "return phone ? SPEC.ORDER_WIDE : SPEC.ORDER_PHONE"
+  },
+  {
+    "name": "the page ignores the width when it orders",
+    "file": "src/pages/Crm.tsx",
+    "from": "{workOrder(phone).map(block => (",
+    "to": "{workOrder(false).map(block => ("
+  },
+  {
+    "name": "zeros printed again",
+    "file": "src/lib/crmPhone.ts",
+    "from": "  return n > 0",
+    "to": "  return n >= 0"
+  },
+  {
+    "name": "the count line keeps every kind",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return all.filter(([, n]) => countShown(n))",
+    "to": "return all"
+  },
+  {
+    "name": "a phone counted one pixel short",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return width <= SPEC.PHONE_MAX_PX",
+    "to": "return width < SPEC.PHONE_MAX_PX"
+  },
+  {
+    "name": "pills past the phone width",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return width >= SPEC.PILLS_MIN_PX && width <= SPEC.PHONE_MAX_PX",
+    "to": "return width >= SPEC.PILLS_MIN_PX"
+  },
+  {
+    "name": "Telegram's top forgets the status bar",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return SPEC.TG_DEVICE_TOP_PX + SPEC.TG_BUTTONS_TOP_PX",
+    "to": "return SPEC.TG_BUTTONS_TOP_PX"
+  },
+  {
+    "name": "Telegram's line forgets the home indicator",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return barsTop - SPEC.TG_HOME_BOTTOM_PX - telegramTop()",
+    "to": "return barsTop - telegramTop()"
+  },
+  {
+    "name": "the first screen one pixel short",
+    "file": "src/lib/crmPhone.ts",
+    "from": "return end <= telegramLine(barsTop)",
+    "to": "return end < telegramLine(barsTop)"
+  },
+  {
+    "name": "everyone waiting stays out of the AUTO panel",
+    "file": "src/components/Crm/AutoPanel.tsx",
+    "from": "{pickAll ? (",
+    "to": "{false ? ("
+  },
+  {
+    "name": "everyone waiting offered with nobody waiting",
+    "file": "src/pages/Crm.tsx",
+    "from": "w && picked !== null && w.ours > 0",
+    "to": "w && picked !== null && w.ours >= 0"
+  },
+  {
+    "name": "the pills block typed past the spec",
+    "file": "src/components/Crm/FunnelStrip.css",
+    "from": "@media (min-width: 360px) and (max-width: 480px) {",
+    "to": "@media (min-width: 340px) and (max-width: 480px) {"
+  },
+  {
+    "name": "the phone query drifts from the page's phone width",
+    "file": "src/lib/crmPhone.ts",
+    "from": "`(max-width: ${SPEC.PHONE_MAX_PX}px)`",
+    "to": "`(max-width: ${SPEC.PILLS_MIN_PX}px)`"
+  }
+]

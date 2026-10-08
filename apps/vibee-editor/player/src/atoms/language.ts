@@ -129,6 +129,19 @@ const en: Translations = {
   'browser.choice.done': '✓ Done',
   'browser.choice.cannot': 'Cannot',
   'browser.keys.label': 'Keys for the page',
+  'browser.tabs.label': 'Open tabs',
+  'browser.tabs.new': 'New tab',
+  'browser.tabs.close': 'Close tab {title}',
+  'browser.tabs.untitled': 'Untitled',
+  'browser.tabs.refused': 'The browser did not take it',
+  'browser.tabs.agentDesk': 'The agent is working here on a scheduled run',
+  'browser.tabs.agentChat': 'The agent is working here for your chat',
+  'browser.tabs.confirmDesk':
+    'The agent is working in {title} on a scheduled run. Close it anyway?',
+  'browser.tabs.confirmChat':
+    'The agent is working in {title} for your chat. Close it anyway?',
+  'browser.tabs.closeAnyway': 'Close',
+  'browser.tabs.keep': 'Keep it',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
   'browser.ask.title': '🛡 The agent asks your permission',
@@ -369,8 +382,9 @@ const en: Translations = {
   'crm.waiting.title': 'Waiting for an answer',
   'crm.waiting.none':
     'Nobody is waiting for an answer. That is good news, not an empty screen.',
-  'crm.waiting.counts':
-    'waiting on us: {ours} · time to return: {due} · awaiting reply: {theirs}',
+  'crm.waiting.count.ours': 'waiting on us: {n}',
+  'crm.waiting.count.due': 'time to return: {n}',
+  'crm.waiting.count.theirs': 'awaiting reply: {n}',
   'crm.leads.title': 'Hot leads',
   'crm.leads.counts': 'found {found}',
   'crm.leads.setAside': 'set aside, touched recently: {n}',
@@ -581,6 +595,12 @@ const en: Translations = {
   'crm.aside.gifts': 'Gifts',
   'crm.aside.gift.portrait.give': 'Give',
   'crm.aside.gift.portrait.send': 'Send',
+  'crm.aside.menu': 'Widgets',
+  'crm.aside.widget.moves': 'Moves',
+  'crm.aside.widget.group': 'Group',
+  'crm.aside.widget.content': 'Content',
+  'crm.aside.widget.templates': 'Templates',
+  'crm.aside.moves.none': 'No move to suggest right now.',
   'crm.aside.package.none': 'No client package: no rules written yet.',
   'crm.aside.plan.none': 'No content plan yet.',
   'crm.aside.note.placeholder': 'A note about this client…',
@@ -641,6 +661,9 @@ const en: Translations = {
     'Draft the first message to {name}: who we are and one useful thing for them.',
   'crm.auto.title': 'AUTO mode',
   'crm.auto.off': 'Off — every card waits for your press',
+  'crm.auto.offShort': 'off',
+  'crm.auto.onShort': 'until {until} · {left}/{cap} left',
+  'crm.auto.stop': 'Turn off',
   'crm.auto.on': 'On until {until} · {left} of {cap} sends left today',
   'crm.auto.turnOn': 'Turn AUTO on',
   'crm.auto.turnOff': 'Turn AUTO off',
@@ -716,6 +739,17 @@ const en: Translations = {
   'crm.client.story.quick.3': 'Before and after',
   'crm.client.story.quick.4': 'Why people choose me',
   'crm.client.story.price': 'About {n} tokens a reel, from your balance',
+  'crm.client.story.gallery': 'Ready scripts',
+  'crm.client.story.gallery.hint':
+    'Tap a script: its lines, frames and call fill the fields below.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Hook: my voice, my AI',
+  'crm.client.story.gallery.price': '≈ {n} tokens',
+  'crm.client.story.gallery.noPrice': 'price on press',
+  'crm.client.story.gallery.chosen': 'Chosen',
+  'crm.client.story.gallery.clear': 'Without a script',
+  'crm.client.story.gallery.line': 'Line {n}',
   'crm.client.story.starting': 'Starting…',
   'crm.client.story.started':
     'Started: «{topic}». It comes to you in the bot in 5–10 minutes: check it and forward it to the client.',
@@ -915,6 +949,22 @@ const en: Translations = {
   'story.card.note':
     'My face, my voice, any topic: a reel in one press, when both halves are set.',
   'story.card.open': 'Open story reels',
+  'story.card.recent': 'Latest reels',
+  'story.watch': 'Watch the reel: {topic}',
+  // A plan card one press from its reel (plan-reel.t27, ProfilePlan.tsx)
+  'plan.reel.make': '🎬 Reel',
+  'plan.reel.making': 'making…',
+  'plan.reel.trial':
+    'A reel from a card: your face, your voice, the story template. The first one is a trial: {scenes} scene · {price}',
+  'plan.reel.full':
+    'A reel from a card: your face, your voice, the story template. {scenes} scenes · {price}',
+  'plan.reel.tokens': '{n} tokens',
+  'plan.reel.noCharge': 'not charged',
+  'plan.reel.started': 'Making “{topic}”: 5–10 minutes, it comes to your bot',
+  'plan.reel.refused': 'Not started: {why}',
+  'plan.course.add': '+ Course t27',
+  'plan.course.added': 'Course in the plan: {n} new cards',
+  'plan.course.refused': 'Course not added: {why}',
   // The clone's networks, own profile only (components/Profile/CloneNetworksCard.tsx)
   'clone.networks.title': "🌐 My clone's networks",
   'clone.networks.note':
@@ -1749,7 +1799,7 @@ const en: Translations = {
   'feed.remixBasedOn': 'Based on another template',
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
-  'app.title': 'Trinity S³AI — reels on autopilot',
+  'app.title': 'TRINITY S³AI — AGI game — play, direct, earn',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -2296,6 +2346,24 @@ const en: Translations = {
   'cardChat.checks.pending': 'checks running',
   'cardChat.checks.none': 'no checks',
   'cardChat.checks.unknown': 'checks not read',
+  'cardChat.tab.label': 'What the card shows',
+  'cardChat.tab.chat': 'Chat',
+  'cardChat.tab.bee': 'Bee at work',
+  'cardChat.bee.label': "The bee's log on this card",
+  'cardChat.bee.running': 'The bee is working',
+  'cardChat.bee.finished': 'The bee finished: {outcome}',
+  'cardChat.bee.finishedBare': 'The bee finished',
+  'cardChat.bee.calls': '{n} calls',
+  'cardChat.bee.since': 'since {time}',
+  'cardChat.bee.reading': "Reading the bee's log…",
+  'cardChat.bee.off': "The bee's log is not connected on this server yet",
+  'cardChat.bee.unmeasured': 'The Queen did not answer, asking again shortly',
+  'cardChat.bee.stale': 'Connection lost: showing the last seen',
+  'cardChat.bee.none': 'No bee has taken this card yet',
+  'cardChat.bee.empty': 'The bee has started; its first steps are coming',
+  'cardChat.bee.thinking': 'thinking…',
+  'cardChat.bee.lines': '+{n} lines',
+  'cardChat.bee.jump': 'To the latest',
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
@@ -3139,6 +3207,19 @@ const ru: Translations = {
   'browser.choice.done': '✓ Готово', // cyrillic-ok
   'browser.choice.cannot': 'Не получается', // cyrillic-ok
   'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
+  'browser.tabs.label': 'Открытые вкладки', // cyrillic-ok
+  'browser.tabs.new': 'Новая вкладка', // cyrillic-ok
+  'browser.tabs.close': 'Закрыть вкладку {title}', // cyrillic-ok
+  'browser.tabs.untitled': 'Без названия', // cyrillic-ok
+  'browser.tabs.refused': 'Браузер не принял это', // cyrillic-ok
+  'browser.tabs.agentDesk': 'Здесь работает агент по расписанию', // cyrillic-ok
+  'browser.tabs.agentChat': 'Здесь работает агент по вашему чату', // cyrillic-ok
+  'browser.tabs.confirmDesk':
+    'В «{title}» работает агент по расписанию. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.confirmChat':
+    'В «{title}» работает агент по вашему чату. Всё равно закрыть?', // cyrillic-ok
+  'browser.tabs.closeAnyway': 'Закрыть', // cyrillic-ok
+  'browser.tabs.keep': 'Оставить', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
   'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
@@ -3376,8 +3457,9 @@ const ru: Translations = {
   'crm.waiting.title': 'Ждут ответа',
   'crm.waiting.none':
     'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.',
-  'crm.waiting.counts':
-    'ждут нас: {ours} · пора вернуться: {due} · ждём ответа: {theirs}',
+  'crm.waiting.count.ours': 'ждут нас: {n}',
+  'crm.waiting.count.due': 'пора вернуться: {n}',
+  'crm.waiting.count.theirs': 'ждём ответа: {n}',
   'crm.leads.title': 'Горячие лиды',
   'crm.leads.counts': 'найдено {found}',
   'crm.leads.setAside': 'отложено недавно тронутых: {n}',
@@ -3582,6 +3664,12 @@ const ru: Translations = {
   'crm.aside.gifts': 'Подарки',
   'crm.aside.gift.portrait.give': 'Подарить',
   'crm.aside.gift.portrait.send': 'Отправить',
+  'crm.aside.menu': 'Виджеты',
+  'crm.aside.widget.moves': 'Ходы',
+  'crm.aside.widget.group': 'Группа',
+  'crm.aside.widget.content': 'Контент',
+  'crm.aside.widget.templates': 'Шаблоны',
+  'crm.aside.moves.none': 'Сейчас ходов не предложено.',
   'crm.aside.package.none': 'Пакета нет: правила не записаны.',
   'crm.aside.plan.none': 'Контент-плана пока нет.',
   'crm.aside.note.placeholder': 'Заметка о клиенте…',
@@ -3640,6 +3728,9 @@ const ru: Translations = {
     'Набросай первое сообщение для {name}: кто мы и одна полезная для него вещь.',
   'crm.auto.title': 'Режим AUTO',
   'crm.auto.off': 'Выключен — каждая карточка ждёт нажатия',
+  'crm.auto.offShort': 'выключен',
+  'crm.auto.onShort': 'до {until} · осталось {left}/{cap}',
+  'crm.auto.stop': 'Выключить',
   'crm.auto.on': 'Включён до {until} · осталось сегодня {left} из {cap}',
   'crm.auto.turnOn': 'Включить AUTO',
   'crm.auto.turnOff': 'Выключить AUTO',
@@ -3714,6 +3805,17 @@ const ru: Translations = {
   'crm.client.story.quick.3': 'До и после',
   'crm.client.story.quick.4': 'Почему выбирают меня',
   'crm.client.story.price': 'Около {n} токенов за рилс — с вашего баланса',
+  'crm.client.story.gallery': 'Готовые сценарии',
+  'crm.client.story.gallery.hint':
+    'Нажмите сценарий: его строки, кадры и призыв заполнят поля ниже.',
+  'crm.client.story.gallery.lang.ru': 'RU',
+  'crm.client.story.gallery.lang.en': 'EN',
+  'crm.client.story.gallery.name.hook_studio': 'Хук: мой голос, моя нейросеть',
+  'crm.client.story.gallery.price': '≈ {n} токенов',
+  'crm.client.story.gallery.noPrice': 'цена при запуске',
+  'crm.client.story.gallery.chosen': 'Выбран',
+  'crm.client.story.gallery.clear': 'Без сценария',
+  'crm.client.story.gallery.line': 'Строка {n}',
   'crm.client.story.starting': 'Запускаю…',
   'crm.client.story.started':
     'Запущен: «{topic}». Придёт тебе в бот через 5–10 минут — проверь и перешли клиенту.',
@@ -3904,6 +4006,21 @@ const ru: Translations = {
   'story.card.note':
     'Моё лицо, мой голос, любая тема: рилс одним нажатием, когда обе половины готовы.',
   'story.card.open': 'Открыть рилсы',
+  'story.card.recent': 'Последние рилсы',
+  'story.watch': 'Смотреть рилс: {topic}',
+  'plan.reel.make': '🎬 Рилс',
+  'plan.reel.making': 'делается…',
+  'plan.reel.trial':
+    'Рилс по карточке: твоё лицо, твой голос, шаблон рилса-истории. Первый — пробный: {scenes} сцена · {price}',
+  'plan.reel.full':
+    'Рилс по карточке: твоё лицо, твой голос, шаблон рилса-истории. {scenes} сцены · {price}',
+  'plan.reel.tokens': '{n} ток.',
+  'plan.reel.noCharge': 'без списания',
+  'plan.reel.started': 'Делаю «{topic}»: 5–10 минут, придёт в бот',
+  'plan.reel.refused': 'Не начат: {why}',
+  'plan.course.add': '+ Курс t27',
+  'plan.course.added': 'Курс в плане: новых карточек {n}',
+  'plan.course.refused': 'Курс не добавлен: {why}',
   'clone.networks.title': '🌐 Сети моего клона',
   'clone.networks.note':
     'Где ваш браузер уже вошёл — по его входам. Пароли не видит никто, даже агент.',
@@ -4702,7 +4819,7 @@ const ru: Translations = {
   'feed.ageMonth': ' мес',
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
-  'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'app.title': 'TRINITY S³AI — AGI-игра — играй, управляй, зарабатывай',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
@@ -5248,6 +5365,24 @@ const ru: Translations = {
   'cardChat.checks.pending': 'проверки идут',
   'cardChat.checks.none': 'проверок нет',
   'cardChat.checks.unknown': 'проверки не прочитаны',
+  'cardChat.tab.label': 'Что показать по карточке',
+  'cardChat.tab.chat': 'Чат',
+  'cardChat.tab.bee': 'Пчела в работе',
+  'cardChat.bee.label': 'Журнал пчелы по карточке',
+  'cardChat.bee.running': 'Пчела работает',
+  'cardChat.bee.finished': 'Пчела закончила: {outcome}',
+  'cardChat.bee.finishedBare': 'Пчела закончила',
+  'cardChat.bee.calls': 'вызовов: {n}',
+  'cardChat.bee.since': 'с {time}',
+  'cardChat.bee.reading': 'Читаю журнал пчелы…',
+  'cardChat.bee.off': 'Журнал пчелы на этом сервере ещё не подключён',
+  'cardChat.bee.unmeasured': 'Королева не ответила — спрошу ещё раз',
+  'cardChat.bee.stale': 'Связь пропала — показано последнее',
+  'cardChat.bee.none': 'Пчела на эту карточку ещё не выходила',
+  'cardChat.bee.empty': 'Пчела вышла, первые шаги вот-вот появятся',
+  'cardChat.bee.thinking': 'думает…',
+  'cardChat.bee.lines': '+{n} строк',
+  'cardChat.bee.jump': 'К последним',
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',

@@ -18,6 +18,18 @@
 
 import type { AgentTool, ToolContext } from './tools'
 import { EDITORIAL_PREFIX } from '../../editorial-key-scope'
+import { isHouse } from '../house-ids'
+import {
+  lessonAdded,
+  lessonCard,
+  planReelsOf,
+  planReelsOut,
+  pressOffered,
+  readCourse,
+  scenesFor,
+  statusCode,
+} from './plan-reel'
+import { STORY_ABANDON_MINUTES, storyPriceEstimate } from './story-template'
 
 const STATUSES = ['idea', 'doing', 'done'] as const
 type Status = (typeof STATUSES)[number]
@@ -112,6 +124,16 @@ export const planTools: AgentTool[] = [
           ? [ctx.telegramId, goals.rows.map(g => g.id)]
           : [ctx.telegramId]
       )
+      // plan-reel.t27: each card's reel that came out (its picture), the
+      // cards being made, and what the next press would make and cost.
+      const made = await planReelsOf(
+        ctx.pool,
+        String(ctx.telegramId),
+        STORY_ABANDON_MINUTES
+      )
+      const scenes = scenesFor(
+        await planReelsOut(ctx.pool, String(ctx.telegramId))
+      )
       const byGoal = new Map<number, unknown[]>()
       for (const it of items.rows) {
         const list = byGoal.get(it.goal_id) ?? []
@@ -121,10 +143,22 @@ export const planTools: AgentTool[] = [
           заметка: it.note ?? undefined,
           статус: STATUS_RU[it.status as Status] ?? it.status,
           ролик: it.template_id ?? undefined,
+          reel: made.reels.get(Number(it.id)),
+          poster: made.posters.get(Number(it.id)),
+          making: made.making.has(Number(it.id)) || undefined,
+          press: pressOffered(statusCode(it.status), made.busy) || undefined,
         })
         byGoal.set(it.goal_id, list)
       }
       return {
+        reel_press: {
+          scenes,
+          // The house pays itself nothing (tools.ts charge): its price is 0.
+          price_tokens: isHouse(String(ctx.telegramId))
+            ? 0
+            : storyPriceEstimate(scenes),
+          busy: made.busy,
+        },
         целей: goals.rows.length,
         цели: goals.rows.map(g => ({
           id: g.id,
@@ -374,6 +408,90 @@ export const planTools: AgentTool[] = [
       if (!r.rows.length)
         return { удалено: false, причина: 'карточка не найдена' }
       return { удалено: true, карточка: r.rows[0].title }
+    },
+  },
+
+  {
+    name: 'plan_course_add',
+    description:
+      'Взять курс t27 (t27.ai/learn/course/) в контент-план: цель-курс и по карточке ' +
+      'на урок, в заметке — цель урока и ссылка на него; рилс такой карточки ' +
+      'заканчивается ссылкой на урок. Читается из спеки курса, повтор не задваивает. ' +
+      'lesson — один урок (id или номер 1–27). Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        lesson: {
+          type: 'string',
+          description: 'id урока или его номер; пусто — весь курс',
+        },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      if (ctx.scope === 'leela-editorial')
+        return { ['добавлено']: false, ['причина']: 'not in this scope' }
+      const course = await readCourse(
+        url =>
+          fetch(url, { signal: AbortSignal.timeout(15_000) }) as Promise<{
+            ok: boolean
+            text(): Promise<string>
+          }>,
+        true
+      )
+      if (!course)
+        return {
+          ['добавлено']: false,
+          ['причина']: 'курс не прочитался целиком — ничего не добавлено',
+        }
+      const want = clean(args.lesson)
+      const lessons = want
+        ? course.lessons.filter(
+            (l, k) => l.id === want || String(k + 1) === want
+          )
+        : course.lessons
+      if (!lessons.length)
+        return { ['добавлено']: false, ['причина']: `нет урока «${want}»` }
+      await ensurePlanTables(ctx)
+      await ctx.pool.query(
+        `INSERT INTO content_plan_goals (telegram_id, title, intent)
+         VALUES ($1, $2, $3) ON CONFLICT (telegram_id, title) DO NOTHING`,
+        [
+          ctx.telegramId,
+          course.title.slice(0, MAX_TITLE),
+          't27.ai/learn/course/',
+        ]
+      )
+      const goal = await ctx.pool.query(
+        `SELECT id FROM content_plan_goals WHERE telegram_id = $1 AND title = $2`,
+        [ctx.telegramId, course.title.slice(0, MAX_TITLE)]
+      )
+      const goalId = goal.rows[0]?.id
+      if (!goalId)
+        return { ['добавлено']: false, ['причина']: 'цель курса не завелась' }
+      const had = await ctx.pool.query(
+        `SELECT title FROM content_plan_items WHERE telegram_id = $1 AND goal_id = $2`,
+        [ctx.telegramId, goalId]
+      )
+      const titles = new Set(had.rows.map((x: any) => String(x.title)))
+      let added = 0
+      for (const l of lessons) {
+        const card = lessonCard(l)
+        if (!lessonAdded(titles.has(card.title))) continue
+        await ctx.pool.query(
+          `INSERT INTO content_plan_items (goal_id, telegram_id, title, note)
+           VALUES ($1, $2, $3, $4)`,
+          [goalId, ctx.telegramId, card.title.slice(0, MAX_TITLE), card.note]
+        )
+        titles.add(card.title)
+        added++
+      }
+      return {
+        ['добавлено']: true,
+        ['цель']: course.title,
+        ['карточек']: added,
+        ['уже_были']: lessons.length - added,
+      }
     },
   },
 ]

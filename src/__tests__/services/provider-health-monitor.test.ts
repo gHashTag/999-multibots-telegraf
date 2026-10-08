@@ -144,4 +144,26 @@ describe('provider health monitor', () => {
     expect(statuses.kie?.reason).toBe('KIE_AI_API_KEY not set')
     expect(statuses.kie?.fault).toBe('standing')
   })
+
+  it('never probes or pages Replicate, which is off by design (kie-only)', async () => {
+    vi.stubEnv('REPLICATE_API_TOKEN', 'test-replicate-token') // secret-guard-ok: invented fixture
+    vi.stubEnv('HEALTH_SKIP_PROVIDERS', '')
+    vi.stubEnv('HEALTH_WATCH_PROVIDERS', '')
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 402,
+      text: async () => '',
+      json: async () => ({}),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const statuses = await checkAllProviders()
+
+    expect(
+      fetchMock.mock.calls.some(([url]: any[]) =>
+        String(url).includes('api.replicate.com')
+      )
+    ).toBe(false)
+    expect(statuses.replicate).toBeUndefined()
+  })
 })

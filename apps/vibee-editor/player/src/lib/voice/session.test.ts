@@ -19,6 +19,11 @@ function deps() {
       async () => {}
     ),
     wakeRoad: vi.fn(),
+    /* No voice from the production render here (apps/vibee-editor/packages/test-guard/no-network.mjs):
+     * a phrase fails as it does when the server is out of reach. */
+    synthesize: vi.fn(async (): Promise<ArrayBuffer> => {
+      throw new TypeError('fetch failed')
+    }),
   }
 }
 

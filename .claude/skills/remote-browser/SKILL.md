@@ -234,6 +234,15 @@ returns `open` instead; `tri browser doctor` then prints
 `ask WHAT S` refuses S over 120 (the server clipped it silently);
 `ask-input choice WHY "A|B|C"` asks him to press one option.
 
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.
+
 ## Related Resources
 
 - `docs/architecture/remote-browser-per-user.md` — решения и причины
@@ -636,6 +645,23 @@ minutes, so a long multi-network run on "ask" sites refuses the later
 networks by name. When adding a desk road,
 grep `src/agent` for `openWindow`, `goTo`, `frontPage` and `listTargets`,
 not only `newDeskPage`.
+
+**A yes is for one place, one purpose (2026-10-03).** Before this change, any
+"Allow" press stamped `browser_sessions.allowed_at`, so a yes to closing tabs
+or sharing a blog unlocked the bank for five minutes. Now only two kinds of
+answer open the act window. The first is a `browser_ask_permission` approval:
+`act_host` is the host of the agent's front tab, read without starting a
+browser (`whereTheAgentIs`). The second is a `choice` picked in the app, which
+uses the host of the focused page. `markAllowed(q, id, host)` stores
+`allowed_host` beside the time. `mayAct` passes only if the yes is fresh AND
+`yesCovers(allowedHost, url)` holds: the exact host, case- and `www.`-blind.
+accounts.google.com and mail.google.com need two separate yeses. A frame inside
+that same tab is covered through `tabUrl`, so a Stripe frame in the shop the
+person said yes to is allowed. Yeses from tidy, blog-share, desks, mail and
+social carry no host and open nothing. The same goes for a yes with no host,
+including one written before the deploy, and for a yes about an unreadable
+address. All of these fail closed. The cost: a desk acting on an "ask" site
+now needs an act yes for THAT host, and its own question is not one.
 
 **The person's door in the app (#3482, #3484).** Browser tab -> "My sites"
 (`components/Browser/SiteRules.tsx`): add as ask or never, flip a row,

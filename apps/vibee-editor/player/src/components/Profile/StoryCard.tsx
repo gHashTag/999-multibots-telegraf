@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
+import { loadMyStory, type StoryJob } from '@/lib/crm'
+import { previewShown, previewsShown } from '@/lib/planReel'
+import { ReelPreview } from '@/components/Story/ReelPreview'
 
 /**
  * THE STORY PAGE HAD NO DOOR EITHER.
@@ -22,11 +26,43 @@ export interface StoryCardProps {
 
 export function StoryCard({ isOwn }: StoryCardProps) {
   const { t } = useLanguage()
+  // The newest reels that came out, as pictures (plan-reel.t27 previews_shown):
+  // the cabinet shows what was made, not only a door to it.
+  const [out, setOut] = useState<StoryJob[]>([])
+  useEffect(() => {
+    if (!isOwn) return
+    let live = true
+    void loadMyStory().then(r => {
+      if (!live) return
+      const done = (r.data?.jobs ?? []).filter(j => previewShown(j.url))
+      setOut(done.slice(0, previewsShown(done.length)))
+    })
+    return () => {
+      live = false
+    }
+  }, [isOwn])
   if (!isOwn) return null
   return (
     <section className="profile-topup" data-testid="profile-story">
       <h3 className="profile-topup__title">{t('story.card.title')}</h3>
       <p className="profile-topup__note">{t('story.card.note')}</p>
+      {out.length ? (
+        <div
+          className="reel-previews"
+          role="group"
+          aria-label={t('story.card.recent')}
+          data-testid="profile-story-previews"
+        >
+          {out.map(j => (
+            <ReelPreview
+              key={j.id}
+              url={j.url as string}
+              poster={j.poster}
+              label={t('story.watch', { topic: j.topic || '—' })}
+            />
+          ))}
+        </div>
+      ) : null}
       <Link className="profile-topup__pack" to="/story">
         {t('story.card.open')}
       </Link>

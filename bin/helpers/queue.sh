@@ -17,17 +17,21 @@ cd "$ROOT" || exit 1
 
 command -v gh >/dev/null 2>&1 || { echo "🛑 нет gh — вывода НЕ делаю."; exit 2; }
 
+# `commits` too (2026-10-03): a PR whose base is main can still carry a
+# sibling's commits, and only the SHAs show it. The rule lives in prstack.py,
+# shared with `tri jam`.
 RAW=$(gh pr list --state open --limit "$LIMIT" \
-  --json number,title,baseRefName,headRefName,mergeable,createdAt,updatedAt,isDraft 2>/dev/null)
+  --json number,title,baseRefName,headRefName,headRefOid,commits,mergeable,createdAt,updatedAt,isDraft 2>/dev/null)
 if [ -z "$RAW" ]; then
   echo "🛑 gh не отдал список PR — вывода НЕ делаю."
   echo "   Пустой список и недоступный список выглядят одинаково."
   exit 2
 fi
 
-RAW="$RAW" python3 - <<'PYEOF'
+RAW="$RAW" PYTHONPATH="$ROOT/bin/helpers" python3 - <<'PYEOF'
 import json, os, sys
 from datetime import datetime, timezone
+from prstack import stack_parents
 
 try:
     prs = json.loads(os.environ['RAW'])
@@ -38,7 +42,6 @@ if not prs:
     sys.exit(2)
 
 now = datetime.now(timezone.utc)
-heads = {p['headRefName']: p['number'] for p in prs}
 
 # ВОЗРАСТ — ОТ СОЗДАНИЯ, А НЕ ОТ ПОСЛЕДНЕГО КАСАНИЯ.
 #
@@ -55,9 +58,12 @@ def age_days(p, field='createdAt'):
         return -1
 
 # ЧЕЙ BASE — ЧУЖАЯ ВЕТКА, ТОТ СТОИТ В ОЧЕРЕДИ.
+# And whose head carries a sibling's commits, even with base = main: on
+# 2026-10-03 such a PR was listed here as free to merge.
+parents = stack_parents(prs)
 stacked, ready = [], []
 for p in prs:
-    (stacked if p['baseRefName'] in heads else ready).append(p)
+    (stacked if p['number'] in parents else ready).append(p)
 
 MARK = {'MERGEABLE': '✅', 'CONFLICTING': '🛑', 'UNKNOWN': '· '}
 
@@ -72,7 +78,7 @@ def line(p, pad=''):
 
 print(f'открытых PR: {len(prs)}   свободных: {len(ready)}   стоят за другим PR: {len(stacked)}')
 print()
-print('── МОЖНО СЛИВАТЬ (base = main) ──')
+print('── МОЖНО СЛИВАТЬ (base = main, no sibling commits) ──')
 for p in sorted(ready, key=age_days):
     line(p)
 
@@ -80,7 +86,8 @@ if stacked:
     print()
     print('── СТОЯТ В ОЧЕРЕДИ: сначала тот, на ком стоят ──')
     for p in sorted(stacked, key=age_days):
-        print(f'  ждёт #{heads[p["baseRefName"]]}:')
+        par, how, why = parents[p['number']]
+        print(f'  ждёт #{par} ({why}):')
         line(p, '  ')
 
 old = [p for p in prs if age_days(p) > 7]

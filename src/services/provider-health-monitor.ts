@@ -142,15 +142,33 @@ const probeTimeoutMs = (): number =>
  *
  * The parked list is PRINTED at startup, so "we are not watching this" is a
  * visible state rather than a forgotten one.
+ *
+ * OFF BY DESIGN IS PARKED WITHOUT ASKING THE DEPLOY. Replicate is not a
+ * provider this platform uses any more: the owner's rule (skill `kie-only`,
+ * 2026-10-02/03) is that every generated asset is made on Kie, and Replicate
+ * has no balance on purpose. Its probe answered with a standing fault and
+ * paged "needs an operator" for a provider no operator is meant to revive,
+ * which buried real failures in the `bot-errors` journal. It is parked here,
+ * in code, because the decision lives in code; HEALTH_WATCH_PROVIDERS names a
+ * provider to watch again anyway (a deploy-time undo, like clearing
+ * HEALTH_SKIP_PROVIDERS).
  */
+export const OFF_BY_DESIGN: readonly string[] = ['replicate']
+
+const listFromEnv = (raw: string | undefined): string[] =>
+  (raw || '')
+    .split(',')
+    .map(v => v.trim().toLowerCase())
+    .filter(Boolean)
+
 export function parkedProviders(
   env: NodeJS.ProcessEnv = process.env
 ): Set<string> {
+  const watched = new Set(listFromEnv(env.HEALTH_WATCH_PROVIDERS))
   return new Set(
-    (env.HEALTH_SKIP_PROVIDERS || '')
-      .split(',')
-      .map(v => v.trim().toLowerCase())
-      .filter(Boolean)
+    [...OFF_BY_DESIGN, ...listFromEnv(env.HEALTH_SKIP_PROVIDERS)].filter(
+      name => !watched.has(name)
+    )
   )
 }
 

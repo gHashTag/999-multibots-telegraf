@@ -16,9 +16,21 @@
  * классы только на том, чего в скиллах нет: папка цели и статус карточки.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Pencil, Plus, Target, Trash2, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Target,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { API_BASE } from '@/config'
+import { isAdmin } from '@/config/admin'
 import { authHeaders } from '@/lib/apiFetch'
+import { isTrial, previewShown } from '@/lib/planReel'
+import { useLanguage } from '@/hooks/useLanguage'
+import { ReelPreview } from '@/components/Story/ReelPreview'
 
 type Status = 'замысел' | 'в работе' | 'вышло'
 
@@ -28,6 +40,21 @@ interface PlanItem {
   заметка?: string
   статус: Status | string
   ролик?: string
+  /** The reel made of this card that came out (plan-reel.t27). */
+  reel?: string
+  /** Its poster, drawn by the server (plan-reel v3); absent: the frame. */
+  poster?: string
+  /** Its reel is being made now. */
+  making?: boolean
+  /** The card offers the press: an idea, and nothing else is being made. */
+  press?: boolean
+}
+
+/** What the next press on a card makes and costs, named before it. */
+interface ReelPress {
+  scenes: number
+  price_tokens: number
+  busy: boolean
 }
 
 interface PlanGoal {
@@ -52,10 +79,17 @@ const NEXT: Record<string, 'idea' | 'doing' | 'done'> = {
 }
 
 type GoalDraft = { title: string; intent: string }
-type ItemDraft = { id: number | null; goalId: number; title: string; note: string }
+type ItemDraft = {
+  id: number | null
+  goalId: number
+  title: string
+  note: string
+}
 
 export function ProfilePlan() {
+  const { t } = useLanguage()
   const [goals, setGoals] = useState<PlanGoal[] | null>(null)
+  const [reelPress, setReelPress] = useState<ReelPress | null>(null)
   /**
    * null = человек ещё ничего не сворачивал руками.
    *
@@ -99,6 +133,7 @@ export function ProfilePlan() {
     const r = await call('plan_list')
     const list = Array.isArray(r['цели']) ? (r['цели'] as PlanGoal[]) : []
     setGoals(list)
+    setReelPress((r.reel_press as ReelPress | undefined) ?? null)
   }, [call])
 
   useEffect(() => {
@@ -156,7 +191,11 @@ export function ProfilePlan() {
     const ok = itemDraft.id
       ? await run(
           'plan_item_update',
-          { id: itemDraft.id, title: itemDraft.title.trim(), note: itemDraft.note.trim() },
+          {
+            id: itemDraft.id,
+            title: itemDraft.title.trim(),
+            note: itemDraft.note.trim(),
+          },
           'изменено'
         )
       : await run(
@@ -172,12 +211,62 @@ export function ProfilePlan() {
   }
 
   const advance = (item: PlanItem) =>
-    run('plan_item_update', { id: item.id, status: NEXT[item.статус] ?? 'idea' }, 'изменено')
+    run(
+      'plan_item_update',
+      { id: item.id, status: NEXT[item.статус] ?? 'idea' },
+      'изменено'
+    )
+
+  /**
+   * THE PRESS ON A CARD (plan-reel.t27): its reel, in the person's own face
+   * and voice, in the story template -- made on the server (my_story_reel
+   * item_id), coming back to her bot. The card goes to "in work" there.
+   */
+  const makeReel = async (item: PlanItem) => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const r = await call('my_story_reel', { start: true, item_id: item.id })
+      setNote(
+        r.started
+          ? t('plan.reel.started', {
+              topic: String(r.topic ?? item['название']),
+            })
+          : t('plan.reel.refused', { why: String(r.why ?? '—') })
+      )
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** The t27 course as a goal, a card a lesson (plan_course_add). */
+  const addCourse = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const r = await call('plan_course_add')
+      const added = r['добавлено'] // cyrillic-ok: plan_course_add's own key
+      setNote(
+        added
+          ? t('plan.course.added', { n: Number(r['карточек'] ?? 0) }) // cyrillic-ok: the tool's key
+          : t('plan.course.refused', { why: String(r['причина'] ?? '—') }) // cyrillic-ok: the tool's key
+      )
+      if (added) await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const removeGoal = (g: PlanGoal) => {
     const n = g.карточки.length
     const tail = n ? ` вместе с ${n} карточками` : ''
-    if (!window.confirm(`Удалить цель «${g.цель}»${tail}? Это необратимо.`)) return
+    if (!window.confirm(`Удалить цель «${g.цель}»${tail}? Это необратимо.`))
+      return
     run('plan_goal_delete', { id: g.id }, 'удалено')
   }
 
@@ -190,7 +279,8 @@ export function ProfilePlan() {
     <div className="profile-skills profile-plan">
       <div className="profile-skills__head">
         <p className="profile-skills__hint">
-          Цели и то, что под них снимается. Агент видит этот список и правит его вместе с тобой
+          Цели и то, что под них снимается. Агент видит этот список и правит его
+          вместе с тобой
         </p>
         <button
           className="profile-skills__add"
@@ -198,12 +288,40 @@ export function ProfilePlan() {
         >
           <Plus size={16} /> Цель
         </button>
+        {isAdmin() ? (
+          <button
+            className="profile-skills__add"
+            data-testid="plan-course-add"
+            disabled={busy}
+            onClick={() => void addCourse()}
+          >
+            {t('plan.course.add')}
+          </button>
+        ) : null}
       </div>
+
+      {/* The price of a press on a card, read BEFORE the press (crm-story-reel
+          v16); the plan's first reel is the trial (plan-reel scenes_for). */}
+      {reelPress && goals?.some(g => g['карточки'].some(i => i.press)) ? (
+        <p className="profile-plan__aside" data-testid="plan-reel-price">
+          {t(isTrial(reelPress.scenes) ? 'plan.reel.trial' : 'plan.reel.full', {
+            scenes: reelPress.scenes,
+            price:
+              reelPress.price_tokens > 0
+                ? t('plan.reel.tokens', { n: reelPress.price_tokens })
+                : t('plan.reel.noCharge'),
+          })}
+        </p>
+      ) : null}
 
       {goals === null ? (
         <div className="profile-skills__list">
           {[1, 2].map(i => (
-            <div key={i} className="skeleton" style={{ height: 92, borderRadius: 12 }} />
+            <div
+              key={i}
+              className="skeleton"
+              style={{ height: 92, borderRadius: 12 }}
+            />
           ))}
         </div>
       ) : goals.length === 0 && !goalDraft ? (
@@ -235,14 +353,21 @@ export function ProfilePlan() {
             const done = g.карточки.filter(i => i.статус === 'вышло').length
             const expanded = isOpen(g.id, goals.length)
             return (
-              <div key={g.id} className="profile-skills__card profile-plan__goal">
+              <div
+                key={g.id}
+                className="profile-skills__card profile-plan__goal"
+              >
                 <div className="profile-skills__card-head">
                   <button
                     className="profile-plan__goal-title"
                     onClick={() => toggle(g.id, goals.length)}
                     aria-expanded={expanded}
                   >
-                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {expanded ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronRight size={14} />
+                    )}
                     <span className="profile-skills__name">{g.цель}</span>
                     <span className="profile-plan__count">
                       {done}/{g.карточки.length}
@@ -253,7 +378,12 @@ export function ProfilePlan() {
                       title="Добавить карточку"
                       onClick={() => {
                         setOpen(prev => new Set(prev ?? []).add(g.id))
-                        setItemDraft({ id: null, goalId: g.id, title: '', note: '' })
+                        setItemDraft({
+                          id: null,
+                          goalId: g.id,
+                          title: '',
+                          note: '',
+                        })
                       }}
                     >
                       <Plus size={14} />
@@ -264,13 +394,16 @@ export function ProfilePlan() {
                   </span>
                 </div>
 
-                {g.зачем && <p className="profile-skills__content">{g.зачем}</p>}
+                {g.зачем && (
+                  <p className="profile-skills__content">{g.зачем}</p>
+                )}
 
                 {expanded && (
                   <div className="profile-plan__items">
                     {g.карточки.length === 0 ? (
                       <p className="profile-plan__aside">
-                        Пусто. Добавь карточку или попроси агента набросать темы.
+                        Пусто. Добавь карточку или попроси агента набросать
+                        темы.
                       </p>
                     ) : (
                       g.карточки.map(item => (
@@ -292,6 +425,31 @@ export function ProfilePlan() {
                                 {item.заметка}
                               </span>
                             )}
+                            {item.making ? (
+                              <span className="profile-plan__item-note">
+                                {t('plan.reel.making')}
+                              </span>
+                            ) : item.press ? (
+                              <button
+                                className="profile-plan__reel"
+                                data-testid="plan-reel-make"
+                                disabled={busy}
+                                onClick={() => void makeReel(item)}
+                              >
+                                {t('plan.reel.make')}
+                              </button>
+                            ) : null}
+                            {/* Under the card's words, as the press: beside
+                                them it squeezed the text to a narrow column. */}
+                            {previewShown(item.reel) ? (
+                              <ReelPreview
+                                url={item.reel as string}
+                                poster={item.poster}
+                                label={t('story.watch', {
+                                  topic: item['название'],
+                                })}
+                              />
+                            ) : null}
                           </div>
                           <span className="profile-skills__actions">
                             <button
@@ -307,7 +465,10 @@ export function ProfilePlan() {
                             >
                               <Pencil size={14} />
                             </button>
-                            <button title="Удалить" onClick={() => removeItem(item)}>
+                            <button
+                              title="Удалить"
+                              onClick={() => removeItem(item)}
+                            >
                               <Trash2 size={14} />
                             </button>
                           </span>
@@ -338,14 +499,18 @@ export function ProfilePlan() {
               placeholder="Цель: продать курс / набрать 1000 подписчиков"
               value={goalDraft.title}
               maxLength={200}
-              onChange={e => setGoalDraft({ ...goalDraft, title: e.target.value })}
+              onChange={e =>
+                setGoalDraft({ ...goalDraft, title: e.target.value })
+              }
             />
             <textarea
               className="profile-skills__textarea"
               placeholder="Зачем она тебе — своими словами. Агент прочитает это, когда будет придумывать темы"
               value={goalDraft.intent}
               maxLength={4096}
-              onChange={e => setGoalDraft({ ...goalDraft, intent: e.target.value })}
+              onChange={e =>
+                setGoalDraft({ ...goalDraft, intent: e.target.value })
+              }
             />
             {note && <p className="profile-skills__note">{note}</p>}
             <button
@@ -363,7 +528,9 @@ export function ProfilePlan() {
         <div className="profile-skills__modal">
           <div className="profile-skills__editor">
             <div className="profile-skills__editor-head">
-              <span>{itemDraft.id ? 'Изменить карточку' : 'Новая карточка'}</span>
+              <span>
+                {itemDraft.id ? 'Изменить карточку' : 'Новая карточка'}
+              </span>
               <button onClick={() => setItemDraft(null)} title="Закрыть">
                 <X size={16} />
               </button>
@@ -373,14 +540,18 @@ export function ProfilePlan() {
               placeholder="О чём ролик — одной строкой"
               value={itemDraft.title}
               maxLength={200}
-              onChange={e => setItemDraft({ ...itemDraft, title: e.target.value })}
+              onChange={e =>
+                setItemDraft({ ...itemDraft, title: e.target.value })
+              }
             />
             <textarea
               className="profile-skills__textarea"
               placeholder="Тезисы, референсы, что показать. Это увидит агент, когда возьмётся делать"
               value={itemDraft.note}
               maxLength={4096}
-              onChange={e => setItemDraft({ ...itemDraft, note: e.target.value })}
+              onChange={e =>
+                setItemDraft({ ...itemDraft, note: e.target.value })
+              }
             />
             {note && <p className="profile-skills__note">{note}</p>}
             <button

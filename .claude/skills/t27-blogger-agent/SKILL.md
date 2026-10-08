@@ -327,9 +327,10 @@ Measured live: `image_generate` skips fal ($0.15 against the $0.005 the
 charge covers), Replicate is off, so **Pollinations draws every picture** --
 768x768 with a "pollinations.ai" mark, `nologo=true` notwithstanding.
 
-- The answer now carries `watermark` (#3409). A stamped picture is a draft:
-  not a post, not a client card (`crm_deliver` returns it as `draft_url`,
-  #3414).
+- A stamped picture is never a post or a client card. Since #3657
+  `image_generate` refuses it on every surface and returns no URL at all, so
+  the old `draft_url` branch of `crm_deliver` (#3414) could never run and was
+  removed (#3678).
 - Brand art (the FB page avatar and 1640x624 cover for "Trinity S³AI") comes
   from `image_edit` (Kie nano-banana-edit, 8 tokens) on a **raster** source --
   it refuses SVG. The canonical mark is `https://t27.ai/apple-touch-icon.png`
@@ -338,3 +339,12 @@ charge covers), Replicate is off, so **Pollinations draws every picture** --
   with letterbox bars: crop, then check the bars are gone.
 - Drafts go to the owner first (Bot API album: `--form-string media=<json>`),
   and are uploaded or posted only after his «да».
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

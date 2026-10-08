@@ -246,6 +246,11 @@
 .story-reel__go {
   width: 100%;
   min-height: 48px;
+  /* The design system's button is one line of a fixed height: at 320 px
+     "Make a reel . frames: 3 + call" ran 2 px past its own edge (tri shot
+     spills right, 2026-10-08). The label wraps and the button grows. */
+  height: auto;
+  white-space: normal;
   border: 0;
   border-radius: 14px;
   background: var(--vibee-green, #00ff88);
@@ -542,4 +547,98 @@
   color: inherit;
   text-decoration: none;
   font-weight: 600;
+}
+
+/* The template gallery: static previews, nothing rendered or paid. */
+.story-reel__gallery {
+  display: grid;
+  gap: 6px;
+}
+.story-reel__templates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.story-reel__template {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.story-reel__template[aria-pressed='true'] {
+  border-color: #ffd700;
+  background: rgba(255, 215, 0, 0.08);
+}
+.story-reel__template-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.story-reel__template-lang {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+.story-reel__template-lines {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.story-reel__template-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.story-reel__template-btn {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.story-reel__template-price {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.story-reel__lines {
+  display: grid;
+  gap: 6px;
+}
+.story-reel__lines textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Page button rules (fixed height, centred flex) must not fold the card. */
+.story-reel .story-reel__templates .story-reel__template {
+  display: grid;
+  height: auto;
+  max-height: none;
+  align-items: start;
+  justify-content: stretch;
+  white-space: normal;
+  overflow: visible;
 }

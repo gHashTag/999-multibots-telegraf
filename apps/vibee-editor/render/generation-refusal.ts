@@ -37,6 +37,10 @@ export const GENERATION_REFUSAL_CODES = [
   // Under `bad_input` it read "something is missing" over "video must be 10
   // seconds or shorter" -- nothing was missing.
   'too_long',
+  // The generation failed AFTER the person paid, and the tokens are back on
+  // their balance. A 500 like any failure, so the status cannot say it: the
+  // route sets it itself, and only when the refund actually went through.
+  'generation_failed_refunded',
 ] as const
 
 export type GenerationRefusalCode = (typeof GENERATION_REFUSAL_CODES)[number]
@@ -89,4 +93,27 @@ export function stampRefusalCode(res: Ending): void {
     }
     return original(chunk, ...rest)
   }) as typeof res.end
+}
+
+/**
+ * The failure body of a generation that was paid for and then failed.
+ *
+ * `refunded` is what the refund actually put back -- 0 when nothing was
+ * charged (the agent pays at its own layer, the owner pays nothing) or when
+ * the refund did not go through. Only a real refund earns the sentence
+ * "your tokens are back"; anything else stays a plain `generation_failed`,
+ * added by `stampRefusalCode`.
+ */
+export function failureAfterCharge(
+  error: string,
+  refunded: number
+): {
+  success: false
+  error: string
+  code?: GenerationRefusalCode
+  refunded?: number
+} {
+  return refunded > 0
+    ? { success: false, error, code: 'generation_failed_refunded', refunded }
+    : { success: false, error }
 }

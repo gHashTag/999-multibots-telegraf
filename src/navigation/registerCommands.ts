@@ -52,6 +52,7 @@ import {
   standardButtons,
   buttonsForAnswer,
 } from '@/navigation/helpers/actionButtons'
+import { leavePressedMenu } from '@/navigation/helpers/pressedMenu'
 import {
   type AgentMiss,
   fallbackFailedText,
@@ -240,6 +241,19 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
+import { topicThreadMiddleware } from './topics/threads'
+import { agentConversationIn } from './topics/memory'
+import {
+  afterStop,
+  draftStopMiddleware,
+  startAnswerDraft,
+  type AnswerDraft,
+} from './helpers/answerDraft'
+import {
+  ensureTabsQuietly,
+  nameTopicQuietly,
+  registerTabsCommand,
+} from './topics/wire'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -292,6 +306,15 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     bot.use(silenceNet)
     bot.use(deadPressNet)
+    /*
+     * A TAB ANSWERS IN ITS TAB. Private-chat topics (Bot API 9.3+): every
+     * direct send aimed at this chat inherits the topic of the update, so the
+     * agent lane's answer lands in the tab the person wrote in
+     * (topics/threads.ts). Right after the nets, so every handler sees the view.
+     */
+    // A stop press on a streamed answer ends its turn (bot-agent-stream.t27).
+    bot.use(draftStopMiddleware)
+    bot.use(topicThreadMiddleware)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
@@ -1383,6 +1406,10 @@ If not, continue on your own and click the "I myself" button`
        */
       let miss: AgentMiss = { kind: 'unreachable' }
       let agentError: unknown
+      /** Where the turn was asked: a fallback line is recorded there too. */
+      let turnWhere: { room?: string; conversation?: string } = {}
+      /** The answer growing on screen with a stop button (private chats). */
+      let draft: AnswerDraft | undefined
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
        *
@@ -1410,7 +1437,7 @@ If not, continue on your own and click the "I myself" button`
          * пока идёт работа, и гасим в finally — иначе он остался бы висеть
          * после ошибки.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
+        const { держатьПечатает, разбитьДлинное, actionForTool } = await import(
           '@/helpers/telegramLongAnswer'
         )
         const стоп = держатьПечатает(ctx as any)
@@ -1451,9 +1478,34 @@ If not, continue on your own and click the "I myself" button`
             ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
               ? String(ctx.chat.id)
               : ''
+          /*
+           * ONE MEMORY (spec bot-agent-memory.t27). The Agent tab and every
+           * thread that is no fixed tab speak in the base conversation, the
+           * one the mini-app opens; only the other fixed tabs keep their own,
+           * keyed by kind. A message outside the tabs opens a new thread, and
+           * keying memory by thread made each one start over.
+           */
+          const conversation = inRoom
+            ? undefined
+            : await agentConversationIn(ctx)
+          turnWhere = {
+            ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
+          }
+          /*
+           * "Thinking…" with a stop button, then the answer as it is written
+           * (bot-agent-stream.t27). Inert in groups and on a bot whose Bot API
+           * server refused a draft; the real message still goes out below.
+           */
+          draft = startAnswerDraft(ctx)
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
+            // "sending a photo…" while a picture tool runs (#3665)
+            onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
+            onText: soFar => draft?.grow(soFar),
+            ...(draft.signal ? { signal: draft.signal } : {}),
           })
           /*
            * The request reached the server, so the server already stored the
@@ -1464,6 +1516,7 @@ If not, continue on your own and click the "I myself" button`
           questionRecorded = true
         } finally {
           стоп()
+          draft?.close()
         }
         const isRuOtvet = isRussianFromState(ctx)
         /*
@@ -1628,6 +1681,29 @@ If not, continue on your own and click the "I myself" button`
           }
         )
       } catch (err: any) {
+        /*
+         * THE PERSON PRESSED STOP (bot-agent-stream.t27 after_stop). What was
+         * written so far is the answer; with nothing written, one line saying
+         * it stopped. Never the fallback model: a stop is not a failure.
+         */
+        if (draft?.stopped) {
+          const partial = draft.text.trim()
+          const line =
+            afterStop(partial.length) === 1
+              ? partial
+              : isRussianFromState(ctx)
+                ? 'Остановлено.' // cyrillic-ok: user-facing
+                : 'Stopped.'
+          await ctx.reply(line.slice(0, 4096)).catch(() => undefined)
+          const { recordTurns } = await import('@/services/trinityAgent')
+          void recordTurns(
+            String(ctx.from?.id ?? ''),
+            [{ role: 'assistant', content: line }],
+            'bot',
+            turnWhere
+          )
+          return
+        }
         agentError = err
         miss = missOfError(err)
         logger.error(
@@ -1681,9 +1757,12 @@ If not, continue on your own and click the "I myself" button`
         )
         await ctx.reply(line, markup)
         const { recordTurns } = await import('@/services/trinityAgent')
-        void recordTurns(String(ctx.from?.id ?? ''), [
-          { role: 'assistant', content: line },
-        ])
+        void recordTurns(
+          String(ctx.from?.id ?? ''),
+          [{ role: 'assistant', content: line }],
+          'bot',
+          turnWhere
+        )
         return
       }
 
@@ -1771,7 +1850,9 @@ If not, continue on your own and click the "I myself" button`
             : [
                 { role: 'user', content: text },
                 { role: 'assistant', content: replyClean },
-              ]
+              ],
+          'bot',
+          turnWhere
         )
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
@@ -1940,7 +2021,17 @@ If not, continue on your own and click the "I myself" button`
        * of them; every later part's job gets `null` and stops. A message that
        * is not part of an album passes straight through as the only part.
        */
-      const chatLane = String(ctx.chat?.id ?? ctx.from?.id ?? '')
+      /*
+       * One lane per TAB: a long reel turn in one topic must not hold the
+       * question asked in another. Without a topic the key is unchanged.
+       */
+      const topicId = ctx.state?.topicThreadId as number | undefined
+      const chatLane =
+        String(ctx.chat?.id ?? ctx.from?.id ?? '') +
+        (topicId !== undefined ? `:t${topicId}` : '')
+      if (topicId !== undefined && ctx.chat?.type === 'private') {
+        void nameTopicQuietly(ctx, topicId)
+      }
       const albumParts = albums.collect(chatLane, ctx.message)
 
       /*
@@ -2863,6 +2954,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
+    // The pressed message drops its menu: the answer below carries the live one
+    // (spec bot-menu-press.t27, owner 2026-10-08 "the same menu everywhere").
+    await leavePressedMenu(ctx)
     // "Top up" means the balance, never the plan somebody selected earlier and
     // abandoned: a stale selectedPayment would hijack this press.
     ctx.session.selectedPayment = undefined
@@ -2876,6 +2970,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_rub`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // A bot that hides rubles gets the chooser instead of a door it does not
     // have: the same press must never dead-end.
@@ -2889,6 +2984,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}pay_crypto`, async ctx => {
     void track(ctx as any, 'topup_opened')
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     ctx.session.selectedPayment = undefined
     // Into the payment scene, straight onto its crypto menu: the
     // crypto_select_* presses are handled inside that scene only.
@@ -2897,6 +2993,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}balance`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     await ctx.scene.enter(ModeEnum.BalanceScene)
   })
 
@@ -2914,6 +3011,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
    */
   bot.action(`${ACTION_PREFIX}can`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     /*
      * Answered from the preflight rather than from a written list: a menu
@@ -2938,6 +3036,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   bot.action(`${ACTION_PREFIX}human`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
+    await leavePressedMenu(ctx)
     const isRu = isRussianFromState(ctx)
     // The support handle: the bot's avatar names one, else the house default.
     let support: string = SUPPORT_HANDLE
@@ -3279,6 +3378,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           }
         })()
       }
+      // The fixed tabs, once per person, when the bot has topics on.
+      void ensureTabsQuietly(ctx)
     } catch (error) {
       console.log(
         '🔴 [DEBUG /start] ERROR:',
@@ -3297,6 +3398,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       )
     }
   })
+
+  registerTabsCommand(bot)
 
   // Команда /help
   bot.command('help', async ctx => {
@@ -3758,7 +3861,15 @@ async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
   try {
     const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
     const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
-    const answer = await спроситьАгента(String(ctx.from?.id ?? ''), text) // cyrillic-ok: pre-existing export
+    // A press in a tab is part of that tab's conversation (bot-agent-memory.t27).
+    const conversation =
+      ctx.chat?.type === 'private' ? await agentConversationIn(ctx) : undefined
+    const answer = await спроситьАгента(
+      // cyrillic-ok: pre-existing export
+      String(ctx.from?.id ?? ''),
+      text,
+      conversation ? { conversation } : {}
+    )
     const { text: clean, markup } = buttonsForAnswer(
       answer.текст, // cyrillic-ok: field of ОтветАгента
       isRu,

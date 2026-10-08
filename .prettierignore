@@ -3,3 +3,8 @@
 apps/vibee-editor/render/src/spec/*.gen.ts
 apps/vibee-editor/player/src/spec/*.gen.ts
 apps/vibee-editor/packages/vibee-atoms/src/spec/*.gen.ts
+src/spec/*.gen.ts
+
+# Tool-written by deployment/queen-watch/schema.mjs (tri schema-drift --baseline):
+# the generator's bytes, one line per column; never reformat.
+deployment/queen-watch/schema-baseline.json

@@ -44,6 +44,7 @@ import type { ToolContext } from './tools'
 import { voiceMode } from './story-voice-notes'
 import { looksLikeProviderOutage } from './image-health'
 import {
+  endCardForReel,
   endCardFromProfile,
   endCardOf,
   endCardProblem,
@@ -57,14 +58,29 @@ import {
   type StillTask,
   type StoryEndCard,
   type StoryScene,
+  slotsToRender,
 } from './story-reel-tool'
 import { leadVoiceOf } from './lead-voice'
+import {
+  cardCall,
+  planItemNote,
+  planReelsOut,
+  scenesFor,
+  takePlanItemById,
+} from './plan-reel'
+import {
+  cardForReel,
+  houseLineRefused,
+  ownCallOf,
+  reelCall,
+} from './story-reel-templates'
 import { TOKEN_PRICES } from './billing-shared'
 import {
   defaultGroupCaption,
   type CardOutcome,
   type GroupCardOffer,
 } from './story-card'
+import { keepPoster, posterOf, sweepPosters } from './reel-poster'
 
 /*
  * THE NUMBERS BELOW ARE THE SPEC'S, NOT THIS FILE'S (owner, 2026-09-27: t27 is
@@ -171,6 +187,83 @@ async function sellerOf(pool: Pool, lead: string): Promise<string> {
 }
 
 /**
+ * The client's own call in her profile: the template's cta, then her approved
+ * call. '' when none. One reader for every reel that ends on her call
+ * (story_reel, split_reel).
+ */
+export function profileCta(profile: any, ownReel = false): string {
+  // approved_cta is {text, button} in a client package, a string by hand.
+  // Her own call (spec v22, profile_call_from): one that names the house
+  // is not hers on a client's reel.
+  return ownCallOf(
+    profile?.story_reel?.cta,
+    typeof profile?.approved_cta === 'string'
+      ? profile.approved_cta
+      : profile?.approved_cta?.text,
+    ownReel,
+    ''
+  )
+}
+
+/** Her profile in one seller's CRM (that seller's row over the shared one). */
+export async function clientProfileOf(
+  pool: Pool,
+  lead: string,
+  owner: string
+): Promise<any> {
+  const row = await first(
+    pool,
+    `SELECT profile FROM crm_client_profiles
+      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
+      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
+    [lead, owner]
+  )
+  return parse(row?.profile) ?? {}
+}
+
+/**
+ * The call a reel for this client ends on, from her profile: '' when she has
+ * none (the reel then ends on a call with no name in it, split-reel v7).
+ * Never throws -- a profile that cannot be read is a profile with no call.
+ */
+export async function clientCtaOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  const seller = String(owner ?? '').trim()
+  return clientProfileOf(pool, id, seller)
+    .then(p => profileCta(p, seller === id))
+    .catch(() => '')
+}
+
+/**
+ * The colour a reel's call for this client is drawn in, from her own palette
+ * (split-reel v10): the call colour of the end card the seller keeps for her
+ * over her profile's -- the story reel's own order (mergeEndCard). '' when
+ * she has none: the call is then drawn in a colour that is nobody's, never
+ * the house's. Never throws, as clientCtaOf.
+ */
+export async function clientCallColourOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string> {
+  const id = String(lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(id)) return ''
+  const seller = String(owner ?? '').trim()
+  try {
+    const kept = await keptEndCardOf(pool, seller, id)
+    const profile = endCardFromProfile(await clientProfileOf(pool, id, seller))
+    return mergeEndCard(null, kept, profile)?.title ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * The template's settings for one client. `seller` scopes it to one seller's
  * CRM (their card, their tool); without it she is asking herself.
  */
@@ -184,14 +277,7 @@ export async function storySettingsOf(
   const owner = String(seller ?? '').trim() || (await sellerOf(pool, id))
   if (!owner) return null
 
-  const row = await first(
-    pool,
-    `SELECT profile FROM crm_client_profiles
-      WHERE telegram_id = $1 AND (owner_id = $2 OR owner_id IS NULL)
-      ORDER BY (owner_id = $2) DESC NULLS LAST, updated_at DESC LIMIT 1`,
-    [id, owner]
-  )
-  const profile = parse(row?.profile) ?? {}
+  const profile = await clientProfileOf(pool, id, owner)
   const s = profile?.story_reel ?? {}
   const person = await first(
     pool,
@@ -223,11 +309,7 @@ export async function storySettingsOf(
     avatarUrl: isUrl(avatar) ? avatar : '',
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
-    // approved_cta is {text, button} in a client package, a string by hand.
-    cta:
-      [s.cta, profile?.approved_cta?.text, profile?.approved_cta]
-        .find(v => typeof v === 'string' && v.trim())
-        ?.trim() || STORY_DEFAULT_CTA,
+    cta: profileCta(profile, owner === id) || STORY_DEFAULT_CTA,
     // The spec's pause_of: the same clamp the template renders with.
     pauseSec: pauseOf(s.pause_sec),
     payer: s.payer === 'owner' ? 'owner' : 'client',
@@ -381,8 +463,22 @@ export function sceneCountOf(asked: unknown): number {
 }
 
 /**
- * What the model is asked for: a title and `count` scenes, as JSON. An empty
- * topic means "pick one": the writer is told which ones she already has.
+ * Whether a scene's place is drawn (spec v21, setting_drawn): only one a
+ * caller named in a script of their own. The writer of a topic reel writes
+ * lines, and a place it returns anyway is dropped.
+ */
+export function settingDrawn(
+  fromWriter: boolean,
+  hasSetting: boolean
+): boolean {
+  return hasSetting && (!fromWriter || SPEC.WRITER_WRITES_SETTINGS)
+}
+
+/**
+ * What the model is asked for: a title and `count` lines, as JSON. An empty
+ * topic means "pick one": the writer is told which ones she already has. The
+ * person speaks in her studio (spec v21, WRITER_WRITES_SETTINGS): the writer
+ * is asked for words, never for a place.
  */
 export function writerMessages(
   topic: { title: string; note: string },
@@ -397,13 +493,12 @@ export function writerMessages(
       role: 'system',
       content:
         `Ты пишешь короткий рилс-историю из ${n} ${n === 1 ? 'сцены' : 'сцен'} для Instagram от первого лица героини (героя). ` +
-        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"setting": "...", "line": "..."}, ×${n}]}. ` +
+        `Верни ТОЛЬКО JSON: {"title": "...", "scenes": [{"line": "..."}, ×${n}]}. ` +
         'title — тема по-русски, до 60 знаков. ' +
-        'setting — по-английски, одна НОВАЯ обстановка на сцену (фон не повторять), человек в кадре. ' +
+        'Героиня (герой) говорит в кадре в своей студии: пиши только слова, обстановку и картинку не придумывай. ' +
         'line — по-русски, 2–4 секунды речи, от первого лица, простыми словами; названия и цифры словами. ' +
         'Первая реплика — крючок за 1–2 секунды: вопрос, смелое обещание или неожиданный факт; без приветствий и «привет, меня зовут». ' +
         'Одна мысль на весь рилс: проблема → поворот → результат, конкретные детали, а не общие слова. ' +
-        'В первой сцене лицо крупным планом. Надписей в кадре нет. ' +
         'Последняя реплика — мягкий мостик к одному призыву к действию и перекликается с первой, чтобы рилс хотелось пересмотреть.',
     },
     {
@@ -443,7 +538,15 @@ export function parseStory(
   // One scene is a story only when one was asked for.
   if (typeof scenes === 'string' || scenes.length < Math.min(2, want))
     return null
-  return { title: String(raw?.title ?? '').trim(), scenes }
+  // A place the writer returns anyway is dropped here, not left to the prompt
+  // (spec v21, WRITER_SETTING_DROPPED): a topic reel stays in the studio.
+  return {
+    title: String(raw?.title ?? '').trim(),
+    scenes: scenes.map(s => ({
+      ...s,
+      setting: settingDrawn(true, !!s.setting) ? s.setting : '',
+    })),
+  }
 }
 
 const TABLE = `CREATE TABLE IF NOT EXISTS story_jobs (
@@ -480,7 +583,9 @@ const COLUMNS = `ALTER TABLE story_jobs
   ADD COLUMN IF NOT EXISTS still_tasks jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS payer      text,
   ADD COLUMN IF NOT EXISTS end_card   jsonb,
-  ADD COLUMN IF NOT EXISTS scene_count integer`
+  ADD COLUMN IF NOT EXISTS scene_count integer,
+  ADD COLUMN IF NOT EXISTS voice_mode integer,
+  ADD COLUMN IF NOT EXISTS poster     text`
 
 let tableReady: Promise<void> | null = null
 export function ensureStoryJobs(pool: Pool): Promise<void> {
@@ -528,6 +633,11 @@ export interface StoryDeps {
   ) => Promise<string | null>
   /** Her "my reels" page in her bot, for the caption. */
   pageOf?: (bot: string | null) => string
+  /**
+   * The reel's poster, drawn once by the server (plan-reel v3,
+   * reel-poster.ts); absent: the browser draws the frame from the video.
+   */
+  poster?: (video: string) => Promise<string | null>
   /** A heartbeat while a job runs; returns its stop. A test passes a no-op. */
   beat?: (fn: () => void, ms: number) => () => void
   /** Who this process is, as a runner; a test names two. */
@@ -575,6 +685,8 @@ export interface StoryJobRow {
   topic: string
   status: string
   url: string | null
+  /** Its poster, when one is kept (plan-reel v3); absent: the frame. */
+  poster?: string
   error: string | null
   created_at: string
 }
@@ -588,7 +700,8 @@ export async function storyJobsOf(
 ): Promise<StoryJobRow[]> {
   await ensureStoryJobs(pool)
   const r = await pool.query(
-    `SELECT id, COALESCE(topic, '') AS topic, status, url, error, created_at::text AS created_at
+    `SELECT id, COALESCE(topic, '') AS topic, status, url, poster, error,
+            created_at::text AS created_at
        FROM story_jobs WHERE seller_id = $1 AND lead_id = $2
       ORDER BY id DESC LIMIT $3`,
     [seller, lead, limit]
@@ -598,6 +711,7 @@ export async function storyJobsOf(
     topic: String(x.topic),
     status: String(x.status),
     url: x.url ? String(x.url) : null,
+    ...(x.url && posterOf(x.poster) ? { poster: posterOf(x.poster) } : {}),
     error: x.error ? String(x.error) : null,
     created_at: String(x.created_at),
   }))
@@ -622,6 +736,12 @@ export async function startStory(
     scenes?: StoryScene[]
     /** How many scenes the writer makes (spec SCENES_MIN..MAX); a script sets its own. */
     sceneCount?: number
+    /**
+     * The plan card the press was made on (plan-reel.t27): the reel is made
+     * of THAT card -- never moved to another -- in the trial's scenes while
+     * nothing from the plan came out, ending on its lesson when it links one.
+     */
+    itemId?: number
     style?: string
     cta?: string
     /** The seller's palette for the end (spec v7): over her profile's, kept in the job. */
@@ -629,6 +749,11 @@ export async function startStory(
     /** Where the finished reel is offered with one press (a group chat id). */
     deliverTo?: string | null
     caption?: string
+    /**
+     * What the person typed THIS turn (ToolContext.ownerSaid, set only by
+     * code): on a client's reel the one way a line may name the house.
+     */
+    personSaid?: string
   }
 ): Promise<{
   started: boolean
@@ -670,21 +795,63 @@ export async function startStory(
   // A script brought by the seller is checked here, before anything is spent.
   const given = who.scenes === undefined ? null : scenesOf(who.scenes)
   if (typeof given === 'string') return { started: false, why: given }
-  const count = given ? given.length : sceneCountOf(who.sceneCount)
+  // No line of a client's reel names the house unless the person typed it
+  // this turn (spec v22, line_way) -- refused here, before any spend.
+  const houseLine = houseLineRefused(given, lead === s.owner, who.personSaid)
+  if (houseLine) return { started: false, why: houseLine }
+  // A press on a plan card with no count of its own makes the plan's trial
+  // first (plan-reel scenes_for): one scene until a reel from the plan came out.
+  const pressedCard = Number.isInteger(who.itemId) && Number(who.itemId) > 0
+  const count = given
+    ? given.length
+    : sceneCountOf(
+        who.sceneCount ??
+          (pressedCard
+            ? scenesFor(await planReelsOut(deps.pool, lead))
+            : undefined)
+      )
   /*
    * HER VISUAL AT THE END, FROM THE SELLER (spec v7). A colour that is not
    * #hex is named back, and a palette whose call or button cannot be read
    * on its background is refused -- both before anything is spent. Her
    * profile's own palette is never refused here: she keeps the reel she had.
    */
-  const badColour = byClient ? '' : endCardProblem(who.endCard)
+  // The seller pressing his OWN reel in his CRM is still the seller, though
+  // he is its lead too (spec v22): his card -- the template's house button
+  // included -- is kept, as on any reel he presses.
+  const sellerPress = !byClient || String(who.seller ?? '').trim() === lead
+  const badColour = sellerPress ? endCardProblem(who.endCard) : ''
   if (badColour) return { started: false, why: badColour }
-  const sellerCard = byClient ? null : endCardOf(who.endCard)
+  const sellerCard = sellerPress ? endCardOf(who.endCard) : null
+  // Checked as it will be drawn (spec v25, CLIENT_CARD_CHECKED_AS_DRAWN): a
+  // client's card is filled with ink first, so a gold she will never see
+  // cannot refuse her reel.
   const unreadable = endCardUnreadable(
-    mergeEndCard(sellerCard, s.keptCard, s.endCard)
+    endCardForReel(
+      mergeEndCard(sellerCard, s.keptCard, s.endCard),
+      lead === s.owner,
+      ''
+    )
   )
   if (endCardRefused(!!sellerCard, !unreadable))
     return { started: false, why: `end_card: ${unreadable}` }
+  // A retry after a failed job of the same script keeps what it made (v28),
+  // but only what this press would make the same way (999#3817).
+  const style = String(who.style ?? '')
+    .trim()
+    .slice(0, 600)
+  const mode = voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient)
+  const carried = await carryFromFailed(
+    deps.pool,
+    lead,
+    s.owner,
+    given,
+    asked,
+    {
+      style,
+      mode,
+    }
+  )
   /*
    * THE DAY'S GENERATIONS, COUNTED FIRST (spec v6). A reel the payer's daily
    * cap cannot cover is refused here, in words, before a still is drawn --
@@ -698,18 +865,31 @@ export async function startStory(
       lead,
       requester,
     })
-    const clone =
-      voiceMode(s.hasVoice, deps.voiceDown?.() === true, !byClient) ===
-      SPEC.VOICE_CLONE
-    const needed = slotsNeeded(given ? given.length : count, 0, 0, clone)
+    const clone = mode === SPEC.VOICE_CLONE
+    const needed = slotsNeeded(
+      given ? given.length : carried ? carried.scenes.length : count,
+      carried ? filled(carried.stills) : 0,
+      carried ? filled(carried.clips) : 0,
+      clone
+    )
     const left = await deps.generationsLeft(payer).catch(() => needed)
     if (!dayCovers(left, needed)) {
       return { started: false, why: capWhy(left, needed) }
     }
   }
-  // A script is its own topic; a plan card is taken only for a written reel.
-  const card =
-    asked || given ? null : await takeNextPlanItem(deps.pool, lead, s.done)
+  // A pressed card is taken itself, or the press is refused (card_taken): a
+  // card already being made, or not hers, is never swapped for the next one.
+  // Otherwise a script is its own topic; the next card only for a written reel.
+  const card = pressedCard
+    ? await takePlanItemById(deps.pool, lead, Number(who.itemId))
+    : asked || given
+      ? null
+      : await takeNextPlanItem(deps.pool, lead, s.done)
+  if (pressedCard && !card)
+    return {
+      started: false,
+      why: 'эта карточка уже в работе или её больше нет — обнови план',
+    }
   // A script with no topic is named by its first line.
   const topic =
     asked ||
@@ -722,8 +902,9 @@ export async function startStory(
   const deliverTo = deliveryOf(byClient, text(who.deliverTo, 40))
   const r = await deps.pool.query(
     `INSERT INTO story_jobs (lead_id, seller_id, requester, bot, item_id, topic, about, runner,
-                             scenes, style, cta, deliver_to, caption, end_card, scene_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+                             scenes, style, cta, deliver_to, caption, end_card, scene_count,
+                             stills, clips, voice_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
     [
       lead,
       s.owner,
@@ -734,15 +915,24 @@ export async function startStory(
       // The seller's own words about her, for a client with no profile yet.
       String(who.about ?? '').slice(0, 400) || null,
       deps.me ?? ME,
-      given ? JSON.stringify(given) : null,
+      given
+        ? JSON.stringify(given)
+        : carried
+          ? JSON.stringify(carried.scenes)
+          : null,
       text(who.style, 600),
-      text(who.cta, 120),
+      // A lesson card ends on its lesson (plan-reel call_of); a call the
+      // seller typed still wins.
+      text(who.cta, 120) ?? text(card ? cardCall(card.note) : '', 120),
       // A client pressing for herself never sends into a group from here.
       deliverTo,
       deliverTo ? text(who.caption, SPEC.CAPTION_MAX) : null,
       // Only the seller's own card: her profile is read again at every run.
       sellerCard ? JSON.stringify(sellerCard) : null,
       count,
+      JSON.stringify(carried?.stills ?? []),
+      JSON.stringify(carried?.clips ?? []),
+      mode,
     ]
   )
   const job = Number(r?.rows?.[0]?.id)
@@ -753,6 +943,77 @@ export async function startStory(
     job,
     ...(deliverTo ? { to_group: deliverTo } : {}),
   }
+}
+
+const filled = (v: string[]) => v.filter(Boolean).length
+
+/** spec carry_stills (v30): stills are kept only under the same look. */
+export function carryStills(sameStyle: boolean): boolean {
+  return sameStyle
+}
+
+/** spec carry_clips (v30): a clip is a still that speaks, in a known voice. */
+export function carryClips(
+  sameStyle: boolean,
+  sameVoice: boolean,
+  voiceKnown: boolean
+): boolean {
+  return carryStills(sameStyle) && voiceKnown && sameVoice
+}
+
+/**
+ * WHAT A RETRY KEEPS (spec v28, RETRY_REUSES_DONE_SLOTS). A new job for the
+ * same client and the same script -- her given scenes, or the same asked
+ * topic with the scenes the failed job wrote -- starts from the stills and
+ * clips the latest failed job already made, so only the empty slots are
+ * rendered and paid again (slots_to_render).
+ *
+ * A slot is kept only when this press would render it the same way
+ * (999#3817): the stills only under the same look (the job's style), and the
+ * clips only over those stills and in the same voice mode -- a clip carried
+ * across a voice change would speak in the old voice. A failed job that never
+ * recorded its voice mode carries no clips.
+ */
+export async function carryFromFailed(
+  pool: StoryDeps['pool'],
+  lead: string,
+  seller: string,
+  given: StoryScene[] | null,
+  asked: string,
+  now: { style: string; mode: number }
+): Promise<{ scenes: StoryScene[]; stills: string[]; clips: string[] } | null> {
+  if (!given && !asked) return null
+  const rows: any[] = await pool
+    .query(
+      `SELECT scenes, stills, clips, topic, style, voice_mode FROM story_jobs
+        WHERE lead_id = $1 AND seller_id = $2 AND status = 'failed'
+        ORDER BY id DESC LIMIT 5`,
+      [lead, seller]
+    )
+    .then((x: any) => x?.rows ?? [])
+    .catch(() => [])
+  for (const row of rows) {
+    const scenes = row.scenes ? parse(row.scenes) : null
+    if (!Array.isArray(scenes) || !scenes.length) continue
+    const same = given
+      ? JSON.stringify(scenes) === JSON.stringify(given)
+      : String(row.topic ?? '') === asked
+    if (!same) continue
+    const n = scenes.length
+    const fit = (v: unknown) =>
+      Array.from({ length: n }, (_, i) => list(v)[i] ?? '')
+    const sameLook = String(row.style ?? '').trim() === now.style
+    const sameVoice = Number(row.voice_mode) === now.mode
+    const none = () => Array.from({ length: n }, () => '')
+    const voiceKnown = row.voice_mode !== null && row.voice_mode !== undefined
+    const stills = carryStills(sameLook) ? fit(row.stills) : none()
+    const clips = carryClips(sameLook, sameVoice, voiceKnown)
+      ? fit(row.clips)
+      : none()
+    if (!filled(stills) && !filled(clips)) return null
+    return { scenes, stills, clips }
+  }
+  return null
 }
 
 const list = (v: unknown): string[] => {
@@ -851,10 +1112,13 @@ async function runHeld(
       .then((x: any) => (x?.rows ?? []).map((y: any) => String(y.topic)))
       .catch(() => [])
     const about = s.about || String(job.about ?? '')
+    // The card's own note -- the theses the plan screen asks for -- is the
+    // writer's material (plan-reel: it never reached here before v1).
+    const note = job.item_id ? await planItemNote(pool, job.item_id) : ''
     const text = await deps
       .write(
         writerMessages(
-          { title: topic, note: '' },
+          { title: topic, note: note.slice(0, 1200) },
           { ...s, about },
           [...s.done, ...had],
           sceneCountOf(job.scene_count)
@@ -863,6 +1127,11 @@ async function runHeld(
       .catch(() => '')
     const story = parseStory(text, sceneCountOf(job.scene_count))
     if (!story) return fail('не вышло написать сцены')
+    // The writer's lines are written, never the person's (spec v22,
+    // line_way): one naming the house on a client's reel fails the job here,
+    // before the payer is named and before any still is drawn.
+    const houseLine = houseLineRefused(story.scenes, lead === seller)
+    if (houseLine) return fail(houseLine)
     scenes = story.scenes
     topic ||= story.title || 'история про моё дело'
     await pool.query(
@@ -894,13 +1163,15 @@ async function runHeld(
     storyProgress: async p => {
       await pool.query(
         `UPDATE story_jobs SET stills = $2, clips = $3, still_tasks = $4,
-                payer = $5, updated_at = now() WHERE id = $1`,
+                payer = $5, voice_mode = $6, updated_at = now() WHERE id = $1`,
         [
           id,
           JSON.stringify(p.stills),
           JSON.stringify(p.clips),
           JSON.stringify(p.stillTasks ?? []),
           payer,
+          // The voice the clips so far speak in, for a retry to compare.
+          mode,
         ]
       )
     },
@@ -964,11 +1235,20 @@ async function runHeld(
     if (why) return fail(why)
   }
   // The seller's palette kept in the job, over the one kept for her, over
-  // her profile's (spec v7, v10).
-  const endCard = mergeEndCard(
-    endCardOf(parse(job.end_card)),
-    s.keptCard,
-    s.endCard
+  // her profile's (spec v7, v10). On a client's reel no button names the
+  // house, and the call is the seller's word for her or her own (spec v22).
+  const ownReel = lead === seller
+  const cta = reelCall({ given: job.cta, ownReel, ownCall: s.cta }).call
+  // A client's card is drawn in her colours or ink, never in the house's
+  // defaults (spec v25, card_filled): every colour is set before the render.
+  const endCard = endCardForReel(
+    mergeEndCard(
+      cardForReel(endCardOf(parse(job.end_card)), ownReel),
+      cardForReel(s.keptCard, ownReel),
+      cardForReel(s.endCard, ownReel)
+    ),
+    ownReel,
+    cta
   )
   const call = (stills: unknown[], clips: unknown[]) =>
     deps
@@ -979,7 +1259,7 @@ async function runHeld(
           // The seller's own look and call, when the job carries them.
           style: String(job.style ?? '').trim() || s.style,
           ...(mode === SPEC.VOICE_CLONE ? { for_lead: lead } : {}),
-          cta: String(job.cta ?? '').trim() || s.cta,
+          cta,
           pause_sec: s.pauseSec,
           ...(endCard ? { end_card: endCard } : {}),
           stills,
@@ -1049,6 +1329,9 @@ async function runHeld(
     } else {
       await handToSeller(deps, { ...job, url, topic }, s.name, payer)
     }
+    // The reel is out and told; only now its poster (plan-reel v3), which
+    // never delays, fails or charges it.
+    if (deps.poster) await keepPoster(pool, deps.poster, id, url)
     return
   }
 
@@ -1103,8 +1386,8 @@ export function slotsNeeded(
   clipsHave: number,
   clone: boolean
 ): number {
-  const stills = Math.max(0, scenes - stillsHave)
-  const clips = Math.max(0, scenes - clipsHave)
+  const stills = slotsToRender(scenes, stillsHave)
+  const clips = slotsToRender(scenes, clipsHave)
   return stills + (clone ? clips : 0) + clips + SPEC.CAP_SLOT_PER_RENDER
 }
 
@@ -1429,6 +1712,7 @@ export async function sweepStoryJobs(deps: StoryDeps): Promise<number> {
   const ids: number[] = (r?.rows ?? []).map((x: any) => Number(x.id))
   for (const id of ids) void runStoryJob(deps, id).catch(() => undefined)
   void offerWaitingCards(deps).catch(() => undefined)
+  if (deps.poster) void sweepPosters(pool, deps.poster).catch(() => undefined)
   return ids.length
 }
 

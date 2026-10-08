@@ -40,6 +40,7 @@ import {
   X_TEXT_MAX,
   X_URL_WEIGHT,
 } from '../spec/social-api.gen'
+import { LINKEDIN_SCOPES } from '../spec/connect-card.gen'
 
 type Env = Record<string, string | undefined>
 type Queryable = {
@@ -155,7 +156,8 @@ const LI_TOKEN = 'https://www.linkedin.com/oauth/v2/accessToken'
 const LI_API = 'https://api.linkedin.com'
 const X_AUTH = 'https://x.com/i/oauth2/authorize'
 const X_API = 'https://api.x.com/2'
-export const LINKEDIN_SCOPES = 'openid profile w_member_social'
+/* What the consent asks for is the spec's (connect-card.t27). */
+export { LINKEDIN_SCOPES }
 export const X_SCOPES = 'tweet.read tweet.write users.read offline.access'
 
 /** A PKCE pair (RFC 7636, S256). */

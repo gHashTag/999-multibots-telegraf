@@ -129,6 +129,7 @@ export async function deskMayAct(
   const verdict = mayAct({
     url,
     allowedAtMs: session?.allowedAtMs ?? null,
+    allowedHost: session?.allowedHost ?? null,
     nowMs: now,
     alsoSensitive: ruleFor(url, rules) === 'ask',
   })
@@ -170,6 +171,23 @@ const held = new Map<string, number>()
 export function deskTabsHeld(now: number = Date.now()): string[] {
   for (const [id, until] of held) if (until <= now) held.delete(id)
   return [...held.keys()]
+}
+
+/**
+ * Hold a tab a desk opened by another road -- a desk WINDOW (windows.ts,
+ * rounds-wiring.ts) -- so the sweep spares it and the tab strip marks it.
+ */
+export function holdDeskTab(
+  id: string,
+  now: number = Date.now(),
+  ms: number = DESK_HOLD_MS
+): void {
+  held.set(id, now + ms)
+}
+
+/** The desk is done with that tab (its window closed, or the person closed it). */
+export function releaseDeskTab(id: string): void {
+  held.delete(id)
 }
 
 /** For tests: forget every hold. */

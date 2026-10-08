@@ -50,6 +50,8 @@ let autopilot: Record<string, unknown> = {
 const calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
 let emptyScore = false
+// Only "they owe us" in the waiting list: nobody is waiting for US.
+let nobodyWaitsForUs = false
 let picks: string[] = []
 let failPicks = false
 let lastPick: { lead: unknown; on: unknown } | null = null
@@ -172,6 +174,18 @@ vi.stubGlobal(
     if (name === 'autopilot_leads' && failPicks)
       return new Response('nope', { status: 500 })
     let data = answers()[name] ?? {}
+    if (name === 'crm_waiting' && nobodyWaitsForUs) {
+      const all = answers().crm_waiting as {
+        waiting: Array<{ waiting: string }>
+      }
+      data = {
+        total: 1,
+        ours: 0,
+        due: 0,
+        theirs: 1,
+        waiting: all.waiting.filter(r => r.waiting === 'theirs'),
+      }
+    }
     if (name === 'crm_outcomes' && emptyScore)
       data = {
         days: 7,
@@ -326,6 +340,206 @@ describe('the AUTO switch', () => {
     expect(text()).toContain('crm.auto.on:')
     expect(text()).toContain('19')
     expect(byText('crm.auto.turnOff')).toBeTruthy()
+  })
+})
+
+/**
+ * THE WORK TAB ON A PHONE (P31, 07.10.2026).
+ *
+ * `tri shot crm` at 390x844: the first person waiting for an answer ended at
+ * 926 px under a tab bar at 787. The AUTO panel took ~220 px while OFF, and
+ * the level chips two lines. jsdom has no layout, so what is pinned here is
+ * the behaviour the measured fix rests on: off on a phone is one line, on is
+ * never folded, an unread switch is never folded, and the folded line
+ * cannot turn anything on.
+ */
+describe('the work tab on a phone', () => {
+  const asPhone = () =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: query === '(max-width: 480px)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia
+  })
+  const fold = () => host.querySelector<HTMLButtonElement>('.crm-auto__fold')
+
+  it('folds the AUTO switch to its name and "off" while it is off', async () => {
+    asPhone()
+    await screen()
+    expect(fold()!.getAttribute('aria-expanded')).toBe('false')
+    expect(fold()!.textContent).toContain('crm.auto.offShort')
+    // The heading holds the button (the disclosure pattern).
+    expect(fold()!.closest('h3')).toBeTruthy()
+    // Nothing that turns it on, and no scope, until it is opened.
+    expect(byText('crm.auto.turnOn')).toBeFalsy()
+    expect(host.querySelector('.crm-auto__scope')).toBeNull()
+  })
+
+  it('opens the whole panel on a press, and nothing is switched by it', async () => {
+    asPhone()
+    await screen()
+    await act(async () => fold()!.click())
+    expect(fold()!.getAttribute('aria-expanded')).toBe('true')
+    expect(byText('crm.auto.turnOn')).toBeTruthy()
+    expect(host.querySelector('.crm-auto__scope')).toBeTruthy()
+    expect(calls.filter(c => c.name === 'autopilot_set')).toHaveLength(0)
+  })
+
+  /*
+   * crm-first-screen v2 (owner, 08.10.2026: "variant 2"): ON is one line
+   * too, and the line holds the stop -- one press from off, on the first
+   * screen. Off, the line holds no button at all.
+   */
+  const stop = () => host.querySelector<HTMLButtonElement>('.crm-auto__stop')
+  const switchedOn = () => {
+    autopilot = {
+      ...autopilot,
+      on: true,
+      until: iso(Date.now() + 3_600_000),
+      left_today: 7,
+    }
+  }
+
+  it('folds a switch that is ON to one line, with its stop on it', async () => {
+    switchedOn()
+    asPhone()
+    await screen()
+    expect(fold()!.getAttribute('aria-expanded')).toBe('false')
+    expect(fold()!.textContent).toContain('crm.auto.onShort:')
+    expect(fold()!.textContent).toContain(',7,20')
+    expect(stop()?.textContent).toBe('crm.auto.stop')
+    // The line is the switch's state and its stop -- not the whole panel.
+    expect(host.querySelector('.crm-auto__scope')).toBeNull()
+  })
+
+  it('the stop on the line turns AUTO off, and only off', async () => {
+    switchedOn()
+    asPhone()
+    await screen()
+    await act(async () => stop()!.click())
+    await settle()
+    const set = calls.filter(c => c.name === 'autopilot_set')
+    expect(set).toHaveLength(1)
+    expect(set[0].args.on).toBe(false)
+    // Off now: the line holds no button.
+    expect(stop()).toBeNull()
+    expect(fold()!.textContent).toContain('crm.auto.offShort')
+  })
+
+  it('opened while ON, the panel holds the one switch; the line drops its stop', async () => {
+    switchedOn()
+    asPhone()
+    await screen()
+    await act(async () => fold()!.click())
+    expect(stop()).toBeNull()
+    expect(byText('crm.auto.turnOff')).toBeTruthy()
+  })
+
+  it('off, the line carries no button: it never starts sending', async () => {
+    asPhone()
+    await screen()
+    expect(stop()).toBeNull()
+    expect(byText('crm.auto.turnOn')).toBeFalsy()
+  })
+
+  it('never folds a switch it could not read: it says so at full size', async () => {
+    asPhone()
+    const real = globalThis.fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const name = String(
+          JSON.parse(String(init?.body ?? '{}'))?.params?.name
+        )
+        if (name === 'autopilot_status')
+          return new Response('down', { status: 500 })
+        return real(url, init)
+      })
+    )
+    try {
+      await screen()
+      expect(fold()).toBeNull()
+      expect(text()).toContain('crm.auto.unreachable')
+    } finally {
+      vi.stubGlobal('fetch', real)
+    }
+  })
+
+  it('says nothing about the state before the server has answered', async () => {
+    asPhone()
+    const real = globalThis.fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const name = String(
+          JSON.parse(String(init?.body ?? '{}'))?.params?.name
+        )
+        if (name === 'autopilot_status') return new Promise<Response>(() => {})
+        return real(url, init)
+      })
+    )
+    try {
+      await screen()
+      expect(fold()!.textContent).toContain('…')
+      expect(fold()!.textContent).not.toContain('crm.auto.offShort')
+    } finally {
+      vi.stubGlobal('fetch', real)
+    }
+  })
+
+  it('a wide screen keeps the whole panel and the chips, as before', async () => {
+    await screen()
+    expect(fold()).toBeNull()
+    expect(byText('crm.auto.turnOn')).toBeTruthy()
+    expect(host.querySelector('.level-switch__chip')).toBeTruthy()
+  })
+
+  it('"everyone waiting" lives in the AUTO panel, beside the chosen list', async () => {
+    // P32: between the heading and the first row it cost 55 px.
+    asPhone()
+    await screen()
+    expect(host.querySelector('.crm__pick-all')).toBeNull()
+    await act(async () => fold()!.click())
+    const pick = host.querySelector('.crm-auto .crm__pick-all')
+    expect(pick?.textContent).toContain('crm.waiting.pickAll:2')
+  })
+
+  it('offers "everyone waiting" only when somebody is waiting for us', async () => {
+    nobodyWaitsForUs = true
+    try {
+      await screen()
+      expect(host.querySelector('.crm-auto')).toBeTruthy()
+      expect(host.querySelector('.crm__pick-all')).toBeNull()
+    } finally {
+      nobodyWaitsForUs = false
+    }
+  })
+
+  it('names only the kinds of waiting that have somebody', async () => {
+    // crm-first-screen.t27 count_shown: the fixture has nobody "due".
+    asPhone()
+    await screen()
+    const counts = host.querySelector('.crm__counts')?.textContent ?? ''
+    expect(counts).toContain('crm.waiting.count.ours:2')
+    expect(counts).toContain('crm.waiting.count.theirs:1')
+    expect(counts).not.toContain('crm.waiting.count.due')
+  })
+
+  it('draws the level switch as one line: its label and a select', async () => {
+    asPhone()
+    await screen()
+    const row = host.querySelector('[data-testid="level-switch"]')!
+    expect(row.matches('label.level-switch--row')).toBe(true)
+    expect(row.querySelector('select')).toBeTruthy()
+    expect(row.querySelector('.level-switch__label')).toBeTruthy()
+    expect(host.querySelector('.level-switch__chip')).toBeNull()
   })
 })
 

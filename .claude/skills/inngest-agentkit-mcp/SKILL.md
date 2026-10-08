@@ -8,9 +8,9 @@ created: 2025-01-11
 
 # 🤖 Inngest AgentKit + MCP - AI Agent Orchestration
 
-> *"संयुक्तम् एव शक्तिः"* (Samyuktam Eva Shaktih)
+> _"संयुक्तम् एव शक्तिः"_ (Samyuktam Eva Shaktih)
 >
-> *"In unity there is strength."* - Collective intelligence amplifies capabilities.
+> _"In unity there is strength."_ - Collective intelligence amplifies capabilities.
 >
 > **Мудрость**: Multi-agent networks working together achieve what single agents cannot.
 
@@ -21,6 +21,7 @@ created: 2025-01-11
 ## 🎯 Purpose
 
 **inngest-agentkit-mcp** enables:
+
 - 🤖 Multi-agent network orchestration
 - 🔧 Access to 2000+ MCP tools (via Smithery registry)
 - ⚡ Event-driven agent workflows
@@ -55,6 +56,7 @@ created: 2025-01-11
 ```
 
 **Flow**:
+
 1. Event triggers Inngest function
 2. Function creates AgentKit network
 3. Agents use MCP tools for tasks
@@ -73,21 +75,22 @@ created: 2025-01-11
 import { createAgent } from '@inngest/agent-kit'
 
 const dataAnalystAgent = createAgent({
-  name: "data-analyst",
-  description: "Analyzes user data and generates insights",
+  name: 'data-analyst',
+  description: 'Analyzes user data and generates insights',
   system: `You are a data analyst expert.
     - Analyze CSV data
     - Generate visualizations
     - Provide actionable insights
     - Always cite sources`,
-  model: "claude-sonnet-4", // or gpt-4, gemini-pro
+  model: 'claude-sonnet-4', // or gpt-4, gemini-pro
   tools: [
     // Built-in or custom tools
-  ]
+  ],
 })
 ```
 
 **Key Properties**:
+
 - `name`: Unique identifier
 - `system`: Agent persona and instructions
 - `model`: LLM to use (OpenAI/Anthropic/Gemini)
@@ -104,12 +107,12 @@ import { createNetwork } from '@inngest/agent-kit'
 
 const supportNetwork = createNetwork({
   agents: [
-    triageAgent,        // Routes inquiries
-    technicalAgent,     // Handles technical issues
-    billingAgent,       // Handles payments
-    escalationAgent     // Escalates complex cases
+    triageAgent, // Routes inquiries
+    technicalAgent, // Handles technical issues
+    billingAgent, // Handles payments
+    escalationAgent, // Escalates complex cases
   ],
-  defaultModel: "claude-sonnet-4",
+  defaultModel: 'claude-sonnet-4',
   defaultRouter: async ({ state, history }) => {
     // Determine which agent should handle next
     const lastMessage = history[history.length - 1]
@@ -123,11 +126,12 @@ const supportNetwork = createNetwork({
     }
 
     return 'triage-agent'
-  }
+  },
 })
 ```
 
 **Routing Strategies**:
+
 1. **Code-based routing** (most deterministic)
 2. **LLM-based routing** (flexible but less predictable)
 3. **Hybrid routing** (combine both)
@@ -142,33 +146,35 @@ const supportNetwork = createNetwork({
 import { createAgent } from '@inngest/agent-kit'
 
 const databaseAgent = createAgent({
-  name: "database-manager",
-  system: "You manage Neon databases",
+  name: 'database-manager',
+  system: 'You manage Neon databases',
   mcpServers: [
     {
-      name: "neon",
+      name: 'neon',
       transport: {
-        type: "ws",  // or "sse", "http"
-        url: "ws://localhost:8080"
-      }
+        type: 'ws', // or "sse", "http"
+        url: 'ws://localhost:8080',
+      },
     },
     {
-      name: "postgres-tools",
+      name: 'postgres-tools',
       transport: {
-        type: "sse",
-        url: "http://localhost:3000/mcp"
-      }
-    }
-  ]
+        type: 'sse',
+        url: 'http://localhost:3000/mcp',
+      },
+    },
+  ],
 })
 ```
 
 **Available Transports**:
+
 - `ws` (WebSocket): Real-time, bidirectional
 - `sse` (Server-Sent Events): Streaming from server
 - `http`: Standard REST requests
 
 **Tool Discovery**:
+
 - MCP servers automatically expose their tools
 - Tools are namespaced (`neon:create_database`)
 - AgentKit fetches tool schemas dynamically
@@ -187,16 +193,15 @@ export const aiWorkflowFunction = inngest.createFunction(
   {
     id: 'ai-workflow-agent-network',
     name: 'AI Workflow Agent Network',
-    retries: 3
+    retries: 3,
   },
   { event: 'ai/workflow.start' },
   async ({ event, step }) => {
-
     // Step 1: Initialize agent network (checkpoint)
     const network = await step.run('init-network', async () => {
       return createNetwork({
         agents: [researchAgent, writerAgent, editorAgent],
-        defaultModel: "claude-sonnet-4"
+        defaultModel: 'claude-sonnet-4',
       })
     })
 
@@ -205,7 +210,7 @@ export const aiWorkflowFunction = inngest.createFunction(
       return await network.run({
         prompt: event.data.topic,
         agent: 'research-agent',
-        maxIterations: 5
+        maxIterations: 5,
       })
     })
 
@@ -214,7 +219,7 @@ export const aiWorkflowFunction = inngest.createFunction(
       return await network.run({
         prompt: `Write article about: ${research.result}`,
         agent: 'writer-agent',
-        context: research.state
+        context: research.state,
       })
     })
 
@@ -222,7 +227,7 @@ export const aiWorkflowFunction = inngest.createFunction(
     const final = await step.run('editing-phase', async () => {
       return await network.run({
         prompt: `Edit and improve: ${draft.result}`,
-        agent: 'editor-agent'
+        agent: 'editor-agent',
       })
     })
 
@@ -237,6 +242,7 @@ export const aiWorkflowFunction = inngest.createFunction(
 ```
 
 **Benefits of Inngest + AgentKit**:
+
 - ✅ Checkpoints at each step
 - ✅ Automatic retries if agent fails
 - ✅ Resume from last checkpoint (no duplicate work)
@@ -252,18 +258,18 @@ export const aiWorkflowFunction = inngest.createFunction(
 ```typescript
 // ✅ GOOD - Clear, focused responsibility
 const translatorAgent = createAgent({
-  name: "translator",
+  name: 'translator',
   system: `You translate text between languages.
     - Always preserve meaning and tone
     - Provide context when ambiguous
     - Only translate, don't answer questions`,
-  tools: [languageDetectionTool, translationTool]
+  tools: [languageDetectionTool, translationTool],
 })
 
 // ❌ BAD - Too many responsibilities
 const superAgent = createAgent({
-  name: "do-everything",
-  system: "You can translate, analyze, write code, and manage databases",
+  name: 'do-everything',
+  system: 'You can translate, analyze, write code, and manage databases',
   // Confusing! Agent won't know what to do
 })
 ```
@@ -298,7 +304,7 @@ const router = async ({ state, history }) => {
 // ❌ BAD - LLM-based routing (non-deterministic)
 const llmRouter = async ({ history }) => {
   // Asks LLM to decide - unpredictable!
-  const decision = await askGPT("Which agent should handle this?")
+  const decision = await askGPT('Which agent should handle this?')
   return decision.agent
 }
 ```
@@ -317,25 +323,25 @@ const network = createNetwork({
     topic: '',
     research: [],
     sources: [],
-    draftCount: 0
-  }
+    draftCount: 0,
+  },
 })
 
 // Research agent populates state
 await network.run({
   agent: 'research-agent',
   prompt: 'Research AI trends',
-  onStateUpdate: (state) => {
+  onStateUpdate: state => {
     state.research.push(newFinding)
     state.sources.push(source)
-  }
+  },
 })
 
 // Writer agent uses research from state
 await network.run({
   agent: 'writer-agent',
-  context: network.state.research,  // ← Uses research!
-  prompt: 'Write article'
+  context: network.state.research, // ← Uses research!
+  prompt: 'Write article',
 })
 ```
 
@@ -348,18 +354,18 @@ await network.run({
 ```typescript
 // ✅ GOOD - Use MCP tools for complex operations
 const devAgent = createAgent({
-  name: "dev-assistant",
-  system: "You help with development tasks",
+  name: 'dev-assistant',
+  system: 'You help with development tasks',
   mcpServers: [
     {
-      name: "github",
-      transport: { type: "sse", url: "http://localhost:3000/mcp/github" }
+      name: 'github',
+      transport: { type: 'sse', url: 'http://localhost:3000/mcp/github' },
     },
     {
-      name: "database",
-      transport: { type: "ws", url: "ws://localhost:8080" }
-    }
-  ]
+      name: 'database',
+      transport: { type: 'ws', url: 'ws://localhost:8080' },
+    },
+  ],
 })
 
 // Agent can now use:
@@ -382,11 +388,10 @@ export const videoGenerationWorkflow = inngest.createFunction(
   { id: 'video-gen-network', retries: 3 },
   { event: 'video/generation.start' },
   async ({ event, step }) => {
-
     // Step 1: Plan (fast)
     const plan = await step.run('planning-agent', async () => {
       return await plannerAgent.run({
-        prompt: `Plan video for: ${event.data.prompt}`
+        prompt: `Plan video for: ${event.data.prompt}`,
       })
     })
 
@@ -394,7 +399,7 @@ export const videoGenerationWorkflow = inngest.createFunction(
     const script = await step.run('script-agent', async () => {
       return await scriptAgent.run({
         prompt: plan.result,
-        context: { style: event.data.style }
+        context: { style: event.data.style },
       })
     })
 
@@ -403,7 +408,7 @@ export const videoGenerationWorkflow = inngest.createFunction(
       // Uses MCP tools for Replicate/Fal.ai
       return await videoAgent.run({
         prompt: script.result,
-        tools: ['replicate:generate_video']
+        tools: ['replicate:generate_video'],
       })
     })
 
@@ -411,7 +416,7 @@ export const videoGenerationWorkflow = inngest.createFunction(
     const final = await step.run('editor-agent', async () => {
       return await editorAgent.run({
         video: video.url,
-        tools: ['ffmpeg:add_music', 'ffmpeg:add_subtitles']
+        tools: ['ffmpeg:add_music', 'ffmpeg:add_subtitles'],
       })
     })
 
@@ -429,8 +434,8 @@ export const videoGenerationWorkflow = inngest.createFunction(
 ```typescript
 // ✅ GOOD - Log everything for debugging
 const agent = createAgent({
-  name: "instrumented-agent",
-  system: "You solve problems",
+  name: 'instrumented-agent',
+  system: 'You solve problems',
   tools: [problemSolver],
   onToolCall: (tool, args) => {
     console.log(`[TOOL CALL] ${tool.name}`, args)
@@ -441,10 +446,10 @@ const agent = createAgent({
     console.log(`[TOOL RESULT] ${tool.name}`, result)
     trackEvent('agent.tool_result', { tool: tool.name, success: !!result })
   },
-  onError: (error) => {
+  onError: error => {
     console.error(`[AGENT ERROR]`, error)
     trackEvent('agent.error', { error: error.message })
-  }
+  },
 })
 ```
 
@@ -476,7 +481,7 @@ export const inngest = new Inngest({
   id: 'vibee-bot-agentkit',
   name: 'VIBEE AgentKit',
   eventKey: process.env.INNGEST_EVENT_KEY,
-  baseUrl: process.env.INNGEST_BASE_URL
+  baseUrl: process.env.INNGEST_BASE_URL,
 })
 ```
 
@@ -487,29 +492,29 @@ export const inngest = new Inngest({
 import { createAgent, createNetwork } from '@inngest/agent-kit'
 
 const triageAgent = createAgent({
-  name: "triage",
-  system: "You categorize user inquiries",
-  model: "claude-sonnet-4"
+  name: 'triage',
+  system: 'You categorize user inquiries',
+  model: 'claude-sonnet-4',
 })
 
 const technicalAgent = createAgent({
-  name: "technical",
-  system: "You solve technical problems",
-  model: "gpt-4-turbo",
+  name: 'technical',
+  system: 'You solve technical problems',
+  model: 'gpt-4-turbo',
   mcpServers: [
     {
-      name: "github",
+      name: 'github',
       transport: {
-        type: "sse",
-        url: process.env.GITHUB_MCP_URL
-      }
-    }
-  ]
+        type: 'sse',
+        url: process.env.GITHUB_MCP_URL,
+      },
+    },
+  ],
 })
 
 export const supportNetwork = createNetwork({
   agents: [triageAgent, technicalAgent],
-  defaultModel: "claude-sonnet-4"
+  defaultModel: 'claude-sonnet-4',
 })
 ```
 
@@ -524,20 +529,19 @@ export const supportAgentFunction = inngest.createFunction(
   {
     id: 'support-agent-network',
     name: 'Support Agent Network',
-    retries: 2
+    retries: 2,
   },
   { event: 'support/ticket.created' },
   async ({ event, step }) => {
-
     const response = await step.run('process-ticket', async () => {
       return await supportNetwork.run({
         prompt: event.data.message,
-        agent: 'triage',  // Start with triage
+        agent: 'triage', // Start with triage
         maxIterations: 10,
         state: {
           ticketId: event.data.ticketId,
-          userId: event.data.userId
-        }
+          userId: event.data.userId,
+        },
       })
     })
 
@@ -563,7 +567,7 @@ export default serve({
   functions: [
     supportAgentFunction,
     // ... other functions
-  ]
+  ],
 })
 ```
 
@@ -579,23 +583,23 @@ export default serve({
 const contentPipeline = createNetwork({
   agents: [
     createAgent({
-      name: "researcher",
-      system: "Research topics thoroughly",
+      name: 'researcher',
+      system: 'Research topics thoroughly',
       mcpServers: [
-        { name: "google-search", transport: { type: "sse", url: "..." } },
-        { name: "wikipedia", transport: { type: "http", url: "..." } }
-      ]
+        { name: 'google-search', transport: { type: 'sse', url: '...' } },
+        { name: 'wikipedia', transport: { type: 'http', url: '...' } },
+      ],
     }),
     createAgent({
-      name: "writer",
-      system: "Write engaging articles"
+      name: 'writer',
+      system: 'Write engaging articles',
     }),
     createAgent({
-      name: "editor",
-      system: "Edit for clarity and grammar"
-    })
+      name: 'editor',
+      system: 'Edit for clarity and grammar',
+    }),
   ],
-  defaultModel: "claude-sonnet-4"
+  defaultModel: 'claude-sonnet-4',
 })
 
 inngest.createFunction(
@@ -605,7 +609,7 @@ inngest.createFunction(
     const research = await step.run('research', async () => {
       return await contentPipeline.run({
         agent: 'researcher',
-        prompt: event.data.topic
+        prompt: event.data.topic,
       })
     })
 
@@ -613,14 +617,14 @@ inngest.createFunction(
       return await contentPipeline.run({
         agent: 'writer',
         context: research.state,
-        prompt: 'Write article'
+        prompt: 'Write article',
       })
     })
 
     const final = await step.run('edit', async () => {
       return await contentPipeline.run({
         agent: 'editor',
-        prompt: `Edit: ${draft.result}`
+        prompt: `Edit: ${draft.result}`,
       })
     })
 
@@ -637,7 +641,7 @@ inngest.createFunction(
 
 ```typescript
 const dbAgent = createAgent({
-  name: "database-manager",
+  name: 'database-manager',
   system: `You manage PostgreSQL databases.
     - Create tables based on requirements
     - Run queries safely
@@ -645,14 +649,14 @@ const dbAgent = createAgent({
     - Never drop production data without confirmation`,
   mcpServers: [
     {
-      name: "neon",
+      name: 'neon',
       transport: {
-        type: "ws",
-        url: process.env.NEON_MCP_URL
-      }
-    }
+        type: 'ws',
+        url: process.env.NEON_MCP_URL,
+      },
+    },
   ],
-  model: "claude-sonnet-4"
+  model: 'claude-sonnet-4',
 })
 
 inngest.createFunction(
@@ -662,7 +666,7 @@ inngest.createFunction(
     const result = await step.run('execute-query', async () => {
       return await dbAgent.run({
         prompt: event.data.naturalLanguageQuery,
-        tools: ['neon:query', 'neon:create_table', 'neon:list_tables']
+        tools: ['neon:query', 'neon:create_table', 'neon:list_tables'],
       })
     })
 
@@ -679,7 +683,7 @@ inngest.createFunction(
 
 ```typescript
 const codeReviewAgent = createAgent({
-  name: "code-reviewer",
+  name: 'code-reviewer',
   system: `You review code for:
     - Security vulnerabilities
     - Performance issues
@@ -688,11 +692,11 @@ const codeReviewAgent = createAgent({
     Always provide specific line numbers and suggestions.`,
   mcpServers: [
     {
-      name: "github",
-      transport: { type: "sse", url: process.env.GITHUB_MCP_URL }
-    }
+      name: 'github',
+      transport: { type: 'sse', url: process.env.GITHUB_MCP_URL },
+    },
   ],
-  model: "gpt-4-turbo"
+  model: 'gpt-4-turbo',
 })
 
 inngest.createFunction(
@@ -702,21 +706,21 @@ inngest.createFunction(
     const diff = await step.run('get-diff', async () => {
       return await codeReviewAgent.run({
         tools: ['github:get_pr_diff'],
-        prompt: `Get diff for PR #${event.data.prNumber}`
+        prompt: `Get diff for PR #${event.data.prNumber}`,
       })
     })
 
     const review = await step.run('review-code', async () => {
       return await codeReviewAgent.run({
         prompt: `Review this code:\n${diff.result}`,
-        context: { prNumber: event.data.prNumber }
+        context: { prNumber: event.data.prNumber },
       })
     })
 
     await step.run('post-review', async () => {
       return await codeReviewAgent.run({
         tools: ['github:create_review'],
-        prompt: `Post review: ${review.result}`
+        prompt: `Post review: ${review.result}`,
       })
     })
 
@@ -732,17 +736,19 @@ inngest.createFunction(
 ### Current Inngest Setup
 
 **Existing**:
+
 ```typescript
 // src/inngest_app/client.ts
 export const inngest = new Inngest({
   id: 'vibee-bot-client',
   name: 'Vibee',
   baseUrl: 'https://three-head-dragon.shop/api/inngest',
-  eventKey: process.env.BOT_INNGEST_EVENT_KEY
+  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 ```
 
 **Add AgentKit Support**:
+
 ```typescript
 // src/inngest_app/agentkit-client.ts (NEW FILE)
 import { Inngest } from 'inngest'
@@ -751,13 +757,14 @@ export const agentkitInngest = new Inngest({
   id: 'vibee-agentkit',
   name: 'Vibee AgentKit',
   baseUrl: 'https://three-head-dragon.shop/api/inngest',
-  eventKey: process.env.BOT_INNGEST_EVENT_KEY
+  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
 })
 ```
 
 ### Existing Inngest Functions
 
 **Pattern to Follow**:
+
 ```typescript
 // src/inngest_app/functions/existing/generateModelTrainingFunction.ts
 export const generateModelTrainingFunction = inngest.createFunction(...)
@@ -791,16 +798,32 @@ export const videoGenerationAgentFunction = agentkitInngest.createFunction(
 // ❌ BAD - 20 agents = confusion
 const network = createNetwork({
   agents: [
-    agent1, agent2, agent3, agent4, agent5,
-    agent6, agent7, agent8, agent9, agent10,
-    agent11, agent12, agent13, agent14, agent15,
-    agent16, agent17, agent18, agent19, agent20
-  ]
+    agent1,
+    agent2,
+    agent3,
+    agent4,
+    agent5,
+    agent6,
+    agent7,
+    agent8,
+    agent9,
+    agent10,
+    agent11,
+    agent12,
+    agent13,
+    agent14,
+    agent15,
+    agent16,
+    agent17,
+    agent18,
+    agent19,
+    agent20,
+  ],
 })
 
 // ✅ GOOD - 3-5 focused agents
 const network = createNetwork({
-  agents: [triageAgent, technicalAgent, escalationAgent]
+  agents: [triageAgent, technicalAgent, escalationAgent],
 })
 ```
 
@@ -816,8 +839,8 @@ inngest.createFunction(
   { id: 'bad-function' },
   { event: 'process.start' },
   async ({ event }) => {
-    const result1 = await longOperation1()  // If this fails here...
-    const result2 = await longOperation2()  // ...this re-runs from start!
+    const result1 = await longOperation1() // If this fails here...
+    const result2 = await longOperation2() // ...this re-runs from start!
     return result2
   }
 )
@@ -828,11 +851,11 @@ inngest.createFunction(
   { event: 'process.start' },
   async ({ event, step }) => {
     const result1 = await step.run('step-1', async () => {
-      return await longOperation1()  // Checkpointed!
+      return await longOperation1() // Checkpointed!
     })
 
     const result2 = await step.run('step-2', async () => {
-      return await longOperation2()  // Only this re-runs if failed
+      return await longOperation2() // Only this re-runs if failed
     })
 
     return result2
@@ -846,22 +869,22 @@ inngest.createFunction(
 
 ```typescript
 // ❌ BAD - Synchronous waiting in Telegram bot
-bot.on('text', async (ctx) => {
+bot.on('text', async ctx => {
   const response = await agent.run({ prompt: ctx.message.text })
   // User waits 30+ seconds... bad UX!
   await ctx.reply(response.result)
 })
 
 // ✅ GOOD - Async via Inngest
-bot.on('text', async (ctx) => {
+bot.on('text', async ctx => {
   await ctx.reply('⏳ Processing...')
 
   await inngest.send({
     name: 'agent/query.start',
     data: {
       telegramId: ctx.from.id,
-      prompt: ctx.message.text
-    }
+      prompt: ctx.message.text,
+    },
   })
 
   // Agent processes in background, notifies user when done
@@ -874,25 +897,25 @@ bot.on('text', async (ctx) => {
 
 ### Multi-Agent Philosophy
 
-> *"यथा पिण्डे तथा ब्रह्माण्डे"* (Yatha Pinde Tatha Brahmande)
+> _"यथा पिण्डे तथा ब्रह्माण्डे"_ (Yatha Pinde Tatha Brahmande)
 >
-> *"As is the atom, so is the universe."*
+> _"As is the atom, so is the universe."_
 
 **Application**: Each agent is specialized (atom), but together they form intelligent system (universe).
 
 ### Deterministic Routing
 
-> *"कर्म प्रधानं"* (Karma Pradhanam)
+> _"कर्म प्रधानं"_ (Karma Pradhanam)
 >
-> *"Action is primary."*
+> _"Action is primary."_
 
 **Application**: Code-based routing (explicit actions) beats LLM-based routing (uncertain decisions).
 
 ### Durability via Checkpoints
 
-> *"संचित कर्म"* (Sanchita Karma)
+> _"संचित कर्म"_ (Sanchita Karma)
 >
-> *"Accumulated actions."*
+> _"Accumulated actions."_
 
 **Application**: Inngest checkpoints accumulate progress, never losing work done.
 
@@ -901,6 +924,7 @@ bot.on('text', async (ctx) => {
 ## 📈 Success Metrics
 
 **KPIs**:
+
 - Agent task completion rate: **Target > 90%**
 - Average routing decisions per query: **Target < 5** (fewer = more deterministic)
 - MCP tool usage: **Track which tools used most**
@@ -912,15 +936,18 @@ bot.on('text', async (ctx) => {
 ## 🔗 Related Skills & Agents
 
 **Skills**:
+
 - inngest-expert - Base Inngest patterns
 - ai-pipeline-orchestration - AI provider patterns
 - telegram-scenes-ULTIMATE - Bot UX patterns
 
 **Agents**:
+
 - inngest-function-builder - Builds Inngest functions (NEW!)
 - best-practices-researcher - Researches patterns
 
 **Tools**:
+
 - MCP Servers (2000+ via Smithery)
 - Inngest Dashboard (observability)
 
@@ -929,12 +956,14 @@ bot.on('text', async (ctx) => {
 ## 📚 Resources
 
 **Documentation**:
+
 - AgentKit Docs: https://agentkit.inngest.com/
 - MCP Spec: https://modelcontextprotocol.io/
 - Smithery Registry: https://smithery.ai/
 - Inngest Docs: https://www.inngest.com/docs
 
 **Examples**:
+
 - Cursor Agent Mode: https://www.inngest.com/blog/cursor-agentkit-e2b
 - Multi-agent Networks: https://agentkit.inngest.com/guides/networks
 
@@ -949,10 +978,19 @@ bot.on('text', async (ctx) => {
 
 ## 🕉️ Closing Wisdom
 
-> *"सह नाववतु। सह नौ भुनक्तु।"* (Saha Navavatu. Saha Nau Bhunaktu.)
+> _"सह नाववतु। सह नौ भुनक्तु।"_ (Saha Navavatu. Saha Nau Bhunaktu.)
 >
-> *"May we be protected together. May we be nourished together."*
+> _"May we be protected together. May we be nourished together."_
 
 **Мудрость для multi-agent систем**: Agents protect and nourish each other through collaboration. Together they achieve what none can alone.
 
 **Да будут агенты работать в гармонии! Multi-agent intelligence = amplified power.** 🤖✨
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила.

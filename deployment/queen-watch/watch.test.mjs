@@ -8,16 +8,33 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { judge } from '../../apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts'
 import {
+  boundaryPaths,
+  judge,
+} from '../../apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts'
+import {
+  BROWSER_PAGE,
+  PAGE_ASSETS_MAX,
+  PAGE_ISSUE_TITLE,
+  RELAYS_ISSUE_TITLE,
+  SCHEMA_ISSUE_TITLE,
+  assetsOf,
   config,
   hash8,
   issueSpec,
   kindOf,
+  pageIssueSpec,
   probe,
+  probeBrowserPage,
   run,
+  schemaIssueSpec,
+  secretsOf,
   tellOwner,
 } from './watch.mjs'
+import { snapshot } from './schema.mjs'
+/* A namespace too: a helper an older watch.mjs lacks is undefined in the one
+ * test that needs it, instead of failing the whole file at load. */
+import * as watchNs from './watch.mjs'
 
 /* Deliberately fake values, long enough to be scrubbed. */
 const BOT_KEY = 'fake-bot-key-0001'
@@ -42,6 +59,9 @@ function cfgWith(over = {}) {
       GITHUB_TOKEN: GH,
       STATE_DIR: mkdtempSync(join(tmpdir(), 'queen-watch-')),
     }),
+    /* The page watch is off unless a test turns it on: the relays tests
+     * count every post, and the page is a second reporter. */
+    pageUrl: '',
     ...over,
   }
 }
@@ -62,6 +82,7 @@ function world({
   restartOk = true,
   said = null,
   logs = [],
+  site = null,
 } = {}) {
   const calls = []
   const out = []
@@ -76,7 +97,9 @@ function world({
       body,
       raw: init.body || '',
       headers,
+      redirect: init.redirect,
     })
+    if (site && u.startsWith(SITE)) return site(u, headers)
     if (u.includes('/api/browser/approve')) {
       if (render === 'down')
         throw Object.assign(new Error(`fetch failed ${u}`), {
@@ -157,6 +180,63 @@ function world({
     restarts: () => restarts,
     sent: host =>
       calls.filter(c => c.url.includes(host) && c.method === 'POST'),
+  }
+}
+
+/*
+ * The BROWSER page as app.t27.ai serves it (measured 2026-10-04): the app's
+ * index names /assets/ files, the board at /queen/ names /queen/assets/ files
+ * and answers a top-level visit with a 302 to /game, a missing file is a 404
+ * HTML page. Third-party files are named too, and must never be fetched.
+ */
+const SITE = 'https://app.example.test'
+const PAGE = `${SITE}/game/browser?spec=specs%2Fdemos%2Fhello_world.t27`
+const APP_HTML = `<!doctype html>
+<html lang="en"><head>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/favicon.ico">
+<script type="module" crossorigin src="/assets/index-AAA.js"></script>
+<link rel="modulepreload" crossorigin href="/assets/vendor-BBB.js">
+<link rel="stylesheet" crossorigin href="/assets/index-CCC.css">
+</head><body><div id="root"></div></body></html>`
+const boardHtml = (n = 3) => `<!DOCTYPE html>
+<html lang="en"><head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">
+<script type="module" crossorigin src="/queen/assets/index-DDD.js"></script>
+<link rel="stylesheet" crossorigin href="/queen/assets/index-FFF.css">
+${Array.from({ length: n - 2 }, (_, i) => `<link rel="modulepreload" crossorigin href="/queen/assets/chunk-${i}.js">`).join('\n')}
+</head><body><div id="root"></div></body></html>`
+
+/**
+ * The site as nginx serves it. `missing` paths answer 404 (or, with
+ * `fallback`, 200 with the app's index); `down` drops every connection.
+ */
+function site({
+  down = false,
+  missing = [],
+  fallback = false,
+  board = boardHtml(),
+  frame = 200,
+  silent = [],
+} = {}) {
+  return (u, headers) => {
+    const { pathname } = new URL(u)
+    if (down || silent.includes(pathname))
+      throw Object.assign(new Error(`fetch failed ${u}`), { name: 'TypeError' })
+    if (missing.includes(pathname))
+      return fallback
+        ? res(200, APP_HTML)
+        : res(404, '<html><body>404 Not Found</body></html>')
+    if (pathname === '/game/browser') return res(200, APP_HTML)
+    if (pathname === '/queen/') {
+      if (headers['sec-fetch-dest'] === 'document' || frame === 302)
+        return res(302, '')
+      return res(frame, board)
+    }
+    if (pathname.endsWith('.js')) return res(200, 'export default 1')
+    if (pathname.endsWith('.css')) return res(200, 'body{margin:0}')
+    return res(404, '<html><body>404 Not Found</body></html>')
   }
 }
 
@@ -493,5 +573,559 @@ describe('the owner bot reaches its own Bot API host', () => {
     expect(said).toContain('not sent')
     expect(said).not.toContain('ZZmoved')
     expect(w.calls).toHaveLength(0)
+  })
+})
+
+describe('the BROWSER page', () => {
+  const pageCfg = (over = {}) => cfgWith({ pageUrl: PAGE, ...over })
+  const toSite = w => w.calls.filter(c => c.url.startsWith(SITE))
+  const issuePosts = w =>
+    w.sent('api.github.com').filter(c => c.url.endsWith('/issues'))
+
+  it('a healthy page: the page, the board as a frame asks, every asset 200', async () => {
+    const w = world({ site: site() })
+    const r = await probeBrowserPage(pageCfg(), w.deps)
+    expect(r.rc).toBe(0)
+    expect(r.lines.map(l => l.mark)).toEqual(['ok', 'ok', 'ok'])
+    expect(r.lines[2].text).toBe(
+      'assets: 6 of 6 answer 200 with a body that is not HTML (app 3, board 3)'
+    )
+    const board = toSite(w).find(c => c.url.includes('/queen/?'))
+    expect(board.headers['sec-fetch-dest']).toBe('iframe')
+    /* A followed redirect would hide a 302 to /game behind the app's 200. */
+    for (const c of toSite(w)) expect(c.redirect).toBe('manual')
+    /* Only our host, and no secret in any header: the page needs none. */
+    expect(w.calls.every(c => c.url.startsWith(SITE))).toBe(true)
+    for (const c of w.calls)
+      for (const s of SECRETS)
+        expect(JSON.stringify(c.headers)).not.toContain(s)
+  })
+
+  it('the first run reports once per watch; a second healthy run is quiet', async () => {
+    const cfg = pageCfg()
+    const w = world({ site: site() })
+    expect(await run(cfg, w.deps)).toBe(0)
+    const q = w.sent('/queen/report').map(p => p.body.headline)
+    expect(q).toHaveLength(2)
+    expect(q[1]).toContain('the BROWSER page watch')
+    expect(w.stdout()).toContain('queen-watch: page: ok')
+
+    const w2 = world({ site: site() })
+    expect(await run(cfg, w2.deps)).toBe(0)
+    expect(w2.sent('/queen/report')).toHaveLength(0)
+    expect(w2.sent('api.telegram.org')).toHaveLength(0)
+  })
+
+  it('a missing asset (404) is broken, named by path and code, and not healed', async () => {
+    const missing = ['/queen/assets/index-FFF.css']
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({ site: site({ missing }) }).deps
+    )
+    expect(r.rc).toBe(1)
+    expect(r.lines.filter(l => l.mark === 'FAIL').map(l => l.text)).toEqual([
+      'asset: /queen/assets/index-FFF.css -> 404',
+      'assets: 1 of 6 broken, 5 answer (app 3, board 3)',
+    ])
+
+    const w = world({ site: site({ missing }) })
+    expect(await run(pageCfg(), w.deps)).toBe(1)
+    /* One more look after a deploy swap's wait, then the report. */
+    expect(toSite(w).filter(c => c.url === PAGE)).toHaveLength(2)
+    const [made] = issuePosts(w)
+    expect(made.body.title).toBe(PAGE_ISSUE_TITLE)
+    expect(made.body.body).toContain('/queen/assets/index-FFF.css -> 404')
+    const page = w
+      .sent('/queen/report')
+      .find(p => p.body.headline.includes('BROWSER page is broken'))
+    expect(page.body.needs_you).toBe(true)
+    expect(page.body.body).toContain('Not healed')
+    /* The relays probe reads Railway's logs; nothing asks it to restart. */
+    expect(w.restarts()).toBe(0)
+    expect(
+      w.calls.some(c => c.body?.query?.includes('deploymentRestart'))
+    ).toBe(false)
+  })
+
+  it('an asset answered with an HTML page (an SPA fallback) is broken, not ok', async () => {
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({
+        site: site({ missing: ['/assets/index-AAA.js'], fallback: true }),
+      }).deps
+    )
+    expect(r.rc).toBe(1)
+    expect(r.lines.find(l => l.mark === 'FAIL').text).toContain(
+      '/assets/index-AAA.js -> 200 but HTML'
+    )
+  })
+
+  it('a board that redirects the frame is broken, not the app answering twice', async () => {
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({ site: site({ frame: 302 }) }).deps
+    )
+    expect(r.rc).toBe(1)
+    expect(r.lines.find(l => l.mark === 'FAIL').text).toBe(
+      'board (as the frame asks): GET /queen/?lang=en -> 302 (expected 200)'
+    )
+  })
+
+  it('a network error is not measured (exit 2), never broken', async () => {
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({ site: site({ down: true }) }).deps
+    )
+    expect(r.rc).toBe(2)
+    expect(r.lines.map(l => l.mark)).toEqual(['??'])
+    expect(r.lines[0].text).toContain('NOT measured')
+
+    const cfg = pageCfg()
+    const w = world({ site: site({ down: true }) })
+    expect(await run(cfg, w.deps)).toBe(2)
+    expect(w.sent('api.github.com')).toHaveLength(0)
+    /* One retry, then the first run says it could not measure. */
+    expect(toSite(w).filter(c => c.url === PAGE)).toHaveLength(2)
+    const q = w.sent('/queen/report').map(p => p.body)
+    expect(q[1].headline).toContain('could not be measured')
+    expect(q[1].needs_you).toBe(true)
+    const st = JSON.parse(
+      readFileSync(join(cfg.stateDir, 'state.json'), 'utf8')
+    )
+    expect(st.page.state).toBe('unmeasured')
+    expect(st.state).toBe('ok')
+  })
+
+  it('an asset that does not answer is named and not measured, never broken', async () => {
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({ site: site({ silent: ['/queen/assets/chunk-0.js'] }) }).deps
+    )
+    expect(r.rc).toBe(2)
+    expect(r.lines.filter(l => l.mark !== 'ok').map(l => l.text)).toEqual([
+      'asset: /queen/assets/chunk-0.js got no answer (TypeError) -- NOT measured',
+      'assets: 5 of 6 answer, 1 got no answer -- NOT measured (app 3, board 3)',
+    ])
+  })
+
+  it('caps the asset count and says the rest were NOT measured', async () => {
+    const w = world({ site: site({ board: boardHtml(50) }) })
+    const r = await probeBrowserPage(pageCfg(), w.deps)
+    expect(r.rc).toBe(0)
+    expect(toSite(w).filter(c => c.url.includes('/assets/'))).toHaveLength(
+      PAGE_ASSETS_MAX
+    )
+    expect(r.lines.find(l => l.mark === 'warn').text).toBe(
+      `assets: 53 named, ${PAGE_ASSETS_MAX} fetched (PAGE_ASSETS_MAX) -- the other ${53 - PAGE_ASSETS_MAX} NOT measured`
+    )
+  })
+
+  it('the two watches keep separate state and separate issues', async () => {
+    const cfg = pageCfg()
+    /* Hour 1: relays broken, page fine. */
+    const h1 = world({ render: 403, site: site() })
+    expect(await run(cfg, h1.deps)).toBe(1)
+    expect(issuePosts(h1).map(p => p.body.title)).toEqual([RELAYS_ISSUE_TITLE])
+    let st = JSON.parse(readFileSync(join(cfg.stateDir, 'state.json'), 'utf8'))
+    expect([st.state, st.page.state]).toEqual(['broken', 'ok'])
+
+    /* Hour 2: relays fine, page broken. The relays' issue is still open:
+     * the page opens its own instead of commenting on it. */
+    const relaysIssue = {
+      number: 41,
+      title: RELAYS_ISSUE_TITLE,
+      html_url: 'https://github.com/x/y/issues/41',
+    }
+    const h2 = world({
+      site: site({ missing: ['/assets/vendor-BBB.js'] }),
+      issues: [relaysIssue],
+    })
+    expect(await run(cfg, h2.deps)).toBe(1)
+    const posts2 = h2.sent('api.github.com')
+    expect(posts2).toHaveLength(1)
+    expect(posts2[0].url).toMatch(/\/issues$/)
+    expect(posts2[0].body.title).toBe(PAGE_ISSUE_TITLE)
+    st = JSON.parse(readFileSync(join(cfg.stateDir, 'state.json'), 'utf8'))
+    expect([st.state, st.page.state]).toEqual(['ok', 'broken'])
+    const headlines2 = h2.sent('/queen/report').map(p => p.body.headline)
+    expect(headlines2).toEqual([
+      'the bot -> render roads work again',
+      expect.stringContaining('the BROWSER page is broken'),
+    ])
+
+    /* Hour 3: both broken. The relays changed state and report, commenting
+     * on their own issue; the page was already reported and stays quiet. */
+    const h3 = world({
+      render: 403,
+      site: site({ missing: ['/assets/vendor-BBB.js'] }),
+      issues: [
+        relaysIssue,
+        {
+          number: 42,
+          title: PAGE_ISSUE_TITLE,
+          html_url: 'https://github.com/x/y/issues/42',
+        },
+      ],
+    })
+    expect(await run(cfg, h3.deps)).toBe(1)
+    const posts3 = h3.sent('api.github.com')
+    expect(posts3.map(p => p.url)).toEqual([
+      'https://api.github.com/repos/gHashTag/999-multibots-telegraf/issues/41/comments',
+    ])
+    expect(h3.sent('/queen/report')).toHaveLength(1)
+    expect(h3.stdout()).toContain(
+      'queen-watch: page: still broken, already reported'
+    )
+  })
+
+  it('a crash in one watch does not silence the other', async () => {
+    const cfg = pageCfg()
+    const w = world({ render: 'down', site: site() })
+    w.deps.restartRender = async () => {
+      throw new Error('boom')
+    }
+    expect(await run(cfg, w.deps)).toBe(2)
+    expect(w.stdout()).toMatch(
+      /queen-watch: the relays watch crashed: Error: boom \| at \S/
+    )
+    /* One line: no stack frame on a line of its own. */
+    expect(w.stdout()).not.toMatch(/\n\s*at /)
+    expect(w.stdout()).toContain('queen-watch: page: ok')
+    expect(w.sent('/queen/report')).toHaveLength(1)
+  })
+
+  it('a crash is one scrubbed line: the message and its first frame', () => {
+    const { crashLine } = watchNs
+    const e = new TypeError(`bad answer ${RAIL}\nsecond line`)
+    const line = crashLine('igla-loop:', e, SECRETS)
+    expect(line).not.toMatch(/[\r\n]/)
+    expect(line).toMatch(
+      /^igla-loop: crashed: TypeError: bad answer \[redacted\] second line \| at \S/
+    )
+    expect(line).not.toContain(RAIL)
+    /* Only the first frame: the rest of the stack is not in the line. */
+    expect(line.split(' at ')).toHaveLength(2)
+    expect(crashLine('queen-watch:', 'plain words', [])).toBe(
+      'queen-watch: crashed: plain words'
+    )
+    expect(crashLine('queen-watch:', undefined, [])).toBe(
+      'queen-watch: crashed: undefined'
+    )
+  })
+
+  it('the page issue body passes the Queen spec judge, with both repos in its boundary', async () => {
+    const r = await probeBrowserPage(
+      pageCfg(),
+      world({ site: site({ missing: ['/queen/assets/index-DDD.js'] }) }).deps
+    )
+    const body = pageIssueSpec({
+      result: r,
+      note: 'Not healed.',
+      when: '2026-10-04T10:00:00Z',
+      url: PAGE,
+    })
+    const verdict = judge(body)
+    expect(verdict.missing).toEqual([])
+    expect(verdict.isSpec).toBe(true)
+    expect(verdict.delegatable).toBe(true)
+    expect(boundaryPaths(body)).toEqual(
+      expect.arrayContaining([
+        'apps/vibee-editor/Dockerfile',
+        'apps/website/vite.config.ts',
+        'apps/website/src/components/QueenBrowser.tsx',
+      ])
+    )
+  })
+
+  it('assetsOf: same host, under the prefix, scripts/modulepreload/stylesheets, once each', () => {
+    const html = `
+      <script type=module src=/queen/assets/a.js></script>
+      <script src='./assets/b.js'></script>
+      <link href="/queen/assets/c.css" rel="stylesheet">
+      <link rel="modulepreload" href="/queen/assets/a.js">
+      <link rel="icon" href="/queen/assets/icon.svg">
+      <link rel="preload" as="font" href="/queen/assets/f.woff2">
+      <script src="https://cdn.example.org/queen/assets/x.js"></script>
+      <script src="/assets/app.js"></script>
+      <script>inline()</script>`
+    expect(assetsOf(html, `${SITE}/queen/?lang=en`, '/queen/assets/')).toEqual([
+      `${SITE}/queen/assets/a.js`,
+      `${SITE}/queen/assets/b.js`,
+      `${SITE}/queen/assets/c.css`,
+    ])
+  })
+
+  it('watches the live address by default; BROWSER_PAGE_URL=off turns it off', () => {
+    expect(config({}).pageUrl).toBe(BROWSER_PAGE)
+    expect(config({ BROWSER_PAGE_URL: 'off' }).pageUrl).toBe('')
+    expect(BROWSER_PAGE).toBe(
+      'https://app.t27.ai/game/browser?spec=specs%2Fdemos%2Fhello_world.t27'
+    )
+  })
+})
+
+describe('the database schema watch', () => {
+  /* A fake database URL: its password must never reach a log or a payload. */
+  const DB_PW = 'fake-db-pass-0007'
+  const DB_URL = `postgresql://postgres:${DB_PW}@db.example.test:5432/railway` // secret-guard-ok: fake test fixture
+  const dbRows = () => ({
+    columns: [
+      {
+        table_name: 'user_tokens',
+        column_name: 'id',
+        column_default: 'gen_random_uuid()',
+        is_nullable: 'NO',
+      },
+      {
+        table_name: 'user_tokens',
+        column_name: 'telegram_id',
+        column_default: null,
+        is_nullable: 'NO',
+      },
+      {
+        table_name: 'payments_v2',
+        column_name: 'metadata',
+        column_default: "'{}'::jsonb",
+        is_nullable: 'YES',
+      },
+    ],
+    unique: [
+      {
+        tablename: 'user_tokens',
+        indexname: 'user_tokens_pkey',
+        indexdef:
+          'CREATE UNIQUE INDEX user_tokens_pkey ON public.user_tokens USING btree (id)',
+      },
+      {
+        tablename: 'user_tokens',
+        indexname: 'user_tokens_tid',
+        indexdef:
+          'CREATE UNIQUE INDEX user_tokens_tid ON public.user_tokens USING btree (telegram_id)',
+      },
+    ],
+    pk: [
+      { table_name: 'user_tokens', has_pk: true },
+      { table_name: 'payments_v2', has_pk: true },
+    ],
+  })
+  const BASE = { generated_at: '2026-10-07T00:00:00Z', ...snapshot(dbRows()) }
+  const lostIndex = () => {
+    const r = dbRows()
+    r.unique = r.unique.filter(u => u.indexname !== 'user_tokens_tid')
+    return r
+  }
+  /* The relays answer healthy, the page is off: only the schema can report. */
+  const schemaWorld = (read, opts = {}) => {
+    const w = world(opts)
+    let reads = 0
+    w.deps.schemaBaseline = async () => BASE
+    w.deps.schemaRead = async cfg => {
+      reads++
+      expect(cfg.schemaUrl).toBe(DB_URL)
+      return read()
+    }
+    w.reads = () => reads
+    return w
+  }
+  const schemaCfg = (over = {}) => cfgWith({ schemaUrl: DB_URL, ...over })
+  const schemaPosts = w =>
+    w.sent('/queen/report').filter(p => p.body.headline.includes('schema'))
+  /* Seed the relays' state so their first-run report stays out of the count. */
+  const quietRelays = async cfg => {
+    await run(cfg, world().deps)
+  }
+
+  it('reads DATABASE_URL; SCHEMA_WATCH=off or no URL turns it off, and off never reads or reports', async () => {
+    expect(config({ DATABASE_URL: DB_URL }).schemaUrl).toBe(DB_URL)
+    expect(
+      config({ DATABASE_URL: DB_URL, SCHEMA_WATCH: 'off' }).schemaUrl
+    ).toBe('')
+    expect(config({}).schemaUrl).toBe('')
+    expect(config({}).schemaEveryS).toBe(86400)
+    const cfg = cfgWith()
+    await quietRelays(cfg)
+    const w = schemaWorld(() => dbRows())
+    expect(await run(cfg, w.deps)).toBe(0)
+    expect(w.reads()).toBe(0)
+    expect(w.stdout()).toContain('queen-watch: schema: off')
+    expect(schemaPosts(w)).toHaveLength(0)
+  })
+
+  it('the URL and its password are secrets: scrubbed even URL-encoded', () => {
+    const odd = 'p@ss/w0rd!x'
+    const url = `postgresql://u:${encodeURIComponent(odd)}@h.test/db` // secret-guard-ok: fake test fixture
+    const s = secretsOf(cfgWith({ schemaUrl: url }))
+    expect(s).toContain(url)
+    expect(s).toContain(odd)
+    expect(s).toContain(encodeURIComponent(odd))
+  })
+
+  it('a clean database: first run says live once, then one look a day', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => dbRows())
+    expect(await run(cfg, w.deps)).toBe(0)
+    expect(w.reads()).toBe(1)
+    expect(schemaPosts(w).map(p => p.body.headline)).toEqual([
+      'live on Railway: the database schema watch -- unique indexes and defaults match the baseline',
+    ])
+    expect(w.stdout()).toContain(
+      'ok    schema: 1 tables, 2 unique indexes, 1 defaults match'
+    )
+
+    /* The next hour: not due, no read, no report, rc 0. */
+    const w2 = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w2.deps)).toBe(0)
+    expect(w2.reads()).toBe(0)
+    expect(w2.stdout()).toContain('next look in 24 h')
+    expect(schemaPosts(w2)).toHaveLength(0)
+  })
+
+  it('NEGATIVE CONTROL: a lost unique index goes to the Queen, a GitHub issue and Telegram; nothing is fixed', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w.deps)).toBe(1)
+
+    const [q] = schemaPosts(w)
+    expect(q.body.headline).toBe(
+      'the database schema drifted from its baseline (1 item(s))'
+    )
+    expect(q.body.needs_you).toBe(true)
+    expect(q.body.body).toContain(
+      'user_tokens: unique index user_tokens_tid is missing (btree (telegram_id))'
+    )
+    const issue = w.sent('api.github.com').find(c => c.url.endsWith('/issues'))
+    expect(issue.body.title).toBe(SCHEMA_ISSUE_TITLE)
+    expect(judge(issue.body.body).delegatable).toBe(true)
+    const tg = w.sent('api.telegram.org')
+    expect(tg).toHaveLength(1)
+    expect(tg[0].body.text).toContain('user_tokens_tid')
+    expect(tg[0].body.text).toContain('https://github.com/x/y/issues/99')
+    /* Read-only: one read, no Railway mutation, no restart. */
+    expect(w.reads()).toBe(1)
+    expect(w.restarts()).toBe(0)
+    /* The URL and its password are in no payload and no log line. */
+    for (const c of w.calls) {
+      expect(c.raw).not.toContain(DB_PW)
+      expect(c.url).not.toContain(DB_PW)
+    }
+    expect(w.stdout()).not.toContain(DB_PW)
+  })
+
+  it('a schema issue never takes the relays issue, and the relays never take it', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex(), {
+      issues: [
+        {
+          number: 5,
+          title: RELAYS_ISSUE_TITLE,
+          html_url: 'https://github.com/x/y/issues/5',
+        },
+      ],
+    })
+    await run(cfg, w.deps)
+    expect(
+      w.sent('api.github.com').some(c => c.url.endsWith('/issues/5/comments'))
+    ).toBe(false)
+    expect(w.sent('api.github.com').some(c => c.url.endsWith('/issues'))).toBe(
+      true
+    )
+
+    /* The relays broken while a schema issue is open: a new relays issue. */
+    const w2 = world({
+      render: 401,
+      issues: [
+        {
+          number: 6,
+          title: SCHEMA_ISSUE_TITLE,
+          html_url: 'https://github.com/x/y/issues/6',
+        },
+      ],
+    })
+    await run(cfgWith({ renderKey: OTHER_KEY }), w2.deps)
+    expect(
+      w2.sent('api.github.com').some(c => c.url.endsWith('/issues/6/comments'))
+    ).toBe(false)
+  })
+
+  it('a drifted database stays quiet on the next daily look unless the drift set changes', async () => {
+    const cfg = schemaCfg({ schemaEveryS: 0, repeatS: 999_999 })
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const w = schemaWorld(() => lostIndex())
+    expect(await run(cfg, w.deps)).toBe(1)
+    expect(schemaPosts(w)).toHaveLength(1)
+
+    const same = schemaWorld(() => lostIndex())
+    expect(await run(cfg, same.deps)).toBe(1)
+    expect(schemaPosts(same)).toHaveLength(0)
+    expect(same.stdout()).toContain('still drifted, already reported')
+
+    const worse = schemaWorld(() => {
+      const r = lostIndex()
+      r.columns = r.columns.map(c =>
+        c.column_name === 'id' ? { ...c, column_default: null } : c
+      )
+      return r
+    })
+    expect(await run(cfg, worse.deps)).toBe(1)
+    expect(schemaPosts(worse)).toHaveLength(1)
+
+    const fixed = schemaWorld(() => dbRows())
+    expect(await run(cfg, fixed.deps)).toBe(0)
+    expect(schemaPosts(fixed).map(p => p.body.headline)).toEqual([
+      'the database schema matches its baseline again',
+    ])
+  })
+
+  it('an unreachable database is not measured (rc 2), tries again next hour, and never prints the URL', async () => {
+    const cfg = schemaCfg()
+    await quietRelays(cfgWith({ stateDir: cfg.stateDir }))
+    const down = () => {
+      throw Object.assign(new Error(`connect ECONNREFUSED ${DB_URL}`), {
+        code: 'ECONNREFUSED',
+      })
+    }
+    const w = schemaWorld(down)
+    expect(await run(cfg, w.deps)).toBe(2)
+    expect(w.stdout()).toContain(
+      'schema: could not read the database (ECONNREFUSED)'
+    )
+    expect(w.stdout()).not.toContain(DB_PW)
+    const [q] = schemaPosts(w)
+    expect(q.body.needs_you).toBe(true)
+    expect(q.body.headline).toContain(
+      'could not be measured (1 run(s) in a row)'
+    )
+
+    const again = schemaWorld(down)
+    expect(await run(cfg, again.deps)).toBe(2)
+    expect(again.reads()).toBe(1)
+    expect(schemaPosts(again)).toHaveLength(0)
+  })
+
+  it('the schema issue body passes the Queen spec judge', () => {
+    const body = schemaIssueSpec({
+      result: {
+        lines: [
+          {
+            mark: 'FAIL',
+            text: 'user_tokens: unique index x is missing (btree (a))',
+          },
+        ],
+      },
+      note: 'Not fixed.',
+      when: '2026-10-07T10:00:00Z',
+    })
+    const verdict = judge(body)
+    expect(verdict.missing).toEqual([])
+    expect(verdict.delegatable).toBe(true)
+    expect(boundaryPaths(body)).toEqual(
+      expect.arrayContaining([
+        'deployment/queen-watch/schema-baseline.json',
+        'deployment/queen-watch/schema.mjs',
+      ])
+    )
   })
 })

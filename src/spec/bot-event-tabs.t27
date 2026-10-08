@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-event-tabs.t27 -- which tab of the private chat an event lands in.
+// Host: 999-multibots-telegraf src/navigation/topics/eventTabs.ts (the bot's payment
+// handlers) and apps/vibee-editor/render/src/topic-event-tabs.ts (the render's browser
+// requests and story reels).
+// Trace: owner 2026-10-08 "every agent its own thread" -- a finished reel, a payment and a
+// browser request each go to the agent whose job it is, not to the general view.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: routing contract. The tab kinds are bot-topic-tabs TAB_KEYS; the tab is the
+// person's stored row in bot_topic_tabs for that bot. No tab, or a sender that named a
+// thread itself, and the event goes where it went before.
+// v1 (2026-10-08): three events, their tabs, and when an event is routed.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_event_tabs {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-event-tabs";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const EVENT_COUNT : u32 = 3;
+    // The events, and the tab kind (bot-topic-tabs TAB_KEYS) each one lands in, in order:
+    // a finished reel goes to the Director, a payment to the Treasurer, a browser request
+    // (a field to fill, a permission to give) to the Navigator.
+    pub const EVENT_KEYS : [3]str = ["reel", "payment", "browser"];
+    pub const EVENT_TABS : [3]str = ["reels", "wallet", "browser"];
+
+    // An event goes into its tab when the person has that tab and the sender did not
+    // name a thread itself.
+    fn routes_to_tab(tab_known: bool, named_thread: bool) -> bool {
+        return tab_known && !named_thread;
+    }
+
+    // ---- tests ----
+
+    test "an event lands in its tab only when the tab exists and no thread was named" {
+        assert(routes_to_tab(true, false));
+        assert(!routes_to_tab(false, false));
+        assert(!routes_to_tab(true, true));
+        assert(!routes_to_tab(false, true));
+    }
+
+    test "three events, each with its tab" {
+        assert(EVENT_COUNT == 3);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

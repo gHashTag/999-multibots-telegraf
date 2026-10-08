@@ -7,6 +7,21 @@ description: 'Спеки .t27 — стандарт по умолчанию (ре
 
 ## Правило
 
+**Владелец, 07.10.2026: «напиши все скилы, что мы все пишем на .t27!!!»**
+Не только вертикали с деньгами: любое число, порог, правило, порядок на
+экране, ширина, при которой что-то сворачивается, -- спека первой. Каждый
+навык репозитория несёт раздел «Пишем на .t27» -- указатель сюда, не копию;
+`src/__tests__/tools/everySkillPointsToT27.test.ts` краснеет на навыке без
+него. Промах, из-за которого это записано: виток 15 (P31) завёл в плеере
+`CRM_PHONE_QUERY = '(max-width: 480px)'`, нижнюю ширину пилюль 360 px и
+правило сворачивания AUTO кодом без спеки; P32 переносит их в
+`crm-first-screen.t27`. Сделано тем же днём: спека в t27 (issue 7590), плеер
+стал хостом спек (`scripts/t27-specs.json`: `apps/vibee-editor/player`,
+спека + gen + тест лежат в `player/src/spec`), числа берут `crmPhone.ts`,
+`Crm.tsx` (порядок блоков из `ORDER_PHONE`/`ORDER_WIDE`) и даже `tri shot`
+(импорт gen из .mjs). CSS импортировать не умеет -- тест привязки читает
+листы и сверяет медиа-запросы с числами спеки.
+
 **Владелец, 27.09.2026:** «сделай спеки стандартом по дефолту; создай скилы и
 скрипты, где строго будет проверяться .t27». t27 — язык, на который проект в
 итоге переписывается (CLAUDE.md, «t27 в центре»). Вертикаль стоит на этой
@@ -293,6 +308,56 @@ drift` уже значил «влито, но не выехало»; `case` бе
   documented subcommands, corpus ratchet, duplicate-bodies, coverage,
   emit-bitexact) — это не твоя спека; см. комментарии в t27#4850/#4852.
 
+**2026-10-07 loop (crm-story-reel v20, ratchet drift #3828):**
+
+- **A rewrite stales mutant anchors silently until the next
+  `tri mutants --check`.** #3824 rewrote the retry rule through
+  `carryStills`/`carryClips`/`voiceKnown` and merged with three anchors
+  stale; no gate runs `--check`, so it took #3827 to find and re-anchor them.
+  Run `tri mutants --check` in the same PR as the rewrite; after
+  re-anchoring, rerun that exact mutant rather than trusting the new anchor.
+- **At current mode `VOICE_NONE` (0) only `voiceKnown` keeps a missing voice
+  mode from carrying clips.** `Number(null)` is `0`, so `sameVoice` alone
+  calls a missing mode the same mode; `carryClips` returns
+  `carryStills(sameStyle) && voiceKnown && sameVoice`, and `voiceKnown` is
+  what blocks the clips. The boundary vector, from #3824, is
+  `carryClips(true, true, false)`; it kills #3824's mutant "clips carried
+  from an unrecorded voice". The story test "a failed job that never
+  recorded its voice carries no clips" runs at mode 1 (`VOICE_CLONE`,
+  `qualify()` gives a clone), so on its own it does not cover the mode-0
+  boundary.
+- **`tri mutants` lives in `bin/tri`.** The root `./tri` reaches it only
+  through its unknown-command bridge (exit 64 = "not mine"); a word the root
+  `./tri` handles itself never reaches `bin/tri` that way. When in doubt, call
+  `bin/tri` directly.
+- **A `*.gen.ts` goes stale when t27c changes, not only when the spec
+  changes.** `mail-push.gen.ts` gained a "TestBlock was not emitted" line in
+  #3831. Regenerate with the current compiler; never hand-edit the output.
+- **A bee never applies the owner's `owner-approved-foreign` label to its own
+  PR.** Generated output plus data is allowed without it; if the label is
+  truly needed, park the branch and report.
+- **Census/ratchet drift on t27 master can come from a master workflow
+  change, not from your spec.** t27#7399 added a "Foreign-line budget" `run:`
+  step to `own-language.yml` (which exists since t27 0f9f314d3, 2026-10-05)
+  without re-blessing the census; `tools/census/quiet.txt` and `shell.txt`
+  went from 181/301 to 182/302 only in t27#7451, an unrelated spec PR.
+  Compare against fresh master before blaming your diff.
+- **`git push` exiting 141 is not a failure by itself** (SIGPIPE from the
+  pre-push hook output). Verify with `git ls-remote origin <branch>` and retry
+  only if the branch is missing.
+- **In a 999 worktree run `./tri wt-deps` first.** It links the root
+  `node_modules` to the main checkout and copies render's into a real
+  directory. It does not touch the player: the player tests need a separate
+  `ln -sfn` of `apps/vibee-editor/player/node_modules` to the main checkout
+  (`.claude/loop-opus/WORKFLOW.md`). Never commit either link (add files by
+  name).
+- **`check-t27-specs.mjs` without `--t27 <fresh t27 clone>` cannot see drift
+  from t27.** Ratchet entries (`citedMissing`, `unbound`) only show up with
+  it.
+- **Lessons written from a compacted session summary carried four false
+  claims (#3837 -> #3838).** Verify every fact against code or PR history
+  before it goes into a skill.
+
 ## Что уже привязано (27.09.2026)
 
 | спека                              | хост                                                                                               | что нашла привязка                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -324,3 +389,10 @@ drift` уже значил «влито, но не выехало»; `case` бе
 - `apps/vibee-editor/render/src/spec/` — привязанные спеки и их тесты
 - навык `own-language-first` — наш язык для документов о себе
 - CLAUDE.md, «Миссия: t27 в центре»
+
+## Stacked spec PRs after a squash merge (07.10, t27#7000/#7009)
+
+After the first PR of a chain squash-merges, every retargeted child conflicts
+in the spec and its seal. Fix with a plain `git merge origin/master` (keep the
+child's spec, `t27c seal --save`), never force push; wait for required checks
+started AFTER the push. Better: do not stack spec PRs while Actions is down.

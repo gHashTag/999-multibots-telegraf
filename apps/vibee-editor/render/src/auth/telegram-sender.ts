@@ -13,6 +13,7 @@
 
 import { telegramApiFor } from '../telegram-api'
 import { rewriteAppUrlsForToken } from '../app-links'
+import { eventThreadForToken, type EventKey } from '../topic-event-tabs'
 
 /**
  * Токен читается ПРИ КАЖДОМ ВЫЗОВЕ, а не один раз при импорте.
@@ -39,7 +40,11 @@ export async function sendToTelegram(
    * HTML for a card that carries its own markup (a `tg-time` entity, bold).
    * The caller escapes the person's text; plain text stays the default.
    */
-  options?: { parseMode?: 'HTML' }
+  options?: {
+    parseMode?: 'HTML'
+    /** The event this is (bot-event-tabs.t27): it lands in that agent's tab. */
+    event?: EventKey
+  }
 ): Promise<void> {
   const t = токен()
   if (!t) {
@@ -48,11 +53,15 @@ export async function sendToTelegram(
     console.warn('[telegram] TELEGRAM_BOT_TOKEN не задан — уведомление не ушло')
     return
   }
+  const thread = options?.event
+    ? await eventThreadForToken(t, telegramId, options.event)
+    : undefined
   const о = await fetch(`${telegramApiFor(t)}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: telegramId,
+      ...(thread !== undefined ? { message_thread_id: thread } : {}),
       // A raw app URL opened outside Telegram has no signature and does not
       // open; it becomes this bot's t.me link (app-links.ts). getMe is asked
       // only when there is such a URL, on this bot's own Bot API host.

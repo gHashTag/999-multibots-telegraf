@@ -460,9 +460,29 @@ if (process.env.NODE_ENV !== 'test') {
   )
 }
 
+/*
+ * winston knows only lower-case npm levels. LOG_LEVEL=INFO (a shell on the
+ * owner's Mac, 2026-10-06) is unknown to it, and the logger then writes
+ * nothing at all -- every logger-capturing test goes red and looks like a
+ * broken main. Lower-case it; an unknown word falls back to info.
+ */
+const NPM_LEVELS = [
+  'error',
+  'warn',
+  'info',
+  'http',
+  'verbose',
+  'debug',
+  'silly',
+]
+export function logLevelFrom(raw: string | undefined): string {
+  const level = (raw || '').trim().toLowerCase()
+  return NPM_LEVELS.includes(level) ? level : 'info'
+}
+
 // Основной логгер приложения
 export const logger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: logLevelFrom(process.env.LOG_LEVEL),
   format: commonFormat,
   transports: baseTransports, // Используем сформированный массив транспортов
 })

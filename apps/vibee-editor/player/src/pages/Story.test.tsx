@@ -155,10 +155,36 @@ describe('my reels', () => {
     expect(priceThenPress()).toBe(true)
   })
 
-  it('"watch" is a finger-sized link on her page, as on the seller\'s card', async () => {
+  it('a reel that came out is its own picture, bigger than a finger, opening it (plan-reel)', async () => {
     serve(() => READY)
     await draw()
-    expect(host.querySelector('a')?.className).toBe('crm-client__watch')
+    const pic = host.querySelector<HTMLAnchorElement>('a.reel-preview')!
+    expect(pic.getAttribute('href')).toBe(READY.jobs[0].url)
+    expect(pic.querySelector('video')?.getAttribute('src')).toBe(
+      `${READY.jobs[0].url}#t=1`
+    )
+    expect(parseInt(pic.style.width)).toBeGreaterThanOrEqual(44)
+    expect(parseInt(pic.style.height)).toBeGreaterThanOrEqual(44)
+  })
+
+  it('a reel whose poster the server kept shows it, and the video is not fetched (plan-reel v3)', async () => {
+    serve(() => ({
+      ...READY,
+      jobs: [
+        { ...READY.jobs[0], poster: 'https://shelf.example/s3/reel.jpg' },
+        { ...READY.jobs[0], id: 2, poster: '' },
+      ],
+    }))
+    await draw()
+    const [kept, tried] = [
+      ...host.querySelectorAll<HTMLAnchorElement>('a.reel-preview'),
+    ]
+    expect(kept.querySelector('img')?.getAttribute('src')).toBe(
+      'https://shelf.example/s3/reel.jpg'
+    )
+    expect(kept.querySelector('video')).toBeNull()
+    expect(tried.querySelector('img')).toBeNull()
+    expect(tried.querySelector('video')).not.toBeNull()
   })
 
   it('says a gift is a gift instead of naming a price', async () => {
