@@ -112,6 +112,12 @@ const ask = async () => {
   return mod.спроситьАгента(OWNER, 'напиши Ивану') // cyrillic-ok: pre-existing export name
 }
 
+/** The same question, on a customer's business turn. */
+const askAsBusiness = async () => {
+  const mod = await import('@/services/trinityAgent')
+  return mod.спроситьАгента(OWNER, 'напиши Ивану', { surface: 'business' }) // cyrillic-ok: pre-existing export name
+}
+
 beforeEach(() => {
   vi.resetModules()
   process.env.RENDER_API_KEY = 'test-key'
@@ -194,8 +200,10 @@ describe('one short retry, only on a provider limit', () => {
   }, 30_000)
 
   it('(e) a second limit fails loudly rather than retrying for ever', async () => {
+    // A customer's business turn keeps its one short retry; the person's own
+    // turns retry LIMIT_RETRIES times (bot-agent-team.t27 v2, everyMemberAnswers.test.ts).
     await serve([finish(LIMIT), finish(LIMIT), finish(TEXT)])
-    await expect(ask()).rejects.toThrow(/16\/16/)
+    await expect(askAsBusiness()).rejects.toThrow(/16\/16/)
     expect(chatRequests, 'the retry budget is one').toBe(2)
   }, 30_000)
 
