@@ -435,24 +435,6 @@
     "to": "  if (!v || typeof v !== 'object') return null\n"
   },
   {
-    "name": "a switch that is ON folds on a phone",
-    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
-    "from": "return phone && reachable && !on",
-    "to": "return phone && reachable"
-  },
-  {
-    "name": "an unread switch folds on a phone",
-    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
-    "from": "return phone && reachable && !on",
-    "to": "return phone && !on"
-  },
-  {
-    "name": "the fold applies on a wide screen too",
-    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
-    "from": "return phone && reachable && !on",
-    "to": "return reachable && !on"
-  },
-  {
     "name": "the phone query drifts from the page's phone width",
     "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
     "from": "`(max-width: ${SPEC.PHONE_MAX_PX}px)`",
@@ -463,12 +445,6 @@
     "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
     "from": "onClick={() => setOpened(o => !o)}",
     "to": "onClick={() => setOpened(o => o)}"
-  },
-  {
-    "name": "the folded line says off before the server answered",
-    "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
-    "from": "{a ? t('crm.auto.offShort') : '…'}",
-    "to": "{t('crm.auto.offShort')}"
   },
   {
     "name": "aria-expanded lies about the fold",
@@ -601,5 +577,71 @@
     "file": "apps/vibee-editor/player/src/components/Crm/FunnelStrip.css",
     "from": "@media (min-width: 360px) and (max-width: 480px) {",
     "to": "@media (min-width: 340px) and (max-width: 480px) {"
+  },
+  {
+    "name": "the ON line loses its own Turn off",
+    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
+    "from": "return on ? SPEC.ACTION_STOP : SPEC.ACTION_NONE",
+    "to": "return SPEC.ACTION_NONE"
+  },
+  {
+    "name": "an unread switch folds on a phone",
+    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
+    "from": "return phone && reachable",
+    "to": "return phone"
+  },
+  {
+    "name": "the fold applies on a wide screen too",
+    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
+    "from": "return phone && reachable",
+    "to": "return reachable"
+  },
+  {
+    "name": "the folded line says off before the server answered",
+    "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
+    "from": "{!a\n                  ? '…'\n",
+    "to": "{!a\n                  ? t('crm.auto.offShort')\n"
+  },
+  {
+    "name": "the OFF line carries a button too",
+    "file": "apps/vibee-editor/player/src/lib/crmPhone.ts",
+    "from": "return on ? SPEC.ACTION_STOP : SPEC.ACTION_NONE",
+    "to": "return SPEC.ACTION_STOP"
+  },
+  {
+    "name": "the line's stop turns AUTO on",
+    "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
+    "from": "onClick={() => void flip(false)}",
+    "to": "onClick={() => void flip(true)}"
+  },
+  {
+    "name": "the line's stop stays while the panel is open",
+    "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
+    "from": "{folded && lineStops(on) ?",
+    "to": "{lineStops(on) ?"
+  },
+  {
+    "name": "the ON line says off",
+    "file": "apps/vibee-editor/player/src/components/Crm/AutoPanel.tsx",
+    "from": "                  : on\n                    ? t('crm.auto.onShort', {",
+    "to": "                  : false\n                    ? t('crm.auto.onShort', {"
+  },
+  {
+    "name": "the line's stop is under a finger",
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": ".crm-auto__stop {\n  flex: none;\n  min-height: var(--touch-target, 44px);",
+    "to": ".crm-auto__stop {\n  flex: none;"
+  },
+  {
+    "name": "the AUTO word keeps the button's nowrap",
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  min-width: 0;\n  white-space: normal;\n  overflow-wrap: anywhere;",
+    "to": "  min-width: 0;\n  overflow-wrap: anywhere;"
+  },
+  {
+    "name": "the AUTO word may not go under the name",
+    "file": "apps/vibee-editor/player/src/pages/Crm.css",
+    "from": "  position: relative;\n  flex-wrap: wrap;",
+    "to": "  position: relative;"
   }
 ]

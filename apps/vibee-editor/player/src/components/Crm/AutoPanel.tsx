@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { CRM_PHONE_QUERY, autoFolds } from '@/lib/crmPhone'
+import { CRM_PHONE_QUERY, autoLine, lineStops } from '@/lib/crmPhone'
 import {
   loadAutopilot,
   setAutopilot,
@@ -78,10 +78,11 @@ export function AutoPanel({ pickAll = null }: { pickAll?: PickAll | null }) {
   }
 
   const a = state.data
-  // Off on a phone: the name and "off", one press from the rest (crmPhone.ts).
+  // On a phone, off or on: one line, one press from the rest (crmPhone.ts).
   const phone = useMediaQuery(CRM_PHONE_QUERY)
   const [opened, setOpened] = useState(false)
-  const foldable = autoFolds(phone, state.reachable, a?.on ?? false)
+  const on = a?.on ?? false
+  const foldable = autoLine(phone, state.reachable)
   const folded = foldable && !opened
   const until = a?.until ? new Date(a.until) : null
   const clock = until
@@ -96,22 +97,51 @@ export function AutoPanel({ pickAll = null }: { pickAll?: PickAll | null }) {
       aria-label={t('crm.auto.title')}
     >
       {foldable ? (
-        <h3 className="crm-auto__title">
-          {/* The disclosure pattern: a heading that holds its one button. */}
-          <button
-            type="button"
-            className="crm-auto__fold"
-            aria-expanded={!folded}
-            onClick={() => setOpened(o => !o)}
-          >
-            {t('crm.auto.title')}
-            <span className="crm-auto__lamp" aria-hidden="true" />
-            {/* Before the server answers, the state is not known yet. */}
-            <span className="crm-auto__word">
-              {a ? t('crm.auto.offShort') : '…'}
-            </span>
-          </button>
-        </h3>
+        <div className="crm-auto__line">
+          <h3 className="crm-auto__title">
+            {/* The disclosure pattern: a heading that holds its button. */}
+            <button
+              type="button"
+              className="crm-auto__fold"
+              aria-expanded={!folded}
+              onClick={() => setOpened(o => !o)}
+            >
+              {t('crm.auto.title')}
+              <span
+                className={`crm-auto__lamp${on ? ' crm-auto__lamp--on' : ''}`}
+                aria-hidden="true"
+              />
+              {/* Before the server answers, the state is not known yet. */}
+              <span className="crm-auto__word">
+                {!a
+                  ? '…'
+                  : on
+                    ? t('crm.auto.onShort', {
+                        until: clock,
+                        left: a.leftToday,
+                        cap: a.cap,
+                      })
+                    : t('crm.auto.offShort')}
+              </span>
+            </button>
+          </h3>
+          {/*
+            On, the line holds the stop: the state that writes to people by
+            itself is one press from off, on the first screen. Off, the line
+            holds nothing -- it never starts sending (crm-first-screen v2).
+            Opened, the panel's own switch is the one to press.
+          */}
+          {folded && lineStops(on) ? (
+            <button
+              type="button"
+              className="crm-auto__stop"
+              disabled={busy}
+              onClick={() => void flip(false)}
+            >
+              {t('crm.auto.stop')}
+            </button>
+          ) : null}
+        </div>
       ) : (
         <div className="crm-auto__head">
           <h3 className="crm-auto__title">{t('crm.auto.title')}</h3>

@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { CRM_PHONE_QUERY, autoFolds } from './crmPhone'
+import { CRM_PHONE_QUERY, autoLine, lineStops } from './crmPhone'
 
 /**
- * WHEN THE AUTO SWITCH IS ONE LINE (P31). The whole table, because each row
- * is a promise: a phone folds only a switch that is read and off.
+ * WHEN THE AUTO SWITCH IS ONE LINE (P31, v2 P33). The whole table, because
+ * each row is a promise: a phone makes a read switch one line, off or on,
+ * and only the switch that is on carries a button there -- the stop.
  */
-describe('autoFolds', () => {
-  it('folds only on a phone, only a switch read as off', () => {
-    expect(autoFolds(true, true, false)).toBe(true)
-    // On: it writes to people by itself, its stop stays in sight.
-    expect(autoFolds(true, true, true)).toBe(false)
+describe('the AUTO line (crm-first-screen v2)', () => {
+  it('is one line on a phone once read, off or on', () => {
+    expect(autoLine(true, true)).toBe(true)
     // Unread: it says so at full size.
-    expect(autoFolds(true, false, false)).toBe(false)
+    expect(autoLine(true, false)).toBe(false)
     // A wide screen has the room.
-    expect(autoFolds(false, true, false)).toBe(false)
+    expect(autoLine(false, true)).toBe(false)
+  })
+
+  it('carries the stop when on, and nothing when off', () => {
+    expect(lineStops(true)).toBe(true)
+    expect(lineStops(false)).toBe(false)
   })
 
   it('a phone is the page width Crm.css lays its rows out for', () => {
