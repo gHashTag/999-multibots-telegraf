@@ -112,5 +112,11 @@
     "file": "src/components/Story/MyStoryWidget.tsx",
     "from": "                      poster={j.poster}\n",
     "to": "\n"
+  },
+  {
+    "name": "a broken poster stays a broken icon",
+    "file": "src/components/Story/ReelPreview.tsx",
+    "from": "          onError={() => setBroken(true)}\n",
+    "to": "\n"
   }
 ]
