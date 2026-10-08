@@ -13,240 +13,14 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
-import { processApiResponse } from '@/helpers/error/processApiResponse'
-import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 import { randomUUID as uuidv4 } from 'node:crypto'
-import { ApiResponse } from '@/interfaces/api.interface'
 import crypto from 'crypto'
 import { supabase } from '@/core/supabase'
-import { Markup } from 'telegraf'
-import { fal } from '@fal-ai/client'
+import { generateNeuroPhotoViaKie } from './generateNeuroPhotoKie'
 
 const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
-
-// Bound fal.subscribe so a stuck flux-lora job cannot hang forever. The user is
-// charged before generation (directPaymentProcessor), so an infinite hang would
-// strand the payment: the fal.subscribe queue polls with no client-side max wait.
-// flux-lora finishes in seconds to ~1 min; a longer wait is a stuck job, so time
-// it out. A throw here is caught by the caller's falError handler, which falls
-// back to Replicate (itself now bounded) or refunds. Overridable via env.
-const FAL_SUBSCRIBE_TIMEOUT_MS =
-  Number(process.env.FAL_SUBSCRIBE_TIMEOUT_MS) || 4 * 60 * 1000
-async function falSubscribeWithTimeout<T>(job: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      job,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `fal.subscribe timed out after ${FAL_SUBSCRIBE_TIMEOUT_MS}ms`
-              )
-            ),
-          FAL_SUBSCRIBE_TIMEOUT_MS
-        )
-      }),
-    ])
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
-}
-
-/**
- * Генерация изображения с Fal.ai + LoRA NEURO_SAGE
- * @param prompt Промпт для генерации
- * @returns URL сгенерированного изображения
- */
-async function generateImageWithFalAndLora(prompt: string): Promise<string> {
-  const FAL_KEY = process.env.FAL_KEY
-  const FAL_LORA_PATH =
-    process.env.FAL_DEFAULT_LORA_PATH ||
-    'https://v3b.fal.media/files/b/elephant/YpfnIK7JlNO7vZTsGanfo_pytorch_lora_weights.safetensors'
-  const FAL_LORA_TRIGGER = process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE'
-  const FAL_LORA_SCALE = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
-
-  if (!FAL_KEY) {
-    throw new Error('FAL_KEY not found in environment')
-  }
-
-  // Configure fal client
-  fal.config({
-    credentials: FAL_KEY,
-  })
-
-  // Add trigger word to prompt
-  const enhancedPrompt = `${FAL_LORA_TRIGGER} ${prompt}`
-
-  logger.info('🎭 [FAL] Генерация с LoRA', {
-    trigger: FAL_LORA_TRIGGER,
-    lora_path: FAL_LORA_PATH.substring(0, 50) + '...',
-    scale: FAL_LORA_SCALE,
-    enhanced_prompt: enhancedPrompt.substring(0, 100) + '...',
-  })
-
-  const input = {
-    prompt: enhancedPrompt,
-    image_size: {
-      width: 768, // 9:16 для вертикальных фото
-      height: 1365,
-    },
-    num_images: 1,
-    loras: [
-      {
-        path: FAL_LORA_PATH,
-        scale: FAL_LORA_SCALE,
-      },
-    ],
-  }
-
-  const result = await falSubscribeWithTimeout(
-    fal.subscribe('fal-ai/flux-lora', {
-      input,
-      logs: false,
-    })
-  )
-
-  const output = result as any
-
-  // ✅ ИСПРАВЛЕНИЕ: FAL API возвращает { data: { images: [...] }, requestId: "..." }
-  let imageUrl: string
-
-  // Сначала проверяем новый формат с data
-  if (
-    output.data?.images &&
-    Array.isArray(output.data.images) &&
-    output.data.images[0]
-  ) {
-    imageUrl = output.data.images[0].url
-  }
-  // Потом старый формат без data (для совместимости)
-  else if (output.images && Array.isArray(output.images) && output.images[0]) {
-    imageUrl = output.images[0].url
-  } else if (output.image_url) {
-    imageUrl = output.image_url
-  } else if (output.url) {
-    imageUrl = output.url
-  } else {
-    throw new Error(
-      'Unexpected Fal.ai response format: ' + JSON.stringify(output)
-    )
-  }
-
-  logger.info('✅ [FAL] Изображение с LoRA сгенерировано', {
-    imageUrl: imageUrl.substring(0, 50) + '...',
-  })
-
-  return imageUrl
-}
-
-/**
- * Генерация изображения с Fal.ai + LoRA из userModel (не из env vars)
- * @param prompt Промпт для генерации
- * @param userModel Модель пользователя с данными LoRA
- * @returns URL сгенерированного изображения
- */
-async function generateImageWithUserModelLora(
-  prompt: string,
-  userModel: any
-): Promise<string> {
-  const FAL_KEY = process.env.FAL_KEY
-
-  if (!FAL_KEY) {
-    throw new Error('FAL_KEY not found in environment')
-  }
-
-  if (!userModel?.zip_url) {
-    throw new Error('User model LoRA weights (zip_url) not found')
-  }
-
-  // Configure fal client
-  fal.config({
-    credentials: FAL_KEY,
-  })
-
-  // ✅ ИСПРАВЛЕНИЕ: zip_url теперь хранит прямой путь к .safetensors файлу!
-  // Больше не нужно никаких преобразований - просто используем как есть
-  const loraPath = userModel.zip_url
-
-  if (!loraPath || !loraPath.endsWith('.safetensors')) {
-    throw new Error(
-      `Invalid LoRA weights path: ${loraPath}. Expected .safetensors file.`
-    )
-  }
-
-  const triggerWord = userModel.trigger_word || 'NEURO_SAGE'
-  const loraScale = Number(process.env.FAL_DEFAULT_LORA_SCALE) || 1.0
-
-  // Add trigger word to prompt
-  const enhancedPrompt = `${triggerWord} ${prompt}`
-
-  logger.info('🎭 [FAL] Генерация с LoRA из userModel', {
-    trigger: triggerWord,
-    lora_path: loraPath.substring(0, 50) + '...',
-    scale: loraScale,
-    model_name: userModel.model_name,
-    enhanced_prompt: enhancedPrompt.substring(0, 100) + '...',
-  })
-
-  const input = {
-    prompt: enhancedPrompt,
-    image_size: {
-      width: 768, // 9:16 для вертикальных фото
-      height: 1365,
-    },
-    num_images: 1,
-    loras: [
-      {
-        path: loraPath,
-        scale: loraScale,
-      },
-    ],
-  }
-
-  const result = await falSubscribeWithTimeout(
-    fal.subscribe('fal-ai/flux-lora', {
-      input,
-      logs: false,
-    })
-  )
-
-  const output = result as any
-
-  // ✅ ИСПРАВЛЕНИЕ: FAL API возвращает { data: { images: [...] }, requestId: "..." }
-  let imageUrl: string
-
-  // Сначала проверяем новый формат с data
-  if (
-    output.data?.images &&
-    Array.isArray(output.data.images) &&
-    output.data.images[0]
-  ) {
-    imageUrl = output.data.images[0].url
-  }
-  // Потом старый формат без data (для совместимости)
-  else if (output.images && Array.isArray(output.images) && output.images[0]) {
-    imageUrl = output.images[0].url
-  } else if (output.image_url) {
-    imageUrl = output.image_url
-  } else if (output.url) {
-    imageUrl = output.url
-  } else {
-    throw new Error(
-      'Unexpected Fal.ai response format: ' + JSON.stringify(output)
-    )
-  }
-
-  logger.info('✅ [FAL] Изображение с userModel LoRA сгенерировано', {
-    imageUrl: imageUrl.substring(0, 50) + '...',
-    model_name: userModel.model_name,
-  })
-
-  return imageUrl
-}
 
 /**
  * Прямая генерация нейрофото V1 без использования Inngest.
@@ -375,9 +149,13 @@ export async function generateNeuroPhotoDirect(
       throw new Error('Prompt not found')
     }
 
-    // ✅ ИСПРАВЛЕНИЕ: Для FAL моделей model_url не обязателен (используются LoRA weights)
-    const isFalModel = userModel?.api === 'fal'
-    if (!model_url && !isFalModel) {
+    // model_url is legacy routing metadata now: generation itself goes
+    // through kie.ai, which takes no model URL. It is still validated here
+    // because the payment idempotency key and the pulse report below read it.
+    // A userModel trained on fal (`userModel.api === 'fal'`) used to swap in
+    // LoRA weights; kie.ai has no LoRA path, so the personalization is gone
+    // with the provider and the log says so instead of pretending.
+    if (!model_url) {
       logger.error('❌ [DIRECT] Отсутствует URL модели для генерации', {
         description: 'No model URL found for direct generation',
         telegram_id,
@@ -388,14 +166,13 @@ export async function generateNeuroPhotoDirect(
       throw new Error('Model URL not found')
     }
 
-    if (isFalModel) {
+    if (userModel?.api === 'fal') {
       logger.info(
-        '🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights',
+        '🎭 [DIRECT] FAL LoRA больше не поддерживается — генерация через Kie без персонализации',
         {
           telegram_id,
           model_name: userModel.model_name,
-          trigger_word: userModel.trigger_word,
-          zip_url: userModel.zip_url?.substring(0, 50) + '...',
+          note: 'kie.ai has no LoRA path; the fal account is closed',
         }
       )
     }
@@ -716,151 +493,24 @@ export async function generateNeuroPhotoDirect(
           iteration: i,
         })
 
-        // ✅ ИСПРАВЛЕНИЕ: Определяем провайдер по userModel.api (приоритет) или env vars
-        let useFal = isFalModel || !!process.env.FAL_KEY
-        let imageUrl: string
+        // One provider: kie.ai (owner's rule, 2026-10-02). The fal->Replicate
+        // chain this replaces was two dead accounts routing to each other:
+        // fal balance 0.0, Replicate 402 "account disabled" -- every request
+        // fell through Plan A, failed on fal, fell back to Replicate and
+        // failed again, both after the user had been charged. No fallback
+        // exists behind Kie, so a throw here goes to the catch below, which
+        // refunds.
+        const imageUrl = await generateNeuroPhotoViaKie(
+          prompt,
+          finalAspectRatio!
+        )
 
-        if (useFal) {
-          // ✨ Используем Fal.ai с LoRA
-          logger.info('🎭 [DIRECT] Используем Fal.ai с LoRA', {
-            telegram_id,
-            iteration: i,
-            source: isFalModel ? 'userModel' : 'env vars',
-          })
-
-          try {
-            if (isFalModel) {
-              // ✅ Используем userModel данные (персональная модель пользователя)
-              imageUrl = await generateImageWithUserModelLora(prompt, userModel)
-            } else {
-              // Используем env vars (дефолтная FAL модель)
-              imageUrl = await generateImageWithFalAndLora(prompt)
-            }
-          } catch (falError) {
-            logger.error('❌ [DIRECT] Ошибка Fal.ai, fallback на Replicate', {
-              error:
-                falError instanceof Error ? falError.message : 'Unknown error',
-              telegram_id,
-              isFalModel,
-            })
-            // Fallback на Replicate при ошибке Fal.ai (только если есть model_url)
-            if (model_url) {
-              useFal = false as any // Trick to reuse replicate code below
-            } else {
-              // Нет model_url для fallback - выбрасываем ошибку
-              throw falError
-            }
-          }
-        }
-
-        if (!useFal || !imageUrl!) {
-          // Используем Replicate (старый способ)
-          logger.info('🔄 [DIRECT] Используем Replicate', {
-            telegram_id,
-            iteration: i,
-          })
-
-          // Формируем input для Replicate API
-          const replicateInput: any = {
-            prompt: `${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
-            negative_prompt:
-              'nsfw, erotic, violence, bad anatomy, bad hands, deformed fingers, blurry, grainy, ugly, lowres',
-            num_inference_steps: 40,
-            output_format: 'jpg',
-            guidance_scale: 3,
-            output_quality: 80,
-            num_outputs: 1,
-          }
-
-          if (finalAspectRatio) {
-            replicateInput.aspect_ratio = finalAspectRatio
-          }
-
-          logger.info('[DIAGNOSTIC] Перед вызовом replicate.run()', {
-            iteration: i,
-            telegram_id,
-          })
-
-          logger.info({
-            message: '🔄 [DIRECT] Вызов replicate.run()',
-            modelUrlPreview: model_url.substring(0, 50) + '...',
-            telegram_id,
-          })
-
-          const output = (await replicate.run(
-            model_url as `${string}/${string}:${string}`,
-            {
-              input: replicateInput,
-            }
-          )) as ApiResponse
-
-          logger.info('[DIAGNOSTIC] Сразу после вызова replicate.run()', {
-            output_is_null: output === null,
-            output_is_undefined: output === undefined,
-            iteration: i,
-            telegram_id,
-          })
-
-          logger.info('🔍 [DIRECT] Ответ от Replicate API получен', {
-            telegram_id,
-            iteration: i,
-            api_output: JSON.stringify(output),
-          })
-
-          logger.info('✅ [DIRECT] Получен ответ от API', {
-            description: 'API response received (direct)',
-            output_type: typeof output,
-            telegram_id,
-          })
-
-          // Обрабатываем API-ответ
-          logger.info('🔍 [DIRECT] Обработка ответа API Replicate', {
-            description: 'Processing Replicate API response',
-            output_sample: JSON.stringify(output).substring(0, 100) + '...',
-          })
-
-          logger.info('[DIAGNOSTIC] Перед вызовом processApiResponse()', {
-            iteration: i,
-            telegram_id,
-          })
-
-          // 🔍 ДЕТАЛЬНЫЙ ЛОГ содержимого output
-          logger.info({
-            message: '[DIAGNOSTIC] Содержимое output перед processApiResponse',
-            outputType: typeof output,
-            outputIsNull: output === null,
-            outputIsUndefined: output === undefined,
-            outputKeys:
-              output && typeof output === 'object' ? Object.keys(output) : null,
-            outputJson: output
-              ? JSON.stringify(output).substring(0, 500) + '...'
-              : 'null',
-            outputFull: output ? JSON.stringify(output, null, 2) : 'null',
-            telegram_id,
-          })
-
-          imageUrl = await processApiResponse(output)
-
-          logger.info('[DIAGNOSTIC] Сразу после вызова processApiResponse()', {
-            imageUrl_is_null: imageUrl === null,
-            imageUrl_is_undefined: imageUrl === undefined,
-            iteration: i,
-            telegram_id,
-          })
-
-          logger.info('🔍 [DIRECT] Результат processApiResponse', {
-            telegram_id,
-            iteration: i,
-            processed_image_url: imageUrl,
-          })
-        }
-
-        // Проверка на валидность URL (для обоих провайдеров)
+        // Проверка на валидность URL
         if (!imageUrl || !imageUrl.startsWith('http')) {
           logger.error('❌ [DIRECT] Некорректный URL изображения', {
             description: 'Invalid image URL returned from API',
             url: imageUrl,
-            provider: useFal ? 'Fal.ai' : 'Replicate',
+            provider: 'kie.ai',
           })
           throw new Error('Invalid image URL from API')
         }
@@ -1003,39 +653,14 @@ export async function generateNeuroPhotoDirect(
                 telegram_id,
                 imageUrl: imageUrl.substring(0, 50) + '...',
               })
-              // Определяем какой провайдер и модель использовались
-              const isLoraUsed = useFal
-              const loraInfo = isLoraUsed
-                ? {
-                    trigger: process.env.FAL_LORA_TRIGGER || 'NEURO_SAGE',
-                    provider: 'Fal.ai',
-                  }
-                : null
-
-              // Извлекаем информацию о модели
-              let modelDisplay: string
-              if (isLoraUsed) {
-                modelDisplay = 'Flux LoRA 🎭'
-              } else {
-                const modelName =
-                  model_url.split('/').pop()?.split(':')[0] || 'Unknown'
-                modelDisplay = modelName.includes('flux-schnell')
-                  ? 'Flux Schnell ⚡️'
-                  : modelName.includes('flux-pro')
-                    ? 'Flux Pro 💎'
-                    : modelName.includes('flux-dev')
-                      ? 'Flux Dev'
-                      : modelName.includes('sdxl')
-                        ? 'SDXL'
-                        : modelName
-              }
+              // The model that actually did the work: kie.ai nano-banana.
+              // model_url stays in Model ID as the user's legacy model
+              // identifier but no longer drives generation.
+              const modelDisplay = 'Nano Banana 🍌 (kie.ai)'
 
               // Рассчитываем размеры изображения
               let dimensions = '1024×1024'
-              if (isLoraUsed) {
-                // LoRA всегда использует 9:16
-                dimensions = '768×1365 (9:16)'
-              } else if (finalAspectRatio) {
+              if (finalAspectRatio) {
                 const [w, h] = finalAspectRatio.split(':').map(Number)
                 if (w && h) {
                   if (w === h) {
@@ -1052,8 +677,8 @@ export async function generateNeuroPhotoDirect(
                 }
               }
 
-              // Время генерации
-              const avgTime = isLoraUsed ? '20-40' : '15-30'
+              // Generation time (kie.ai Jobs API: seconds up to ~a minute)
+              const avgTime = '15-60'
 
               // Формируем красивый caption в стиле Midjourney/DALL-E
               const imageNumber = i + 1
@@ -1061,15 +686,16 @@ export async function generateNeuroPhotoDirect(
                 ? `✨ <b>Изображение создано!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-🎨 <b>Детали генерации</b>${loraInfo ? `\n├ 🎭 Персонализация: <b>${loraInfo.trigger}</b>` : ''}
+🎨 <b>Детали генерации</b>
 ├ 🤖 Модель: <b>${modelDisplay}</b>
 ├ 📐 Размер: <b>${dimensions}</b>
 ├ ⏱ Время: ~<b>${avgTime}с</b>
 └ 💰 Стоимость: <b>${costPerImage} ⭐</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-🔍 <b>Техническая информация</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
-Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
+🔍 <b>Техническая информация</b>
+Model ID: <code>kie.ai/google/nano-banana</code>
+User model: <code>${model_url}</code>
 Изображение: ${imageNumber}/${validNumImages}
 Сгенерировано: ${new Date().toLocaleString('ru-RU')}
 
@@ -1077,15 +703,16 @@ Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
                 : `✨ <b>Image created!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-🎨 <b>Generation Details</b>${loraInfo ? `\n├ 🎭 Personalization: <b>${loraInfo.trigger}</b>` : ''}
+🎨 <b>Generation Details</b>
 ├ 🤖 Model: <b>${modelDisplay}</b>
 ├ 📐 Size: <b>${dimensions}</b>
 ├ ⏱ Time: ~<b>${avgTime}s</b>
 └ 💰 Cost: <b>${costPerImage} ⭐</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-🔍 <b>Technical Information</b>${loraInfo ? `\nLoRA: <code>${loraInfo.trigger}</code>` : ''}
-Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
+🔍 <b>Technical Information</b>
+Model ID: <code>kie.ai/google/nano-banana</code>
+User model: <code>${model_url}</code>
 Image: ${imageNumber}/${validNumImages}
 Generated: ${new Date().toLocaleString('en-US')}
 
@@ -1169,7 +796,7 @@ Generated: ${new Date().toLocaleString('en-US')}
           // ✅ ИСПРАВЛЕНИЕ: Передаем правильный model_type ('fal' или 'replicate'), а не model_url!
           await savePromptDirect(
             prompt,
-            useFal ? 'fal' : 'replicate', // Используем model_type вместо model_url
+            'kie', // Generation provider (kie-only, 2026-10-02)
             ModeEnum.NeuroPhoto,
             imageUrl,
             telegram_id.toString(),
