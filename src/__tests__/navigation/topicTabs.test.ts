@@ -377,6 +377,24 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     expect(tg.renames()).toEqual([])
   })
 
+  it('v4: a tab remade by /tabs has its old thread deleted first, so it is never doubled', async () => {
+    const tg = telegram({ deleted: [102] })
+    await ensureTabs(tg, 'b', 777, false)
+    await tabsCommand()(tg)
+    const calls = tg.calls.map((c: any[]) => c[0])
+    const del = tg.calls.findIndex(
+      (c: any[]) =>
+        c[0] === 'deleteForumTopic' && c[1].message_thread_id === 102
+    )
+    expect(del).toBeGreaterThan(-1)
+    // deleted before the new tab is made
+    expect(del).toBeLessThan(calls.lastIndexOf('createForumTopic'))
+    // a live tab's thread is never deleted
+    expect(
+      tg.calls.filter((c: any[]) => c[0] === 'deleteForumTopic')
+    ).toHaveLength(1)
+  })
+
   it('1. /tabs twice makes nothing, and a network error forgets nothing', async () => {
     const tg = telegram()
     await ensureTabs(tg, 'b', 777, false)
@@ -783,16 +801,19 @@ describe('v3: a tab made under an older title is renamed to its agent', () => {
     expect(db.rows.find(r => r.kind === 'browser')!.title).toBe('🌍 Navigator')
   })
 
-  it('a tab deleted behind our back is made again, not renamed', async () => {
+  it('v4: a rename that says "thread not found" keeps the tab -- never a second one', async () => {
+    // The owner's tabs were doubled (2026-10-08): a rename the server refused
+    // with "thread not found" used to forget the tab and make a new one while
+    // the old one stayed. Only the probe of /tabs decides that a tab is gone.
     const first = tg()
     await madeUnderV2(first, { wallet: '💰 Balance & club' })
-    const gone = db.rows.find(r => r.kind === 'wallet')!.thread_id
-    const api = tg({ gone: [gone] })
-    expect(await ensureTabs(api, 'b', 777, false)).toEqual(['wallet'])
+    const stored = db.rows.find(r => r.kind === 'wallet')!.thread_id
+    const api = tg({ gone: [stored] })
+    expect(await ensureTabs(api, 'b', 777, false)).toEqual([])
+    expect(api.made()).toEqual([])
     const wallet = db.rows.filter(r => r.kind === 'wallet')
     expect(wallet).toHaveLength(1)
-    expect(wallet[0].thread_id).not.toBe(gone)
-    expect(wallet[0].title).toBe('💰 Treasurer')
+    expect(wallet[0].thread_id).toBe(stored)
   })
 
   it('any other refused rename keeps the tab and its old row', async () => {

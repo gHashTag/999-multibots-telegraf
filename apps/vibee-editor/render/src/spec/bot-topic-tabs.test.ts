@@ -123,6 +123,14 @@ describe('spec bot-topic-tabs.t27 (render engine)', () => {
     expect(E.retitle(true)).toBe(false)
   })
 
+  it('a tab is never doubled: a rename never remakes, a remake clears the old thread', () => {
+    expect(SPEC.RENAME_REMAKES).toBe(false)
+    expect(E.clearsOld(true, true)).toBe(true)
+    expect(E.clearsOld(true, false)).toBe(false)
+    expect(E.clearsOld(false, true)).toBe(false)
+    expect(E.clearsOld(false, false)).toBe(false)
+  })
+
   it("a person's tabs are set up by that person or a keeper", () => {
     expect(E.maySetUp(true, false)).toBe(true)
     expect(E.maySetUp(false, true)).toBe(true)
@@ -158,6 +166,6 @@ describe('spec bot-topic-tabs.t27 (render engine)', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 })

@@ -22,6 +22,7 @@ import {
   nameFits,
   readsDb,
   retitle,
+  clearsOld,
   settleWon,
   tableColorsAllowed,
   tableColorsDistinct,
@@ -150,6 +151,14 @@ describe('spec bot-topic-tabs.t27', () => {
     expect(retitle(true)).toBe(false)
   })
 
+  it('a tab is never doubled: a rename never remakes, a remake clears the old thread', () => {
+    expect(SPEC.RENAME_REMAKES).toBe(false)
+    expect(clearsOld(true, true)).toBe(true)
+    expect(clearsOld(true, false)).toBe(false)
+    expect(clearsOld(false, true)).toBe(false)
+    expect(clearsOld(false, false)).toBe(false)
+  })
+
   it("a person's tabs are set up by that person or a keeper", () => {
     expect(maySetUp(true, false)).toBe(true)
     expect(maySetUp(false, true)).toBe(true)
@@ -182,6 +191,6 @@ describe('spec bot-topic-tabs.t27', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 })
