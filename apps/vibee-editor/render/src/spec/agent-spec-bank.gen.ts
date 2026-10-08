@@ -14,14 +14,32 @@ export const SPEC_EXT = ".t27" satisfies string;
 export const SPEC_BANK_FOR_EVERY_MEMBER = true satisfies boolean;
 export const SPEC_BANK_PRICE_TOKENS = 0 satisfies number;
 export const SPEC_INDEX_TTL_MS = 600000 satisfies number;
-// t27c gen-ts: fn index_fresh was not emitted -- this backend lowers declarations, not bodies.
-// t27c gen-ts: fn found was not emitted -- this backend lowers declarations, not bodies.
+export function index_fresh(age_ms: number): boolean {
+  return (age_ms < (SPEC_INDEX_TTL_MS as number));
+}
+export function found(words: number, words_in_path: number): boolean {
+  return ((words > 0) && (words_in_path === words));
+}
 export const SPEC_SEARCH_MAX = 20 satisfies number;
-// t27c gen-ts: fn shown was not emitted -- this backend lowers declarations, not bodies.
-// t27c gen-ts: fn path_readable was not emitted -- this backend lowers declarations, not bodies.
+export function shown(matches: number): number {
+  if ((matches > (SPEC_SEARCH_MAX as number))) {
+    return (SPEC_SEARCH_MAX as number);
+  }
+  return matches;
+}
+export function path_readable(under_bank: boolean, ends_t27: boolean, climbs: boolean): boolean {
+  return ((under_bank && ends_t27) && !climbs);
+}
 export const SPEC_READ_MAX_CHARS = 16000 satisfies number;
-// t27c gen-ts: fn read_chars was not emitted -- this backend lowers declarations, not bodies.
-// t27c gen-ts: fn falls_back was not emitted -- this backend lowers declarations, not bodies.
+export function read_chars(chars: number): number {
+  if ((chars > (SPEC_READ_MAX_CHARS as number))) {
+    return (SPEC_READ_MAX_CHARS as number);
+  }
+  return chars;
+}
+export function falls_back(bank_ok: boolean, host_has: boolean): boolean {
+  return (!bank_ok && host_has);
+}
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.

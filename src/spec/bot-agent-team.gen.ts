@@ -10,13 +10,13 @@ export const VERSION = 2 satisfies number;
 export const TEAM_SIZE = 6 satisfies number;
 export const TEAM_CORE = 1 satisfies number;
 export function joins_at_start(index: number, named_by_link: boolean): boolean {
-  return ((index < TEAM_CORE) || named_by_link);
+  return ((index < (TEAM_CORE as number)) || named_by_link);
 }
 export function tended(stored: boolean, joins: boolean): boolean {
   return (stored || joins);
 }
 export function offered(index: number, on_team: boolean): boolean {
-  return (((index >= TEAM_CORE) && (index < TEAM_SIZE)) && !on_team);
+  return (((index >= (TEAM_CORE as number)) && (index < (TEAM_SIZE as number))) && !on_team);
 }
 export const HIRE_BUTTONS_PER_ROW = 2 satisfies number;
 export const APP_CHAT_IS_TAB = true satisfies boolean;
@@ -27,7 +27,7 @@ export function app_hire_makes_tab(offered_now: boolean, bot_has_tabs: boolean):
   return (offered_now && bot_has_tabs);
 }
 export function speaker(addressed: number, channel: number): number {
-  if ((addressed < TEAM_SIZE)) {
+  if ((addressed < (TEAM_SIZE as number))) {
     return addressed;
   }
   return channel;
@@ -41,16 +41,16 @@ export function labelled(speaker_index: number, channel: number): boolean {
 }
 export const TURNS_AT_ONCE_PER_PERSON = 1 satisfies number;
 export function may_start(running: number): boolean {
-  return (running < TURNS_AT_ONCE_PER_PERSON);
+  return (running < (TURNS_AT_ONCE_PER_PERSON as number));
 }
 export const TURNS_WAITING_MAX = 6 satisfies number;
 export function may_wait(waiting: number): boolean {
-  return (waiting < TURNS_WAITING_MAX);
+  return (waiting < (TURNS_WAITING_MAX as number));
 }
 export const LIMIT_RETRIES = 3 satisfies number;
 export const LIMIT_PAUSE_MS = 4000 satisfies number;
 export function retry_pause_ms(retries_done: number): number {
-  let pause = LIMIT_PAUSE_MS;
+  let pause = (LIMIT_PAUSE_MS as number);
   let n = 0;
   while ((n < retries_done)) {
     pause = (pause * 2);
@@ -59,7 +59,7 @@ export function retry_pause_ms(retries_done: number): number {
   return pause;
 }
 export function may_retry(retries_done: number): boolean {
-  return (retries_done < LIMIT_RETRIES);
+  return (retries_done < (LIMIT_RETRIES as number));
 }
 export const NAMES_ITSELF_FIRST = true satisfies boolean;
 export function money_buttons_here(has_tabs: boolean, in_treasurer_tab: boolean): boolean {
