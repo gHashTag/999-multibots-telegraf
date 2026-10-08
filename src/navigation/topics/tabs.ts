@@ -8,9 +8,11 @@
  *
  * When the bot has topics turned on in BotFather (getMe answers
  * `has_topics_enabled`), /start makes a small set of tabs in the person's
- * chat, each with one job. Every tab is a conversation with the same agent
- * under its own memory (threads.ts agentConversationFor), so a reel being
- * discussed in one tab does not spill into the balance question in another.
+ * chat, each with one job. The Agent tab speaks in the person's base
+ * conversation, the one the mini-app shows; every other tab keeps its own
+ * memory under its kind (memory.ts, spec bot-agent-memory.t27), so a reel
+ * being discussed in one tab does not spill into the balance question in
+ * another.
  *
  * The claim protocol, the probe and the naming of a person's own topics live
  * in ./engine.ts, which the render server keeps a byte-identical copy of
@@ -93,6 +95,7 @@ export const {
   maySetUp,
   readsDb,
   evicts,
+  retitle,
   tabsOf,
   knownTabs,
   tabCacheSize,

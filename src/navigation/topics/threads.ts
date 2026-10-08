@@ -1,5 +1,5 @@
 /**
- * TABS IN THE PRIVATE CHAT: ONE TOPIC, ONE CONVERSATION.
+ * TABS IN THE PRIVATE CHAT: AN ANSWER GOES TO THE TAB IT WAS ASKED IN.
  *
  * Bot API 9.3 (2025-12-31) brought forum topics to private chats with a bot
  * (`User.has_topics_enabled`, `message_thread_id` / `is_topic_message` on
@@ -135,21 +135,6 @@ export async function topicThreadMiddleware(
     ctx.state.topicThreadId = threadId
   }
   return next()
-}
-
-/**
- * The render conversation of a topic (render conversation.ts
- * CONVERSATION_RE = /^[a-z0-9]{4,24}$/). Each tab keeps its own memory under
- * the person's own thread: `self~topic<id>`, listed in the mini-app beside the
- * other conversations. No topic -> undefined -> the base conversation, which
- * is what the bot always used.
- */
-export function agentConversationFor(
-  threadId: number | undefined
-): string | undefined {
-  if (threadId === undefined) return undefined
-  const id = `topic${threadId}`
-  return /^[a-z0-9]{4,24}$/.test(id) ? id : undefined
 }
 
 /**

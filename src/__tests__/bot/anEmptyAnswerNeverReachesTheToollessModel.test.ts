@@ -209,10 +209,15 @@ describe('an empty agent answer', () => {
      * there, not merely that the set shrank.
      */
     expect(callbacks(out[0])).toEqual(['act:human'])
-    // The question is on record already; only the line is written back.
-    expect(recordTurns).toHaveBeenCalledWith(String(USER), [
-      { role: 'assistant', content: fallback.honestMissLine(true, false) },
-    ])
+    // The question is on record already; only the line is written back --
+    // into the conversation the turn was asked in (bot-agent-memory.t27):
+    // a private chat outside any tab names none, so the base one.
+    expect(recordTurns).toHaveBeenCalledWith(
+      String(USER),
+      [{ role: 'assistant', content: fallback.honestMissLine(true, false) }],
+      'bot',
+      {}
+    )
   }, 60_000)
 
   it('speaks English to somebody who writes English with an English profile', async () => {

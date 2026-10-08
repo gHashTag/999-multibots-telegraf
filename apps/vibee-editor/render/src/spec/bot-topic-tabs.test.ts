@@ -118,6 +118,11 @@ describe('spec bot-topic-tabs.t27 (render engine)', () => {
     expect(E.settleWon(2)).toBe(false)
   })
 
+  it('a fixed tab named under an older title is renamed once to the current one', () => {
+    expect(E.retitle(false)).toBe(true)
+    expect(E.retitle(true)).toBe(false)
+  })
+
   it("a person's tabs are set up by that person or a keeper", () => {
     expect(E.maySetUp(true, false)).toBe(true)
     expect(E.maySetUp(false, true)).toBe(true)
@@ -153,6 +158,6 @@ describe('spec bot-topic-tabs.t27 (render engine)', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
   })
 })

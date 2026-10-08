@@ -1686,6 +1686,11 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
+  /*
+   * `room`, the same as the chat route takes: the bot's fallback line for a
+   * GROUP turn belongs to the room's memory, not to the asker's private one
+   * (bot-agent-memory.t27; it used to land in the asker's base thread).
+   */
   const gate = await withTask(
     withConversation(
       await threadFor(
@@ -1693,7 +1698,7 @@ export async function handleAgentHistoryAppend(
         telegramId,
         getPool,
         body.agent,
-        undefined,
+        body.room,
         body.role
       ),
       body.conversation

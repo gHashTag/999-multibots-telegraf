@@ -91,7 +91,13 @@ export interface EnsureOptions {
   now?: number
 }
 
-/** Interface text only; key, emoji, colour and route come from the spec. */
+/**
+ * Interface text only; key, emoji, colour and route come from the spec.
+ *
+ * Each tab is named after the agent who works in it (spec v3, owner
+ * 2026-10-08: "name the threads after the agents"), and its intro is that
+ * agent introducing itself.
+ */
 export const TAB_TEXT: Record<
   string,
   { ru: string; introRu: string; introEn: string }
@@ -104,38 +110,39 @@ export const TAB_TEXT: Record<
       'Your main conversation with the agent. Write or send a voice note; every tool is here.',
   },
   reels: {
-    ru: 'Рилсы',
+    ru: 'Режиссёр',
     introRu:
-      'Рилсы, липсинк, фото. Пришлите фото или опишите ролик — агент сделает его в этой вкладке.',
+      'Я режиссёр: рилсы, липсинк, фото. Пришлите фото или опишите ролик — сделаю его в этой вкладке.',
     introEn:
-      'Reels, lip-sync, photos. Send a photo or describe the video; the agent makes it in this tab.',
+      "I'm the director: reels, lip-sync, photos. Send a photo or describe the video; I make it in this tab.",
   },
   browser: {
-    ru: 'Браузер',
+    ru: 'Штурман',
     introRu:
-      'Ваш браузер на сервере. Скажите, что открыть и сделать; пароли вводите только сами.',
+      'Я штурман: веду ваш браузер на сервере. Скажите, что открыть и сделать; пароли вводите только сами.',
     introEn:
-      'Your own browser on the server. Say what to open and do; passwords are typed by you only.',
+      "I'm the navigator: I drive your own browser on the server. Say what to open and do; passwords are typed by you only.",
   },
   mybot: {
-    ru: 'Мой бот',
+    ru: 'Конструктор',
     introRu:
-      'Ваш собственный бот-агент. Кнопка ниже откроет окно Telegram для создания бота, или попросите агента здесь — он сделает это сам. /mybot покажет ваших ботов.',
+      'Я конструктор: собираю ваш собственный бот-агент. Кнопка ниже откроет окно Telegram для создания бота, или попросите здесь — сделаю сам. /mybot покажет ваших ботов.',
     introEn:
-      "Your own agent bot. The button below opens Telegram's bot creation sheet, or ask the agent here and it will do it. /mybot lists your bots.",
+      "I'm the builder: I make your own agent bot. The button below opens Telegram's bot creation sheet, or ask here and I'll do it. /mybot lists your bots.",
   },
   wallet: {
-    ru: 'Баланс и клуб',
+    ru: 'Казначей',
     introRu:
-      'Баланс токенов, пополнение и клуб. Спросите «какой у меня баланс?» или нажмите /club.',
+      'Я казначей: баланс токенов, пополнение и клуб. Спросите «какой у меня баланс?» или нажмите /club.',
     introEn:
-      'Token balance, top-up and the club. Ask "what is my balance?" or send /club.',
+      'I\'m the treasurer: token balance, top-up and the club. Ask "what is my balance?" or send /club.',
   },
   hive: {
-    ru: 'Улей',
-    introRu: 'Улей: задачи, доска и пчёлы. Спросите, что сейчас в работе.',
+    ru: 'Королева',
+    introRu:
+      'Я королева улья: задачи, доска и пчёлы. Спросите, что сейчас в работе.',
     introEn:
-      'The Hive: tasks, the board and the bees. Ask what is in progress.',
+      "I'm the Queen of the hive: tasks, the board and the bees. Ask what is in progress.",
   },
 }
 
@@ -236,6 +243,7 @@ export function createTopicTabs(deps: TopicTabsDeps) {
   const maySetUp = (own: boolean, keeper: boolean): boolean => own || keeper
   const readsDb = (cached: boolean): boolean => !cached
   const evicts = (entries: number): boolean => entries >= SPEC.TAB_CACHE_MAX
+  const retitle = (storedIsCurrent: boolean): boolean => !storedIsCurrent
 
   // ---- the database ----
 
@@ -403,6 +411,50 @@ export function createTopicTabs(deps: TopicTabsDeps) {
     }
   }
 
+  /**
+   * Give a stored fixed tab the table's current title (spec v3 retitle).
+   * Returns true when Telegram says the thread is gone: the row is then
+   * forgotten and the caller makes the tab again. A refused rename of any
+   * other kind keeps the tab and its old name -- a name is a convenience.
+   */
+  async function retitleRow(
+    api: TopicApi,
+    bot: string,
+    chatId: number,
+    threadId: number,
+    name: string,
+    kind: string
+  ): Promise<boolean> {
+    try {
+      await api.callApi('editForumTopic', {
+        chat_id: chatId,
+        message_thread_id: threadId,
+        name,
+      })
+    } catch (e) {
+      if (threadMissing(e)) {
+        await forgetRowAt(bot, chatId, threadId)
+        return true
+      }
+      // Telegram already shows this name (an earlier rename whose row update
+      // was lost): only the row is behind, so it is brought up to date below.
+      if (!/not.?modified/i.test(errorText(e))) {
+        deps.log.warn('[topic-tabs] tab not renamed', {
+          bot,
+          kind,
+          error: errorText(e),
+        })
+        return false
+      }
+    }
+    await run(
+      'UPDATE bot_topic_tabs SET title = $4 WHERE bot_username = $1 AND telegram_id = $2 AND thread_id = $3',
+      [bot, chatId, threadId, name]
+    )
+    drop(bot, chatId)
+    return false
+  }
+
   /** A fresh claim of the person's: a tab is being made right now. */
   const claimPending = (rows: readonly TabRow[], now: number) =>
     rows.some(
@@ -447,6 +499,16 @@ export function createTopicTabs(deps: TopicTabsDeps) {
         if (row && opts.probe) {
           alive = await stillThere(api, chatId, row.thread_id)
           if (!alive) await forgetRowAt(bot, chatId, row.thread_id)
+        }
+        // A tab the bot named under an older title gets the current one, once:
+        // the row then holds the current title, so the next /start does nothing.
+        if (row && alive && retitle(row.title === name)) {
+          if (
+            await retitleRow(api, bot, chatId, row.thread_id, name, tab.kind)
+          ) {
+            row = undefined
+            alive = false
+          }
         }
         if (!makeTab(row !== undefined, alive)) continue
 
@@ -589,6 +651,7 @@ export function createTopicTabs(deps: TopicTabsDeps) {
     maySetUp,
     readsDb,
     evicts,
+    retitle,
     ensureSchema,
     tabsOf,
     rowsOf,
