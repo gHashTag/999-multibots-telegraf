@@ -138,5 +138,70 @@
     "from": "await handOffInOffice(ctx, text, ochishcheno,",
     "to": "void (ctx, text, ochishcheno,",
     "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "tasks kept in any group",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "export function mayTrack(office: boolean): boolean {\n  return office",
+    "to": "export function mayTrack(office: boolean): boolean {\n  return true",
+    "tests": [
+      "src/__tests__/navigation/officeTasks.test.ts",
+      "src/spec/bot-neuro-office.test.ts"
+    ]
+  },
+  {
+    "name": "a mention wins over a reply",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  if (hasReply) return OFFICE.OWNER_FROM_REPLY\n",
+    "to": "",
+    "tests": [
+      "src/__tests__/navigation/officeTasks.test.ts",
+      "src/spec/bot-neuro-office.test.ts"
+    ]
+  },
+  {
+    "name": "the author cannot close a task",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  return isOwner || isAuthor || isAdmin",
+    "to": "  return isOwner || isAdmin",
+    "tests": [
+      "src/__tests__/navigation/officeTasks.test.ts",
+      "src/spec/bot-neuro-office.test.ts"
+    ]
+  },
+  {
+    "name": "the topic's first message counts as a reply",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  if (message?.is_topic_message && r.message_id === message.message_thread_id)\n    return null\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "an owner named by @username cannot close",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "    (!!me.username && task.owner_name === `@${me.username}`)",
+    "to": "    false",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "/todos shows done tasks",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "AND NOT done ORDER BY id LIMIT $3",
+    "to": "ORDER BY id LIMIT $3",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "office tasks never registered",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "  registerOfficeTasks(bot)\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "/done finds a task already closed",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3 AND NOT done'",
+    "to": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3'",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
   }
 ]
