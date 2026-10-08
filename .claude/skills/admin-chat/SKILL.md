@@ -53,9 +53,13 @@ description: 'Рабочий чат админов @t27_ai: здесь разр�
 ВСЕ уведомления админам (именно этот дефект резолвер и закрывает):
 
 ```bash
-# проверить, что бот видит чат (значение токена не печатать)
-curl -s "https://api.telegram.org/bot$TOKEN/getChat?chat_id=@t27_ai"   # ok:true → адрес верный
-railway variables --set ADMIN_CHAT_ID=t27_ai     # резолвер сам добавит @
+# Хост Bot API — по токену: бот может жить на нашем сервере, а не в облаке
+# (services/telegramApi.ts). Значения токена не печатать.
+KV=$(railway variables --service 999-multibots-telegraf --kv)
+TOKEN=$(printf '%s\n' "$KV" | grep '^BOT_TOKEN_1=' | cut -d= -f2-)
+ROOT=$(printf '%s\n' "$KV" | BOT_API_TOKEN="$TOKEN" node scripts/lib/telegram-api.cjs api-root --env-from-stdin)
+curl -s "$ROOT/bot$TOKEN/getChat?chat_id=@t27_ai" | head -c 200   # "ok":true → адрес верный
+railway variables --service 999-multibots-telegraf --set ADMIN_CHAT_ID=t27_ai   # резолвер сам добавит @
 ```
 
 Про id: `3854462316` положительный — так выглядит id пользователя/бота; id группы
@@ -69,6 +73,16 @@ railway variables --set ADMIN_CHAT_ID=t27_ai     # резолвер сам до�
   нигде в рабочем коде.
 - `src/__tests__/reliability/aPaymentErrorReachesTheAdmin.test.ts` — ошибка с `null` ctx
   (путь оплаты) доходит до канала; отказ не считается доставкой.
+
+## Пишем на .t27
+
+**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
+лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
+спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
+`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
+долг, а не норма. Как именно, законы и ловушки -- только в навыке
+`t27-spec-first`: здесь указатель, не копия правила. (Адрес канала -- это
+конфигурация среды, а не правило поведения, поэтому спеки он не требует.)
 
 ## Related Resources
 
