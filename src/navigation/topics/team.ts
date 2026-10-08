@@ -22,6 +22,7 @@
  */
 import * as TEAM from '@/spec/bot-agent-team.gen'
 import * as TABS_SPEC from '@/spec/bot-topic-tabs.gen'
+import * as OFFICE from '@/spec/bot-neuro-office.gen'
 import { knownTabs } from './tabs'
 import { privateTopicOf } from './threads'
 
@@ -116,6 +117,9 @@ export const TREASURER_KIND = 'wallet'
  */
 export async function moneyHere(ctx: any): Promise<boolean> {
   try {
+    // A room carries no pay buttons (bot-neuro-office.t27 pay_buttons_in).
+    if (ctx?.chat?.type === 'group' || ctx?.chat?.type === 'supergroup')
+      return OFFICE.pay_buttons_in(true)
     if (ctx?.chat?.type !== 'private') return true
     const bot = String(ctx.botInfo?.username ?? '')
     if (!bot) return true

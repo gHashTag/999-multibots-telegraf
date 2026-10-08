@@ -399,3 +399,26 @@ describe('the neuro-office: every member in every channel', () => {
     ).toBe('')
   })
 })
+
+describe('the neuro-office room: a channel speaks as its member', () => {
+  it('a member is taken only with a room, and only a team kind', async () => {
+    const { officeMember } = await import('../agent/routes')
+    expect(officeMember('wallet', '-1001234567890')).toBe(true)
+    expect(officeMember('wallet', undefined)).toBe(false)
+    expect(officeMember('stranger', '-1001234567890')).toBe(false)
+    expect(officeMember(42, '-1001234567890')).toBe(false)
+  })
+
+  it("a room turn in the Treasurer's channel is the Treasurer's; named first, a colleague is its guest", () => {
+    const said = (t: string) => [{ role: 'user' as const, content: t }]
+    expect(
+      teamSection({ surface: 'bot', profession: 'tabwallet' }, said('сколько?'))
+    ).toContain('КАЗНАЧЕЙ') // cyrillic-ok: prompt copy under test
+    const guest = teamSection(
+      { surface: 'bot', profession: 'tabwallet' },
+      said('Штурман, открой hh')
+    ) // cyrillic-ok: a person's words under test
+    expect(guest).toContain('ШТУРМАН') // cyrillic-ok: prompt copy under test
+    expect(guest).toContain(speakerLabel(4))
+  })
+})
