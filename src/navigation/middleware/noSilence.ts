@@ -87,6 +87,21 @@ export const SERVICE_MESSAGE_FIELDS = [
   'video_chat_started',
   'video_chat_ended',
   'video_chat_participants_invited',
+  /*
+   * Forum-topic service messages (Bot API 9.3/9.4: private-chat topics). The
+   * bot MAKES the topic tabs itself (src/navigation/topics), and each
+   * createForumTopic lands a `forum_topic_created` service message back in that
+   * same private chat. Without these the net answered "I got your message but
+   * could not tell what to do with it" into every freshly-made tab, right under
+   * its own intro -- the bot puzzling at its own housekeeping. These are
+   * Telegram telling the bot something, never a person asking it anything.
+   */
+  'forum_topic_created',
+  'forum_topic_edited',
+  'forum_topic_closed',
+  'forum_topic_reopened',
+  'general_forum_topic_hidden',
+  'general_forum_topic_unhidden',
 ]
 
 /**
