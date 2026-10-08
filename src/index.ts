@@ -126,6 +126,9 @@ const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => {
 }
 import { startBotApiServerMonitor } from '@/services/botApiServerMonitor'
 
+/** A payment's news in the Treasurer's tab of the private chat (bot-event-tabs.t27). */
+const paidInTreasurerTab = inEventTab('payment', handleSuccessfulPayment as any)
+
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 
@@ -529,10 +532,7 @@ async function initializeBots() {
      */
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
     // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
-    bot.on(
-      'successful_payment',
-      inEventTab('payment', handleSuccessfulPayment as any) as any
-    )
+    bot.on('successful_payment', paidInTreasurerTab as any)
 
     /*
      * A CLIENT'S OWN AGENT BOT (Telegram Managed Bots, Bot API 9.6).
