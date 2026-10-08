@@ -13,6 +13,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const chatWithAI = vi.fn(async () => 'ok reply')
+/* The shared transcript lives on the production render (trinityAgent
+ * fetchHistory): unstubbed, every turn here read it -- with a real key, where
+ * one is set (apps/vibee-editor/packages/test-guard/no-network.mjs). [] is what an unreachable render gives. */
+vi.mock('@/services/trinityAgent', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/services/trinityAgent')>()),
+  fetchHistory: async () => [],
+}))
 vi.mock('@/services/aiChatService', () => ({
   chatWithAI: (...a: unknown[]) => chatWithAI(...(a as [])),
   AI_CHAT_MODELS: {},

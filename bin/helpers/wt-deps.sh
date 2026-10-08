@@ -11,9 +11,10 @@
 #          in a linked tree: it writes through the symlink)
 #   render node_modules -> a REAL directory: a symlink is removed (atoms
 #          would resolve into the other tree); a missing one is an APFS clone
-#          (`cp -c`, near-free) from a donor whose render/package-lock.json
-#          is byte-identical -- the main checkout first, then any sibling
-#          worktree; with no donor, `npm ci` in render only.
+#          (`cp -c`, near-free; on Linux `cp --reflink=auto`) from a donor
+#          whose render/package-lock.json is byte-identical -- the main
+#          checkout first, then any sibling worktree; with no donor,
+#          `npm ci` in render only.
 #
 # rc 0 = ready, 1 = still broken. Seam: TRI_WT_MAIN (the main checkout).
 set -u
@@ -63,8 +64,17 @@ if [ ! -d "$TREE/$R/node_modules" ]; then
     break
   done
   if [ -n "$donor" ]; then
-    cp -cR "$donor/$R/node_modules" "$TREE/$R/node_modules" &&
+    # `cp -c` is the macOS clone; GNU cp has no -c and refused the whole
+    # copy, so on Linux (the cloud container, the Railway runner) the tree
+    # was left without render deps. There a reflink clone where the file
+    # system has one, a plain copy where it does not.
+    if cp -cR "$donor/$R/node_modules" "$TREE/$R/node_modules" 2>/dev/null; then
       echo "  render  cloned (APFS) from $donor"
+    else
+      rm -rf "$TREE/$R/node_modules"
+      cp -R --reflink=auto "$donor/$R/node_modules" "$TREE/$R/node_modules" &&
+        echo "  render  cloned (reflink or copy) from $donor"
+    fi
   else
     echo "  render  no donor with this lock -- npm ci in render only"
     (cd "$TREE/$R" && npm ci --no-audit --no-fund >/dev/null 2>&1) ||

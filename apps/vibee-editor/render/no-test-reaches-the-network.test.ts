@@ -1,7 +1,8 @@
 /**
- * The guard every render test runs under (test-support/no-network.ts): fetch
- * and DNS to any host but this machine are refused, and the test that asked
- * fails, by file and host, even when the code swallowed the refusal.
+ * The guard every render test runs under (test-support/no-network.ts, which
+ * installs apps/vibee-editor/packages/test-guard/no-network.mjs): fetch, DNS and TCP connects to any
+ * host but this machine are refused, and the test that asked fails, by file
+ * and host, even when the code swallowed the refusal.
  *
  * Why it exists: on 2026-10-08 the full run passed 7339 tests and still ended
  * red on 11 "getaddrinfo ENOTFOUND www.reddit.com" -- the blog-share desk's
@@ -11,7 +12,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import type { AddressInfo } from 'node:net'
+import net, { type AddressInfo } from 'node:net'
 import dns from 'node:dns'
 import { lookup as promiseLookup } from 'node:dns/promises'
 import { join } from 'node:path'
@@ -96,9 +97,7 @@ describe('no render test reaches the network', () => {
     const e = await fetch('https://www.reddit.com/r/t27ai/about.json').catch(
       (x: Error) => x
     )
-    expect(String(e)).toMatch(
-      /no network in render tests: fetch www\.reddit\.com/
-    )
+    expect(String(e)).toMatch(/no network in tests: fetch www\.reddit\.com/)
     expect(String(e)).toContain(HERE)
     const lines = drainReached()
     expect(lines).toHaveLength(1)
@@ -110,7 +109,7 @@ describe('no render test reaches the network', () => {
     // Reddit read hid behind passing tests.
     await fetch('https://www.reddit.com/').catch(() => 'swallowed')
     expect(() => failIfReached()).toThrow(
-      /a render test reached the network \(1\):\n {2}fetch www\.reddit\.com from .*no-test-reaches-the-network\.test\.ts/
+      /a test reached the network \(1\):\n {2}fetch www\.reddit\.com from .*no-test-reaches-the-network\.test\.ts/
     )
     expect(drainReached()).toEqual([])
   })
@@ -145,7 +144,7 @@ describe('no render test reaches the network', () => {
     )
     const out = `${run.stdout}${run.stderr}`
     expect(run.status, out).toBe(1)
-    expect(out).toMatch(/a render test reached the network \(1\)/)
+    expect(out).toMatch(/a test reached the network \(1\)/)
     expect(out).toMatch(/fetch www\.reddit\.com from .*leaks\.fixture\.ts/)
     // The test that asked is the one marked failed (afterEach), not only
     // its file at the end (afterAll catches what leaks after the last test).
@@ -154,6 +153,20 @@ describe('no render test reaches the network', () => {
     )
     expect(out).toMatch(/Tests\s+1 failed/)
   }, 60_000)
+
+  it('refuses a TCP connect to an address, which asks no resolver', async () => {
+    const e = await new Promise<NodeJS.ErrnoException>(resolve => {
+      const s = net.connect(443, '93.184.216.34')
+      s.on('error', resolve)
+      s.on('connect', () => resolve(new Error('connected') as never))
+    })
+    expect(e.code).toBe('ENETUNREACH')
+    expect(drainReached()).toEqual([
+      expect.stringMatching(
+        /^connect 93\.184\.216\.34 from .*no-test-reaches-the-network/
+      ),
+    ])
+  })
 
   it('lets a test serve and call itself', async () => {
     const server = createServer((_q, r) => r.end('ok'))

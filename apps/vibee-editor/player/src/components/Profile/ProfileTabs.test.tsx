@@ -73,6 +73,11 @@ vi.mock('./PairWithApp', () => ({
   PairWithApp: () => <div>Agent pairing</div>,
 }))
 vi.mock('./UserCard', () => ({ UserCard: () => <div>User card</div> }))
+/* It asks the production render for /api/tg/connect/status on mount
+ * (apps/vibee-editor/packages/test-guard/no-network.mjs); its own tests cover it. */
+vi.mock('./ConnectTelegram', () => ({
+  ConnectTelegram: () => <div>Connect Telegram</div>,
+}))
 vi.mock('./profileTabCounts', () => ({ profileTabCount: () => null }))
 
 import { ProfileTabs } from './ProfileTabs'
