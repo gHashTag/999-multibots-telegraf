@@ -61,6 +61,26 @@ export const addressed = (atStart: boolean, isMemberName: boolean): boolean =>
 export const labelled = (speakerIndex: number, channel: number): boolean =>
   speakerIndex !== channel
 
+/*
+ * spec v2 laws the BOT runs (src/services/personTurns.ts, topics/team.ts),
+ * mirrored here so this copy's binding runs every vector of the spec.
+ */
+export const mayStart = (running: number): boolean =>
+  running < TEAM.TURNS_AT_ONCE_PER_PERSON
+export const mayWait = (waiting: number): boolean =>
+  waiting < TEAM.TURNS_WAITING_MAX
+export function retryPauseMs(retriesDone: number): number {
+  let pause = TEAM.LIMIT_PAUSE_MS
+  for (let n = 0; n < retriesDone; n++) pause *= 2
+  return pause
+}
+export const mayRetry = (retriesDone: number): boolean =>
+  retriesDone < TEAM.LIMIT_RETRIES
+export const moneyButtonsHere = (
+  hasTabs: boolean,
+  inTreasurerTab: boolean
+): boolean => !hasTabs || inTreasurerTab
+
 /** spec tool_shown: every tool for every member, its trade first. */
 export const toolShown = (everyTool: boolean, inTrade: boolean): boolean =>
   everyTool || inTrade
@@ -191,7 +211,8 @@ export function professionSection(
   const channel = channelMember(conversation)
   const who = speakerFor(conversation, text)
   const guest = labelled(who, channel)
-  if (!guest && !hasTrade(who >= 0, who < TEAM.TEAM_CORE)) return ''
+  if (!guest && !hasTrade(who >= 0, who < TEAM.TEAM_CORE))
+    return TEAM.NAMES_ITSELF_FIRST ? agentIdentity() : ''
   const kind = TABS_SPEC.TAB_KEYS[who]
   const trade = TRADE_RU[kind]
   if (!trade) return ''
@@ -208,8 +229,31 @@ export function professionSection(
       ? `Твои инструменты в первую очередь: ${lead.join(', ')}. ` // cyrillic-ok: prompt copy
       : '') +
     'Но все остальные инструменты тоже твои: о чём бы ни попросили, делай сам, ' + // cyrillic-ok: prompt copy
-    'а не отсылай. Коллегу можно позвать в любой канал, назвав его первым словом: ' + // cyrillic-ok: prompt copy
+    'а не отсылай. ' + // cyrillic-ok: prompt copy
+    (TEAM.NAMES_ITSELF_FIRST
+      ? `На вопрос «кто ты» или «что умеешь» начни: «Я — ${speakerLabel(who)} в вашей команде агентов», ` + // cyrillic-ok: prompt copy
+        'скажи своё ремесло и сначала назови инструменты ремесла; ты не агент рилсов, если это не твоё ремесло. ' // cyrillic-ok: prompt copy
+      : '') +
+    'Коллегу можно позвать в любой канал, назвав его первым словом: ' + // cyrillic-ok: prompt copy
     '«Казначей, …», «Штурман, …». ' + // cyrillic-ok: prompt copy
     'Любое правило, число и порог проекта сверяй со спекой: t27_specs.' // cyrillic-ok: prompt copy
+  )
+}
+
+/**
+ * The Agent in its own channel: no trade, but it names itself and its team
+ * first (NAMES_ITSELF_FIRST), so "who are you" is not answered as one
+ * reels agent in every channel.
+ */
+export function agentIdentity(): string {
+  const team = TABS_SPEC.TAB_KEYS.map((_, i) => speakerLabel(i))
+    .slice(TEAM.TEAM_CORE)
+    .join(', ')
+  return (
+    `\n\nТЫ — ${speakerLabel(0)}, ГЛАВНЫЙ В КОМАНДЕ АГЕНТОВ ЧЕЛОВЕКА (нейроофис). ` + // cyrillic-ok: prompt copy
+    `В команде с тобой: ${team}; у каждого своя вкладка, и любого можно позвать в любой канал, ` + // cyrillic-ok: prompt copy
+    'назвав его первым словом. На вопрос «кто ты» или «что умеешь» начни: ' + // cyrillic-ok: prompt copy
+    `«Я — ${speakerLabel(0)}, главный в вашей команде агентов», коротко скажи, что делаешь всё сам, ` + // cyrillic-ok: prompt copy
+    'и назови команду. Любое правило, число и порог проекта сверяй со спекой: t27_specs.' // cyrillic-ok: prompt copy
   )
 }
