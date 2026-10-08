@@ -246,6 +246,16 @@ export const CRM_FIXTURES: Record<string, unknown> = {
   },
 }
 
+/** AUTO switched on: until a fixed local hour, 7 of 30 left today. */
+export const CRM_AUTO_ON = {
+  on: true,
+  until: '2026-10-08T21:30:00',
+  left_today: 7,
+  cap: 30,
+  scope: 'chosen',
+  chosen: 3,
+}
+
 /**
  * Answer MCP tool calls from fixtures, in the page itself -- so a harness
  * works in any browser, not only under `tri shot`'s network interception.

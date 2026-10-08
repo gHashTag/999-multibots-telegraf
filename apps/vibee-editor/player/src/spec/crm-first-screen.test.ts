@@ -13,9 +13,11 @@ import { describe, expect, it } from 'vitest'
 import * as SPEC from './crm-first-screen.gen'
 import {
   CRM_PHONE_QUERY,
-  autoFolds,
+  autoLine,
   countShown,
   isPhoneWidth,
+  lineAction,
+  lineStops,
   onFirstScreen,
   pillsAt,
   telegramLine,
@@ -47,11 +49,20 @@ describe('crm-first-screen.t27, against the host', () => {
     expect(pillsAt(481)).toBe(false)
   })
 
-  it('AUTO folds only on a phone, only read, only off', () => {
-    expect(autoFolds(true, true, false)).toBe(true)
-    expect(autoFolds(true, true, true)).toBe(false)
-    expect(autoFolds(true, false, false)).toBe(false)
-    expect(autoFolds(false, true, false)).toBe(false)
+  it('AUTO is one line on a phone once read, off or on', () => {
+    expect(autoLine(true, true)).toBe(true)
+    expect(autoLine(true, false)).toBe(false)
+    expect(autoLine(false, true)).toBe(false)
+    expect(autoLine(false, false)).toBe(false)
+  })
+
+  it('a press on the AUTO line can only make things safer', () => {
+    expect(lineAction(true)).toBe(SPEC.ACTION_STOP)
+    expect(lineAction(false)).toBe(SPEC.ACTION_NONE)
+    expect(lineAction(true)).not.toBe(SPEC.ACTION_START)
+    expect(lineAction(false)).not.toBe(SPEC.ACTION_START)
+    expect(lineStops(true)).toBe(true)
+    expect(lineStops(false)).toBe(false)
   })
 
   it('a count of zero is not printed', () => {

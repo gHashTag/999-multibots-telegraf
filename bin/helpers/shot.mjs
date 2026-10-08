@@ -21,7 +21,8 @@
  *   - wider: the page scrolls sideways (documentElement.scrollWidth);
  *   - small: a button, input or link under the target on either side;
  *   - cut: text clipped by its own box (scrollWidth > clientWidth), or
- *     spilling out of the bottom of a button (scrollHeight > clientHeight);
+ *     spilling out of a button, down (scrollHeight > clientHeight) or to
+ *     the right (scrollWidth > clientWidth, the nowrap of design-system);
  *   - overlap: two controls whose boxes intersect;
  *   - order: what a harness says must be read first (its `before` pairs:
  *     the price above the button, spec v16) stands higher on the screen.
@@ -498,6 +499,38 @@ const HARNESSES = {
           await box.fill('ан')
           await p.waitForTimeout(400)
         },
+      },
+    ],
+  },
+
+  /*
+   * THE CRM LIST WITH AUTO ON (crm-first-screen.t27 v2): on a phone the
+   * panel is one line even while it writes to people, and that line carries
+   * its own Turn off -- the only press it offers, and one that can only make
+   * things safer. Same first screen as `crm`: the waiting person and their
+   * Prepare still end above Telegram's bottom, and so does Turn off.
+   */
+  'crm-auto-on': {
+    page: 'crm',
+    query: '?auto=on',
+    tool: 'crm_clients',
+    root: '.crm',
+    scope: '.crm',
+    within: 'root',
+    states: [
+      {
+        id: 'load',
+        ready: async p => {
+          await p.locator('.crm__row').first().waitFor()
+          await p.locator('.crm-auto__stop').waitFor()
+        },
+        fold: [
+          '.crm-auto__stop',
+          '.crm__list .crm__open',
+          ['.crm__list .crm__why', FIRST.PILLS_MIN_PX],
+          ['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX],
+        ],
+        foldInsets: TELEGRAM,
       },
     ],
   },
@@ -1291,6 +1324,21 @@ function measure({
       el.scrollHeight > el.clientHeight + 1
     )
       cut.push(`${name(el)} spills ${el.scrollHeight}>${el.clientHeight} down`)
+  /*
+   * The same spill SIDEWAYS: the design system's button rule also says
+   * `white-space: nowrap`, so a button's words that do not fit run on past
+   * its right edge -- under the next button on the line (the CRM's AUTO line
+   * ON, 2026-10-08: its "7/30 left" under its own Turn off, green on cut and
+   * overlap, since neither box moved). Only where overflow is VISIBLE, as
+   * above: a clipped button is the sideways test's.
+   */
+  for (const el of controls)
+    if (
+      el.tagName === 'BUTTON' &&
+      getComputedStyle(el).overflowX === 'visible' &&
+      el.scrollWidth > el.clientWidth + 1
+    )
+      cut.push(`${name(el)} spills ${el.scrollWidth}>${el.clientWidth} right`)
   /*
    * What of a control is on screen: its box cut by every clipping ancestor
    * (a scrolled log). A starter half-scrolled under the log's edge does not

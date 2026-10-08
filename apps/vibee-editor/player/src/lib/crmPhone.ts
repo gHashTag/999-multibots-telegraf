@@ -9,7 +9,8 @@
  * Measured with `tri shot crm` at 390x844, 07.10.2026: the first person
  * waiting for an answer ended at 926 px and their Prepare at 1065 px, under
  * a tab bar that starts at 787 -- and Telegram in fullscreen keeps 105 px on
- * top and 34 below on top of that.
+ * top and 34 below on top of that. v2 (08.10.2026): AUTO on is one line
+ * too, with its stop on it.
  */
 import * as SPEC from '../spec/crm-first-screen.gen'
 
@@ -27,28 +28,36 @@ export function pillsAt(width: number): boolean {
 }
 
 /**
- * The spec's auto_folds: THE AUTO SWITCH, OFF, IS ONE LINE ON A PHONE.
+ * The spec's auto_line: THE AUTO SWITCH IS ONE LINE ON A PHONE, OFF OR ON.
  *
  * The biggest thing above the first person was this panel, about 220 px:
- * a state line, two scope chips, the switch and a hint -- for a switch that
- * was OFF, the state in which nothing leaves without the owner's press.
+ * a state line, two scope chips, the switch and a hint. v1 folded it while
+ * OFF; on, it stayed full size -- and the first person's Prepare left the
+ * first screen exactly while AUTO was writing to people by itself (owner,
+ * 08.10.2026: "variant 2, AUTO on in one line").
  *
- * So the panel is sized by what the switch is doing, not by what it could
- * do. Off, on a phone, it folds to its name and the word "off", one press
- * from the whole panel. On, it is never folded: that is the state that
- * writes to people by itself, and its stop button stays in plain sight.
- * A switch whose state could not be read is not folded either: it says so
- * at full size (AutoPanel: AN UNREADABLE SWITCH SAYS SO).
- *
- * The scope is chosen before the switch is turned on, so the folded line
- * carries no "turn on": a press there would send to everyone unseen.
+ * Once its state is read the switch is one line on a phone either way, one
+ * press from the whole panel. A switch whose state could not be read is not
+ * a line: it says so at full size (AutoPanel: AN UNREADABLE SWITCH SAYS SO).
  */
-export function autoFolds(
-  phone: boolean,
-  reachable: boolean,
-  on: boolean
-): boolean {
-  return phone && reachable && !on
+export function autoLine(phone: boolean, reachable: boolean): boolean {
+  return phone && reachable
+}
+
+/**
+ * The spec's line_action: what the AUTO line's own button does, besides
+ * opening the panel. On, it STOPS -- the state that writes to people keeps
+ * its stop on the first screen. Off, nothing: the scope is chosen before
+ * the switch is turned on, so a press on the line can only make things
+ * safer, never start sending.
+ */
+export function lineAction(on: boolean): number {
+  return on ? SPEC.ACTION_STOP : SPEC.ACTION_NONE
+}
+
+/** The AUTO line carries the stop (the only action it may carry). */
+export function lineStops(on: boolean): boolean {
+  return lineAction(on) === SPEC.ACTION_STOP
 }
 
 /** The three kinds of waiting a count line can name. */

@@ -392,12 +392,61 @@ describe('the work tab on a phone', () => {
     expect(calls.filter(c => c.name === 'autopilot_set')).toHaveLength(0)
   })
 
-  it('never folds a switch that is ON: its stop stays in plain sight', async () => {
-    autopilot = { ...autopilot, on: true, until: iso(Date.now() + 3_600_000) }
+  /*
+   * crm-first-screen v2 (owner, 08.10.2026: "variant 2"): ON is one line
+   * too, and the line holds the stop -- one press from off, on the first
+   * screen. Off, the line holds no button at all.
+   */
+  const stop = () => host.querySelector<HTMLButtonElement>('.crm-auto__stop')
+  const switchedOn = () => {
+    autopilot = {
+      ...autopilot,
+      on: true,
+      until: iso(Date.now() + 3_600_000),
+      left_today: 7,
+    }
+  }
+
+  it('folds a switch that is ON to one line, with its stop on it', async () => {
+    switchedOn()
     asPhone()
     await screen()
-    expect(fold()).toBeNull()
+    expect(fold()!.getAttribute('aria-expanded')).toBe('false')
+    expect(fold()!.textContent).toContain('crm.auto.onShort:')
+    expect(fold()!.textContent).toContain(',7,20')
+    expect(stop()?.textContent).toBe('crm.auto.stop')
+    // The line is the switch's state and its stop -- not the whole panel.
+    expect(host.querySelector('.crm-auto__scope')).toBeNull()
+  })
+
+  it('the stop on the line turns AUTO off, and only off', async () => {
+    switchedOn()
+    asPhone()
+    await screen()
+    await act(async () => stop()!.click())
+    await settle()
+    const set = calls.filter(c => c.name === 'autopilot_set')
+    expect(set).toHaveLength(1)
+    expect(set[0].args.on).toBe(false)
+    // Off now: the line holds no button.
+    expect(stop()).toBeNull()
+    expect(fold()!.textContent).toContain('crm.auto.offShort')
+  })
+
+  it('opened while ON, the panel holds the one switch; the line drops its stop', async () => {
+    switchedOn()
+    asPhone()
+    await screen()
+    await act(async () => fold()!.click())
+    expect(stop()).toBeNull()
     expect(byText('crm.auto.turnOff')).toBeTruthy()
+  })
+
+  it('off, the line carries no button: it never starts sending', async () => {
+    asPhone()
+    await screen()
+    expect(stop()).toBeNull()
+    expect(byText('crm.auto.turnOn')).toBeFalsy()
   })
 
   it('never folds a switch it could not read: it says so at full size', async () => {

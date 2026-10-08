@@ -27,7 +27,31 @@ describe('tri shot and crm-first-screen.t27', () => {
   })
 
   it("holds the CRM's load state to Telegram's line, Prepare included", () => {
-    expect(shot).toContain('foldInsets: TELEGRAM')
-    expect(shot).toContain("['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX]")
+    // The crm stand alone: crm-auto-on, next to it, says the same lines.
+    const crm = shot.slice(
+      shot.indexOf('  crm: {'),
+      shot.indexOf("'crm-auto-on': {")
+    )
+    expect(crm).toContain('foldInsets: TELEGRAM')
+    expect(crm).toContain("['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX]")
+  })
+
+  // v2: AUTO on is one line on a phone, and its Turn off is on that line --
+  // on Telegram's first screen, measured with AUTO actually on.
+  it('measures the AUTO line switched on, its Turn off on the first screen', () => {
+    const stand = shot.slice(shot.indexOf("'crm-auto-on': {"))
+    expect(stand).toContain("query: '?auto=on'")
+    expect(stand.slice(0, stand.indexOf('foldInsets'))).toContain(
+      "'.crm-auto__stop',"
+    )
+    expect(stand).toContain('foldInsets: TELEGRAM')
+  })
+
+  // The AUTO word once ran under its own Turn off with cut 0 and overlap 0:
+  // a button that paints its words past its right edge is a cut.
+  it('counts a button whose words run past its right edge', () => {
+    expect(shot).toMatch(
+      /overflowX === 'visible' &&\s+el\.scrollWidth > el\.clientWidth \+ 1\s+\)\s+cut\.push\(`\$\{name\(el\)\} spills \$\{el\.scrollWidth\}>\$\{el\.clientWidth\} right`\)/
+    )
   })
 })
