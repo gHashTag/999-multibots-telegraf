@@ -26,7 +26,7 @@ import * as TEAM from '@/spec/bot-agent-team.gen'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ensureTabs, knownTabs, TABS } from './tabs'
-import { addressed } from './team'
+import { addressed, speaker } from './team'
 
 /** spec may_open_office: a forum, the bot managing topics, an admin asking. */
 export function mayOpenOffice(
@@ -123,6 +123,100 @@ export function catchupAsk(isRu: boolean): string {
   return isRu
     ? `Я был(а) не здесь. Коротко по памяти этой комнаты: ${parts}. Только то, что люди здесь сказали; чего не было — так и скажи.`
     : `I was away. Briefly, from this room's memory: ${parts}. Only what people here said; if something was not said, say so.`
+}
+
+/** spec hands_off (v4): once, in an office, to a colleague, never to oneself. */
+export function handsOff(
+  office: boolean,
+  depth: number,
+  namesColleague: boolean,
+  colleagueIsSelf: boolean
+): boolean {
+  return (
+    office &&
+    depth < OFFICE.HANDOFF_DEPTH_MAX &&
+    namesColleague &&
+    !colleagueIsSelf
+  )
+}
+
+/**
+ * The first line of an answer that opens with a colleague's name, and that
+ * colleague; a line naming the answering member itself (its own "Director:"
+ * label) is skipped.
+ */
+export function handoffIn(
+  answer: string,
+  from: string | undefined
+): { kind: string; text: string } | null {
+  for (const line of String(answer ?? '').split('\n')) {
+    const i = memberNamedFirst(line)
+    if (i >= TEAM.TEAM_SIZE) continue
+    const kind = TABS_SPEC.TAB_KEYS[i]
+    if (kind === from) continue
+    return { kind, text: line.trim() }
+  }
+  return null
+}
+
+/** A member's label in the room, emoji and name. */
+function memberLabel(kind: string | undefined, isRu: boolean): string {
+  const tab = TABS.find(t => t.kind === kind)
+  return tab ? (isRu ? tab.ru : tab.en) : String(kind ?? '')
+}
+
+/**
+ * HAND-OFF (spec v4, issue #3900). After a member answered in an office, a
+ * line of that answer opening with a colleague's name ("Treasurer, count the
+ * budget") is asked of that colleague once, in the person's name, and the
+ * colleague answers in the room under its own name. The colleague's answer
+ * is never handed on (HANDOFF_DEPTH_MAX). Never throws.
+ */
+export async function handOffInOffice(
+  ctx: any,
+  personText: string,
+  answer: string,
+  ask: (
+    telegramId: string,
+    text: string,
+    opts: { room: string; member: string; speaker: string }
+  ) => Promise<{ текст: string }> // cyrillic-ok: pre-existing field of the agent answer
+): Promise<'handed' | 'none' | 'failed'> {
+  if (!isRoom(ctx) || !ctx.from) return 'none'
+  const isRu = isRussianFromState(ctx as any)
+  const office = (await officeRows(ctx)).length > 0
+  const channel = await officeChannelKind(ctx)
+  const keys = TABS_SPEC.TAB_KEYS as readonly string[]
+  const named = memberNamedFirst(personText)
+  const from = keys[speaker(named, Math.max(keys.indexOf(channel ?? ''), 0))]
+  const h = handoffIn(answer, from)
+  if (!handsOff(office, 0, h !== null, h?.kind === from) || !h) return 'none'
+  try {
+    const res = await ask(String(ctx.from.id), h.text, {
+      room: String(ctx.chat.id),
+      member: h.kind,
+      speaker: memberLabel(from, isRu),
+    })
+    const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
+    const text = String(res?.текст ?? '').trim() // cyrillic-ok: pre-existing field
+    if (!text) throw new Error('empty answer')
+    for (const chunk of разбитьДлинное(`${memberLabel(h.kind, isRu)}: ${text}`)) // cyrillic-ok: pre-existing export
+      await ctx.reply(chunk)
+    return 'handed'
+  } catch (e) {
+    logger.warn('[office] hand-off failed', {
+      to: h.kind,
+      error: e instanceof Error ? e.message.slice(0, 120) : String(e),
+    })
+    await ctx
+      .reply(
+        isRu
+          ? `${memberLabel(h.kind, isRu)} сейчас не ответил. Позовите его по имени ещё раз.`
+          : `${memberLabel(h.kind, isRu)} did not answer just now. Call them by name again.`
+      )
+      .catch(() => undefined)
+    return 'failed'
+  }
 }
 
 /** The line as the room's memory keeps it: "Anna: ..." in a room, as is elsewhere. */

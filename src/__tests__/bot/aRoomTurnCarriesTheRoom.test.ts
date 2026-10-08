@@ -78,6 +78,15 @@ describe('a turn in a room carries the room', () => {
     expect(block).toContain('hearInOffice(ctx, recordTurns)')
   })
 
+  it('an answer in a room is offered to a colleague named on its line (v4 hands_off)', async () => {
+    const src = await source()
+    const at = src.indexOf('if (chasti.length > 0) {')
+    expect(at, 'the answer send moved').toBeGreaterThan(-1)
+    const block = src.slice(at, src.indexOf('return\n', at))
+    expect(block).toContain('if (turnWhere.room)')
+    expect(block).toMatch(/handOffInOffice\(ctx, text, ochishcheno,/)
+  })
+
   it('the wire only accepts a negative id, so a person can never be a room', async () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
