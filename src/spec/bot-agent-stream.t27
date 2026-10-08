@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-agent-stream.t27 -- how the bot shows an agent answer while it is written.
+// Host: 999-multibots-telegraf src/navigation/helpers/answerDraft.ts (the agent lane in
+// src/navigation/registerCommands.ts) and src/core/bot/agentHive/index.ts (one-person replies).
+// Trace: owner 2026-10-08 "study the latest Telegram API features and bring in the improved
+// UI/UX" -- "answers of the agent with 'thinking' and 'stop'".
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: routing contract over Bot API 10.0-10.3. sendMessageDraft works in private
+// chats only; an empty draft text shows Telegram's "Thinking..." placeholder (10.0); can_stop
+// shows a stop button and the bot receives stopped_message_generation (10.3). A draft is a
+// short-lived preview, so the answer is always sent as a real message. Ephemeral messages
+// (ephemeral_message_parameters, 10.3) exist in groups only. The farm runs its own Bot API
+// server whose version cannot be read from outside, so a refused draft or ephemeral send
+// falls back to what worked before.
+// v1 (2026-10-08): drafts in private chats, their pace and size, the stop, the probe, and
+// ephemeral replies for one person in a group.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_agent_stream {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-agent-stream";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // A draft is updated at most this often while the answer grows.
+    pub const DRAFT_EVERY_MS : u32 = 1000;
+    // A draft is a preview that Telegram drops after about thirty seconds; while a tool runs
+    // and no text arrives, it is sent again this long after the last one, so "Thinking..."
+    // and its stop button stay on screen.
+    pub const DRAFT_REFRESH_MS : u32 = 20000;
+    // Telegram takes 0 to 4096 characters of draft text.
+    pub const DRAFT_MAX_CHARS : u32 = 4096;
+    // This many refusals of sendMessageDraft turn drafts off for that bot until restart.
+    pub const PROBE_REFUSALS : u32 = 1;
+    // The draft is a preview; the finished answer always goes out as a real message.
+    pub const ANSWER_PERSISTS : bool = true;
+    // A reply for one person that the server refuses to send ephemerally goes out ordinarily.
+    pub const EPHEMERAL_FALLS_BACK : bool = true;
+
+    // Drafts only in a private chat, and only while this bot's server takes them.
+    fn uses_draft(is_private: bool, refusals: u32) -> bool {
+        return is_private && refusals < PROBE_REFUSALS;
+    }
+
+    // A new draft when the text grew and the last one is old enough, or to keep it alive.
+    fn draft_due(grew: bool, since_last_ms: u32) -> bool {
+        return (grew && since_last_ms >= DRAFT_EVERY_MS) || since_last_ms >= DRAFT_REFRESH_MS;
+    }
+
+    // The draft shows the beginning of the answer, cut to what Telegram takes.
+    fn draft_chars(answer_chars: u32) -> u32 {
+        if answer_chars > DRAFT_MAX_CHARS { return DRAFT_MAX_CHARS; }
+        return answer_chars;
+    }
+
+    // After the person pressed stop: 1 the words written so far become the answer,
+    // 2 there were none, so a short "stopped" line is sent instead of silence.
+    fn after_stop(partial_chars: u32) -> u8 {
+        if partial_chars > 0 { return 1; }
+        return 2;
+    }
+
+    // A reply meant for one person in a group (a refusal, a hint) is ephemeral.
+    fn ephemeral(is_group: bool, for_one_person: bool) -> bool {
+        return is_group && for_one_person;
+    }
+
+    // ---- tests ----
+
+    test "drafts only in a private chat whose server takes them" {
+        assert(uses_draft(true, 0));
+        assert(!uses_draft(true, 1));
+        assert(!uses_draft(false, 0));
+        assert(!uses_draft(false, 1));
+    }
+
+    test "a draft follows the answer at most once a second and stays alive" {
+        assert(!draft_due(true, 0));
+        assert(!draft_due(true, 999));
+        assert(draft_due(true, 1000));
+        assert(!draft_due(false, 5000));
+        assert(!draft_due(false, 19999));
+        assert(draft_due(false, 20000));
+    }
+
+    test "the draft never exceeds what Telegram takes" {
+        assert(draft_chars(0) == 0);
+        assert(draft_chars(4096) == 4096);
+        assert(draft_chars(4097) == 4096);
+        assert(draft_chars(9000) == 4096);
+    }
+
+    test "a stop keeps what was written, or says it stopped" {
+        assert(after_stop(1) == 1);
+        assert(after_stop(300) == 1);
+        assert(after_stop(0) == 2);
+    }
+
+    test "the answer always persists as a real message" {
+        assert(ANSWER_PERSISTS);
+        assert(EPHEMERAL_FALLS_BACK);
+    }
+
+    test "only a group reply for one person is ephemeral" {
+        assert(ephemeral(true, true));
+        assert(!ephemeral(true, false));
+        assert(!ephemeral(false, true));
+        assert(!ephemeral(false, false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

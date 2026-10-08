@@ -450,6 +450,11 @@ export async function спроситьАгента(
      */
     onTool?: (name: string | null) => void
     /**
+     * The answer as written so far, after each text event of the stream
+     * (bot-agent-stream.t27 drafts). Errors thrown here are swallowed.
+     */
+    onText?: (soFar: string) => void
+    /**
      * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
      * CONVERSATION_RE): a fixed tab of the private chat other than the Agent
      * tab keeps its own memory (navigation/topics/memory.ts). Ignored when a
@@ -625,9 +630,16 @@ export async function спроситьАгента(
         }
         if (ev.тип === 'ход' && ev.id)
           turnId = ev.id // cyrillic-ok: pre-existing event envelope
-        else if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        else if (ev.тип === 'текст' && typeof ev.текст === 'string') {
           части.push(ev.текст)
-        else if (ev.тип === 'провайдер' && ev.id)
+          // The answer so far, for a draft that grows on screen
+          // (bot-agent-stream.t27). A failing listener never fails the turn.
+          try {
+            opts.onText?.(части.join('')) // cyrillic-ok: pre-existing identifier of this parser
+          } catch {
+            /* an indicator only */
+          }
+        } else if (ev.тип === 'провайдер' && ev.id)
           // cyrillic-ok: pre-existing event envelope
           // The last one wins: a provider that failed mid-stream before any
           // text was handed over is replaced by the one that answered.
