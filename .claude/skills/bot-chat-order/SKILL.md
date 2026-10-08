@@ -55,6 +55,21 @@ npx vitest run src/spec/bot-agent-memory.test.ts src/spec/bot-topic-tabs.test.ts
 5. `src/navigation/topics/engine.ts` must stay byte-identical to the render's
    `topic-tabs-engine.ts`. The parity test fails otherwise.
 
+## Streamed answer and events in their tab (2026-10-08)
+
+- **Draft with a stop button** (`bot-agent-stream.t27`, `navigation/helpers/answerDraft.ts`). In a private chat, the agent lane calls `startAnswerDraft`. The person first sees "Thinking…" with a stop button. After that the draft shows the answer as it streams. It is updated at most once a second, refreshed every 20 s while a tool is running, and cut to 4096 characters. The finished answer always goes out as a real message.
+  - **Stop.** A stop press arrives as the update `stopped_message_generation`, which is in `allowed_updates` in `src/index.ts`. `draftStopMiddleware` handles it and the turn is aborted. The person gets the text written so far, or the line "Остановлено." if nothing was written yet.
+  - **Old server.** The first refused draft turns drafts off for that bot until the next restart. This covers the farm's own Bot API server, whose version we cannot see.
+- **Events in their tab** (`bot-event-tabs.t27`). Each event is routed to the tab of its agent:
+
+  | Event                                         | Tab       | Where it is wired                                |
+  | --------------------------------------------- | --------- | ------------------------------------------------ |
+  | payment (`successful_payment`)                | Treasurer | `inEventTab('payment', …)`                       |
+  | `browser_ask_input`, `browser_ask_permission` | Navigator | render `sendToTelegram(…, { event: 'browser' })` |
+  | story reel news                               | Director  | `notifyInBot(…, 'reel')`                         |
+
+  The render reads `bot_topic_tabs` from the same Postgres and compares the bot name without case. No tab, or a thread the sender named, and the message goes where it went before. Not routed yet: the KIE webhook video deliveries and lipsync results. They are sent by Telegraf instances with no ctx; to route them, call `eventThread` from them.
+
 ## Common Issues
 
 - The fake database in `topicTabs.test.ts` matches SQL by shape. A new
