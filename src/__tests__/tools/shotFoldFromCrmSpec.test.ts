@@ -12,6 +12,12 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  sliceFrom,
+  sliceBetween,
+} = require('../../../scripts/lib/anchored-slice.cjs')
+
 const ROOT = resolve(__dirname, '../../..')
 const shot = readFileSync(resolve(ROOT, 'bin/helpers/shot.mjs'), 'utf8')
 
@@ -28,10 +34,7 @@ describe('tri shot and crm-first-screen.t27', () => {
 
   it("holds the CRM's load state to Telegram's line, Prepare included", () => {
     // The crm stand alone: crm-auto-on, next to it, says the same lines.
-    const crm = shot.slice(
-      shot.indexOf('  crm: {'),
-      shot.indexOf("'crm-auto-on': {")
-    )
+    const crm = sliceBetween(shot, '  crm: {', "'crm-auto-on': {")
     expect(crm).toContain('foldInsets: TELEGRAM')
     expect(crm).toContain("['.crm__list .crm__prepare', FIRST.PILLS_MIN_PX]")
   })
@@ -39,9 +42,9 @@ describe('tri shot and crm-first-screen.t27', () => {
   // v2: AUTO on is one line on a phone, and its Turn off is on that line --
   // on Telegram's first screen, measured with AUTO actually on.
   it('measures the AUTO line switched on, its Turn off on the first screen', () => {
-    const stand = shot.slice(shot.indexOf("'crm-auto-on': {"))
+    const stand = sliceFrom(shot, "'crm-auto-on': {")
     expect(stand).toContain("query: '?auto=on'")
-    expect(stand.slice(0, stand.indexOf('foldInsets'))).toContain(
+    expect(sliceBetween(stand, "'crm-auto-on': {", 'foldInsets')).toContain(
       "'.crm-auto__stop',"
     )
     expect(stand).toContain('foldInsets: TELEGRAM')
@@ -53,5 +56,23 @@ describe('tri shot and crm-first-screen.t27', () => {
     expect(shot).toMatch(
       /overflowX === 'visible' &&\s+el\.scrollWidth > el\.clientWidth \+ 1\s+\)\s+cut\.push\(`\$\{name\(el\)\} spills \$\{el\.scrollWidth\}>\$\{el\.clientWidth\} right`\)/
     )
+  })
+
+  // "+ Goal" drew as "Goal", its plus squeezed to 0 px, green on every
+  // other measure (profile-plan, 2026-10-08).
+  it('counts a sized icon a button squeezes to nothing', () => {
+    expect(shot).toMatch(
+      /icon\.getBoundingClientRect\(\)\.width < 1\s+\)\s+cut\.push\(`\$\{name\(el\)\} squeezes its icon to 0 px`\)/
+    )
+  })
+
+  // plan-reel.t27: the plan in the cabinet is measured on a phone, its
+  // price read before its press (crm-story-reel v16).
+  it('measures the plan, the price of a reel above its press', () => {
+    const stand = sliceFrom(shot, "'profile-plan': {")
+    expect(sliceBetween(stand, "'profile-plan': {", 'states:')).toContain(
+      "before: [['[data-testid=plan-reel-price]', '[data-testid=plan-reel-make]']]"
+    )
+    expect(stand).toContain('.profile-plan .reel-preview')
   })
 })

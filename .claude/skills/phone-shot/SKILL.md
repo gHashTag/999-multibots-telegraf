@@ -451,6 +451,23 @@ import.meta.url)), ...)` and `readFileSync`.
   `autopilot_status` switched on, with a FIXED hour (21:30) so two shots of
   one state are the same picture.
 
+- **An icon squeezed to 0 px, every other measure green.** «+ Цель» drew
+  as «Цель»: the plan head's long hint pressed the flex button, and its svg
+  shrank first (probed in Chromium: width 0). Now a control's sized icon
+  (`svg[width]`) drawn narrower than a pixel is a cut, `squeezes its icon
+to 0 px` (negative control: RED with `flex-shrink: 1`). Cure:
+  `flex-shrink: 0` on the button and its icon.
+- **A new measure is a sweep of every stand, the same day.** P33's
+  `spills right` landed in main and turned `story-palette` and `crm-client`
+  RED at 320 px («Сделать рилс · кадров: 3» 276>274): the design system's
+  `nowrap` + fixed `height` on `.story-reel__go`. Run `tri shot all` before
+  merging a measure, not after (cure: `height: auto; white-space: normal`).
+- **The first measure of a screen nobody shot finds old debt.** The
+  content plan (`tri shot profile-plan`, 2026-10-08): 12 targets 26–28 px
+  (status pills, edit/delete icons, «Цель»), the goal's name cut by an
+  ellipsis. Fixed scoped to `.profile-plan` (the skills tab shares the
+  classes and answers to its own measure).
+
 ## Пишем на .t27
 
 **Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,

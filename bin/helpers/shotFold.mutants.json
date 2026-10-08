@@ -46,5 +46,29 @@
     "file": "bin/helpers/shot.mjs",
     "from": "        foldInsets: TELEGRAM,\n      },\n    ],\n  },\n\n  /*\n   * HER OWN PAGE",
     "to": "      },\n    ],\n  },\n\n  /*\n   * HER OWN PAGE"
+  },
+  {
+    "name": "tri shot lets a button squeeze its icon to nothing",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        cut.push(`${name(el)} squeezes its icon to 0 px`)",
+    "to": "        void 0"
+  },
+  {
+    "name": "tri shot calls a drawn icon squeezed",
+    "file": "bin/helpers/shot.mjs",
+    "from": "        icon.getBoundingClientRect().width < 1",
+    "to": "        icon.getBoundingClientRect().width < 100"
+  },
+  {
+    "name": "tri shot forgets the plan's price before its press",
+    "file": "bin/helpers/shot.mjs",
+    "from": "    before: [['[data-testid=plan-reel-price]', '[data-testid=plan-reel-make]']],\n",
+    "to": ""
+  },
+  {
+    "name": "tri shot measures the plan without a reel's picture",
+    "file": "bin/helpers/shot.mjs",
+    "from": "          await p.locator('.profile-plan .reel-preview').first().waitFor()\n",
+    "to": ""
   }
 ]
