@@ -31,6 +31,9 @@ import {
   catchUp,
   catchupAsk,
   CATCHUP_PARTS_TEXT,
+  handsOff,
+  handoffIn,
+  handOffInOffice,
   registerOfficeCommand,
 } from '@/navigation/topics/office'
 import { setTopicTabsDbForTests } from '@/navigation/topics/tabs'
@@ -114,8 +117,18 @@ describe('spec bot-neuro-office.t27', () => {
     }
   })
 
+  it('an agent hands a task to a colleague once, in an office, never to itself', () => {
+    expect(SPEC.HANDOFF_DEPTH_MAX).toBe(1)
+    expect(handsOff(true, 0, true, false)).toBe(true)
+    expect(handsOff(true, 1, true, false)).toBe(false)
+    expect(handsOff(false, 0, true, false)).toBe(false)
+    expect(handsOff(true, 0, false, false)).toBe(false)
+    expect(handsOff(true, 0, true, true)).toBe(false)
+    expect(SPEC.HANDOFF_IN_PERSONS_NAME).toBe(true)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })
@@ -436,6 +449,123 @@ describe('/catchup (v3)', () => {
       expect(await catchUp(ctx, ask as any)).toBe('failed')
       expect(ctx.replies).toHaveLength(1)
       expect(ctx.replies[0]).toMatch(/catchup/)
+    }
+  })
+})
+
+describe('hand-off between members (v4)', () => {
+  const ROOM = -1001234567893
+  const db = (list: any[]) => ({
+    query: async (sql: string) =>
+      /^\s*SELECT/.test(sql) ? { rows: list } : { rows: [] },
+  })
+  const office = [
+    { thread_id: 11, kind: 'agent', title: 'a', created_at: new Date() },
+    { thread_id: 12, kind: 'reels', title: 'r', created_at: new Date() },
+    { thread_id: 15, kind: 'wallet', title: 'w', created_at: new Date() },
+  ]
+  let n = 0
+  const ctxIn = (thread = 12, chatType = 'supergroup'): any => {
+    const replies: string[] = []
+    return {
+      replies,
+      chat: { id: ROOM, type: chatType },
+      botInfo: { username: `handoff_bot_${n++}`, id: 42 },
+      from: { id: 5, first_name: 'Anna', language_code: 'en' },
+      message: { text: 'x', message_thread_id: thread },
+      reply: async (t: string) => {
+        replies.push(t)
+      },
+    }
+  }
+
+  it('the first line naming a colleague is the hand-off; the member itself is skipped', () => {
+    expect(
+      handoffIn('Director: on it.\nTreasurer, count the budget.', 'reels')
+    ).toEqual({
+      kind: 'wallet',
+      text: 'Treasurer, count the budget.',
+    })
+    expect(handoffIn('Director: on it.', 'reels')).toBeNull()
+    expect(handoffIn('I will ask the treasurer later.', 'reels')).toBeNull()
+  })
+
+  it("the colleague is asked once, in the person's name, and answers under its own name", async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    const asked: any[] = []
+    const ctx = ctxIn()
+    const r = await handOffInOffice(
+      ctx,
+      'make a reel for the launch',
+      'Sure.\nTreasurer, count the budget for it.',
+      async (id, text, opts) => {
+        asked.push([id, text, opts])
+        // even if the colleague names someone else, nothing is handed on
+        return { текст: 'Navigator, check prices. Budget: 300 tokens.' } // cyrillic-ok: field of the agent answer
+      }
+    )
+    expect(r).toBe('handed')
+    expect(asked).toEqual([
+      [
+        '5',
+        'Treasurer, count the budget for it.',
+        { room: String(ROOM), member: 'wallet', speaker: '🎬 Director' },
+      ],
+    ])
+    expect(ctx.replies).toEqual([
+      '💰 Treasurer: Navigator, check prices. Budget: 300 tokens.',
+    ])
+  })
+
+  it('a member named first by the person speaks; its own label is no hand-off', async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    let asked = 0
+    const ctx = ctxIn(12)
+    const r = await handOffInOffice(
+      ctx,
+      'Treasurer, how much?',
+      'Treasurer: 300 tokens.',
+      async () => {
+        asked++
+        return { текст: 'x' } // cyrillic-ok: field of the agent answer
+      }
+    )
+    expect(r).toBe('none')
+    expect(asked).toBe(0)
+  })
+
+  it('no office, a private chat: no hand-off', async () => {
+    let asked = 0
+    const ask = async () => {
+      asked++
+      return { текст: 'x' } // cyrillic-ok: field of the agent answer
+    }
+    setTopicTabsDbForTests(db([]) as any)
+    expect(await handOffInOffice(ctxIn(), 'x', 'Treasurer, count.', ask)).toBe(
+      'none'
+    )
+    setTopicTabsDbForTests(db(office) as any)
+    expect(
+      await handOffInOffice(ctxIn(12, 'private'), 'x', 'Treasurer, count.', ask)
+    ).toBe('none')
+    expect(asked).toBe(0)
+  })
+
+  it('a colleague who does not answer is said, never silence', async () => {
+    setTopicTabsDbForTests(db(office) as any)
+    for (const ask of [
+      async () => {
+        throw new Error('render down')
+      },
+      async () => ({ текст: '  ' }), // cyrillic-ok: field of the agent answer
+    ]) {
+      const ctx = ctxIn()
+      expect(
+        await handOffInOffice(ctx, 'x', 'Treasurer, count.', ask as any)
+      ).toBe('failed')
+      expect(ctx.replies).toEqual([
+        '💰 Treasurer did not answer just now. Call them by name again.',
+      ])
     }
   })
 })
