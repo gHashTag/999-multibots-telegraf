@@ -195,6 +195,7 @@ export function MyStoryWidget({
                   {previewShown(j.url) ? (
                     <ReelPreview
                       url={j.url as string}
+                      poster={j.poster}
                       label={t('story.watch', { topic: j.topic || '—' })}
                     />
                   ) : j.status === 'failed' && j.error ? (

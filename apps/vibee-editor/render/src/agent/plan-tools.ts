@@ -144,6 +144,7 @@ export const planTools: AgentTool[] = [
           статус: STATUS_RU[it.status as Status] ?? it.status,
           ролик: it.template_id ?? undefined,
           reel: made.reels.get(Number(it.id)),
+          poster: made.posters.get(Number(it.id)),
           making: made.making.has(Number(it.id)) || undefined,
           press: pressOffered(statusCode(it.status), made.busy) || undefined,
         })
