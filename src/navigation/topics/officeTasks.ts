@@ -84,8 +84,10 @@ function db(): Db | null {
   return pool
 }
 
+/** Tests only: inject a database, or with null forget it and any pool. */
 export function setOfficeTasksDbForTests(d: Db | null): void {
   injected = d
+  if (d === null) pool = null
   schemaReady = null
 }
 
