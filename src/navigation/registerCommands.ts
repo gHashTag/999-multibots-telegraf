@@ -241,7 +241,8 @@ import {
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
 import { checkAll } from '@/services/capabilityPreflight'
-import { topicThreadMiddleware, agentConversationFor } from './topics/threads'
+import { topicThreadMiddleware } from './topics/threads'
+import { agentConversationIn } from './topics/memory'
 import {
   ensureTabsQuietly,
   nameTopicQuietly,
@@ -1397,6 +1398,8 @@ If not, continue on your own and click the "I myself" button`
        */
       let miss: AgentMiss = { kind: 'unreachable' }
       let agentError: unknown
+      /** Where the turn was asked: a fallback line is recorded there too. */
+      let turnWhere: { room?: string; conversation?: string } = {}
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
        *
@@ -1465,9 +1468,20 @@ If not, continue on your own and click the "I myself" button`
             ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup'
               ? String(ctx.chat.id)
               : ''
+          /*
+           * ONE MEMORY (spec bot-agent-memory.t27). The Agent tab and every
+           * thread that is no fixed tab speak in the base conversation, the
+           * one the mini-app opens; only the other fixed tabs keep their own,
+           * keyed by kind. A message outside the tabs opens a new thread, and
+           * keying memory by thread made each one start over.
+           */
           const conversation = inRoom
             ? undefined
-            : agentConversationFor(ctx.state?.topicThreadId)
+            : await agentConversationIn(ctx)
+          turnWhere = {
+            ...(inRoom ? { room: inRoom } : {}),
+            ...(conversation ? { conversation } : {}),
+          }
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
@@ -1701,9 +1715,12 @@ If not, continue on your own and click the "I myself" button`
         )
         await ctx.reply(line, markup)
         const { recordTurns } = await import('@/services/trinityAgent')
-        void recordTurns(String(ctx.from?.id ?? ''), [
-          { role: 'assistant', content: line },
-        ])
+        void recordTurns(
+          String(ctx.from?.id ?? ''),
+          [{ role: 'assistant', content: line }],
+          'bot',
+          turnWhere
+        )
         return
       }
 
@@ -1791,7 +1808,9 @@ If not, continue on your own and click the "I myself" button`
             : [
                 { role: 'user', content: text },
                 { role: 'assistant', content: replyClean },
-              ]
+              ],
+          'bot',
+          turnWhere
         )
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
@@ -3800,7 +3819,15 @@ async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
   try {
     const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing export
     const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing export
-    const answer = await спроситьАгента(String(ctx.from?.id ?? ''), text) // cyrillic-ok: pre-existing export
+    // A press in a tab is part of that tab's conversation (bot-agent-memory.t27).
+    const conversation =
+      ctx.chat?.type === 'private' ? await agentConversationIn(ctx) : undefined
+    const answer = await спроситьАгента(
+      // cyrillic-ok: pre-existing export
+      String(ctx.from?.id ?? ''),
+      text,
+      conversation ? { conversation } : {}
+    )
     const { text: clean, markup } = buttonsForAnswer(
       answer.текст, // cyrillic-ok: field of ОтветАгента
       isRu,

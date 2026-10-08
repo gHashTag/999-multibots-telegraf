@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { historyGate, threadFor } from './routes'
+import { PassThrough } from 'node:stream'
+import { handleAgentHistoryAppend, historyGate, threadFor } from './routes'
 import { marketplaceAgentThread, roomThread } from './conversation'
 
 /**
@@ -53,5 +54,36 @@ describe('an agent called in a room', () => {
     expect((await read('/api/agent/history?agent=blogger')).thread).toBe(
       marketplaceAgentThread('blogger')
     )
+  })
+
+  it("writes a group turn's fallback line into the room, not the asker's thread", async () => {
+    // bot-agent-memory.t27: the bot records a line nobody else stored (an
+    // empty answer, a thrown call); for a room turn it names the room.
+    const append = async (body: unknown) => {
+      const req = new PassThrough()
+      req.end(JSON.stringify(body))
+      const written: string[] = []
+      const threads: string[] = []
+      const pool = {
+        query: async (q: string, p: unknown[] = []) => {
+          if (/INSERT INTO agent_messages/.test(q)) threads.push(String(p[4]))
+          return { rows: [] }
+        },
+      }
+      const res = {
+        writeHead: () => res,
+        setHeader: () => undefined,
+        end: (b: string) => written.push(String(b)),
+      }
+      await handleAgentHistoryAppend(req as any, res as any, OWNER, () => pool)
+      return { reply: JSON.parse(written.join('') || '{}'), threads }
+    }
+    const turns = [{ role: 'assistant', content: 'line' }]
+    const inRoom = await append({ turns, surface: 'bot', room: ROOM })
+    expect(inRoom.reply.thread).toBe(roomThread(ROOM))
+    expect(inRoom.threads).toEqual([roomThread(ROOM)])
+    // Without a room it is still the person's own thread.
+    const own = await append({ turns, surface: 'bot' })
+    expect(own.reply.thread).toBe('self')
   })
 })
