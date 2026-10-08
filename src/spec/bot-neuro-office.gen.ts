@@ -6,13 +6,24 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-neuro-office" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 // t27c gen-ts: fn may_open_office was not emitted -- this backend lowers declarations, not bodies.
 export const OFFICE_TEAM_SIZE = 6 satisfies number;
 // t27c gen-ts: fn answers was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn channel_speaker was not emitted -- this backend lowers declarations, not bodies.
 export const ROOM_PAY_BUTTONS = false satisfies boolean;
 // t27c gen-ts: fn pay_buttons_in was not emitted -- this backend lowers declarations, not bodies.
+export const HEARS_PEOPLE = true satisfies boolean;
+// t27c gen-ts: fn hears was not emitted -- this backend lowers declarations, not bodies.
+export const HEARD_MAX_CHARS = 1000 satisfies number;
+// t27c gen-ts: fn heard_chars was not emitted -- this backend lowers declarations, not bodies.
+export const ROOM_LINE_NAMES_SPEAKER = true satisfies boolean;
+// t27c gen-ts: fn names_speaker was not emitted -- this backend lowers declarations, not bodies.
+export const SPEAKER_NAME_MAX_CHARS = 64 satisfies number;
+// t27c gen-ts: fn speaker_chars was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -21,7 +32,7 @@ export const ROOM_PAY_BUTTONS = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "OFFICE_TEAM_SIZE", "ROOM_PAY_BUTTONS"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "OFFICE_TEAM_SIZE", "ROOM_PAY_BUTTONS", "HEARS_PEOPLE", "HEARD_MAX_CHARS", "ROOM_LINE_NAMES_SPEAKER", "SPEAKER_NAME_MAX_CHARS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

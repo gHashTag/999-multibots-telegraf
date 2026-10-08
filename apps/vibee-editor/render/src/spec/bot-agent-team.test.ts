@@ -401,6 +401,20 @@ describe('the neuro-office: every member in every channel', () => {
 })
 
 describe('the neuro-office room: a channel speaks as its member', () => {
+  it('a room keeps the question named after who asked; elsewhere as it came', async () => {
+    // bot-neuro-office.t27 v2 names_speaker: the bot names the asker, the
+    // render names the stored line; the model still gets the bare text.
+    const { roomLine } = await import('../agent/routes')
+    expect(roomLine('Anna', 'Treasurer, how much?', '-1001234567890')).toBe(
+      'Anna: Treasurer, how much?'
+    )
+    expect(roomLine('Anna', 'hi', undefined)).toBe('hi')
+    expect(roomLine(undefined, 'hi', '-1001234567890')).toBe('hi')
+    expect(roomLine(42, 'hi', '-1001234567890')).toBe('hi')
+    expect(roomLine(' Anna \n K ', 'hi', '-1001234567890')).toBe('Anna K: hi')
+    expect(roomLine('   ', 'hi', '-1001234567890')).toBe('hi')
+  })
+
   it('a member is taken only with a room, and only a team kind', async () => {
     const { officeMember } = await import('../agent/routes')
     expect(officeMember('wallet', '-1001234567890')).toBe(true)

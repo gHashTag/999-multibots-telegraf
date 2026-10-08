@@ -20,6 +20,13 @@ import {
   namedInOffice,
   officeChannelKind,
   payButtonsIn,
+  hears,
+  heardChars,
+  namesSpeaker,
+  speakerChars,
+  speakerName,
+  speakerLine,
+  hearInOffice,
   registerOfficeCommand,
 } from '@/navigation/topics/office'
 import { setTopicTabsDbForTests } from '@/navigation/topics/tabs'
@@ -55,8 +62,41 @@ describe('spec bot-neuro-office.t27', () => {
     expect(payButtonsIn(false)).toBe(true)
   })
 
+  it('in an office the agent hears what people say to each other, and only that', () => {
+    expect(SPEC.HEARS_PEOPLE).toBe(true)
+    expect(hears(true, false, false, false)).toBe(true)
+    expect(hears(false, false, false, false)).toBe(false)
+    expect(hears(true, true, false, false)).toBe(false)
+    expect(hears(true, false, true, false)).toBe(false)
+    expect(hears(true, false, false, true)).toBe(false)
+  })
+
+  it('a heard line is kept up to a thousand characters', () => {
+    expect(SPEC.HEARD_MAX_CHARS).toBe(1000)
+    expect(heardChars(999)).toBe(999)
+    expect(heardChars(1000)).toBe(1000)
+    expect(heardChars(1001)).toBe(1000)
+    expect(heardChars(0)).toBe(0)
+  })
+
+  it("a person's line in a room names who said it; a private chat names nobody", () => {
+    expect(namesSpeaker(true)).toBe(true)
+    expect(namesSpeaker(false)).toBe(false)
+    expect(SPEC.SPEAKER_NAME_MAX_CHARS).toBe(64)
+    expect(speakerChars(64)).toBe(64)
+    expect(speakerChars(65)).toBe(64)
+    expect(speakerChars(3)).toBe(3)
+    // the host's own line and name
+    const anna = { id: 7, first_name: 'Anna', last_name: 'K' }
+    expect(speakerLine(anna, 'hi', true)).toBe('Anna K: hi')
+    expect(speakerLine(anna, 'hi', false)).toBe('hi')
+    expect([
+      ...speakerName({ id: 1, first_name: 'x'.repeat(90) }),
+    ]).toHaveLength(64)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })
@@ -192,6 +232,101 @@ describe('the office in a group', () => {
         expect(replies.at(-1)).toMatch(/пока не открыть/) // cyrillic-ok: user-facing copy under test
       }
     })
+  })
+})
+
+describe('the office hears the room (v2)', () => {
+  const ROOM = -1001234567891
+  const rows = [
+    { thread_id: 11, kind: 'agent', title: 'a', created_at: new Date() },
+  ]
+  const db = (list: any[]) => ({
+    query: async (sql: string) =>
+      /^\s*SELECT/.test(sql) ? { rows: list } : { rows: [] },
+  })
+  let n = 0
+  const line = (text: any, from: any = { id: 5, first_name: 'Anna' }): any => ({
+    chat: { id: ROOM, type: 'supergroup' },
+    botInfo: { username: `hear_bot_${n++}`, id: 42 },
+    from,
+    message: { text, message_thread_id: 11 },
+  })
+  const recorder = () => {
+    const calls: any[][] = []
+    const record = async (...args: any[]) => {
+      calls.push(args)
+    }
+    return { calls, record }
+  }
+
+  it("a person's line in an office is kept in the room's memory, named, never answered", async () => {
+    setTopicTabsDbForTests(db(rows) as any)
+    const r = recorder()
+    expect(await hearInOffice(line('we ship on Friday'), r.record)).toBe(true)
+    expect(r.calls).toEqual([
+      [
+        '5',
+        [{ role: 'user', content: 'Anna: we ship on Friday' }],
+        'bot',
+        { room: String(ROOM) },
+      ],
+    ])
+  })
+
+  it('a group that is no office, a bot, a command, an empty line: nothing is heard', async () => {
+    const r = recorder()
+    setTopicTabsDbForTests(db([]) as any)
+    expect(await hearInOffice(line('we ship on Friday'), r.record)).toBe(false)
+    setTopicTabsDbForTests(db(rows) as any)
+    expect(
+      await hearInOffice(
+        line('beep', { id: 9, is_bot: true, first_name: 'B' }),
+        r.record
+      )
+    ).toBe(false)
+    expect(await hearInOffice(line('/team'), r.record)).toBe(false)
+    expect(await hearInOffice(line('   '), r.record)).toBe(false)
+    expect(await hearInOffice(line(undefined), r.record)).toBe(false)
+    const dm = { ...line('hi'), chat: { id: 5, type: 'private' } }
+    expect(await hearInOffice(dm, r.record)).toBe(false)
+    expect(r.calls).toEqual([])
+  })
+
+  it("a bot's line or a command costs no database read", async () => {
+    let selects = 0
+    setTopicTabsDbForTests({
+      query: async (sql: string) => {
+        if (/^\s*SELECT/.test(sql)) selects++
+        return { rows: /^\s*SELECT/.test(sql) ? rows : [] }
+      },
+    } as any)
+    const r = recorder()
+    await hearInOffice(
+      line('beep', { id: 9, is_bot: true, first_name: 'B' }),
+      r.record
+    )
+    await hearInOffice(line('/office'), r.record)
+    expect(selects).toBe(0)
+    await hearInOffice(line('people talk'), r.record)
+    expect(selects).toBe(1)
+  })
+
+  it('a long line is cut to the spec bound; a failed write never throws', async () => {
+    setTopicTabsDbForTests(db(rows) as any)
+    const r = recorder()
+    await hearInOffice(line('y'.repeat(1500)), r.record)
+    const content = r.calls[0][1][0].content as string
+    expect(content).toBe(`Anna: ${'y'.repeat(SPEC.HEARD_MAX_CHARS)}`)
+    const failing = async () => {
+      throw new Error('render down')
+    }
+    expect(await hearInOffice(line('still fine'), failing)).toBe(false)
+  })
+
+  it('a person without a first name is named by @username, then by id', () => {
+    expect(speakerName({ id: 3, username: 'boris' })).toBe('@boris')
+    expect(speakerName({ id: 3 })).toBe('3')
+    expect(speakerName({ id: 3, first_name: ' Anna \n K ' })).toBe('Anna K')
   })
 })
 

@@ -258,6 +258,9 @@ import { moneyHere } from './topics/team'
 import {
   namedInOffice,
   officeChannelKind,
+  hearInOffice,
+  namesSpeaker,
+  speakerName,
   registerOfficeCommand,
 } from './topics/office'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
@@ -1510,6 +1513,10 @@ If not, continue on your own and click the "I myself" button`
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
             ...(member ? { member } : {}),
+            // The room's memory names who asked (bot-neuro-office.t27 v2).
+            ...(inRoom && namesSpeaker(true)
+              ? { speaker: speakerName(ctx.from) }
+              : {}),
             ...(conversation ? { conversation } : {}),
             // "sending a photo…" while a picture tool runs (#3665)
             onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
@@ -2013,6 +2020,10 @@ If not, continue on your own and click the "I myself" button`
        * In an office (bot-neuro-office.t27), a member named first counts too.
        */
       if (!isAddressedToUs(ctx) && !(await namedInOffice(ctx))) {
+        // In an office the line is heard, never answered (bot-neuro-office.t27 v2).
+        void import('@/services/trinityAgent').then(({ recordTurns }) =>
+          hearInOffice(ctx, recordTurns)
+        )
         void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
         return next()
       }
