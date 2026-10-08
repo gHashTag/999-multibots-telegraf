@@ -7,23 +7,12 @@ export const KIND = "automation" satisfies string;
 export const ID = "bot-neuro-office" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
 export const VERSION = 1 satisfies number;
-export function may_open_office(is_forum: boolean, bot_manages_topics: boolean, sender_is_admin: boolean): boolean {
-  return ((is_forum && bot_manages_topics) && sender_is_admin);
-}
+// t27c gen-ts: fn may_open_office was not emitted -- this backend lowers declarations, not bodies.
 export const OFFICE_TEAM_SIZE = 6 satisfies number;
-export function answers(reply_to_bot: boolean, mentioned: boolean, command: boolean, office: boolean, member_named_first: boolean): boolean {
-  return (((reply_to_bot || mentioned) || command) || (office && member_named_first));
-}
-export function channel_speaker(channel_known: boolean, channel: number): number {
-  if (channel_known) {
-    return channel;
-  }
-  return 0;
-}
+// t27c gen-ts: fn answers was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn channel_speaker was not emitted -- this backend lowers declarations, not bodies.
 export const ROOM_PAY_BUTTONS = false satisfies boolean;
-export function pay_buttons_in(room: boolean): boolean {
-  return (!room || (ROOM_PAY_BUTTONS as boolean));
-}
+// t27c gen-ts: fn pay_buttons_in was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.

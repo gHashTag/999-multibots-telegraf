@@ -103,8 +103,15 @@ word -- makes the whole team's channels there. People talk freely; an agent
 answers only when spoken to (reply, `@bot`, command -- groupAddressing.ts) or,
 in an office only, when a message opens with a member's name. A channel speaks
 as its member (the bot sends `member`, the render gives the turn that trade,
-the room keeps its memory). A room carries no pay buttons. The rules are the
-spec's own generated functions (`t27c gen-ts` lowers pure bodies, t27#7872).
+the room keeps its memory). A room carries no pay buttons. Each rule is a
+host function pinned by the spec's vectors; the numbers come from gen-ts.
+
+`t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
+the owner's label: `owner-approved-foreign` waives the path check only, never
+the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the
+lowering is 441 lines of Rust. Never build a host on a compiler PR that has not
+merged: 999#3895 had to revert its gen-backed re-exports. Body lowering has to
+come in t27 itself, not as hand-written Rust.
 
 Traps:
 
