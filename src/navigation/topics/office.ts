@@ -58,6 +58,54 @@ export function payButtonsIn(room: boolean): boolean {
   return !room || OFFICE.ROOM_PAY_BUTTONS
 }
 
+/** spec hears (v2): in an office, a person's line nobody addressed to the agent. */
+export function hears(
+  office: boolean,
+  addressed: boolean,
+  fromBot: boolean,
+  isCommand: boolean
+): boolean {
+  return OFFICE.HEARS_PEOPLE && office && !addressed && !fromBot && !isCommand
+}
+
+/** spec heard_chars (v2): a heard line is kept up to HEARD_MAX_CHARS. */
+export function heardChars(chars: number): number {
+  return chars > OFFICE.HEARD_MAX_CHARS ? OFFICE.HEARD_MAX_CHARS : chars
+}
+
+/** spec names_speaker (v2): a person's line in a room names who said it. */
+export function namesSpeaker(room: boolean): boolean {
+  return room && OFFICE.ROOM_LINE_NAMES_SPEAKER
+}
+
+/** spec speaker_chars (v2): a name is cut to SPEAKER_NAME_MAX_CHARS. */
+export function speakerChars(chars: number): number {
+  return chars > OFFICE.SPEAKER_NAME_MAX_CHARS
+    ? OFFICE.SPEAKER_NAME_MAX_CHARS
+    : chars
+}
+
+/**
+ * A person's name as the room knows it: first and last name, or @username,
+ * on one line and cut to the spec's bound.
+ */
+export function speakerName(from: any): string {
+  const full = [from?.first_name, from?.last_name]
+    .filter(p => typeof p === 'string' && p.trim())
+    .join(' ')
+  const name =
+    full.replace(/\s+/g, ' ').trim() ||
+    (from?.username ? `@${from.username}` : String(from?.id ?? ''))
+  const chars = [...name]
+  return chars.slice(0, speakerChars(chars.length)).join('')
+}
+
+/** The line as the room's memory keeps it: "Anna: ..." in a room, as is elsewhere. */
+export function speakerLine(from: any, text: string, room: boolean): string {
+  const name = speakerName(from)
+  return namesSpeaker(room) && name ? `${name}: ${text}` : text
+}
+
 /**
  * The words a person calls each member by (interface text), lower case. The
  * render keeps the same list (profession.ts MEMBER_NAMES);
@@ -130,6 +178,49 @@ export async function officeChannelKind(ctx: any): Promise<string | undefined> {
     : -1
   const speaker = channelSpeaker(index >= 0, Math.max(index, 0))
   return rows.length ? TABS_SPEC.TAB_KEYS[speaker] : undefined
+}
+
+/**
+ * THE OFFICE HEARS THE ROOM (spec v2, issue #3897). A person's line nobody
+ * addressed to the agent goes into the room's memory, named after its
+ * speaker, and is never answered: a turn asked later then knows what people
+ * said to each other ("Director, do what Anna said"). Only in an office: a
+ * plain group the bot sits in is not heard. Never throws, never replies.
+ */
+export async function hearInOffice(
+  ctx: any,
+  record: (
+    telegramId: string,
+    turns: Array<{ role: 'user' | 'assistant'; content: string }>,
+    surface: 'bot',
+    where: { room: string }
+  ) => Promise<unknown>
+): Promise<boolean> {
+  try {
+    if (!isRoom(ctx) || !ctx.from) return false
+    const raw = ctx.message?.text ?? ctx.message?.caption
+    if (typeof raw !== 'string' || !raw.trim()) return false
+    const isCommand = raw.trimStart().startsWith('/')
+    const fromBot = ctx.from.is_bot === true
+    // The cheap refusals first: a bot or a command costs no database read.
+    if (fromBot || isCommand) return false
+    const office = (await officeRows(ctx)).length > 0
+    if (!hears(office, false, fromBot, isCommand)) return false
+    const chars = [...raw.trim()]
+    const text = chars.slice(0, heardChars(chars.length)).join('')
+    await record(
+      String(ctx.from.id),
+      [{ role: 'user', content: speakerLine(ctx.from, text, true) }],
+      'bot',
+      { room: String(ctx.chat.id) }
+    )
+    return true
+  } catch (e) {
+    logger.warn('[office] line not heard', {
+      error: e instanceof Error ? e.message.slice(0, 120) : String(e),
+    })
+    return false
+  }
 }
 
 /** /office: make this forum group the team's office. */

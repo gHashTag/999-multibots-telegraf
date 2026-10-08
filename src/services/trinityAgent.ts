@@ -458,6 +458,11 @@ async function askAgentNow(
      * bot-topic-tabs kind; the render gives the turn that member's trade.
      */
     member?: string
+    /**
+     * Who asked, by name (bot-neuro-office.t27 v2 names_speaker): with a
+     * room only, the render names the stored line after them.
+     */
+    speaker?: string
     room?: string
     /**
      * One line about the person, from what Telegram openly shows
@@ -614,6 +619,7 @@ async function askAgentNow(
            */
           ...(room ? { room } : {}),
           ...(room && opts.member ? { member: opts.member } : {}),
+          ...(room && opts.speaker ? { speaker: opts.speaker } : {}),
           ...(agent ? { agent } : {}),
           ...(conversation ? { conversation } : {}),
         }),

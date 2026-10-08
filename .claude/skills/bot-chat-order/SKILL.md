@@ -106,6 +106,15 @@ as its member (the bot sends `member`, the render gives the turn that trade,
 the room keeps its memory). A room carries no pay buttons. Each rule is a
 host function pinned by the spec's vectors; the numbers come from gen-ts.
 
+**The office hears the room (spec v2, #3897/#3898).** A person's line nobody
+addressed to the agent is recorded into the room's memory as "Name: text"
+(`hearInOffice`, through `recordTurns` with `room`) and never answered; only
+in an office, never a bot or a command, cut to `HEARD_MAX_CHARS`. An asked
+turn carries `speaker` beside `room`; the render names the STORED line
+(`roomLine` in routes.ts) and asks the model the bare text. Never prefix the
+question itself: the render finds a member named first ("Treasurer, ...") at
+the start of the text, and "Anna: Treasurer, ..." would hide it.
+
 `t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
 the owner's label: `owner-approved-foreign` waives the path check only, never
 the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the
