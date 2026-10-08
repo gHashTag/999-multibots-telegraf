@@ -68,7 +68,7 @@ npx vitest run src/spec/bot-agent-memory.test.ts src/spec/bot-topic-tabs.test.ts
   | `browser_ask_input`, `browser_ask_permission` | Navigator | render `sendToTelegram(…, { event: 'browser' })` |
   | story reel news                               | Director  | `notifyInBot(…, 'reel')`                         |
 
-  The render reads `bot_topic_tabs` from the same Postgres and compares the bot name without case. No tab, or a thread the sender named, and the message goes where it went before. Not routed yet: the KIE webhook video deliveries and lipsync results. They are sent by Telegraf instances with no ctx; to route them, call `eventThread` from them.
+  The render reads `bot_topic_tabs` from the same Postgres and compares the bot name without case. No tab, or a thread the sender named, and the message goes where it went before. The KIE webhook videos (`sendVideoDirectly`, Sora, `notifyJobCompletion`) and the lipsync result take `botInTab(bot, chatId, 'reel')` -- in the webhook AFTER `claimVideoJobDelivery`, because the claim must come before any await (`reelDeliveriesLandInTheDirectorTab.test.ts`).
 
 ## Common Issues
 

@@ -106,3 +106,33 @@ export function inEventTab<C extends { [k: string]: any }>(
     return handler(ctx, next)
   }
 }
+
+/**
+ * A bot instance whose sends to this person land in the event's tab: for the
+ * deliveries that run outside any update -- a KIE webhook, the lipsync
+ * manager -- and so have no ctx to wrap. The instance itself is not touched;
+ * a view of it is returned. Without a tab, the same instance comes back.
+ */
+export async function botInTab<
+  B extends { telegram: any; botInfo?: { username?: string } },
+>(bot: B, chatId: number | string, event: EventKey): Promise<B> {
+  const person = Number(chatId)
+  if (!bot?.telegram || !Number.isInteger(person) || person <= 0) return bot
+  let name = String(bot.botInfo?.username ?? '')
+  if (!name) {
+    try {
+      name = String((await bot.telegram.getMe())?.username ?? '')
+    } catch {
+      return bot
+    }
+  }
+  const thread = await eventThread(name, person, event)
+  if (thread === undefined) return bot
+  const view = Object.create(bot) as B
+  Object.defineProperty(view, 'telegram', {
+    value: eventTelegram(bot.telegram, person, thread),
+    configurable: true,
+    writable: true,
+  })
+  return view
+}
