@@ -45,6 +45,18 @@ export const appHireMakesTab = (
   botHasTabs: boolean
 ): boolean => offeredNow && botHasTabs
 
+/** spec speaker: the member named first speaks (render profession.ts uses it). */
+export const speaker = (addressed: number, channel: number): number =>
+  addressed < TEAM.TEAM_SIZE ? addressed : channel
+
+/** spec addressed: a name counts only at the very start of the message. */
+export const addressed = (atStart: boolean, isMemberName: boolean): boolean =>
+  atStart && isMemberName
+
+/** spec labelled: a guest's answer opens with its name. */
+export const labelled = (speakerIndex: number, channel: number): boolean =>
+  speakerIndex !== channel
+
 /** spec tool_shown: every tool for every member, its trade first. */
 export const toolShown = (everyTool: boolean, inTrade: boolean): boolean =>
   everyTool || inTrade

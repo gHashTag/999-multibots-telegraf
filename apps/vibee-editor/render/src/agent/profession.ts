@@ -49,6 +49,18 @@ export const appHireMakesTab = (
   botHasTabs: boolean
 ): boolean => offeredNow && botHasTabs
 
+/** spec speaker: the member named first speaks; TEAM_SIZE means nobody named. */
+export const speaker = (addressed: number, channel: number): number =>
+  addressed < TEAM.TEAM_SIZE ? addressed : channel
+
+/** spec addressed: a name counts only at the very start of the message. */
+export const addressed = (atStart: boolean, isMemberName: boolean): boolean =>
+  atStart && isMemberName
+
+/** spec labelled: a guest's answer opens with its name. */
+export const labelled = (speakerIndex: number, channel: number): boolean =>
+  speakerIndex !== channel
+
 /** spec tool_shown: every tool for every member, its trade first. */
 export const toolShown = (everyTool: boolean, inTrade: boolean): boolean =>
   everyTool || inTrade
@@ -102,7 +114,7 @@ export function shownTools(index: number, names: readonly string[]): string[] {
 
 /** Interface text: each member's trade in its own words. */
 const TRADE_RU: Record<string, { who: string; work: string }> = {
-  // cyrillic-ok: interface copy of the prompt
+  agent: { who: 'АГЕНТ', work: 'всё сразу: ты главный помощник человека' }, // cyrillic-ok: prompt copy
   reels: { who: 'РЕЖИССЁР', work: 'рилсы, липсинк, фото и видео, публикации' }, // cyrillic-ok: prompt copy
   browser: { who: 'ШТУРМАН', work: 'браузер человека и поиск в сети' }, // cyrillic-ok: prompt copy
   mybot: {
@@ -114,28 +126,90 @@ const TRADE_RU: Record<string, { who: string; work: string }> = {
 }
 
 /**
- * The block a member's turn carries in its system prompt, or '' for the
- * generalist. `names` is the registry's tool names.
+ * The words a person calls each member by (interface text), lower case.
+ * The first is the name an answer opens with.
+ */
+export const MEMBER_NAMES: Record<string, readonly string[]> = {
+  agent: ['агент', 'agent'], // cyrillic-ok: names people type
+  reels: ['режиссёр', 'режиссер', 'director'], // cyrillic-ok: names people type
+  browser: ['штурман', 'navigator'], // cyrillic-ok: names people type
+  mybot: ['конструктор', 'builder'], // cyrillic-ok: names people type
+  wallet: ['казначей', 'treasurer'], // cyrillic-ok: names people type
+  hive: ['королева', 'queen'], // cyrillic-ok: names people type
+}
+
+/**
+ * The member a message opens with ("Казначей, ...", "@navigator ..."), or
+ * TEAM_SIZE when it names nobody first (spec addressed: the start only).
+ */
+export function addressedMember(text: string | null | undefined): number {
+  const first = String(text ?? '')
+    .trimStart()
+    .replace(/^@/, '')
+    .toLowerCase()
+    .match(/^[\p{L}]+/u)?.[0]
+  if (!first) return TEAM.TEAM_SIZE
+  const i = (TABS_SPEC.TAB_KEYS as readonly string[]).findIndex(kind =>
+    addressed(true, (MEMBER_NAMES[kind] ?? []).includes(first))
+  )
+  return i < 0 ? TEAM.TEAM_SIZE : i
+}
+
+/** The channel's member: its tab's, or the Agent (0) for any other thread. */
+export function channelMember(conversation?: string | null): number {
+  const i = memberOfConversation(conversation)
+  return i < 0 ? 0 : i
+}
+
+/** Who answers this message in this channel (spec speaker). */
+export function speakerFor(
+  conversation: string | null | undefined,
+  text: string | null | undefined
+): number {
+  return speaker(addressedMember(text), channelMember(conversation))
+}
+
+/** The name an answer opens with: the emoji of the tab and the member's name. */
+export function speakerLabel(index: number): string {
+  const kind = TABS_SPEC.TAB_KEYS[index]
+  const name = MEMBER_NAMES[kind]?.[0] ?? kind
+  const emoji = String.fromCodePoint(TABS_SPEC.TAB_EMOJI[index])
+  return `${emoji} ${name[0].toUpperCase()}${name.slice(1)}`
+}
+
+/**
+ * The block a turn carries in its system prompt: the trade of whoever
+ * speaks in this channel (the channel's member, or the member the message
+ * names first), or '' for the generalist speaking in its own channel.
+ * `names` is the registry's tool names; `text` the person's last message.
  */
 export function professionSection(
   conversation: string | null | undefined,
-  names: readonly string[]
+  names: readonly string[],
+  text?: string | null
 ): string {
-  const i = memberOfConversation(conversation)
-  if (i < 0) return ''
-  const kind = TABS_SPEC.TAB_KEYS[i]
+  const channel = channelMember(conversation)
+  const who = speakerFor(conversation, text)
+  const guest = labelled(who, channel)
+  if (!guest && !hasTrade(who >= 0, who < TEAM.TEAM_CORE)) return ''
+  const kind = TABS_SPEC.TAB_KEYS[who]
   const trade = TRADE_RU[kind]
   if (!trade) return ''
-  const lead = leadTools(i, names)
+  const lead = leadTools(who, names)
+  const where = guest
+    ? `Тебя позвали в канал коллеги: «${speakerLabel(channel)}». Это его разговор, ты в нём гость; ` + // cyrillic-ok: prompt copy
+      `начни ответ со своего имени — «${speakerLabel(who)}:». ` // cyrillic-ok: prompt copy
+    : 'Это твоя вкладка в его чате. ' // cyrillic-ok: prompt copy
   return (
-    `\n\nТЫ — ${trade.who} В КОМАНДЕ АГЕНТОВ ЧЕЛОВЕКА, и это твоя вкладка в его чате. ` + // cyrillic-ok: prompt copy
+    `\n\nТЫ — ${trade.who} В КОМАНДЕ АГЕНТОВ ЧЕЛОВЕКА (нейроофис: каждый член команды есть в каждом канале). ` + // cyrillic-ok: prompt copy
+    where +
     `Твоё ремесло: ${trade.work}. ` + // cyrillic-ok: prompt copy
     (lead.length
       ? `Твои инструменты в первую очередь: ${lead.join(', ')}. ` // cyrillic-ok: prompt copy
       : '') +
     'Но все остальные инструменты тоже твои: о чём бы ни попросили, делай сам, ' + // cyrillic-ok: prompt copy
-    'а не отсылай. Если долгая работа целиком в ремесле коллеги, сделай, что просили, ' + // cyrillic-ok: prompt copy
-    'и одной фразой скажи, что у него есть своя вкладка (/team — позвать в команду). ' + // cyrillic-ok: prompt copy
+    'а не отсылай. Коллегу можно позвать в любой канал, назвав его первым словом: ' + // cyrillic-ok: prompt copy
+    '«Казначей, …», «Штурман, …». ' + // cyrillic-ok: prompt copy
     'Любое правило, число и порог проекта сверяй со спекой: t27_specs.' // cyrillic-ok: prompt copy
   )
 }

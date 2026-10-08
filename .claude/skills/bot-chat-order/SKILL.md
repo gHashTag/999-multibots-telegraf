@@ -87,6 +87,18 @@ access to every spec and every tool". Specs: `bot-agent-team.t27`,
 | Every member is shown EVERY tool; a trade is a lead, never a fence                                                                              | `shownTools`                                                                     | `EVERY_TOOL_FOR_EVERY_MEMBER`          |
 | Every agent searches and reads `specs/` of gHashTag/t27 (free, listing kept 10 min, read cut at 16000, fallback to the render's own `src/spec`) | render `agent/spec-bank-tools.ts`, tool `t27_specs`                              | `found`, `path_readable`, `falls_back` |
 
+**The neuro-office** (owner, same evening: "the team members must be in these
+channels -- that is the point of the neuro-office; live people and agents"):
+every member is in every channel. A message that OPENS with a member's name
+("Казначей, ...", "@navigator ...") is answered in that channel by the member
+named, its answer opening with its name; the channel keeps its memory
+(`speaker`, `addressed`, `labelled`, `GUEST_KEEPS_CHANNEL_MEMORY`; render
+`profession.ts` `speakerFor`, `chat.ts` `teamSection`). The render decides it,
+so the bot and the mini-app get it alike. Only the person's own turns: never
+a client's DM, a client thread, the Queen or a catalogue specialist. Live
+people join through a forum GROUP (a private chat holds one person) -- the
+office group is the next step, spec `bot-neuro-office.t27`.
+
 Traps:
 
 - `registerTabsCommand` now registers `/tabs`, `/team` and a `bot.action`. A

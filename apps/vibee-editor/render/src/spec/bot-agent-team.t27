@@ -16,7 +16,10 @@
 // every tool" -- a trade decides what a member leads with, never what it may use: every
 // member is shown every tool and the whole spec bank (agent-spec-bank.t27). And: "the same
 // logic in the mini-app" -- one team in both: a member's chat in the app is its tab's
-// conversation, and hiring in the app makes the member's tab in the bot.
+// conversation, and hiring in the app makes the member's tab in the bot. And: "the team
+// members must be in these channels -- that is the point of the neuro-office": every member
+// is in every channel, and a message that opens with a member's name is answered there by
+// that member, the channel keeping its memory.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_agent_team {
@@ -73,6 +76,31 @@ module automation::bot_agent_team {
     // the bot (offered decides), and the app opens the member's chat at once.
     fn app_hire_makes_tab(offered_now: bool, bot_has_tabs: bool) -> bool {
         return offered_now && bot_has_tabs;
+    }
+
+    // ---- the neuro-office: every member is in every channel ----
+
+    // A message that opens with a member's name ("Treasurer, will it cover a reel?",
+    // "@navigator open ...") is answered in this channel by the member named, with its
+    // trade; any other message by the channel's own member. TEAM_SIZE means "nobody named".
+    fn speaker(addressed: u32, channel: u32) -> u32 {
+        if addressed < TEAM_SIZE { return addressed; }
+        return channel;
+    }
+
+    // A name counts only at the very start of the message: a member mentioned in passing
+    // ("ask the treasurer later") does not take the turn.
+    fn addressed(at_start: bool, is_member_name: bool) -> bool {
+        return at_start && is_member_name;
+    }
+
+    // Whoever speaks, the channel keeps its memory (bot-agent-memory.t27): the Treasurer
+    // answering in the Director's channel is part of the Director's conversation.
+    pub const GUEST_KEEPS_CHANNEL_MEMORY : bool = true;
+
+    // A guest's answer opens with its name, so the person sees who is speaking.
+    fn labelled(speaker_index: u32, channel: u32) -> bool {
+        return speaker_index != channel;
     }
 
     // ---- each member's trade ----
@@ -146,6 +174,19 @@ module automation::bot_agent_team {
         assert(app_hire_makes_tab(true, true));
         assert(!app_hire_makes_tab(false, true));
         assert(!app_hire_makes_tab(true, false));
+    }
+
+    test "every member is in every channel: a member named first speaks, the channel keeps its memory" {
+        assert(speaker(4, 1) == 4);
+        assert(speaker(TEAM_SIZE, 1) == 1);
+        assert(speaker(TEAM_SIZE - 1, 0) == TEAM_SIZE - 1);
+        assert(speaker(0, 3) == 0);
+        assert(addressed(true, true));
+        assert(!addressed(false, true));
+        assert(!addressed(true, false));
+        assert(GUEST_KEEPS_CHANNEL_MEMORY);
+        assert(labelled(4, 1));
+        assert(!labelled(1, 1));
     }
 
     test "every member is shown every tool; its trade is what it leads with" {
