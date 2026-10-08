@@ -21,6 +21,17 @@ import { Readable } from 'node:stream'
 
 const TELEGRAM_TEST_TOKEN = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 
+/*
+ * The sign-in notice (notify-sign-in.ts) is sent through the Bot API. Unstubbed
+ * it was a real sendMessage to api.telegram.org with the fake token above on
+ * every run (test-support/no-network.ts); the path under test ends at the
+ * session, so the notice is only kept here, not sent.
+ */
+vi.mock('./src/auth/telegram-sender', async importOriginal => ({
+  ...(await importOriginal<typeof import('./src/auth/telegram-sender')>()),
+  sendToTelegram: async () => undefined,
+}))
+
 /**
  * Подпись initData ровно по документации Telegram: секрет — это HMAC от
  * токена бота с ключом «WebAppData», а не сам токен. Перепутать местами — тот
