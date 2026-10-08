@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-neuro-office.t27 -- the neuro-office: live people and the team of agents in one group.
+// Host: 999-multibots-telegraf src/navigation/topics/office.ts (/office, who answers in the
+// group) and apps/vibee-editor/render/src/agent/routes.ts (the member a room turn speaks as).
+// Trace: owner 2026-10-08 "the team members must be in these channels -- that is the point
+// of the neuro-office -- live people and agents". A private chat holds one person, so the
+// office is a forum group: the team's channels (topics) where people and agents work together.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: room contract. The channels are the team's tabs (bot-topic-tabs.t27, made in
+// the group by the same engine); who speaks is bot-agent-team.t27 speaker. The group rule of
+// groupAddressing.ts stands: in a room the bot speaks only when spoken to.
+// v1 (2026-10-08): opening an office, the whole team in it, when an agent answers among
+// people, the member a channel speaks as, no pay buttons in a room.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_neuro_office {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-neuro-office";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- opening an office ----
+
+    // /office turns a group into an office: a forum (topics on), the bot an admin that may
+    // manage topics, and the command sent by an admin of the group. Anything less is told
+    // what is missing, and nothing is made.
+    fn may_open_office(is_forum: bool, bot_manages_topics: bool, sender_is_admin: bool) -> bool {
+        return is_forum && bot_manages_topics && sender_is_admin;
+    }
+
+    // An office holds the whole team at once: every member has its channel there, because
+    // the people in the room did not each hire them.
+    pub const OFFICE_TEAM_SIZE : u32 = 6;
+
+    // ---- who answers among people ----
+
+    // People in the office talk to each other; an agent answers only when spoken to: a reply
+    // to the bot, the bot named by @username, a command -- or, in an office and nowhere else,
+    // a message that opens with a member's name ("Treasurer, ...").
+    fn answers(reply_to_bot: bool, mentioned: bool, command: bool, office: bool, member_named_first: bool) -> bool {
+        return reply_to_bot || mentioned || command || (office && member_named_first);
+    }
+
+    // In an office channel the channel's member speaks; a member named first takes the turn
+    // (bot-agent-team.t27 speaker). Outside the team's channels, the Agent.
+    fn channel_speaker(channel_known: bool, channel: u32) -> u32 {
+        if channel_known { return channel; }
+        return 0;
+    }
+
+    // ---- money ----
+
+    // No pay buttons in a room: a top-up is one person's, and a button in a group is pressed
+    // by whoever is there. The Treasurer's tab in each person's private chat keeps them.
+    pub const ROOM_PAY_BUTTONS : bool = false;
+    fn pay_buttons_in(room: bool) -> bool {
+        return !room || ROOM_PAY_BUTTONS;
+    }
+
+    // ---- tests ----
+
+    test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
+        assert(may_open_office(true, true, true));
+        assert(!may_open_office(false, true, true));
+        assert(!may_open_office(true, false, true));
+        assert(!may_open_office(true, true, false));
+        assert(OFFICE_TEAM_SIZE == 6);
+    }
+
+    test "among people an agent answers only when spoken to; a member's name counts in an office only" {
+        assert(answers(true, false, false, false, false));
+        assert(answers(false, true, false, false, false));
+        assert(answers(false, false, true, false, false));
+        assert(answers(false, false, false, true, true));
+        assert(!answers(false, false, false, false, true));
+        assert(!answers(false, false, false, true, false));
+        assert(!answers(false, false, false, false, false));
+    }
+
+    test "a channel speaks as its member, anywhere else as the Agent" {
+        assert(channel_speaker(true, 4) == 4);
+        assert(channel_speaker(false, 4) == 0);
+        assert(channel_speaker(true, 0) == 0);
+    }
+
+    test "no pay buttons in a room" {
+        assert(!ROOM_PAY_BUTTONS);
+        assert(!pay_buttons_in(true));
+        assert(pay_buttons_in(false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

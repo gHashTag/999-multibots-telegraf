@@ -255,6 +255,11 @@ import {
   registerTabsCommand,
 } from './topics/wire'
 import { moneyHere } from './topics/team'
+import {
+  namedInOffice,
+  officeChannelKind,
+  registerOfficeCommand,
+} from './topics/office'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -1499,9 +1504,12 @@ If not, continue on your own and click the "I myself" button`
            * server refused a draft; the real message still goes out below.
            */
           draft = startAnswerDraft(ctx)
+          // In an office, the member whose channel this is (bot-neuro-office.t27).
+          const member = inRoom ? await officeChannelKind(ctx) : undefined
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            ...(member ? { member } : {}),
             ...(conversation ? { conversation } : {}),
             // "sending a photo…" while a picture tool runs (#3665)
             onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
@@ -2002,8 +2010,9 @@ If not, continue on your own and click the "I myself" button`
        *
        * A private chat is unaffected: one person writing to the bot alone is
        * addressing it by definition. See groupAddressing.ts for what counts.
+       * In an office (bot-neuro-office.t27), a member named first counts too.
        */
-      if (!isAddressedToUs(ctx)) {
+      if (!isAddressedToUs(ctx) && !(await namedInOffice(ctx))) {
         void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
         return next()
       }
@@ -3417,6 +3426,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   })
 
   registerTabsCommand(bot)
+  // The neuro-office: people and the team in one forum group (bot-neuro-office.t27).
+  registerOfficeCommand(bot)
 
   // Команда /help
   bot.command('help', async ctx => {

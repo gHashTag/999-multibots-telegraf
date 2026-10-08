@@ -218,6 +218,7 @@ describe('which message may carry pay buttons', () => {
     expect(await moneyHere(as(inThread(undefined), 'm3'))).toBe(false)
     setTopicTabsDbForTests(db([]) as any)
     expect(await moneyHere(as(inThread(11), 'm4'))).toBe(true)
-    expect(await moneyHere(as(inThread(11, 'supergroup'), 'm5'))).toBe(true)
+    // A room carries no pay buttons (bot-neuro-office.t27 pay_buttons_in).
+    expect(await moneyHere(as(inThread(11, 'supergroup'), 'm5'))).toBe(false)
   })
 })

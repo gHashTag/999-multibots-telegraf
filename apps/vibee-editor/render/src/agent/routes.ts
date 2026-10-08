@@ -21,6 +21,8 @@
  *    одной существующей композиции.
  */
 import { randomUUID } from 'node:crypto'
+import { TAB_CONVERSATION_PREFIX } from './profession'
+import { TAB_KEYS } from '../spec/bot-topic-tabs.gen'
 import {
   liveMarketplaceAgentById,
   marketplaceAgentById,
@@ -1298,7 +1300,13 @@ export async function handleAgentChat(
           ),
           marketplaceAgent: gate.agent,
           // A fixed tab's conversation is that team member's (profession.ts).
-          ...(gate.conversation ? { profession: gate.conversation } : {}),
+          ...(gate.conversation
+            ? { profession: gate.conversation }
+            : officeMember(body.member, gate.room)
+              ? // An office channel's member (bot-neuro-office.t27): the room
+                // keeps its memory, the turn takes that member's trade.
+                { profession: `${TAB_CONVERSATION_PREFIX}${body.member}` }
+              : {}),
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.
           agentLog:
@@ -2067,4 +2075,16 @@ export async function handleAgentTeam(
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
+}
+
+/**
+ * A member an office room turn may name (bot-neuro-office.t27): a team tab
+ * kind, and only with a room. It shapes the prompt and nothing else.
+ */
+export function officeMember(member: unknown, room: unknown): boolean {
+  return (
+    typeof member === 'string' &&
+    !!room &&
+    (TAB_KEYS as readonly string[]).includes(member)
+  )
 }

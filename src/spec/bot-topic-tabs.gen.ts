@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-topic-tabs" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 4 satisfies number;
+export const VERSION = 5 satisfies number;
 export const TAB_COUNT = 6 satisfies number;
 export const TAB_KEYS = ["agent", "reels", "browser", "mybot", "wallet", "hive"] as const satisfies readonly [string, string, string, string, string, string];
 export const TAB_TITLES_EN = ["Agent", "Director", "Navigator", "Builder", "Treasurer", "Queen"] as const satisfies readonly [string, string, string, string, string, string];
@@ -31,6 +31,10 @@ export const CLAIM_STALE_MS = 120000 satisfies number;
 // t27c gen-ts: fn claim_stale was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_rename was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn retitle was not emitted -- this backend lowers declarations, not bodies.
+export const NAME_CARRIES_EMOJI = false satisfies boolean;
+// t27c gen-ts: fn name_ok was not emitted -- this backend lowers declarations, not bodies.
+export const ICON_AFTER_CREATE = true satisfies boolean;
+// t27c gen-ts: fn sets_icon was not emitted -- this backend lowers declarations, not bodies.
 export const RENAME_REMAKES = false satisfies boolean;
 // t27c gen-ts: fn clears_old was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_set_up was not emitted -- this backend lowers declarations, not bodies.
@@ -52,10 +56,12 @@ export const TAB_CACHE_MAX = 5000 satisfies number;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TAB_COUNT", "TAB_KEYS", "TAB_TITLES_EN", "TAB_EMOJI", "TAB_COLORS", "TAB_ROUTES", "ICON_COLOR_COUNT", "ICON_COLORS", "TOPIC_NAME_MAX", "TELEGRAM_TOPIC_NAME_MAX", "PROBE_METHOD", "CLAIM_STALE_MS", "RENAME_REMAKES", "TAB_CACHE_MAX"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TAB_COUNT", "TAB_KEYS", "TAB_TITLES_EN", "TAB_EMOJI", "TAB_COLORS", "TAB_ROUTES", "ICON_COLOR_COUNT", "ICON_COLORS", "TOPIC_NAME_MAX", "TELEGRAM_TOPIC_NAME_MAX", "PROBE_METHOD", "CLAIM_STALE_MS", "NAME_CARRIES_EMOJI", "ICON_AFTER_CREATE", "RENAME_REMAKES", "TAB_CACHE_MAX"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

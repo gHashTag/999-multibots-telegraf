@@ -39,8 +39,13 @@ export type TabKind = (typeof SPEC.TAB_KEYS)[number]
 
 export interface TabSpec {
   kind: TabKind
+  /** The member's label on buttons and in text: emoji and name. */
   ru: string
   en: string
+  /** The topic's own name, words only (spec v5): the emoji is its icon. */
+  topicRu: string
+  topicEn: string
+  emoji: string
   /** One of the colours Telegram accepts for a topic icon (SPEC.ICON_COLORS). */
   color: number
   /** The mini-app screen the tab's first message opens. */
@@ -97,6 +102,8 @@ export const {
   evicts,
   retitle,
   clearsOld,
+  nameOk,
+  setsIcon,
   tabsOf,
   knownTabs,
   tabCacheSize,
