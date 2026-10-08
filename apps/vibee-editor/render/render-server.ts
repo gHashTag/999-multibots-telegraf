@@ -1,6 +1,7 @@
 // ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
+import { configureEventTabs } from './src/topic-event-tabs'
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
 import {
@@ -148,6 +149,9 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
+// Events land in their agent's tab of the private chat (bot-event-tabs.t27):
+// the tabs live in this same Postgres, in the bot's bot_topic_tabs.
+configureEventTabs(() => getPool() as any)
 import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
 import { handleCardWork } from './src/agent/card-work'

@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { inEventTab } from '@/navigation/topics/eventTabs'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { createClientTelemetryMiddleware } from '@/core/telemetry/telemetryMiddleware'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
@@ -166,7 +167,11 @@ async function initializeBots() {
     setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
     // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
+    bot.on(
+      'successful_payment',
+      // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+      inEventTab('payment', handleSuccessfulPayment as any) as any
+    )
     // Обработчик текстовых сообщений по умолчанию - должен быть последним
     // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
     // bot.on(message('text'), handleTextMessage)
@@ -269,7 +274,11 @@ async function initializeBots() {
 
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-        bot.on('successful_payment', handleSuccessfulPayment as any)
+        bot.on(
+          'successful_payment',
+          // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+          inEventTab('payment', handleSuccessfulPayment as any) as any
+        )
         // Обработчик текстовых сообщений по умолчанию - должен быть последним
         // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
         // bot.on(message('text'), handleTextMessage)

@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { inEventTab } from '@/navigation/topics/eventTabs'
 import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import {
@@ -527,7 +528,11 @@ async function initializeBots() {
      * paymentHandlers/index.ts.
      */
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
+    // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+    bot.on(
+      'successful_payment',
+      inEventTab('payment', handleSuccessfulPayment as any) as any
+    )
 
     /*
      * A CLIENT'S OWN AGENT BOT (Telegram Managed Bots, Bot API 9.6).
