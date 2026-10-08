@@ -167,6 +167,26 @@ describe('my reels', () => {
     expect(parseInt(pic.style.height)).toBeGreaterThanOrEqual(44)
   })
 
+  it('a reel whose poster the server kept shows it, and the video is not fetched (plan-reel v3)', async () => {
+    serve(() => ({
+      ...READY,
+      jobs: [
+        { ...READY.jobs[0], poster: 'https://shelf.example/s3/reel.jpg' },
+        { ...READY.jobs[0], id: 2, poster: '' },
+      ],
+    }))
+    await draw()
+    const [kept, tried] = [
+      ...host.querySelectorAll<HTMLAnchorElement>('a.reel-preview'),
+    ]
+    expect(kept.querySelector('img')?.getAttribute('src')).toBe(
+      'https://shelf.example/s3/reel.jpg'
+    )
+    expect(kept.querySelector('video')).toBeNull()
+    expect(tried.querySelector('img')).toBeNull()
+    expect(tried.querySelector('video')).not.toBeNull()
+  })
+
   it('says a gift is a gift instead of naming a price', async () => {
     serve(() => ({ ...READY, price_tokens: undefined, gift: true }))
     await draw()

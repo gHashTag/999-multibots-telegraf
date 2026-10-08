@@ -21,6 +21,7 @@ import {
   scenesFor,
 } from '../agent/plan-reel'
 import { storyPriceEstimate } from '../agent/story-template'
+import { pictureOf, posterSwept, postersThisRound } from '../agent/reel-poster'
 
 describe('plan-reel.t27, against the host', () => {
   it('a card offers the press only while it is an idea and nothing is being made', () => {
@@ -70,6 +71,27 @@ describe('plan-reel.t27, against the host', () => {
     expect(previewHeight(SPEC.PREVIEW_CARD_PX)).toBe(128)
     expect(previewHeight(90)).toBe(160)
   })
+
+  it('a kept poster is the picture, anything else leaves the frame to the browser', () => {
+    expect(pictureOf(SPEC.POSTER_KEPT)).toBe(SPEC.PICTURE_POSTER)
+    expect(pictureOf(SPEC.POSTER_NONE)).toBe(SPEC.PICTURE_FRAME)
+    expect(pictureOf(SPEC.POSTER_TRIED)).toBe(SPEC.PICTURE_FRAME)
+  })
+
+  it("the poster is the card's width at the densest screen, 9:16", () => {
+    expect(SPEC.POSTER_W).toBe(SPEC.PREVIEW_CARD_PX * SPEC.POSTER_DENSITY)
+    expect(previewHeight(SPEC.POSTER_W)).toBe(384)
+  })
+
+  it('the sweep draws a poster once, only for a reel that came out', () => {
+    expect(posterSwept(true, SPEC.POSTER_NONE)).toBe(true)
+    expect(posterSwept(true, SPEC.POSTER_TRIED)).toBe(false)
+    expect(posterSwept(true, SPEC.POSTER_KEPT)).toBe(false)
+    expect(posterSwept(false, SPEC.POSTER_NONE)).toBe(false)
+    expect(postersThisRound(0)).toBe(0)
+    expect(postersThisRound(2)).toBe(2)
+    expect(postersThisRound(40)).toBe(SPEC.POSTER_SWEEP_MAX)
+  })
 })
 
 describe('plan-reel.t27 and the story template it presses', () => {
@@ -91,5 +113,15 @@ describe('plan-reel.t27 and the story template it presses', () => {
     expect(src).not.toMatch(/t27\.ai\/#\/course\//)
     expect(src).not.toMatch(/raw\.githubusercontent/)
     expect(src).not.toMatch(/\b(27|72|1000)\b/)
+  })
+
+  it('the poster restates none of its numbers', () => {
+    const src = readFileSync(join(__dirname, '../agent/reel-poster.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+    expect(src).not.toMatch(/\b216\b/)
+    expect(src).not.toMatch(/'-ss',\s*'[\d.]+'/)
+    expect(src).not.toMatch(/scale=\d/)
+    expect(src).not.toMatch(/LIMIT \d/)
   })
 })

@@ -22,6 +22,7 @@ import { LIVE_NOTES } from './crm-voice-clone-tool'
 import { joinVoiceNotes, runTool } from './lead-voice'
 import { s3PutBytes } from '../lib/s3-put'
 import { voiceLooksDown } from './image-health'
+import { drawPoster } from './reel-poster'
 
 type Pool = StoryDeps['pool']
 
@@ -178,6 +179,15 @@ export function makeStoryDeps(
         { telegramId: seller, pool: pool as ToolContext['pool'] },
         lead,
         parts
+      ),
+    // The reel's poster: its frame, drawn once and kept (plan-reel v3).
+    poster: video =>
+      drawPoster(
+        {
+          ffmpeg: args => runTool('ffmpeg', args),
+          put: (bytes, name, mime) => s3PutBytes(bytes, name, mime),
+        },
+        video
       ),
     // Her clone's provider refused a real call lately (spec v5): the seller's
     // reel speaks her notes instead of paying for stills a 402 will orphan.
