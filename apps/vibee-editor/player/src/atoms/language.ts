@@ -841,6 +841,8 @@ const en: Translations = {
   'crm.client.chat.title': 'Conversation about client {id}',
   // The row of conversations above the chat (components/Chat/ChatThreads.tsx).
   'chat.threads.label': 'Conversations',
+  'chat.team.label': 'Your team of agents',
+  'chat.team.hire': 'Call {name} into the team',
   'chat.threads.agent': 'Agent',
   'chat.threads.all': 'All',
   'chat.threads.allTitle': 'All clients: search and pages',
@@ -3905,6 +3907,8 @@ const ru: Translations = {
   'crm.client.messages.them': 'клиент',
   'crm.client.chat.title': 'Разговор о клиенте {id}',
   'chat.threads.label': 'Разговоры',
+  'chat.team.label': 'Ваша команда агентов',
+  'chat.team.hire': 'Позвать в команду: {name}',
   'chat.threads.agent': 'Агент',
   'chat.threads.all': 'Все',
   'chat.threads.allTitle': 'Все клиенты: поиск и страницы',

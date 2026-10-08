@@ -78,6 +78,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { SOCIAL_PROMPT_LINE } from './social-tools'
+import { professionSection } from './profession'
 import {
   MARKETPLACE_AGENTS,
   marketplaceAgentById,
@@ -1448,7 +1449,9 @@ function ownerSideSection(surface?: string): string {
     'Аватарки агентов каталога из твоего фото (GPT Image 2.5) — ' + // cyrillic-ok: prompt copy
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
-    'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run.' // cyrillic-ok: prompt copy
+    'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run. ' + // cyrillic-ok: prompt copy
+    /* automation/agent-spec-bank.t27: every agent reads the whole spec bank. */
+    'Правило, число или порог проекта — сверяй со спекой .t27: t27_specs (поиск и чтение, бесплатно).' // cyrillic-ok: prompt copy
   )
 }
 
@@ -2326,6 +2329,38 @@ export async function* withTurnEnd<T>(
   }
 }
 
+/**
+ * THE NEURO-OFFICE (bot-agent-team.t27): the trade of whoever speaks in this
+ * channel -- the channel's member, or the member the person's message names
+ * first ("Казначей, ..."). Only for the person's own turns in the bot and the
+ * mini-app: never a client's DM, a client thread, the Queen or a specialist.
+ */
+export function teamSection(
+  opts:
+    | {
+        surface?: string
+        profession?: string
+        client?: string
+        supervisor?: boolean
+        marketplaceAgent?: string
+      }
+    | undefined,
+  history: readonly ChatMessage[]
+): string {
+  const own =
+    (opts?.surface === 'bot' || opts?.surface === 'miniapp') &&
+    !opts?.client &&
+    !opts?.supervisor &&
+    !opts?.marketplaceAgent
+  if (!own) return ''
+  const last = [...history].reverse().find(m => m.role === 'user')
+  return professionSection(
+    opts?.profession,
+    [...TOOLS_BY_NAME.keys()],
+    typeof last?.content === 'string' ? last.content : null
+  )
+}
+
 export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext,
@@ -2357,6 +2392,12 @@ async function* runAgentTurn(
     widgets?: TurnWidgets
     /** A live labour-market specialist selected by the person. */
     marketplaceAgent?: string
+    /**
+     * The conversation the bot named: a fixed tab's `tab<kind>` makes the
+     * turn that member's, with its trade in the prompt (profession.ts,
+     * bot-agent-team.t27). Every tool stays shown.
+     */
+    profession?: string
     /**
      * THE QUEEN: a supervisor's turn about `client` (routes.ts threadFor
      * role=supervisor). No tools at all -- she reads, reasons and writes
@@ -2776,7 +2817,8 @@ async function* runAgentTurn(
               giftIsDown: imagesLookDown()?.why ?? null,
             })) +
         dmContext +
-        specialistSkills,
+        specialistSkills +
+        teamSection(opts, history),
     },
     ...history,
   ]

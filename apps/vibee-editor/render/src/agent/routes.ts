@@ -1297,6 +1297,8 @@ export async function handleAgentChat(
             Boolean(gate.client) && gate.supervisor !== true
           ),
           marketplaceAgent: gate.agent,
+          // A fixed tab's conversation is that team member's (profession.ts).
+          ...(gate.conversation ? { profession: gate.conversation } : {}),
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.
           agentLog:
@@ -2020,6 +2022,48 @@ export async function handleAgentConversations(
       String(body.title ?? '')
     )
     return json(res, 200, { ok: true, thread: gate.thread })
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+  }
+}
+
+/**
+ * /api/agent/team -- the person's team of agents in the mini-app
+ * (bot-agent-team.t27): GET the members (?lang=ru), POST {kind, lang} to hire
+ * one, which makes its tab in the bot too. The same identity as the history.
+ */
+export async function handleAgentTeam(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const { teamView, hireFromApp } = await import('./topic-tabs-tools')
+  try {
+    if (req.method === 'GET') {
+      const isRu =
+        new URL(req.url || '', 'http://x').searchParams.get('lang') === 'ru'
+      const view = await teamView(await getPool(), telegramId, isRu)
+      return json(res, 200, { ok: true, ...view })
+    }
+    if (req.method !== 'POST')
+      return json(res, 405, { ok: false, error: 'GET or POST' })
+    let body: any = {}
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      return json(res, 400, { ok: false, error: 'bad json' })
+    }
+    const kind = String(body?.kind ?? '')
+    if (!/^[a-z]{2,16}$/.test(kind))
+      return json(res, 400, { ok: false, error: 'bad kind' })
+    const r = await hireFromApp(
+      await getPool(),
+      telegramId,
+      kind,
+      body?.lang === 'ru'
+    )
+    return json(res, r.ok ? 200 : 400, r)
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }

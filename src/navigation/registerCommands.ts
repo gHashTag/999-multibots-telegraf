@@ -3379,7 +3379,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         })()
       }
       // The fixed tabs, once per person, when the bot has topics on.
-      void ensureTabsQuietly(ctx)
+      void ensureTabsQuietly(ctx, {}, wantsApp)
     } catch (error) {
       console.log(
         '🔴 [DEBUG /start] ERROR:',

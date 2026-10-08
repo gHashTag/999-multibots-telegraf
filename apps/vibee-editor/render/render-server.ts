@@ -79,6 +79,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentTeam,
   handleAgentConversations,
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
@@ -9483,6 +9484,21 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
+   * /api/agent/team -- the person's team of agents in the mini-app
+   * (bot-agent-team.t27): the members, and a hire that makes the bot tab.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/team') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleAgentTeam(req, res, String(who), getPool)
     return
   }
 
