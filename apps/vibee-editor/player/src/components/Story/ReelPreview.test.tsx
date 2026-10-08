@@ -53,6 +53,18 @@ describe('ReelPreview', () => {
     }
   })
 
+  it('a poster that fails to load gives way to the frame, never a broken icon', async () => {
+    await show('https://shelf.example/s3/gone.jpg')
+    const img = host.querySelector('img')!
+    await act(async () => {
+      img.dispatchEvent(new Event('error'))
+    })
+    expect(host.querySelector('img')).toBeNull()
+    expect(host.querySelector('video')?.getAttribute('src')).toBe(
+      `${REEL}#t=${SPEC.PREVIEW_SEEK_MS / 1000}`
+    )
+  })
+
   it('is 9:16 at the card width either way', async () => {
     await show('https://shelf.example/s3/p.jpg')
     const a = host.querySelector<HTMLAnchorElement>('a.reel-preview')!
