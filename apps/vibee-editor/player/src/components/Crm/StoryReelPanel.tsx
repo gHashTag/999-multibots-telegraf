@@ -11,7 +11,7 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { crmErrorText } from '@/lib/crmErrorText'
 import { Panel } from '@/components/Crm/Panel'
 import { coveredByNotice } from '@/components/Crm/refusalRules'
-import { StoryFacePicker } from '@/components/Crm/StoryFacePicker'
+import { ScenePhotoSheet } from '@/components/Crm/ScenePhotoSheet'
 import { StoryPalette } from '@/components/Crm/StoryPalette'
 import { StoryTemplateGallery } from '@/components/Crm/StoryTemplateGallery'
 import { clientWidgetsAtom } from '@/atoms/clientWidgets'
@@ -19,6 +19,7 @@ import {
   loadStoryIdeas,
   loadStoryReel,
   saveStoryFace,
+  saveStoryScenes,
   startStoryReel,
   type Reached,
   type StoryReady,
@@ -57,11 +58,14 @@ function Storyboard({
   face,
   ready,
   cta,
+  onScene,
 }: {
   count: number
   face: string | null
   ready: StoryReady
   cta: string
+  /** A tap on scene i opens its photo (crm-story-reel v31); absent -- not tappable. */
+  onScene?: (i: number) => void
 }) {
   const { t } = useLanguage()
   // A face that will not load shows the empty frame, not a broken icon; a
@@ -74,24 +78,50 @@ function Storyboard({
       data-testid="story-reel-board"
       style={{ '--tiles': count + 1 } as CSSProperties}
     >
-      {Array.from({ length: count }, (_, i) => (
-        <li key={i} className="story-reel__frame">
-          {face && face !== brokenFace ? (
-            <img
-              src={face}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              onError={() => setBrokenFace(face)}
-            />
-          ) : (
-            <span className="story-reel__frame-empty" aria-hidden>
-              ◎
-            </span>
-          )}
-          <span className="story-reel__frame-n">{i + 1}</span>
-        </li>
-      ))}
+      {Array.from({ length: count }, (_, i) => {
+        // A photo per scene (v31): the server's own choice for scene i.
+        const src = ready.sceneFaces[i] || face
+        const tile = (
+          <>
+            {src && src !== brokenFace ? (
+              <img
+                src={src}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                onError={() => setBrokenFace(src)}
+              />
+            ) : (
+              <span className="story-reel__frame-empty" aria-hidden>
+                ◎
+              </span>
+            )}
+            <span className="story-reel__frame-n">{i + 1}</span>
+            {ready.scenePicked[i] ? (
+              <span className="story-reel__frame-own" aria-hidden>
+                ✎
+              </span>
+            ) : null}
+          </>
+        )
+        return (
+          <li key={i} className="story-reel__frame">
+            {onScene ? (
+              <button
+                type="button"
+                className="story-reel__frame-tap"
+                data-testid={`story-scene-${i}`}
+                aria-label={t('crm.client.story.scene.open', { n: i + 1 })}
+                onClick={() => onScene(i)}
+              >
+                {tile}
+              </button>
+            ) : (
+              tile
+            )}
+          </li>
+        )
+      })}
       <li
         className="story-reel__frame story-reel__frame--cta"
         style={{
@@ -143,6 +173,10 @@ export function StoryReelPanel({
   const [ideas, setIdeas] = useState<string[]>([])
   // The finished reel goes straight to her DM unless the seller says not.
   const [toDm, setToDm] = useState(true)
+  // The scene whose photo is open (crm-story-reel v31); null -- none.
+  const [scene, setScene] = useState<number | null>(null)
+  const [sceneBusy, setSceneBusy] = useState(false)
+  const [sceneWhy, setSceneWhy] = useState('')
   const [result, setResult] = useState<Reached<StoryStart> | null>(null)
   // The script picked in the gallery, with the seller's edits of its lines.
   const [template, setTemplate] = useState<StoryTemplate | null>(null)
@@ -329,15 +363,67 @@ export function StoryReelPanel({
             face={s.face}
             ready={s}
             cta={cta || s.cta || ''}
+            onScene={busy ? undefined : setScene}
           />
 
-          <StoryFacePicker
-            ready={s}
-            name={clientId}
-            disabled={busy}
-            save={url => saveStoryFace(clientId, url)}
-            onSaved={setState}
-          />
+          <p className="story-reel__scene-hint" data-testid="story-scene-hint">
+            {t('crm.client.story.scene.hint', { n: s.avatars.length })}
+            {s.faceCustom ? (
+              <button
+                type="button"
+                className="story-reel__link"
+                disabled={busy || sceneBusy}
+                onClick={() =>
+                  void saveStoryFace(clientId, '').then(r => {
+                    if (r.data && !r.data.why) setState(r)
+                  })
+                }
+              >
+                {t('crm.client.story.scene.resetAll')}
+              </button>
+            ) : null}
+          </p>
+          {scene !== null ? (
+            <ScenePhotoSheet
+              scene={scene}
+              current={scene === null ? null : s.sceneFaces[scene] || s.face}
+              picked={scene !== null && !!s.scenePicked[scene]}
+              candidates={[
+                ...new Set(
+                  [
+                    ...s.avatars,
+                    ...(s.faceCustom && s.face ? [s.face] : []),
+                    ...s.sceneFaces.filter((_, i) => s.scenePicked[i]),
+                  ].filter(Boolean)
+                ),
+              ]}
+              name={clientId}
+              busy={sceneBusy}
+              why={sceneWhy}
+              onClose={() => {
+                setScene(null)
+                setSceneWhy('')
+              }}
+              onPick={url => {
+                if (scene === null) return
+                // The seller's picks by scene, this one replaced ('' -- default).
+                const picks = Array.from(
+                  { length: Math.max(s.sceneFaces.length, n) },
+                  (_, i) => (s.scenePicked[i] ? s.sceneFaces[i] : '')
+                )
+                picks[scene] = url
+                setSceneBusy(true)
+                setSceneWhy('')
+                void saveStoryScenes(clientId, picks).then(r => {
+                  setSceneBusy(false)
+                  if (r.data && !r.data.why) {
+                    setState(r)
+                    setScene(null)
+                  } else setSceneWhy(r.data?.why ?? crmErrorText(r, lang, t))
+                })
+              }}
+            />
+          ) : null}
 
           <div className="story-reel__count">
             <span className="story-reel__label">

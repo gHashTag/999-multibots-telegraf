@@ -81,6 +81,7 @@ import {
   type GroupCardOffer,
 } from './story-card'
 import { keepPoster, posterOf, sweepPosters } from './reel-poster'
+import { sceneFacesFor, urlList } from './story-scene-faces'
 
 /*
  * THE NUMBERS BELOW ARE THE SPEC'S, NOT THIS FILE'S (owner, 2026-09-27: t27 is
@@ -144,6 +145,12 @@ export interface StorySettings {
   faceCustom: boolean
   /** Her avatar, the default the seller can go back to; '' when none. */
   avatarUrl: string
+  /** All her profile photos, newest first (crm-story-reel v31). */
+  avatars: string[]
+  /** The seller's pick for each scene, by index; '' -- none (v31). */
+  scenePicks: string[]
+  /** Whether her photo history was read at all (crm_people.avatar_urls set). */
+  avatarsRead: boolean
 }
 
 const parse = (v: unknown): any => {
@@ -285,6 +292,12 @@ export async function storySettingsOf(
       WHERE owner_id = $1 AND lead_id = $2`,
     [owner, id]
   )
+  // v31, read on its own: a base before it has no such column yet.
+  const history = await first(
+    pool,
+    `SELECT avatar_urls FROM crm_people WHERE owner_id = $1 AND lead_id = $2`,
+    [owner, id]
+  ).catch(() => null)
   // The seller's own photo for her reels (keepStoryFace), over the
   // profile's, over her avatar -- the avatar is only the default.
   const kept = await first(
@@ -292,6 +305,11 @@ export async function storySettingsOf(
     `SELECT face_url FROM story_faces WHERE owner_id = $1 AND lead_id = $2`,
     [owner, id]
   )
+  const picks = await first(
+    pool,
+    `SELECT scene_faces FROM story_faces WHERE owner_id = $1 AND lead_id = $2`,
+    [owner, id]
+  ).catch(() => null)
   const isUrl = (u: string) => /^https?:\/\//.test(u)
   const keptFace = String(kept?.face_url ?? '').trim()
   const own = String(s.face_url ?? '').trim()
@@ -307,6 +325,20 @@ export async function storySettingsOf(
     faceUrl,
     faceCustom,
     avatarUrl: isUrl(avatar) ? avatar : '',
+    avatars: (() => {
+      const all = urlList(parse(history?.avatar_urls), SPEC.AVATARS_MAX)
+      // The current avatar is one of them even before the history was read.
+      return isUrl(avatar) && !all.includes(avatar)
+        ? [avatar, ...all].slice(0, SPEC.AVATARS_MAX)
+        : all
+    })(),
+    avatarsRead: history?.avatar_urls != null,
+    scenePicks: (Array.isArray(parse(picks?.scene_faces))
+      ? (parse(picks?.scene_faces) as unknown[])
+      : []
+    )
+      .slice(0, SPEC.SCENES_MAX)
+      .map(u => (isUrl(String(u ?? '')) ? String(u) : '')),
     hasVoice: Boolean(voice),
     style: String(s.style ?? '').trim() || STORY_DEFAULT_STYLE,
     cta: profileCta(profile, owner === id) || STORY_DEFAULT_CTA,
@@ -656,6 +688,15 @@ export interface StoryDeps {
    * voiceLooksDown); absent: no reason to doubt it.
    */
   voiceDown?: () => boolean
+  /**
+   * Read all of her profile photos once (crm-avatars.ts avatarHistory);
+   * absent: the real one. A test names its own.
+   */
+  avatarHistory?: (
+    ctx: ToolContext,
+    lead: { id: string; username?: string | null },
+    limit: number
+  ) => Promise<string[]>
   /**
    * The payer's generations left in the day's window (tools.ts
    * generationsLeftToday); absent: not counted here, each tool still asks.
@@ -1255,6 +1296,15 @@ async function runHeld(
       .story(
         {
           image_url: s.faceUrl,
+          // A photo per scene: her avatars, round and round, under the
+          // seller's picks (crm-story-reel v31, sceneFacesFor).
+          image_urls: sceneFacesFor({
+            count: scenes.length,
+            picks: s.scenePicks ?? [],
+            avatars: s.avatars ?? [],
+            face: s.faceUrl,
+            faceCustom: s.faceCustom,
+          }),
           scenes,
           // The seller's own look and call, when the job carries them.
           style: String(job.style ?? '').trim() || s.style,
@@ -1863,8 +1913,10 @@ export async function keepStoryFace(
        PRIMARY KEY (owner_id, lead_id))`
   )
   if (!u) {
+    // Only the reel's photo goes; the per-scene picks (v31) stay.
     await pool.query(
-      `DELETE FROM story_faces WHERE owner_id = $1 AND lead_id = $2`,
+      `UPDATE story_faces SET face_url = '', updated_at = now()
+        WHERE owner_id = $1 AND lead_id = $2`,
       [String(owner), String(lead)]
     )
     return { kept: false }
@@ -1877,4 +1929,39 @@ export async function keepStoryFace(
     [String(owner), String(lead), u]
   )
   return { kept: true }
+}
+
+/**
+ * The seller's photo for each scene of her reels (crm-story-reel v31): a list
+ * by scene index, '' for "as by default". All empty takes the picks off.
+ */
+export async function keepSceneFaces(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  faces: unknown
+): Promise<{ kept: boolean; why?: string }> {
+  if (!Array.isArray(faces))
+    return { kept: false, why: 'scene_faces: список ссылок по сценам' } // cyrillic-ok: tool result copy
+  const list = faces.slice(0, SPEC.SCENES_MAX).map(u => String(u ?? '').trim())
+  if (list.some(u => u && !/^https:\/\/\S+$/.test(u)))
+    return { kept: false, why: 'scene_faces: нужны ссылки https на фото' } // cyrillic-ok: tool result copy
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS story_faces (
+       owner_id text NOT NULL, lead_id text NOT NULL, face_url text NOT NULL,
+       updated_at timestamptz NOT NULL DEFAULT now(),
+       PRIMARY KEY (owner_id, lead_id))`
+  )
+  await pool.query(
+    `ALTER TABLE story_faces ADD COLUMN IF NOT EXISTS scene_faces jsonb`
+  )
+  const any = list.some(Boolean)
+  await pool.query(
+    `INSERT INTO story_faces (owner_id, lead_id, face_url, scene_faces, updated_at)
+     VALUES ($1, $2, '', $3::jsonb, now())
+     ON CONFLICT (owner_id, lead_id)
+     DO UPDATE SET scene_faces = EXCLUDED.scene_faces, updated_at = now()`,
+    [String(owner), String(lead), any ? JSON.stringify(list) : null]
+  )
+  return { kept: any }
 }

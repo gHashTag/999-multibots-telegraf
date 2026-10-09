@@ -1,0 +1,38 @@
+[
+  {
+    "name": "every tile shows the one face",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "        const src = ready.sceneFaces[i] || face",
+    "to": "        const src = face"
+  },
+  {
+    "name": "a pick overwrites every default",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "(_, i) => (s.scenePicked[i] ? s.sceneFaces[i] : '')",
+    "to": "(_, i) => s.sceneFaces[i]"
+  },
+  {
+    "name": "the tapped scene is not the one saved",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "              picks[scene] = url",
+    "to": "              picks[0] = url"
+  },
+  {
+    "name": "a tile is not tappable",
+    "file": "src/components/Crm/StoryReelPanel.tsx",
+    "from": "            onScene={busy ? undefined : setScene}",
+    "to": "            onScene={undefined}"
+  },
+  {
+    "name": "the default never comes back",
+    "file": "src/components/Crm/ScenePhotoSheet.tsx",
+    "from": "            onClick={() => onPick('')}",
+    "to": "            onClick={() => onClose()}"
+  },
+  {
+    "name": "an upload is not this scene's photo",
+    "file": "src/components/Crm/ScenePhotoSheet.tsx",
+    "from": "    if (url) onPick(url)",
+    "to": "    if (url) onClose()"
+  }
+]
