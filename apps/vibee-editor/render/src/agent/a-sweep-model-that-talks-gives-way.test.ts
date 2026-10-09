@@ -16,6 +16,13 @@ import { EMPTY_ANSWER_LOG_PREFIX, runAgent } from './chat'
 import { forgetProviderChoiceForTests } from './provider-choice'
 import { forgetBreakersForTests } from './provider-breaker'
 
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
+
 function sse(deltas: Array<Record<string, unknown>>): Response {
   return new Response(
     [

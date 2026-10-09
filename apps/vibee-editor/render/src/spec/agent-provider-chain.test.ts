@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import * as SPEC from './agent-provider-chain.gen'
 import {
   RESERVE_MAX_TOKENS_DEFAULT,
@@ -19,6 +19,13 @@ import {
   forgetProviderChoiceForTests,
 } from '../agent/provider-choice'
 import { providerStatus } from '../agent/provider-status'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
 
 /**
  * THE PROVIDER CHAIN IS WRITTEN IN t27 FIRST (skill t27-spec-first).
