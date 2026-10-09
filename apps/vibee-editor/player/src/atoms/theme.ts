@@ -13,20 +13,23 @@ export type ResolvedTheme = 'light' | 'dark'
 // User's theme preference (stored)
 export const themeModeAtom = atomWithStorage<ThemeMode>(
   STORAGE_KEYS.theme || 'vibee-theme',
-  'system'
+  'dark'
 )
 
 // System theme detection
 export const systemThemeAtom = atom<ResolvedTheme>('dark')
 
-// Resolved theme (what's actually applied)
-export const resolvedThemeAtom = atom<ResolvedTheme>(get => {
-  const mode = get(themeModeAtom)
-  if (mode === 'system') {
-    return get(systemThemeAtom)
-  }
-  return mode
-})
+/*
+ * Resolved theme (what's actually applied): ALWAYS DARK.
+ *
+ * Owner, 2026-10-09: "black background everywhere". The app's styles are dark
+ * only (index.css: color-scheme dark, --bg-primary #000; no rule reads a
+ * .light class), but a phone set to a light system theme resolved 'system' to
+ * 'light': the provider then set color-scheme light -- white native inputs,
+ * scrollbars and pickers -- and a white theme-color for the browser's bar. A
+ * stored 'light' or 'system' preference no longer brings that back.
+ */
+export const resolvedThemeAtom = atom<ResolvedTheme>(() => 'dark')
 
 // Toggle between light and dark
 export const toggleThemeAtom = atom(null, (get, set) => {
