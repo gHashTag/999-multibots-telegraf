@@ -2963,14 +2963,21 @@ setTimeout(
  * timer restarted by every deploy often never fired at all. The pace (once
  * a day) lives in blog_shares.asked_at, not here.
  * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
- * (specs/automation/blog-share.t27).
+ * (specs/automation/blog-share.t27). With BLOG_AUTOPOST=1 too (spec v6,
+ * src/agent/blog-autopost.ts) articles go out without a question: new ones
+ * at once, the backlog at 06:00 and 14:00 UTC, the Telegram channel among
+ * the networks; the owner gets a receipt.
  */
 setInterval(() => {
   void (async () => {
     try {
       const { runBlogShare } = await import('./src/agent/blog-share-wiring')
       const said = await runBlogShare(getPool() as any)
-      if (said !== 'off' && said !== 'asked today already')
+      if (
+        said !== 'off' &&
+        said !== 'asked today already' &&
+        said !== 'autopost: articles are posted, not asked about'
+      )
         console.log(`[blog-share] ${said}`)
     } catch (e) {
       console.error('[blog-share] failed:', String(e).slice(0, 300))

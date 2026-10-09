@@ -195,10 +195,9 @@ describe('spec automation/blog-share against the host', () => {
 
   it('one question a day at most, on a five-minute tick', async () => {
     const { mayAsk, ASK_EVERY_MS } = await import('../agent/blog-share')
-    const t = 1_000_000_000_000
-    expect(mayAsk(0, t)).toBe(true)
-    expect(mayAsk(t, t + 71_999_999)).toBe(false)
-    expect(mayAsk(t, t + 72_000_000)).toBe(true)
+    expect(mayAsk(false, 0)).toBe(true)
+    expect(mayAsk(true, 71_999_999)).toBe(false)
+    expect(mayAsk(true, 72_000_000)).toBe(true)
     expect(ASK_EVERY_MS).toBe(SPEC.ASK_EVERY_MS)
     expect(SPEC.ASK_EVERY_MS < SPEC.ANSWER_WAIT_MS + SPEC.TICK_MS).toBe(true)
     expect(SPEC.TICK_MS).toBe(300_000)
@@ -703,8 +702,192 @@ describe('spec automation/blog-share against the host', () => {
     }
   })
 
+  /*
+   * v6, autopost. The host's own behaviour (a fake database across restarts,
+   * the day cap, the slots, Telegram) lives in
+   * every-blog-post-goes-out-by-itself.test.ts; here each spec vector runs
+   * against what the host imports and calls.
+   */
+  it('autopost is on only by BLOG_AUTOPOST=1, and with it off the desk is v5', async () => {
+    const share = await import('../agent/blog-share')
+    const { autoOfferable, backlogOfferable } = await import(
+      '../spec/blog-share.logic'
+    )
+    expect(SPEC.AUTOPOST_SWITCH).toBe('BLOG_AUTOPOST')
+    expect(share.autopostOn('1')).toBe(true)
+    for (const v of ['', '0', 'true', '1 '])
+      expect(share.autopostOn(v)).toBe(false)
+    expect(share.questionOffersArticles(false)).toBe(true)
+    expect(share.questionOffersArticles(true)).toBe(false)
+    expect(autoOfferable(false, true, 200, 100, false)).toBe(false)
+    expect(backlogOfferable(false, true, 50, 100, false, false, 3)).toBe(false)
+    expect(SPEC.AUTO_ASKS).toBe(false)
+    expect(SPEC.ASK_NEEDS_YES).toBe(true)
+    expect(SPEC.CUTOFF_CLEARED_WHEN_OFF).toBe(true)
+    /* Off (autopost absent), the tick asks about an article exactly as v5. */
+    const { asked } = await nextQuestion()
+    expect(asked).toHaveLength(1)
+    /* On, it does not: the article is autopost's (the wiring passes autopost). */
+    const { blogShareTick } = share
+    const askedOn: string[] = []
+    await blogShareTick({
+      pool: { query: async () => ({ rows: [] }) } as never,
+      owner: '1',
+      now: () => 2_000_000_000_000,
+      fetchRss: async () => FEED,
+      ask: async what => (askedOn.push(what), 'q'),
+      answerOf: async () => 'pending' as never,
+      publish: async () => ({}),
+      tell: async () => undefined,
+      autopost: true,
+    })
+    expect(askedOn).toHaveLength(0)
+  })
+
+  it("a new article is first seen after the cutoff; the cutoff tick's own is backlog", async () => {
+    const { isNew, autoOfferable } = await import('../spec/blog-share.logic')
+    expect(isNew(101, 100)).toBe(true)
+    expect(isNew(100, 100)).toBe(false)
+    expect(isNew(99, 100)).toBe(false)
+    expect(isNew(101, 0)).toBe(false)
+    expect(autoOfferable(true, true, 101, 100, false)).toBe(true)
+    expect(autoOfferable(true, true, 100, 100, false)).toBe(false)
+    expect(autoOfferable(true, false, 101, 100, false)).toBe(false)
+    expect(autoOfferable(true, true, 101, 100, true)).toBe(false)
+    expect(autoOfferable(true, true, 101, 0, false)).toBe(false)
+    /* The host reads seconds of the database clock; an age past u32 is the oldest. */
+    const { ageU32 } = await import('../agent/blog-share')
+    expect(ageU32(-5)).toBe(0)
+    expect(ageU32(1.9)).toBe(1)
+    expect(ageU32(Number.NaN)).toBe(4294967295)
+    expect(ageU32(2 ** 40)).toBe(4294967295)
+  })
+
+  it('a new article goes at once, one per tick, under the day cap', async () => {
+    const { autoTake } = await import('../spec/blog-share.logic')
+    expect(SPEC.AUTO_PER_TICK).toBe(1)
+    expect(SPEC.AUTO_PER_DAY).toBe(8)
+    expect(SPEC.AUTO_DAY_MS).toBe(86_400_000)
+    expect(autoTake(1, 0)).toBe(1)
+    expect(autoTake(5, 0)).toBe(1)
+    expect(autoTake(0, 0)).toBe(0)
+    expect(autoTake(3, 7)).toBe(1)
+    expect(autoTake(3, 8)).toBe(0)
+    expect(autoTake(3, 9)).toBe(0)
+    expect(SPEC.AUTO_PER_DAY >= 5 + SPEC.BACKLOG_PER_DAY).toBe(true)
+    expect(SPEC.AUTO_DAY_MS / SPEC.TICK_MS > SPEC.AUTO_PER_DAY).toBe(true)
+  })
+
+  it('the backlog goes one article per slot, at 06:00 and 14:00 UTC', async () => {
+    const {
+      backlogSlot,
+      backlogOfferable: bo,
+      backlogTake: bt,
+    } = await import('../spec/blog-share.logic')
+    expect(SPEC.BACKLOG_SLOT_1_S).toBe(21_600)
+    expect(SPEC.BACKLOG_SLOT_2_S).toBe(50_400)
+    expect(SPEC.BACKLOG_SLOT_WIDTH_S).toBe(3600)
+    for (const [s, slot] of [
+      [21600, 1],
+      [25199, 1],
+      [25200, 0],
+      [21599, 0],
+      [36000, 0],
+      [50400, 2],
+      [53999, 2],
+      [54000, 0],
+      [0, 0],
+      [86399, 0],
+    ])
+      expect(backlogSlot(s)).toBe(slot)
+    expect(SPEC.BACKLOG_SLOT_WIDTH_S / (SPEC.TICK_MS / 1000)).toBe(12)
+    expect(bo(true, true, 100, 100, false, false, 1)).toBe(true)
+    expect(bo(true, true, 0, 100, false, false, 1)).toBe(true)
+    expect(bo(true, true, 101, 100, false, false, 1)).toBe(false)
+    expect(bo(true, true, 50, 0, false, false, 1)).toBe(false)
+    expect(bo(true, false, 50, 100, false, false, 1)).toBe(false)
+    expect(bo(true, true, 50, 100, true, false, 1)).toBe(false)
+    expect(bo(true, true, 50, 100, false, true, 1)).toBe(false)
+    expect(bo(true, true, 50, 100, false, false, 0)).toBe(false)
+    expect(bt(1, false, 2, 0, 0, 0)).toBe(1)
+    expect(bt(2, false, 2, 0, 1, 1)).toBe(1)
+    expect(bt(0, false, 2, 0, 0, 0)).toBe(0)
+    expect(bt(1, true, 2, 0, 0, 0)).toBe(0)
+    expect(bt(1, false, 0, 0, 0, 0)).toBe(0)
+    expect(bt(1, false, 2, 1, 0, 1)).toBe(0)
+    expect(bt(1, false, 2, 0, 1, 1)).toBe(1)
+    expect(bt(1, false, 2, 0, 2, 2)).toBe(0)
+    expect(bt(1, false, 2, 0, 3, 3)).toBe(0)
+    expect(bt(1, false, 2, 0, 0, 7)).toBe(1)
+    expect(bt(1, false, 2, 0, 0, 8)).toBe(0)
+    expect(SPEC.BACKLOG_PER_SLOT).toBe(1)
+    expect(SPEC.BACKLOG_PER_DAY).toBe(2)
+    /* The host's slot key: the UTC date and the slot, from the spec's slot. */
+    const { slotAt } = await import('../agent/blog-autopost')
+    const day = Date.UTC(2026, 9, 10)
+    expect(slotAt(day + 21_600_000)).toEqual({ slot: 1, key: '2026-10-10#1' })
+    expect(slotAt(day + 25_199_999)).toEqual({ slot: 1, key: '2026-10-10#1' })
+    expect(slotAt(day + 25_200_000)).toEqual({ slot: 0, key: null })
+    expect(slotAt(day + 50_400_000)).toEqual({ slot: 2, key: '2026-10-10#2' })
+    expect(slotAt(day + 54_000_000)).toEqual({ slot: 0, key: null })
+  })
+
+  it("the backlog goes the owner's queue first, then the newest", async () => {
+    const { backlogSource } = await import('../spec/blog-share.logic')
+    expect(backlogSource(2, 9)).toBe('queue')
+    expect(backlogSource(1, 1)).toBe('queue')
+    expect(backlogSource(0, 4)).toBe('newest')
+    expect(backlogSource(0, 0)).toBe('none')
+  })
+
+  it("a network that carries the article is skipped; telegram's receipt is its message_id", async () => {
+    const { networkCarries, networkStep, telegramPosted } = await import(
+      '../spec/blog-share.logic'
+    )
+    expect(SPEC.TELEGRAM).toBe('telegram')
+    for (const [state, carries] of [
+      ['posted', true],
+      ['unconfirmed', true],
+      ['failed', false],
+      ['not-configured', false],
+      ['', false],
+    ] as const)
+      expect(networkCarries(state)).toBe(carries)
+    expect(networkStep(true, true)).toBe('skip')
+    expect(networkStep(true, false)).toBe('skip')
+    expect(networkStep(false, false)).toBe('not-configured')
+    expect(networkStep(false, true)).toBe('post')
+    expect(telegramPosted(1)).toBe(true)
+    expect(telegramPosted(4294967295)).toBe(true)
+    expect(telegramPosted(0)).toBe(false)
+    /* The host reads a desk line as a ledger state with the outcome's own words. */
+    const { lineState } = await import('../agent/blog-share')
+    expect(lineState('опубликовано через API · id 1')).toBe('posted') // cyrillic-ok: meta-connect.ts VIA_API
+    expect(
+      lineState('нажато «Post» · страница ушла с формы · не подтверждено')
+    ).toBe('unconfirmed') // cyrillic-ok: the words publishEverywhere writes
+    expect(lineState('кнопка публикации не найдена')).toBe('failed') // cyrillic-ok: the words publishEverywhere writes
+    /* The wiring: a network that carries it is neither opened nor reported. */
+    const { publishEverywhere } = await import('../agent/blog-share-wiring')
+    buttonDrawn = true
+    profileShows = true
+    opened.length = 0
+    const out = await publishEverywhere(
+      { query: async () => ({ rows: [] }) } as never,
+      '1',
+      article,
+      new Set(['X', 'LinkedIn'])
+    )
+    expect(opened.some(u => u.includes('x.com'))).toBe(false)
+    expect(opened.some(u => u.includes('linkedin.com'))).toBe(false)
+    expect(opened.some(u => u.includes('threads.net'))).toBe(true)
+    expect(Object.keys(out)).not.toContain('X')
+    expect(Object.keys(out)).not.toContain('LinkedIn')
+    expect(Object.keys(out)).toContain('Threads')
+  })
+
   it('the desk is live, and its posts were seen on the profile', () => {
     expect(SPEC.RUN_LIVE).toBe(true)
-    expect(SPEC.VERSION).toBe(5)
+    expect(SPEC.VERSION).toBe(6)
   })
 })

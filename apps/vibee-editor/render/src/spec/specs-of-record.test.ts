@@ -405,7 +405,7 @@ describe('the logic runs from the spec', () => {
         'utf8'
       )
     )
-    expect(manifest.mirrored.length).toBeLessThanOrEqual(38)
+    expect(manifest.mirrored.length).toBeLessThanOrEqual(36)
     expect(new Set(manifest.mirrored).size).toBe(manifest.mirrored.length)
   })
 
