@@ -225,34 +225,6 @@ const KNOWN_DEBT: Record<string, string> = {
    * pattern above existed, this test was green while fourteen files carried
    * keys, three of them production.
    */
-  'docs/features/INNGEST_IMPORTANT_RULES.md':
-    'ПРОДОВЫЕ подписывающие ключи Inngest -- пункт 20 владельцу',
-  'docs/features/INNGEST_PRODUCTION_SECRETS.md':
-    'ПРОДОВЫЙ подписывающий ключ Inngest -- пункт 20 владельцу',
-  'scripts/inngest/fix-inngest-production-secrets.js':
-    'ПРОДОВЫЕ подписывающие ключи Inngest -- пункт 20 владельцу',
-  'scripts/database/check-loaded-keys.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/check-inngest-keys.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/test-production-keys.sh':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/update-bot-inngest-keys.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/update-inngest-keys-production.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/update_keys.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/financial/update_keys.sh':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/inngest/add-inngest-keys-to-infisical.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/inngest/add-inngest-secrets.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/inngest/fix-inngest-with-keys.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
-  'scripts/inngest/update-inngest-keys-infisical.js':
-    'тестовый подписывающий ключ Inngest -- пункт 20',
   'scripts/probe-secrets-in-db.cjs':
     'образцы для самопроверки, значения выдуманы',
   'scripts/probe-secrets-in-history.cjs':
