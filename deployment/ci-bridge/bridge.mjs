@@ -240,6 +240,16 @@ export async function tokenOf(cfg, deps) {
     until: Date.parse(expires_at),
     perms: permissions || {},
   }
+  /* what the installation may do, names only: the first thing to read when
+   * a mark is refused (2026-10-09: statuses and checks were both missing) */
+  deps.log?.(
+    `app token: ${
+      Object.entries(cfg.minted.perms)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join(' ') || 'no permissions'
+    }`
+  )
   return token
 }
 
