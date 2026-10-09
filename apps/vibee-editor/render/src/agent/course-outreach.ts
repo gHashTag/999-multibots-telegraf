@@ -23,6 +23,10 @@
  * not one.
  */
 import * as SPEC from '../spec/course-outreach.gen'
+// The spec's own compiled bodies (scripts/t27-logic.mjs). Its other fns take
+// or return a str, which the backend does not lower yet (__NOT_LOWERED__):
+// those stay written here, pinned by the spec's vectors in the test.
+import { numberOk } from '../spec/course-outreach.logic'
 
 export const {
   COURSE_URL,
@@ -390,15 +394,6 @@ export function pitchState(f: {
   return 'ok'
 }
 
-/** spec number_ok: the only numbers a draft may say about the course. */
-export function numberOk(n: number): boolean {
-  return (
-    n === SPEC.COURSE_LESSONS ||
-    n === SPEC.WIDGETS_PER_LESSON ||
-    n === SPEC.LAB_LESSONS
-  )
-}
-
 export type DraftProblem =
   | ''
   | 'too-short'
@@ -428,22 +423,23 @@ export function draftProblem(f: {
   return ''
 }
 
-/** spec batch_ok: one card carries one to BATCH_MAX drafts. */
-export function batchOk(n: number): boolean {
-  return n >= 1 && n <= SPEC.BATCH_MAX
-}
-
 /** spec may_send: THE GATE -- only the owner's Allow sends a batch. */
 export function maySend(answer: unknown): boolean {
   return answer === 'allowed'
 }
 
-/** spec share_link_ok: a shared link never carries a #/ route. */
-export function shareLinkOk(hasHashRoute: boolean): boolean {
-  return !hasHashRoute
-}
-
 const HASH_ROUTE = /https?:\/\/[^\s#]*#\//gi
+
+/**
+ * spec number_ok over a number as the text wrote it. A number the spec's u32
+ * cannot hold (a fraction, or past its ceiling) is none of the course's
+ * numbers: it is stray, not a thrown RangeError out of the compiled body.
+ */
+// t27-plumbing: fits the text's number to the spec's u32; number_ok decides
+function courseNumber(written: string): boolean {
+  const n = Number(written.replace(',', '.'))
+  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && numberOk(n)
+}
 
 /** Whether a link is a #/ route a crawler reads as the home page. Pure. */
 export function hasHashRoute(link: string): boolean {
@@ -468,9 +464,7 @@ export function draftCounts(
   const prose = raw.replace(/https?:\/\/\S+/g, ' ')
   const numbers =
     prose.match(/(?<![\p{L}\p{N}_.,])\d+(?:[.,]\d+)?(?![\p{L}\p{N}_])/gu) ?? []
-  const strayNumbers = numbers.filter(
-    n => !numberOk(Number(n.replace(',', '.')))
-  ).length
+  const strayNumbers = numbers.filter(n => !courseNumber(n)).length
   const hype = HYPE_WORDS.filter(w => hasWord(prose, w)).length
   const t = norm(prose)
   const namesWhy = why.some(w => w && t.includes(norm(w)))

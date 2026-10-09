@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as SPEC from './course-outreach.gen'
+// The four fns the backend lowers run from the spec's compiled bodies; the
+// host imports exactly these (course-outreach.ts, crm-bios.ts, social-tools.ts).
 import {
+  __NOT_LOWERED__,
   batchOk,
+  bioDue,
+  numberOk,
+  shareLinkOk,
+} from './course-outreach.logic'
+import {
   cardMax,
   cardOk,
   channelOf,
@@ -12,11 +20,9 @@ import {
   maySend,
   networkChannel,
   networkVerdict,
-  numberOk,
   ownWords,
   pitchState,
   roundGo,
-  shareLinkOk,
   signsIn,
   verdict,
 } from '../agent/course-outreach'
@@ -27,13 +33,7 @@ import {
   setOutreachDepsForTests,
   type OutreachDeps,
 } from '../agent/course-outreach-tool'
-import {
-  bioDue,
-  bioNext,
-  bioOf,
-  floodSeconds,
-  readBios,
-} from '../agent/crm-bios'
+import { bioNext, bioOf, floodSeconds, readBios } from '../agent/crm-bios'
 import {
   merged,
   peopleOf,
@@ -154,6 +154,8 @@ describe('specs/automation/course-outreach.t27 against the host', () => {
       ).strayNumbers
     ).toBe(0)
     expect(draftCounts('2026 and 1.5', []).strayNumbers).toBe(2)
+    // A number the spec's u32 cannot hold is stray, not a thrown error.
+    expect(draftCounts('99999999999 and 27', []).strayNumbers).toBe(1)
   })
 
   it('a draft names why, carries the static link and no hype', () => {
@@ -339,6 +341,32 @@ describe('specs/automation/course-outreach.t27 against the host', () => {
     expect(SPEC.HISTORY_ROWS).toBe(5000)
     expect(SPEC.EVIDENCE_QUOTES).toBe(3)
     expect(SPEC.EVIDENCE_CHARS).toBe(80)
+  })
+})
+
+describe('the compiled logic', () => {
+  it('runs the lowered fns from the spec and names the rest', () => {
+    // Every other spec fn takes or returns a str: the backend does not lower
+    // it yet, so the host keeps it, pinned by the spec's vectors above.
+    expect([...__NOT_LOWERED__]).toEqual([
+      'verdict',
+      'channel',
+      'pitch_state',
+      'draft_problem',
+      'may_send',
+      'own_words',
+      'bio_next',
+      'round_go',
+      'network_verdict',
+      'network_channel',
+      'card_max',
+      'card_ok',
+    ])
+    // The compiled body refuses what its type cannot hold; the host clamps
+    // before it calls (draftCounts, readBios).
+    expect(() => numberOk(1.5)).toThrow(RangeError)
+    expect(() => bioDue(-1, false)).toThrow(RangeError)
+    expect(() => batchOk(256)).toThrow(RangeError)
   })
 })
 
@@ -1242,6 +1270,15 @@ describe('the bio ingest: politely, resumed next run', () => {
     await readBios(pool, OWNER, book([...old, fresh]), d.io)
     expect(d.rec.asked[0]).toBe(fresh)
     expect(d.rec.asked).toHaveLength(SPEC.BIOS_PER_RUN)
+  })
+
+  it('a read stamped ahead of this clock is fresh, not a thrown error', async () => {
+    const { st, pool } = bioPool()
+    const [a, b] = ids(2)
+    st.people.set(a, { about: 'x', at: NOW_S + 3 * 86_400 })
+    const d = io()
+    await readBios(pool, OWNER, book([a, b]), d.io)
+    expect(d.rec.asked).toEqual([b])
   })
 
   it('a bio read this month is not read again', async () => {

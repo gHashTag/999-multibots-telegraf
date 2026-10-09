@@ -27,6 +27,9 @@
  * or returned. An empty bio stores nothing.
  */
 import * as SPEC from '../spec/course-outreach.gen'
+// spec bio_due is the spec's compiled body (scripts/t27-logic.mjs); bio_next
+// returns a str, which the backend does not lower yet (__NOT_LOWERED__).
+import { bioDue } from '../spec/course-outreach.logic'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows?: any[] }>
@@ -38,11 +41,6 @@ export function bioNext(floodWaitS: number, readThisRun: number): BioStep {
   if (floodWaitS > 0) return 'wait'
   if (readThisRun >= SPEC.BIOS_PER_RUN) return 'cap'
   return 'go'
-}
-
-/** spec bio_due: never read, or read BIO_REFRESH_DAYS ago or more. Pure. */
-export function bioDue(ageDays: number, neverRead: boolean): boolean {
-  return neverRead || ageDays >= SPEC.BIO_REFRESH_DAYS
 }
 
 /**
@@ -153,7 +151,11 @@ export async function readBios(
   const due = users
     .filter(u =>
       bioDue(
-        at.has(u.lead) ? Math.floor((nowS - at.get(u.lead)!) / DAY_S) : 0,
+        /* A read stamped ahead of this clock is a fresh one (age 0), not a
+           negative age the spec's u32 cannot hold. */
+        at.has(u.lead)
+          ? Math.max(0, Math.floor((nowS - at.get(u.lead)!) / DAY_S))
+          : 0,
         !at.has(u.lead)
       )
     )
