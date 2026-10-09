@@ -28,6 +28,12 @@
  * note you said" name the person's voice, not ours.
  */
 
+import {
+  linkClaimBacked,
+  mediaClaimBacked,
+  sendClaimBacked,
+} from '../spec/agent-claims-honest.logic'
+
 type ClaimKind = 'browser' | 'media' | 'voice'
 
 const IMAGE_TOOLS = [
@@ -54,6 +60,8 @@ const SEND_TOOLS = [
   'tg_send_voice',
 ]
 const AUDIO_TOOLS = ['audio_generate', 'voice_clone_speak', 'tg_send_voice']
+/** The card the owner presses to send a made picture to a client. */
+const DELIVERY_CARD_TOOL = 'crm_deliver_photo'
 
 /*
  * The gap between a claim verb and its object (#3734). The patterns wanted
@@ -680,7 +688,12 @@ function modifierOnly(s: Sentence, m: RegExpMatchArray) {
 }
 
 /* Claimed actions, each with the tool(s) that would have done it. */
-const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
+const CLAIMS: Array<{
+  re: RegExp
+  tools: string[]
+  kind?: ClaimKind
+  send?: boolean
+}> = [
   {
     re: claim(
       String.raw`(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+${GAP}(страниц|сайт|вкладк|linkedin|x\.com|google)`
@@ -743,11 +756,21 @@ const CLAIMS: Array<{ re: RegExp; tools: string[]; kind?: ClaimKind }> = [
     kind: 'media',
   },
   {
+    // to the person in their own chat: the chat shows what was made
     re: claim(
-      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?${GAP}(фото|картинк|афиш|постер|видео|ролик|файл)`
+      String.raw`(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула)\s+((тебе|вам)\s+)?${GAP}(фото|картинк|афиш|постер|видео|ролик|файл|портрет|обложк)`
     ), // cyrillic-ok: matched text
     tools: [...SEND_TOOLS, ...IMAGE_TOOLS, ...VIDEO_TOOLS],
     kind: 'media',
+  },
+  {
+    // to somebody else -- her, him, a client, as a gift: only a send or a
+    // delivery card backs it (agent-claims-honest.t27 send_claim_backed)
+    re: /(^|[\s.,:;—-])(?<!(?:^|[^а-яё])(?:не|ты|вы)\s+)(отправил|отправила|прислал|прислала|скинул|скинула|подарил|подарила)\s+[^.!?\n]{0,60}?(\bей\b|\bему\b|клиент(?:у|ке|ам)(?![а-яё])|подар)/i, // cyrillic-ok: matched text
+    // backed by send_claim_backed alone (backed() below), not by a list
+    tools: [],
+    kind: 'media',
+    send: true,
   },
   {
     re: claim(
@@ -1502,14 +1525,85 @@ function claimedIn(c: (typeof CLAIMS)[number], s: Sentence) {
   return false
 }
 
+/**
+ * A result that is no result: "not done", "still drawing", an error. The
+ * tools answer in two languages of fields; any of these is a failure.
+ */
+// t27-plumbing: reads the shape of our tools' answers; whether a claim is backed is media_claim_backed in the spec
+function failedResult(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    v['сделано'] === false || // cyrillic-ok: the tools' answer field
+    v.done === false ||
+    v.pending === true ||
+    v.ok === false ||
+    typeof v['ошибка'] === 'string' || // cyrillic-ok: the tools' answer field
+    typeof v.error === 'string'
+  )
+}
+
+/**
+ * Tools this turn called whose EVERY result says the work was not done. A
+ * call with no failed result counts as done: in a live turn every call has
+ * its result, and the ones that matter here -- "still drawing", "not done",
+ * an error -- say so in it.
+ */
+function failedTools(events: Array<Record<string, unknown>>): Set<string> {
+  const failed = new Set<string>()
+  const fine = new Set<string>()
+  for (const e of events) {
+    if (e['тип'] !== 'результат' || typeof e['имя'] !== 'string') continue // cyrillic-ok: the event envelope's fields
+    const name = e['имя'] as string // cyrillic-ok: the event envelope's field
+    if (failedResult(e['значение']))
+      failed.add(name) // cyrillic-ok: the event envelope's field
+    else fine.add(name)
+  }
+  for (const name of fine) failed.delete(name)
+  return failed
+}
+
+/**
+ * Is this claim backed by the turn (agent-claims-honest.t27)? A browser
+ * claim by a call; a media or voice claim by a call that SUCCEEDED -- "still
+ * drawing" is no picture; a send only by a send tool or a delivery card.
+ */
+function backed(
+  c: (typeof CLAIMS)[number],
+  called: Set<string>,
+  failed: Set<string>
+): boolean {
+  const ok = (t: string) => called.has(t) && !failed.has(t)
+  if (kindOf(c) === 'browser') return c.tools.some(t => called.has(t))
+  if (c.send)
+    return sendClaimBacked(SEND_TOOLS.some(ok), ok(DELIVERY_CARD_TOOL))
+  return c.tools.some(t => mediaClaimBacked(called.has(t), ok(t)))
+}
+
 // reads normalised text only: see normalised()
 function unbacked(norm: string, events: Array<Record<string, unknown>>) {
   const sentences = sentencesOf(norm)
   const called = new Set(calledTools(events))
+  const failed = failedTools(events)
   return CLAIMS.filter(c => sentences.some(s => claimedIn(c, s))).filter(
-    c => !c.tools.some(t => called.has(t))
+    c => !backed(c, called, failed)
   )
 }
+
+/**
+ * "Link:" with nothing after it on its line -- a link promised and not given
+ * (agent-claims-honest.t27 link_claim_backed). Pure.
+ */
+const PROMISED_LINK = /(ссылк[аи]|link)\s*:[ \t]*(\n|$)/i // cyrillic-ok: matched text
+const ANY_URL = /https?:\/\/\S+/i
+// t27-plumbing: recognises the words of a promised link; whether it is backed is link_claim_backed in the spec
+export function linkPromisedNotGiven(text: string): boolean {
+  return !linkClaimBacked(PROMISED_LINK.test(text), ANY_URL.test(text))
+}
+
+export const LINK_HONESTY_NOTE =
+  '\n\n⚠️ Проверка: в ответе обещана ссылка, но её нет — файл не готов или не сделан. ' + // cyrillic-ok: shown to the person
+  'Попросите повторить, и агент пришлёт настоящую ссылку.' // cyrillic-ok: shown to the person
 
 /** Which kinds of claim no call backs, browser first. Pure. */
 export function unbackedKinds(
@@ -1578,7 +1672,9 @@ export function honestyNote(
   text: string,
   events: Array<Record<string, unknown>>
 ): string {
-  return kindsOf(unbacked(normalised(text), events))
-    .map(k => NOTES[k])
-    .join('')
+  return (
+    kindsOf(unbacked(normalised(text), events))
+      .map(k => NOTES[k])
+      .join('') + (linkPromisedNotGiven(text) ? LINK_HONESTY_NOTE : '')
+  )
 }

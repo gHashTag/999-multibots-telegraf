@@ -281,6 +281,19 @@ describe('the logic runs from the spec', () => {
     expect(bad[0].what).toMatch(/may_assign/)
   })
 
+  it('host-imports: an import of the compiled logic alone binds the host', () => {
+    const hostFiles = [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import { mayAssign } from '../spec/bot-office-crm.logic'\n",
+      },
+    ]
+    expect(checkSpec({ ...office, hostFiles })).toEqual([])
+    expect(laws(checkSpec({ ...office, hostFiles: [] }))).toContain(
+      'host-imports'
+    )
+  })
+
   it('ratchet: a spec that runs from its logic is still named as debt', () => {
     expect(laws(checkSpec({ ...office, mirrored: true }))).toEqual(['ratchet'])
   })

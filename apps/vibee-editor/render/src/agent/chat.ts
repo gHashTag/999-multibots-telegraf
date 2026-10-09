@@ -79,6 +79,7 @@ import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { SOCIAL_PROMPT_LINE } from './social-tools'
 import { professionSection } from './profession'
+import { todayLine } from './agent-today'
 import {
   OFFICE_TASK_MARKERS,
   officeTasksFor,
@@ -2855,7 +2856,8 @@ async function* runAgentTurn(
         dmContext +
         specialistSkills +
         teamSection(opts, history) +
-        officeTaskSection(opts),
+        officeTaskSection(opts) +
+        todayLine(opts?.surface, opts?.toolsOnly === true),
     },
     ...history,
   ]

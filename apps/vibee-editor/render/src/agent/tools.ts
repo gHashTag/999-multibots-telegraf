@@ -87,6 +87,7 @@ import {
 } from './image-health'
 import {
   clientFace,
+  leadUsername,
   sentPhotosFromLibrary,
   NO_PERSON_PREFIX,
   PORTRAIT_IDENTITY_PREFIX,
@@ -1993,9 +1994,14 @@ export const TOOLS: AgentTool[] = [
         ? 'указанный файл'
         : 'аватарка из Telegram'
       if (ctx.faceOf) {
+        // The username too: a bare id is found only among the owner's last
+        // 200 dialogs (tg-proposals resolvingPeer); @username always is.
         const face = await clientFace(
           ctx,
-          { id: String(ctx.faceOf) },
+          {
+            id: String(ctx.faceOf),
+            username: await leadUsername(ctx, String(ctx.faceOf)),
+          },
           { avatar: leadAvatarUrl, sentPhotos: sentPhotosFromLibrary },
           { photoUrl: args.image_url ? String(args.image_url) : null }
         )
