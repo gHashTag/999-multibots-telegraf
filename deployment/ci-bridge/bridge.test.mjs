@@ -9,6 +9,7 @@ const { describe, it } = process.env.VITEST
   : await import('node:test')
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { createVerify, generateKeyPairSync } from 'node:crypto'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,7 +21,9 @@ import {
   recent,
   redact,
   resultOf,
+  appJwt,
   sh,
+  tokenOf,
   tailOf,
   tick,
   verdict,
@@ -312,5 +315,58 @@ describe('one pass', () => {
     assert.match(d.description, /ECONNREFUSED/)
     /* the person hears why, as on a red run */
     assert.equal(w.calls.filter(c => c.url.endsWith('/comments')).length, 1)
+  })
+})
+
+describe('a GitHub App instead of a token', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  })
+  const key = privateKey.export({ type: 'pkcs1', format: 'pem' })
+
+  it('the JWT is RS256, signed by the app key, issued by the app', () => {
+    const jwt = appJwt('42', key, Date.parse('2026-10-09T12:00:00Z'))
+    const [h, b, sig] = jwt.split('.')
+    const ok = createVerify('RSA-SHA256')
+      .update(`${h}.${b}`)
+      .verify(publicKey, Buffer.from(sig, 'base64url'))
+    assert.equal(ok, true)
+    const body = JSON.parse(Buffer.from(b, 'base64url').toString())
+    assert.equal(body.iss, '42')
+    assert.ok(
+      body.exp - body.iat <= 600,
+      'GitHub refuses a JWT over ten minutes'
+    )
+  })
+
+  it('mints once, reuses the token, renews it before it ends', async () => {
+    let now = Date.parse('2026-10-09T12:00:00Z')
+    let minted = 0
+    const fetch = async (url, init = {}) => {
+      const u = new URL(url)
+      assert.match(init.headers.Authorization, /^Bearer [^.]+\.[^.]+\.[^.]+$/)
+      if (u.pathname === `/repos/${REPO}/installation`) return ok({ id: 7 })
+      if (u.pathname === '/app/installations/7/access_tokens') {
+        minted++
+        return ok({
+          token: `inst-${minted}`,
+          expires_at: new Date(now + 60 * 60_000).toISOString(),
+        })
+      }
+      throw new Error(`unexpected ${url}`)
+    }
+    const c = { ...cfg, token: '', appId: '42', appKey: key, minted: null }
+    const deps = { fetch, now: () => now }
+    assert.equal(await tokenOf(c, deps), 'inst-1')
+    now += 50 * 60_000
+    assert.equal(await tokenOf(c, deps), 'inst-1')
+    now += 6 * 60_000
+    assert.equal(await tokenOf(c, deps), 'inst-2')
+  })
+
+  it('an app not installed on the repository says why', async () => {
+    const fetch = async () => ok({ message: 'Not Found' }, 404)
+    const c = { ...cfg, token: '', appId: '42', appKey: key, minted: null }
+    await assert.rejects(tokenOf(c, { fetch, now: Date.now }), /404 Not Found/)
   })
 })
