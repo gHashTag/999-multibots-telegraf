@@ -3,10 +3,10 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 28c28bf2495a13fc5839d0f8dd5d9f91230bbed55eef79c869dfb00ebbbb7296
+// spec-sha256: 8140409c5b8c375e3f32e4970f909a3abfb314bc49095fb942ae32e298e7bd41
 /* eslint-disable */
 
-const WASM = 'AGFzbQEAAAABEwNgAX8Bf2ADf39/AX9gAn9/AX8DEA8AAAEBAgAAAAAAAAAAAAAEBQFwAQEBBQMBABAGCQF/AUGAgMAACwejAhAGbWVtb3J5AgALdDI3X3BhaWRfb24AABJ0MjdfcHJvcG9zYWxfYmluZHMAAQ90MjdfbWF5X2NvbmZpcm0AAg90MjdfbWF5X3Byb3Bvc2UAAwx0MjdfbWF5X2JpbmQABA10MjdfbWF5X2lzc3VlAAUVdDI3X3Byb29mX2Zyb21fZnV0dXJlAAYRdDI3X3Byb29mX2V4cGlyZWQABxN0Mjdfbm9uY2VfbGVuZ3RoX29rAAgPdDI3X3JlY292ZXJ5X2lkAAkTdDI3X3NpZ25hdHVyZV9ieXRlcwAKEXQyN19hZGRyZXNzX2J5dGVzAAsOdDI3X2tleV9zb3VyY2UADA90MjdfbmV0d29ya3Nfb2YADQ90MjdfY2hhaW5fa25vd24ADgqYAg8HACAAQQFGCwQAIAALCgAgACABcSACcQsNACAAIAFxIAJBAXNxCwoAIAAgAUEBc3ELBwAgAEEFSQsJACAAQaCrfEgLCQAgAEGg9zZKCwgAIABBwABGCy4BAX9BACEBAkACQAJAAkAgAA4CAwEACyAAQWVqDgICAAELQQEPC0F/IQELIAELHQBCgICBipQIIACtQgOGiKdBACAAQQVJG0HBAHELHABCgMCAocECIACtQgOGiKdBACAAQQVJG0E0cQsbAEKAgoyQICAArUIDhoinQQAgAEEFSRtBA3ELKwECf0EBIQFBAiECAkACQAJAIABBf2oOBAIBAQEAC0EAIQELIAEhAgsgAgsOACAAQX9qQf8BcUEESQs='
+const WASM = 'AGFzbQEAAAABEwNgAX8Bf2ACf38Bf2ADf39/AX8DERAAAQAAAgIAAAAAAAAAAAAABAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsH0AISBm1lbW9yeQIAC3QyN19wYWlkX29uAAAUdDI3X2NoZWNrc19zaWduYXR1cmUAARN0MjdfbWF5X2NhbGxfcHVibGljAAISdDI3X3Byb3Bvc2FsX2JpbmRzAAMPdDI3X21heV9jb25maXJtAAQPdDI3X21heV9wcm9wb3NlAAUMdDI3X21heV9iaW5kAAENdDI3X21heV9pc3N1ZQAGFXQyN19wcm9vZl9mcm9tX2Z1dHVyZQAHEXQyN19wcm9vZl9leHBpcmVkAAgTdDI3X25vbmNlX2xlbmd0aF9vawAJD3QyN19yZWNvdmVyeV9pZAAKE3QyN19zaWduYXR1cmVfYnl0ZXMACxF0MjdfYWRkcmVzc19ieXRlcwAMDnQyN19rZXlfc291cmNlAA0PdDI3X25ldHdvcmtzX29mAA4PdDI3X2NoYWluX2tub3duAA8KoAIQBwAgAEEBRgsKACAAIAFBAXNxCwcAIABBH0kLBAAgAAsKACAAIAFxIAJxCw0AIAAgAXEgAkEBc3ELBwAgAEEFSQsJACAAQaCrfEgLCQAgAEGg9zZKCwgAIABBwABGCy4BAX9BACEBAkACQAJAAkAgAA4CAwEACyAAQWVqDgICAAELQQEPC0F/IQELIAELHQBCgICBipQIIACtQgOGiKdBACAAQQVJG0HBAHELHABCgMCAocECIACtQgOGiKdBACAAQQVJG0E0cQsbAEKAgoyQICAArUIDhoinQQAgAEEFSRtBA3ELKwECf0EBIQFBAiECAkACQAJAIABBf2oOBAIBAQEAC0EAIQELIAEhAgsgAgsOACAAQX9qQf8BcUEESQs='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -87,6 +87,16 @@ export function mayConfirm(nonceIsPersons: boolean, nonceOpen: boolean, proposed
 /** spec fn proposal_binds */
 export function proposalBinds(confirmed: boolean): boolean {
   return (W.t27_proposal_binds as (...a: number[]) => number)(confirmed ? 1 : 0) !== 0
+}
+
+/** spec fn may_call_public */
+export function mayCallPublic(callsInWindow: number): boolean {
+  return (W.t27_may_call_public as (...a: number[]) => number)(int(callsInWindow, 0, 4294967295, 'may_call_public.calls_in_window')) !== 0
+}
+
+/** spec fn checks_signature */
+export function checksSignature(nonceOpen: boolean, proposedBefore: boolean): boolean {
+  return (W.t27_checks_signature as (...a: number[]) => number)(nonceOpen ? 1 : 0, proposedBefore ? 1 : 0) !== 0
 }
 
 /** spec fn paid_on */
