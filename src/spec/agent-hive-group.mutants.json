@@ -1,23 +1,5 @@
 [
   {
-    "name": "the chain never closes at the limit",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "depth < SPEC.MAX_BOT_DEPTH",
-    "to": "depth <= SPEC.MAX_BOT_DEPTH"
-  },
-  {
-    "name": "a bot wakes the whole hive with the all tag",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "(!a.fromBot && (a.allTag || a.ownTopic))",
-    "to": "(a.allTag || a.ownTopic)"
-  },
-  {
-    "name": "a bot answers a bot without waiting",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "chainOpen(depth) && cooled(sinceLastMs)",
-    "to": "chainOpen(depth)"
-  },
-  {
     "name": "a bot message is never deeper than its parent",
     "file": "core/bot/agentHive/chain.ts",
     "from": "depth: (parent?.depth ?? 0) + 1",
@@ -42,81 +24,81 @@
     "to": ""
   },
   {
-    "name": "typing is never refreshed at the four-second mark",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "sinceLastMs >= SPEC.TYPING_REFRESH_MS",
-    "to": "sinceLastMs > SPEC.TYPING_REFRESH_MS"
+    "name": "a stranger owner's bot is a colleague",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "b => b.ownerId === row.ownerId && b.botId !== row.botId",
+    "to": "b => b.botId !== row.botId"
   },
   {
-    "name": "every agent speaks first on the all tag",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "rank < SPEC.ALL_FIRST_SPEAKERS",
-    "to": "rank <= SPEC.ALL_FIRST_SPEAKERS"
+    "name": "any bot in private is heard as a colleague",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "    !!sender && sender.ownerId === row.ownerId && sender.botId !== me.id",
+    "to": "    true"
   },
   {
-    "name": "a bot follows up without a tag",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "!fromBot && samePerson && sameThread",
-    "to": "samePerson && sameThread"
+    "name": "the tag rule is skipped",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "    !!tag && dmTagOk(tag.kind, sinceAsk(me.id, m.from.id, tag.origin, now))",
+    "to": "    !!tag"
   },
   {
-    "name": "a follow-up crosses topics",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "samePerson && sameThread && ageMs",
-    "to": "samePerson && ageMs"
+    "name": "an answer starts a turn",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "  if (dmCarries(tag.kind)) {",
+    "to": "  if (false) {"
   },
   {
-    "name": "a stop silences people too",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "!fromBot || !stopped(sinceStopMs)",
-    "to": "!stopped(sinceStopMs)"
+    "name": "the colleague's turn runs in the asker's name",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "      String(tag.origin),\n",
+    "to": "      String(m.from.id),\n"
   },
   {
-    "name": "a muted agent ignores its own tag",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "tagged || !muted(sinceMuteMs)",
-    "to": "!muted(sinceMuteMs)"
+    "name": "every hand-off line is sent",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "asks.slice(0, dmHandoffsSent(asks.length))",
+    "to": "asks"
   },
   {
-    "name": "a refused reaction fails the turn",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "_reactionOk: boolean): boolean =>\n  answerSent\n",
-    "to": "_reactionOk: boolean): boolean =>\n  answerSent && _reactionOk\n"
+    "name": "a refused hand-off is silent",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "        copy.handoffFailed(h.username, why.slice(0, 200))",
+    "to": "        ''"
   },
   {
-    "name": "the group brief wins over the topic brief",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "if (hasTopicBrief) return 2\n  if (hasGroupBrief) return 1",
-    "to": "if (hasGroupBrief) return 1\n  if (hasTopicBrief) return 2"
+    "name": "the ask is not remembered",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "    noteAsk(me.id, mate.botId, origin, now)\n",
+    "to": "\n"
   },
   {
-    "name": "a brief of exactly the limit is refused",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "chars <= SPEC.MAX_BRIEF_CHARS",
-    "to": "chars < SPEC.MAX_BRIEF_CHARS"
+    "name": "the answer goes back untagged",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "tagged(SPEC.DM_ANSWER, tag.origin, part)",
+    "to": "part"
   },
   {
-    "name": "a bot sets a brief",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "isAdmin && !fromBot",
-    "to": "isAdmin"
+    "name": "the agent is not told its colleagues",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "      ? `${dmRosterLine(mates)}\\n${text}`",
+    "to": "      ? text"
   },
   {
-    "name": "a lost topic is retried without a cooldown",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "(!stored || !threadFound) && sinceLastTryMs >= SPEC.TOPIC_RECREATE_COOLDOWN_MS",
-    "to": "!stored || !threadFound"
+    "name": "a hand-off line names any bot",
+    "file": "core/bot/agentHive/handoff.ts",
+    "from": "const username = m ? known.get(m[1].toLowerCase()) : undefined",
+    "to": "const username = m ? m[1] : undefined"
   },
   {
-    "name": "a summary reads past the log",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "if (asked > SPEC.SUMMARY_LOG_SIZE) return SPEC.SUMMARY_LOG_SIZE\n",
-    "to": ""
+    "name": "a tag in the middle of a message counts",
+    "file": "core/bot/agentHive/handoff.ts",
+    "from": "  `^${SPEC.DM_TAG.replace(",
+    "to": "  `${SPEC.DM_TAG.replace("
   },
   {
-    "name": "a bare summary reads nothing",
-    "file": "core/bot/agentHive/rules.ts",
-    "from": "if (asked === 0) return SPEC.SUMMARY_DEFAULT\n",
-    "to": ""
+    "name": "a group bot outside the hive is heard",
+    "file": "core/bot/agentHive/answer.ts",
+    "from": "if (fromBot && isGroup && (!inHive || !isHiveBot(m.from.id))) return false",
+    "to": "if (fromBot && isGroup && !inHive) return false"
   }
 ]
