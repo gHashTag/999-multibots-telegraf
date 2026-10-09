@@ -283,9 +283,9 @@ describe('the logic runs from the spec', () => {
     expect(bad[0].what).toMatch(/may_assign/)
   })
 
-  it('mirror: a fn the backend could not lower has no body to import yet', () => {
-    // course-outreach v2: every fn lowers now, the str ones too (#3941), so
-    // the exemption is shown on a logic file that still names one.
+  it('mirror: a hand copy of a str fn fails like any other (#3941)', () => {
+    // course-outreach v2: may_send takes a str, verdict returns one, number_ok
+    // takes a u32. Every one of them is compiled now, so none may be retyped.
     const outreach = {
       file: `${DIR}/course-outreach.t27`,
       spec: readFileSync(join(HERE, 'course-outreach.t27'), 'utf8'),
@@ -305,24 +305,44 @@ describe('the logic runs from the spec', () => {
         text: `import * as SPEC from '../spec/course-outreach.gen'\n${body}`,
       },
     ]
-    const copy = 'export function maySend(a: unknown) {\n  return a\n}\n'
+    // The control starts green: the host names the compiled bodies.
+    expect(
+      checkSpec({
+        ...outreach,
+        hostFiles: host(
+          "export { maySend } from '../spec/course-outreach.logic'\n"
+        ),
+      })
+    ).toEqual([])
+    for (const [copy, fn] of [
+      ['export function maySend(a: unknown) {\n  return a\n}\n', 'may_send'],
+      [
+        "export function verdict(g: number, n: boolean) {\n  return n ? 'not' : 'unknown'\n}\n",
+        'verdict',
+      ],
+      [
+        'export function bioNext(f: number, r: number) {\n  return f\n}\n',
+        'bio_next',
+      ],
+      ['export function numberOk(n: number) {\n  return n\n}\n', 'number_ok'],
+    ]) {
+      const bad = checkSpec({ ...outreach, hostFiles: host(copy) })
+      expect(laws(bad)).toEqual(['mirror'])
+      expect(bad[0].what).toMatch(new RegExp(`spec fn ${fn}\\b`))
+    }
+    // __NOT_LOWERED__ exempts nothing any more: a fn the backend still could
+    // not lower is lowered, never retyped.
     const unlowered = outreach.logic.replace(
       /__NOT_LOWERED__ = [^\n]*/,
       '__NOT_LOWERED__ = Object.freeze(["may_send"])'
     )
-    expect(
-      checkSpec({ ...outreach, logic: unlowered, hostFiles: host(copy) })
-    ).toEqual([])
-    // A str fn the logic compiles is no longer exempt.
-    const str = checkSpec({ ...outreach, hostFiles: host(copy) })
-    expect(laws(str)).toEqual(['mirror'])
-    expect(str[0].what).toMatch(/may_send/)
     const bad = checkSpec({
       ...outreach,
-      hostFiles: host('export function numberOk(n: number) {\n  return n\n}\n'),
+      logic: unlowered,
+      hostFiles: host('export function maySend(a: unknown) {\n  return a\n}\n'),
     })
     expect(laws(bad)).toEqual(['mirror'])
-    expect(bad[0].what).toMatch(/number_ok/)
+    expect(bad[0].what).toMatch(/does not lower yet/)
   })
 
   it('t27-logic lowers a str fn: bytes in, (ptr, len) out', () => {

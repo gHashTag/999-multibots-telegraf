@@ -32,8 +32,9 @@
  *   logic-required a spec with fns runs from <id>.logic.ts (its compiled bodies),
  *                  unless named in "mirrored" (debt that only shrinks)
  *   logic-hash     <id>.logic.ts was compiled from exactly this spec
- *   mirror         no host file retypes a fn whose compiled body exists (a fn
- *                  the logic file names in __NOT_LOWERED__ has none yet)
+ *   mirror         no host file retypes a spec fn: every one has a compiled
+ *                  body, the str ones too (#3941); a fn the logic file still
+ *                  names in __NOT_LOWERED__ is lowered, never retyped
  *   cited          every spec a code comment cites is bound, or named in the
  *                  manifest (scripts/t27-specs.json) as known debt
  *
@@ -325,18 +326,23 @@ export function checkSpec({
     if (mirrored)
       say('ratchet', 'it runs from its logic now: remove it from "mirrored"')
     const logicName = `spec/${basename(file, '.t27')}.logic'`
-    // A fn the backend could not lower (a str, u64 or struct in its
-    // signature) has no compiled body to import: the logic file names it in
-    // __NOT_LOWERED__, and until it lowers the host's copy is the only one.
+    // No exemption (#3941). Until then a fn with a str in its signature had
+    // no compiled body, the logic file named it in __NOT_LOWERED__, and this
+    // law let the host keep its copy -- 12 rules of course-outreach ran from
+    // a copy the law could not see drift in. A str crosses the wasm boundary
+    // now; a fn still named there (a u64, a struct) is lowered by teaching
+    // scripts/t27-logic.mjs its type, not by retyping its body here.
     const notLowered = notLoweredOf(logic)
     for (const f of hostFiles) {
       if (!f.text.includes(genName) && !f.text.includes(logicName)) continue
-      for (const fn of fns.filter(n => !notLowered.includes(n))) {
+      for (const fn of fns) {
         const camel = fn.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
         if (new RegExp(`\\bfunction ${camel}\\s*\\(`).test(f.text))
           say(
             'mirror',
-            `${f.path}: function ${camel} retypes spec fn ${fn}; import it from ${basename(file, '.t27')}.logic`
+            notLowered.includes(fn)
+              ? `${f.path}: function ${camel} retypes spec fn ${fn}, which scripts/t27-logic.mjs does not lower yet; teach it the type, do not retype the body`
+              : `${f.path}: function ${camel} retypes spec fn ${fn}; import it from ${basename(file, '.t27')}.logic`
           )
       }
     }
