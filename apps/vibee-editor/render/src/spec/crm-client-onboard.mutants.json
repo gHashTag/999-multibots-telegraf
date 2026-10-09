@@ -1,0 +1,50 @@
+[
+  {
+    "name": "any seller onboards any lead",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "      if (!mayOnboard(platformOwner, seller, owns))",
+    "to": "      if (!mayOnboard(platformOwner, seller, true))"
+  },
+  {
+    "name": "the thread's client is ignored",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "const lead = source === 1 ? named : source === 2 ? thread : ''",
+    "to": "const lead = source === 1 ? named : ''"
+  },
+  {
+    "name": "a big SOUL is saved",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "!dossierFits(soul?.length ?? 0, skills.length, longest)",
+    "to": "!dossierFits(0, skills.length, longest)"
+  },
+  {
+    "name": "too many skills are saved",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "!dossierFits(soul?.length ?? 0, skills.length, longest)",
+    "to": "!dossierFits(soul?.length ?? 0, 0, longest)"
+  },
+  {
+    "name": "a second call forgets the first",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "      const profile: Record<string, unknown> = { ...old }",
+    "to": "      const profile: Record<string, unknown> = {}"
+  },
+  {
+    "name": "the face is never known",
+    "file": "src/agent/crm-client-onboard.ts",
+    "from": "        .then(r => Boolean(String(r.rows[0]?.avatar_url ?? '').trim()))",
+    "to": "        .then(() => false)"
+  },
+  {
+    "name": "the seller gets the reader's refusal again",
+    "file": "src/agent/crm-client-setup-tool.ts",
+    "from": "        return { done: false, reason: SETUP_IS_THE_OWNERS }",
+    "to": "        requireOwner(ctx)"
+  },
+  {
+    "name": "the header names no id",
+    "file": "src/agent/chat.ts",
+    "from": "`Разговор о клиенте ${name} (telegram_id ${lead}). Данные",
+    "to": "`Разговор о клиенте ${name}. Данные"
+  }
+]
