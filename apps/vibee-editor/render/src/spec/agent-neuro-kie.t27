@@ -15,13 +15,18 @@
 // without a source is refused before any charge. A picture redrawn from a photo is GPT Image 2.5
 // unless another model is named (owner 2026-10-09: "by default use gpt 2.5 and 9:16"). Music:
 // Suno on Kie, one price per request, a turn waits a bounded time and then says "still writing".
+// v2 (2026-10-09): the voice. The Kie TTS models are rows, turbo 2.5 by default (multilingual v2
+// when named); a named model speaks only a preset voice, never a clone (Kie has no cloning); the
+// charge is per started 1000 characters, as the app's route charges; what Kie does not sell --
+// face swap, LoRA training -- is said plainly. Measured that day: the agent spoke every preset
+// voice on multilingual v2 and charged one flat price for any length.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_neuro_kie {
     pub const KIND : str = "automation";
     pub const ID : str = "agent-neuro-kie";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- the tools, as a table ----
 
@@ -77,6 +82,44 @@ module automation::agent_neuro_kie {
         return !ready && waited_seconds < MUSIC_WAIT_SECONDS;
     }
 
+    // ---- the voice (v2) ----
+
+    // The Kie speech models the agent may name; the first is the default. Turbo 2.5 speaks the
+    // same languages at half the cost ($0.03 per 1000 characters against $0.06), so the agent's
+    // default price stays what it charged before; multilingual v2 is the richer voice on request.
+    pub const TTS_MODELS : [2]str = ["kie/elevenlabs/text-to-speech-turbo-2-5", "kie/elevenlabs/text-to-speech-multilingual-v2"];
+    pub const TTS_DEFAULT_MODEL : str = "kie/elevenlabs/text-to-speech-turbo-2-5";
+    pub const TTS_MODEL_HELP : str = "Kie voice model for a preset voice: kie/elevenlabs/text-to-speech-turbo-2-5 (default, cheaper) or kie/elevenlabs/text-to-speech-multilingual-v2 (richer). Priced per 1000 characters. A clone ignores it.";
+
+    // A model name that is not a row is refused before any charge; no name is the default.
+    fn tts_named_ok(named: bool, listed: bool) -> bool {
+        return !named || listed;
+    }
+
+    // Kie has no speech cloning: a clone speaks on its own service, so a Kie model applies to a
+    // preset voice only.
+    fn tts_model_applies(clone_speaks: bool) -> bool {
+        return !clone_speaks;
+    }
+
+    // Speech is billed per STARTED 1000 characters -- the provider bills a started thousand --
+    // and never less than one unit; the cap is the billing layer's largest quantity.
+    pub const SPEECH_UNIT_CHARS : u32 = 1000;
+    pub const SPEECH_MAX_UNITS : u32 = 3600;
+    fn speech_units(chars: u32) -> u32 {
+        if chars <= SPEECH_UNIT_CHARS { return 1; }
+        let units : u32 = (chars - 1) / SPEECH_UNIT_CHARS + 1;
+        if units > SPEECH_MAX_UNITS { return SPEECH_MAX_UNITS; }
+        return units;
+    }
+
+    // ---- what Kie does not sell ----
+
+    // Owner rule (kie-only): Kie is the provider, and another provider is never suggested. Kie
+    // sells no face swap and no LoRA (own-model) training, so the agent says so in one sentence
+    // instead of pretending or sending the person elsewhere.
+    pub const NOT_ON_KIE_NOTE : str = "Kie has no face swap and no LoRA (own-model) training: say so in one sentence, never pretend it was done, never name another provider.";
+
     // ---- the clip ----
 
     // Words make a clip on the agent's video model; a picture given makes it from the picture.
@@ -123,8 +166,30 @@ module automation::agent_neuro_kie {
         assert(!music_keeps_waiting(10, true));
     }
 
+    test "a Kie voice model is a row, and a clone takes none" {
+        assert(tts_named_ok(false, false));
+        assert(tts_named_ok(true, true));
+        assert(!tts_named_ok(true, false));
+        assert(tts_model_applies(false));
+        assert(!tts_model_applies(true));
+    }
+
+    test "speech is charged per started thousand characters" {
+        assert(SPEECH_UNIT_CHARS == 1000);
+        assert(SPEECH_MAX_UNITS == 3600);
+        assert(speech_units(0) == 1);
+        assert(speech_units(1) == 1);
+        assert(speech_units(1000) == 1);
+        assert(speech_units(1001) == 2);
+        assert(speech_units(2000) == 2);
+        assert(speech_units(20000) == 20);
+        assert(speech_units(3600000) == 3600);
+        assert(speech_units(3600001) == 3600);
+        assert(speech_units(4000000000) == 3600);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 

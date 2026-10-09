@@ -128,8 +128,11 @@ export const PAID = [
   },
   {
     функция: 'audio_generate',
+    // The agent's default Kie voice (agent-neuro-kie.t27 TTS_DEFAULT_MODEL),
+    // per started 1000 characters (speech_units); a clone is the same price.
     токенов: priceFor('audio_generate'),
-    провайдер: 'Replicate minimax / ElevenLabs',
+    единица: 'за 1000 знаков', // cyrillic-ok: existing field name
+    провайдер: 'Kie ElevenLabs turbo 2.5; multilingual v2 — дороже', // cyrillic-ok: existing field name
   },
   {
     функция: 'video_generate',
