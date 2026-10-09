@@ -281,7 +281,12 @@ export function checkSpec({
   }
 
   const genName = `spec/${basename(file, '.t27')}.gen'`
-  const bound = hostFiles.filter(f => f.text.includes(genName))
+  // The compiled logic binds the host as surely as the constants do: it IS
+  // the spec's body (scripts/t27-logic.mjs).
+  const logicImport = `spec/${basename(file, '.t27')}.logic'`
+  const bound = hostFiles.filter(
+    f => f.text.includes(genName) || f.text.includes(logicImport)
+  )
   if (!bound.length)
     say('host-imports', 'no host file imports the generated module')
   // A file of this vertical: it imports the module or cites the spec.

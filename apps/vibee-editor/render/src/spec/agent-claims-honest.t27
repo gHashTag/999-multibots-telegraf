@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/agent-claims-honest.t27 -- a claim of the agent is backed only by what really happened.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/claimed-but-not-done.ts (the
+// note under a false claim) and chat.ts (the date in the prompt).
+// Trace: owner 2026-10-09, a pasted bot chat: the Director answered "Done! Link:" with no link
+// -- image_edit had said "still drawing", no url -- and then "sent the portrait as a gift" to
+// a client after an image_edit that sends nothing. The check missed both: any call of a
+// matching tool counted, even a failed one, and an image call counted as a send.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled
+// logic in src/spec/.
+// Claim status: render contract. Which words make a claim is the host's copy; whether the
+// claim is backed is this spec.
+// v1 (2026-10-09): media backed only by a succeeded call; a send only by a send tool or a
+// delivery card; a promised link only by a URL in the answer; the prompt carries today.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::agent_claims_honest {
+    pub const KIND : str = "automation";
+    pub const ID : str = "agent-claims-honest";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // "I made the picture" is true only when the tool that makes it was called AND answered
+    // with the thing: a result that says "still drawing" or "not done" is no picture.
+    fn media_claim_backed(called: bool, succeeded: bool) -> bool {
+        return called && succeeded;
+    }
+
+    // "I sent it" is true only when a send tool ran or a delivery card was made for the
+    // owner's press. Making a picture is not sending it.
+    fn send_claim_backed(send_tool_succeeded: bool, delivery_card_made: bool) -> bool {
+        return send_tool_succeeded || delivery_card_made;
+    }
+
+    // "Link:" promises a link; the answer keeps it only when a URL is in its text.
+    fn link_claim_backed(claims_link: bool, url_in_answer: bool) -> bool {
+        return !claims_link || url_in_answer;
+    }
+
+    // The prompt carries today's date, so "tomorrow" on a poster becomes a date the person
+    // confirms instead of a word or a guess.
+    pub const PROMPT_CARRIES_TODAY : bool = true;
+    fn prompt_dated(surface_answers_people: bool) -> bool {
+        return PROMPT_CARRIES_TODAY && surface_answers_people;
+    }
+
+    test "a picture claimed is a picture made: called and answered with it" {
+        assert(media_claim_backed(true, true));
+        assert(!media_claim_backed(true, false));
+        assert(!media_claim_backed(false, false));
+        assert(!media_claim_backed(false, true));
+    }
+
+    test "a send claimed is a send tool or a delivery card, never a picture alone" {
+        assert(send_claim_backed(true, false));
+        assert(send_claim_backed(false, true));
+        assert(!send_claim_backed(false, false));
+    }
+
+    test "a promised link is a link in the answer" {
+        assert(link_claim_backed(false, false));
+        assert(link_claim_backed(true, true));
+        assert(!link_claim_backed(true, false));
+    }
+
+    test "the prompt that answers people carries today" {
+        assert(PROMPT_CARRIES_TODAY);
+        assert(prompt_dated(true));
+        assert(!prompt_dated(false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

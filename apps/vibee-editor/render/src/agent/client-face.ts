@@ -160,6 +160,31 @@ export function askForPhotoLine(firstName: string | null | undefined): string {
  * the choice falls through to the rules above -- the model does not get to
  * pick whose face this is.
  */
+/**
+ * The client's @username from the CRM row, or null. The @name, not the bare
+ * id, is what a fresh owner session can always resolve: a bare id is found
+ * only among the owner's last 200 dialogs (tg-proposals resolvingPeer), and
+ * 2026-10-09 a client outside them "had no avatar" until the owner insisted.
+ * Never from the model, never throws.
+ */
+export async function leadUsername(
+  ctx: {
+    telegramId: string
+    pool?: { query: (q: string, p?: unknown[]) => Promise<{ rows: any[] }> }
+  },
+  lead: string
+): Promise<string | null> {
+  try {
+    const r = await ctx.pool!.query(
+      `SELECT username FROM crm_people WHERE owner_id = $1 AND lead_id = $2`,
+      [String(ctx.telegramId), lead]
+    )
+    return String(r.rows?.[0]?.username ?? '').trim() || null
+  } catch {
+    return null
+  }
+}
+
 export async function clientFace(
   ctx: any,
   lead: { id: string; username?: string | null },
