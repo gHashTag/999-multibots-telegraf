@@ -10,13 +10,23 @@
 // person's stored row in bot_topic_tabs for that bot. No tab, or a sender that named a
 // thread itself, and the event goes where it went before.
 // v1 (2026-10-08): three events, their tabs, and when an event is routed.
+// v2 (2026-10-09): the house hears the render from its own bot. Owner, 2026-10-09 (translated):
+//       "why does the bot send in another bot? we have one main one now!!" Every question and
+//       report of the render (a browser permission, the blog-share desk's release question and
+//       its outcome, the connect card) left from the service's TELEGRAM_BOT_TOKEN, the old
+//       @neuro_blogger_bot, while the owner talks to Trinity in @t27ai_bot and keeps its tabs
+//       there; the Navigator's tab was looked up in the wrong bot and never found. A message for
+//       the house (the platform owner and HOUSE_TELEGRAM_IDS) now leaves from the house's bot --
+//       the one crm-story-reel names HOUSE_DELIVERY_BOT -- and lands in that bot's tab. The
+//       service's bot is tried only when the house's bot was not used or did not deliver.
+//       Nobody else's sender changes.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_event_tabs {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-event-tabs";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     pub const EVENT_COUNT : u32 = 3;
     // The events, and the tab kind (bot-topic-tabs TAB_KEYS) each one lands in, in order:
@@ -29,6 +39,17 @@ module automation::bot_event_tabs {
     // name a thread itself.
     fn routes_to_tab(tab_known: bool, named_thread: bool) -> bool {
         return tab_known && !named_thread;
+    }
+
+    // ---- Which bot the render sends through (v2) ----
+    // A message goes through the house's bot when it is for the house and the render holds
+    // that bot's token (a farm BOT_TOKEN_N whose getMe names it).
+    fn via_house_bot(for_house: bool, house_token_known: bool) -> bool {
+        return for_house && house_token_known;
+    }
+    // The service's bot is tried when the house's bot was not used, or did not deliver.
+    fn tries_service_bot(via_house: bool, house_delivered: bool) -> bool {
+        return !via_house || !house_delivered;
     }
 
     // ---- tests ----
@@ -44,8 +65,19 @@ module automation::bot_event_tabs {
         assert(EVENT_COUNT == 3);
     }
 
+    test "the house hears the render from its own bot, the service's bot only as a fallback" {
+        assert(via_house_bot(true, true));
+        assert(!via_house_bot(true, false));
+        assert(!via_house_bot(false, true));
+        assert(!via_house_bot(false, false));
+        assert(!tries_service_bot(true, true));
+        assert(tries_service_bot(true, false));
+        assert(tries_service_bot(false, false));
+        assert(tries_service_bot(false, true));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
