@@ -536,8 +536,175 @@ describe('spec automation/blog-share against the host', () => {
     expect(out.Reddit).toContain('Reddit-столом')
   })
 
+  it('a finished release of ours is asked about at once, and still needs a yes', async () => {
+    const share = await import('../agent/blog-share')
+    const { releaseOfferable: ro, mayAskRelease, releaseFirst } = share
+    /* The spec's vectors, against the host. */
+    expect(ro(true, false, false, true, 0, false, true)).toBe(true)
+    expect(ro(true, false, false, true, 259200000, false, true)).toBe(true)
+    expect(ro(true, false, false, true, 259200001, false, true)).toBe(false)
+    expect(ro(false, false, false, true, 0, false, true)).toBe(false)
+    expect(ro(true, true, false, true, 0, false, true)).toBe(false)
+    expect(ro(true, false, true, true, 0, false, true)).toBe(false)
+    expect(ro(true, false, false, false, 0, false, true)).toBe(false)
+    expect(ro(true, false, false, true, 0, true, true)).toBe(false)
+    expect(ro(true, false, false, true, 0, false, false)).toBe(false)
+    expect(mayAskRelease(false)).toBe(true)
+    expect(mayAskRelease(true)).toBe(false)
+    expect(releaseFirst(1)).toBe(true)
+    expect(releaseFirst(0)).toBe(false)
+    expect(SPEC.RELEASE_FRESH_MS < SPEC.ASK_EVERY_MS * 4).toBe(true)
+    expect(share.posts('pending')).toBe(false)
+
+    /* GitHub's list, newest first, as gHashTag/t27 had it on 2026-10-09. */
+    const now = Date.UTC(2026, 9, 9, 12)
+    const rel = (tag: string, ageMs: number, assets: string[] = []) => ({
+      tag_name: tag,
+      name: tag,
+      body: "## What's Changed\n* one\n* two",
+      html_url: `https://github.com/gHashTag/t27/releases/tag/${tag}`,
+      draft: false,
+      prerelease: false,
+      published_at: new Date(now - ageMs).toISOString(),
+      assets: assets.map(name => ({ name })),
+    })
+    const list = [
+      rel('t27c-v0.5.2', 1000),
+      rel('t27c-v0.5.1', 3_600_000),
+      rel('t27b-v0.1.0', 7_200_000, ['t27b-0.1.0-aarch64-linux']),
+      rel('fpga-bitstreams-2026-08-29', 0),
+    ]
+    const crates = new Set(['t27c-v0.5.1'])
+    const done = async (r: { tag_name: string; assets: unknown[] }) =>
+      r.tag_name.startsWith('t27b')
+        ? r.assets.length > 0
+        : crates.has(r.tag_name)
+    const next = (asked: string[]) =>
+      share.nextRelease(list, new Set(asked), now, done as never)
+    /* 0.5.2's crate is not out yet: 0.5.1 is history all the same. */
+    expect((await next([]))?.slug).toBe('release-t27b-v0-1-0')
+    crates.add('t27c-v0.5.2')
+    const a = await next([])
+    expect(a).toMatchObject({
+      slug: 'release-t27c-v0-5-2',
+      title: 't27c 0.5.2 released',
+      link: 'https://github.com/gHashTag/t27/releases/tag/t27c-v0.5.2',
+      summary: '2 changes since the previous release.',
+      kind: 'release',
+    })
+    expect((await next(['release-t27c-v0-5-2']))?.slug).toBe(
+      'release-t27b-v0-1-0'
+    )
+    expect(await next(['release-t27c-v0-5-2', 'release-t27b-v0-1-0'])).toBe(
+      undefined
+    )
+    /* A pipeline that cannot be read is not finished. */
+    expect(
+      await share.nextRelease(list, new Set(), now, async () => {
+        throw new Error('registry down')
+      })
+    ).toBe(undefined)
+    expect(
+      share.releaseSummary({
+        ...list[1],
+        name: 't27c v0.5.1 — device DNA is named on every die',
+      })
+    ).toBe('device DNA is named on every die')
+
+    /* The tick: an article was asked about a second ago, the release still goes. */
+    const tick = async (
+      opts: { open?: boolean; releases?: boolean; listFails?: boolean } = {}
+    ) => {
+      const asked: string[] = []
+      const rows: unknown[][] = []
+      const said = await share.blogShareTick({
+        pool: {
+          async query(sql: string, params: unknown[] = []) {
+            if (sql.includes("WHERE state = 'asked'"))
+              return opts.open
+                ? {
+                    rows: [
+                      {
+                        slug: 'a',
+                        approval_id: 'q',
+                        detail: article,
+                        asked_ms: now,
+                      },
+                    ],
+                  }
+                : { rows: [] }
+            if (sql.includes('max(asked_at)'))
+              return { rows: [{ at: now - 1000 }] }
+            if (sql.trim().startsWith('INSERT')) rows.push(params)
+            return { rows: [] }
+          },
+        } as never,
+        owner: '1',
+        now: () => now,
+        fetchRss: async () => FEED,
+        ask: async what => {
+          asked.push(what)
+          return 'q'
+        },
+        answerOf: async () => 'pending' as never,
+        publish: async () => {
+          throw new Error('nothing is posted without a yes')
+        },
+        tell: async () => undefined,
+        ...(opts.releases === false
+          ? {}
+          : {
+              releases: {
+                list: async () => {
+                  if (opts.listFails) throw new Error('rate limited')
+                  return list as never
+                },
+                done: done as never,
+              },
+            }),
+      })
+      return { said, asked, rows }
+    }
+    const t = await tick()
+    expect(t.said).toBe('asked about release-t27c-v0-5-2 (a release)')
+    expect(t.asked).toHaveLength(1)
+    expect(t.asked[0]).toContain('Опубликовать релиз') // cyrillic-ok: the question's words
+    expect(t.asked[0]).toContain('«t27c 0.5.2 released»') // cyrillic-ok: the question's quotes
+    expect(t.rows[0]?.[0]).toBe('release-t27c-v0-5-2')
+    /* One open question at a time: nothing else is asked while it waits. */
+    expect((await tick({ open: true })).said).toMatch(/^waiting/)
+    /* No release source, or an unreadable one: the pace holds, as before v5. */
+    expect((await tick({ releases: false })).said).toBe('asked today already')
+    expect((await tick({ listFails: true })).said).toBe('asked today already')
+
+    /* The wiring: the registry ends t27c's pipeline, assets end t27b's. */
+    const { releaseFinished, blogTitleOf } = await import(
+      '../agent/blog-share-wiring'
+    )
+    const fetched: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      fetched.push(url)
+      return { ok: url.endsWith('/t27c/0.5.2') } as Response
+    })
+    try {
+      expect(await releaseFinished(list[0] as never)).toBe(true)
+      expect(await releaseFinished(list[1] as never)).toBe(false)
+      expect(fetched[0]).toBe('https://crates.io/api/v1/crates/t27c/0.5.2')
+      expect(await releaseFinished(list[2] as never)).toBe(true)
+      expect(await releaseFinished(list[3] as never)).toBe(false)
+      expect(fetched).toHaveLength(2)
+      /* The card names the release without reading the blog's feed. */
+      expect(await blogTitleOf('release-t27c-v0-5-2')).toBe(
+        't27c 0.5.2 released'
+      )
+      expect(fetched).toHaveLength(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('the desk is live, and its posts were seen on the profile', () => {
     expect(SPEC.RUN_LIVE).toBe(true)
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
   })
 })
