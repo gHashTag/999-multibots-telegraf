@@ -836,6 +836,10 @@ bun run verify        # все 16 проверок по КОДАМ ВОЗВРА�
                       # Chromium на 390 ru/en и 320 ru; «не измерено» = FAIL)
                       # Нужен, пока GitHub Actions не запускается (биллинг):
                       # последний успешный прогон — 2026-06-02.
+                      # С 09.10.2026 каждый PR проверяет Railway: сервис
+                      # ci-bridge шлёт его код в check-runner и ставит
+                      # статус railway/checks (deployment/ci-bridge).
+                      # Workflows GitHub ждут переменную CI_ENABLED=true.
 
 # Testing
 npm test              # Run tests
