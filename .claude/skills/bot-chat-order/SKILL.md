@@ -137,6 +137,24 @@ open tasks after the agent's summary (spec v6 `catchup_lists_tasks`); office.ts
 reaches officeTasks.ts through a dynamic import, because officeTasks imports
 office (a static import would be a cycle).
 
+**The agent proposes tasks (spec v7, #3912).** An office turn of the bot is
+taught `[[todo:Name|what]]` (render `agent/office-crm.ts`
+`OFFICE_TASK_MARKERS`, only when routes.ts `officeMember` is true). The bot
+strips every such marker in `officeProposals` BEFORE `buttonsForAnswer` (its
+generic pass strips only `[[...]]` up to 60 characters) and, in an office,
+`proposeTasks` stores each in `office_task_proposals` with a button
+`otp:<id>`: at most 3, a person's name only (a team member's name is dropped:
+colleagues take work by hand-off). `takeProposal` answers the callback first,
+checks `may_take` (a person, under 24 h, not taken), takes the row with
+`UPDATE ... WHERE taken_at IS NULL RETURNING` (two presses, one task), writes
+the task with the presser as author and removes only that button.
+
+**The office in the client's card (spec `bot-office-crm.t27` v1, #3913).**
+When the owner bound the client's group (`crm_client_group`), the client's
+brief in the client's thread lists that office's open tasks (at most 5, with
+the count of all). One way only: a room turn never carries a client's card
+(`roomGetsClientCard` in routes.ts). Both tables are in the render's Postgres.
+
 `t27c gen-ts` that lowers function bodies (t27#7872) did NOT merge, even with
 the owner's label: `owner-approved-foreign` waives the path check only, never
 the foreign-line budget (40 added lines per file, 80 per PR, t27#7371), and the
@@ -185,7 +203,7 @@ Traps:
 долг, а не норма. Как именно, законы и ловушки -- только в навыке
 `t27-spec-first`: здесь указатель, не копия правила.
 
-Specs of this theme: `bot-topic-tabs.t27`, `bot-menu-press.t27`,
+Specs of this theme: `bot-topic-tabs.t27`, `bot-menu-press.t27`, `bot-neuro-office.t27`, `bot-office-crm.t27`,
 `bot-agent-memory.t27` (gHashTag/t27#7824).
 
 ## Related Resources
