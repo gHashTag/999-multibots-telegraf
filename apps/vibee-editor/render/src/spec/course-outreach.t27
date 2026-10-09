@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/course-outreach.t27 -- the owner's agent finds the programmers among
+// the owner's own contacts, tags them in his CRM, drafts ONE personal message to each
+// about the course "From zero to a chip", and sends nothing until the owner presses.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/course-outreach.ts (the
+//       rules: who is a programmer and why, who may be written to, what a draft may say)
+//       and src/agent/course-outreach-tool.ts (the tool course_outreach: find, draft,
+//       send), registered in src/agent/tools.ts. The send reuses the Telegram executor of
+//       src/agent/tg-proposals.ts (execute), which checks the client's opt-out again at
+//       the press and records the touch; the batch card is the browser permission card
+//       (src/browser/agent-tools.ts requestPermission), the same one mail_send and
+//       social_post wait on. Public posts about the course go through social_post, whose
+//       share link this spec also guards (src/agent/social-tools.ts).
+// Why: owner, 2026-10-09 -- "the agent should find every programmer in my contacts, add
+//       them to the CRM and start telling all of them about this course on every social
+//       network". SOUL.md section 7 holds the voice: one message per person, why him,
+//       numbers instead of adjectives, only what the course page says, nothing reaches a
+//       person without the owner's press, no second message without a reply.
+// Evidence, not names: a contact is a programmer by what HE WROTE -- in the owner's DMs,
+//       in the groups both are in, and (v2) in his own profile bio or headline -- never
+//       by a name, a username or a guess. Two different groups of signs are the bar (a
+//       single "python" is a snake to somebody); a person who wrote that he is not a
+//       programmer is "not"; everybody else is "unknown", which is never filed as "not".
+// Where to write: only where the two already talk -- a Telegram dialog the CRM holds,
+//       and (v2) a LinkedIn connection or an X follower. A person seen only in a group,
+//       or followed on X without following back, has no channel and gets no draft.
+// v2 (2026-10-09): two new sources of a person's own words, and two new channels.
+//       BIO: crm_ingest_contacts reads each contact's Telegram profile bio through the
+//       owner's own session (users.GetFullUser), politely: a gap between calls, a cap
+//       per run, a FLOOD_WAIT honoured to the second and the walk resumed next run;
+//       only the bio text is kept (src/agent/crm-bios.ts). LINKEDIN AND X: a read-only
+//       round in the owner's OWN browser (one browser, two pilots: every tab it opens
+//       is his to watch) lists his LinkedIn connections and his X follows and followers,
+//       judges each by the headline or bio THEY wrote, and files the programmers with
+//       the network as the source (src/agent/course-outreach-networks.ts). Whether he
+//       is signed in is asked of browser_logins and nothing else: not signed in, the
+//       round stops for that network and says so; no password is ever asked or typed.
+//       A network page that did not read is "unknown", never "no programmers". A
+//       message there goes on its OWN card, one per person, and only Allow types and
+//       sends it in his browser. Replies on LinkedIn and X are not read, so a person
+//       messaged there is not messaged again by the agent (no second message without
+//       a reply, read fail-closed).
+// The course's own words, from its page: 27 lessons, one working widget in each, then a
+//       lab of 3. A draft may carry no other number about the course. The link is the
+//       static page https://t27.ai/learn/course/ -- the #/course route previews as the
+//       home page in X, Telegram and LinkedIn (skill link-previews).
+// UI words (the owner reads Russian) and the sign words stay in the host; the spec holds
+//       the rules and the numbers.
+// Claim status: written before any live run; nobody has been written to through it yet.
+//       v2: the bio read, the LinkedIn and X readers and the send in the browser were
+//       written against no live pod and no live Telegram session (none was reachable).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::course_outreach {
+
+    pub const KIND : str = "automation";
+    pub const ID : str = "course-outreach";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 2;
+
+    // ---- The course, as its page says it --------------------------------------------
+    pub const COURSE_URL : str = "https://t27.ai/learn/course/";
+    pub const COURSE_LESSONS : u8 = 27;
+    pub const WIDGETS_PER_LESSON : u8 = 1;
+    pub const LAB_LESSONS : u8 = 3;
+    pub const CAMPAIGN : str = "fpga-course";
+
+    // ---- Who is a programmer ----------------------------------------------------------
+    pub const TAG : str = "programmer";
+    pub const SIGN_GROUPS : u8 = 5;  // role, language, practice, code host, hardware
+    pub const PROGRAMMER_BAR : u8 = 2;  // different groups, each counted once
+    pub const HISTORY_ROWS : u32 = 5000;  // candidate rows read, newest first
+    pub const EVIDENCE_QUOTES : u8 = 3;  // quotes kept per person
+    pub const EVIDENCE_CHARS : u8 = 80;  // characters per quote
+
+    // ---- What a draft may be ----------------------------------------------------------
+    pub const DRAFT_MIN_CHARS : u16 = 100;
+    pub const DRAFT_MAX_CHARS : u16 = 500;
+    pub const BATCH_MAX : u8 = 5;  // drafts on one card, all of them in full
+
+    // ---- The press --------------------------------------------------------------------
+    pub const PENDING_TTL_MS : u32 = 600000;  // a prepared batch lives ten minutes
+    pub const SEND_WAIT_MS : u32 = 90000;  // one send call waits this long for the tap
+    pub const SENDS_WITHOUT_PRESS : bool = false;
+    pub const OPT_OUT_UNKNOWN_BLOCKS : bool = true;  // an unreadable stop list writes to nobody
+    pub const REFUSAL_BLOCKS_FOREVER : bool = true;  // a "no" is never pitched again
+
+    // ---- The person's own profile bio (v2) ---------------------------------------------
+    pub const BIO_SOURCE : str = "bio";
+    pub const BIOS_PER_RUN : u8 = 30;  // users.GetFullUser calls per ingest run, at most
+    pub const BIO_GAP_MS : u16 = 1000;  // between two of them
+    pub const BIO_REFRESH_DAYS : u8 = 30;  // a bio read longer ago is read again
+    pub const BIO_MAX_CHARS : u8 = 140;  // Telegram's own ceiling for a bio
+    pub const BIO_KEEPS_ONLY_TEXT : bool = true;  // nothing else of the full user is stored
+
+    // ---- LinkedIn and X, in the owner's own browser (v2) ------------------------------
+    pub const NETWORK_READ_MAX : u16 = 200;  // people read per network per round
+    pub const NETWORK_SCROLLS : u8 = 8;  // scrolls of a list page; nothing is pressed
+    pub const NETWORK_CARD_MAX : u8 = 1;  // one message per card on LinkedIn and X
+    pub const NETWORK_REPLIES_READ : bool = false;  // so a messaged person is not messaged again
+    pub const TYPES_PASSWORDS : bool = false;  // the round never asks for or types a password
+
+    // ---- Not claimed ------------------------------------------------------------------
+    pub const RUN_LIVE : bool = false;  // flips when the owner's press sent a real batch
+
+    // What the words say about a person. His own "I am not a programmer" outranks
+    // every sign; two different groups make a programmer; anything less is unknown.
+    fn verdict(groups: u8, negated: bool) -> str {
+        if negated {
+            return "not";
+        }
+        if groups >= PROGRAMMER_BAR {
+            return "programmer";
+        }
+        return "unknown";
+    }
+
+    // Where the two already talk. A DM dialog in the CRM is a channel; nothing else is.
+    fn channel(dm_messages: u32) -> str {
+        if dm_messages > 0 {
+            return "telegram";
+        }
+        return "none";
+    }
+
+    // May a draft be prepared for this person, and if not, why. The person's own stop
+    // first, then the owner's removal, then a past refusal, then the evidence, then a
+    // channel, and last the one-message rule: a second message only after a reply.
+    fn pitch_state(programmer: bool, has_channel: bool, opted_out: bool, dropped: bool, refused: bool, pitched: bool, replied: bool) -> str {
+        if opted_out {
+            return "opted-out";
+        }
+        if dropped {
+            return "dropped";
+        }
+        if refused {
+            return "refused";
+        }
+        if !programmer {
+            return "not-programmer";
+        }
+        if !has_channel {
+            return "no-channel";
+        }
+        if pitched && !replied {
+            return "pitched-no-reply";
+        }
+        return "ok";
+    }
+
+    // The only numbers a draft may say about the course.
+    fn number_ok(n: u32) -> bool {
+        return n == COURSE_LESSONS || n == WIDGETS_PER_LESSON || n == LAB_LESSONS;
+    }
+
+    // What is wrong with a draft, or "" when nothing is. `course_links` counts the
+    // static course link, `hash_links` any #/ route; `stray_numbers` numbers number_ok
+    // refused; `hype` adjectives instead of numbers; `names_why` says the draft names
+    // something the person wrote.
+    fn draft_problem(chars: u16, course_links: u8, hash_links: u8, stray_numbers: u8, hype: u8, names_why: bool) -> str {
+        if chars < DRAFT_MIN_CHARS {
+            return "too-short";
+        }
+        if chars > DRAFT_MAX_CHARS {
+            return "too-long";
+        }
+        if hash_links > 0 {
+            return "hash-link";
+        }
+        if course_links == 0 {
+            return "no-link";
+        }
+        if stray_numbers > 0 {
+            return "number";
+        }
+        if hype > 0 {
+            return "hype";
+        }
+        if !names_why {
+            return "not-personal";
+        }
+        return "";
+    }
+
+    // One card carries a batch of one to BATCH_MAX drafts.
+    fn batch_ok(n: u8) -> bool {
+        return n >= 1 && n <= BATCH_MAX;
+    }
+
+    // THE GATE. A batch leaves only on the owner's Allow; denied, expired and a card
+    // nobody answered all send nothing.
+    fn may_send(answer: str) -> bool {
+        return answer == "allowed";
+    }
+
+    // A link shared in a post or a message never carries a #/ route.
+    fn share_link_ok(has_hash_route: bool) -> bool {
+        return !has_hash_route;
+    }
+
+    // Whose words are evidence about a person: what he wrote to the owner, in a shared
+    // group, in his own profile bio or his own headline. The owner's words about him,
+    // his name and his username are not.
+    fn own_words(source: str) -> bool {
+        return source == "dm" || source == "group" || source == "bio" || source == "headline";
+    }
+
+    // The next bio call of an ingest run. A FLOOD_WAIT ends the run (the walk resumes
+    // after the wait, next run); so does the cap.
+    fn bio_next(flood_wait_s: u32, read_this_run: u8) -> str {
+        if flood_wait_s > 0 {
+            return "wait";
+        }
+        if read_this_run >= BIOS_PER_RUN {
+            return "cap";
+        }
+        return "go";
+    }
+
+    // Is this person's bio due: never read, or read BIO_REFRESH_DAYS ago or more.
+    fn bio_due(age_days: u32, never_read: bool) -> bool {
+        return never_read || age_days >= BIO_REFRESH_DAYS;
+    }
+
+    // May the round open this network: only what browser_logins says is signed in.
+    // signed_out, expired, refused, unknown and no answer all stop it.
+    fn round_go(login: str) -> bool {
+        return login == "signed_in";
+    }
+
+    // What a network round may say. A page that did not read, or read nobody, is
+    // "unknown"; only a page that listed people can say "none" or "found".
+    fn network_verdict(read_ok: bool, people: u32, programmers: u32) -> str {
+        if !read_ok || people == 0 {
+            return "unknown";
+        }
+        if programmers == 0 {
+            return "none";
+        }
+        return "found";
+    }
+
+    // Where a message to a network person can go: a LinkedIn connection can be
+    // written to; on X, a person who follows the owner can.
+    fn network_channel(network: str, connection: bool, follows_owner: bool) -> str {
+        if network == "linkedin" && connection {
+            return "linkedin";
+        }
+        if network == "x" && follows_owner {
+            return "x";
+        }
+        return "none";
+    }
+
+    // How many drafts one card may carry on this channel.
+    fn card_max(channel: str) -> u8 {
+        if channel == "telegram" {
+            return BATCH_MAX;
+        }
+        return NETWORK_CARD_MAX;
+    }
+
+    fn card_ok(channel: str, n: u8) -> bool {
+        return n >= 1 && n <= card_max(channel);
+    }
+
+    test "two different groups of signs make a programmer" {
+        assert(verdict(2, false) == "programmer");
+        assert(verdict(5, false) == "programmer");
+        assert(verdict(1, false) == "unknown");
+        assert(PROGRAMMER_BAR == 2);
+        assert(PROGRAMMER_BAR <= SIGN_GROUPS);
+    }
+
+    test "unknown is unknown, not not-a-programmer" {
+        assert(verdict(0, false) == "unknown");
+        assert(verdict(1, false) != "not");
+        assert(verdict(0, false) != "not");
+    }
+
+    test "his own word that he is not a programmer outranks the signs" {
+        assert(verdict(0, true) == "not");
+        assert(verdict(3, true) == "not");
+    }
+
+    test "a draft goes only where the two already talk" {
+        assert(channel(1) == "telegram");
+        assert(channel(0) == "none");
+    }
+
+    test "a stopped, removed or refusing person gets no draft" {
+        assert(pitch_state(true, true, true, false, false, false, false) == "opted-out");
+        assert(pitch_state(true, true, false, true, false, false, false) == "dropped");
+        assert(pitch_state(true, true, false, false, true, false, false) == "refused");
+        assert(pitch_state(true, true, true, true, true, false, false) == "opted-out");
+        assert(OPT_OUT_UNKNOWN_BLOCKS);
+        assert(REFUSAL_BLOCKS_FOREVER);
+    }
+
+    test "no evidence or no channel, no draft" {
+        assert(pitch_state(false, true, false, false, false, false, false) == "not-programmer");
+        assert(pitch_state(true, false, false, false, false, false, false) == "no-channel");
+        assert(pitch_state(true, true, false, false, false, false, false) == "ok");
+    }
+
+    test "no second message without a reply" {
+        assert(pitch_state(true, true, false, false, false, true, false) == "pitched-no-reply");
+        assert(pitch_state(true, true, false, false, false, true, true) == "ok");
+        assert(pitch_state(true, true, true, false, false, true, true) == "opted-out");
+    }
+
+    test "only the course's own numbers" {
+        assert(number_ok(27));
+        assert(number_ok(1));
+        assert(number_ok(3));
+        assert(!number_ok(28));
+        assert(!number_ok(100));
+        assert(!number_ok(0));
+        assert(COURSE_LESSONS == 27);
+        assert(WIDGETS_PER_LESSON == 1);
+        assert(LAB_LESSONS == 3);
+    }
+
+    test "a draft names why, carries the static link and no hype" {
+        assert(draft_problem(200, 1, 0, 0, 0, true) == "");
+        assert(draft_problem(99, 1, 0, 0, 0, true) == "too-short");
+        assert(draft_problem(100, 1, 0, 0, 0, true) == "");
+        assert(draft_problem(500, 1, 0, 0, 0, true) == "");
+        assert(draft_problem(501, 1, 0, 0, 0, true) == "too-long");
+        assert(draft_problem(200, 1, 1, 0, 0, true) == "hash-link");
+        assert(draft_problem(200, 0, 0, 0, 0, true) == "no-link");
+        assert(draft_problem(200, 1, 0, 1, 0, true) == "number");
+        assert(draft_problem(200, 1, 0, 0, 1, true) == "hype");
+        assert(draft_problem(200, 1, 0, 0, 0, false) == "not-personal");
+    }
+
+    test "one card holds one to five drafts" {
+        assert(!batch_ok(0));
+        assert(batch_ok(1));
+        assert(batch_ok(5));
+        assert(!batch_ok(6));
+        assert(BATCH_MAX == 5);
+    }
+
+    test "nothing is sent without the owner's press" {
+        assert(may_send("allowed"));
+        assert(!may_send("denied"));
+        assert(!may_send("expired"));
+        assert(!may_send("pending"));
+        assert(!may_send(""));
+        assert(!SENDS_WITHOUT_PRESS);
+        assert(SEND_WAIT_MS < PENDING_TTL_MS);
+    }
+
+    test "the shared link is the static course page" {
+        assert(share_link_ok(false));
+        assert(!share_link_ok(true));
+        assert(COURSE_URL == "https://t27.ai/learn/course/");
+        assert(TAG == "programmer");
+        assert(CAMPAIGN == "fpga-course");
+    }
+
+    test "a bio counts as the person's own words" {
+        assert(own_words("bio"));
+        assert(own_words("headline"));
+        assert(own_words("dm"));
+        assert(own_words("group"));
+        assert(!own_words("owner"));
+        assert(!own_words("name"));
+        assert(!own_words("username"));
+        assert(BIO_SOURCE == "bio");
+        assert(BIO_KEEPS_ONLY_TEXT);
+    }
+
+    test "a bio is read politely and the walk resumes next run" {
+        assert(bio_next(0, 0) == "go");
+        assert(bio_next(0, 29) == "go");
+        assert(bio_next(0, 30) == "cap");
+        assert(bio_next(17, 0) == "wait");
+        assert(bio_next(17, 30) == "wait");
+        assert(bio_due(0, true));
+        assert(!bio_due(29, false));
+        assert(bio_due(30, false));
+        assert(BIOS_PER_RUN == 30);
+        assert(BIO_GAP_MS == 1000);
+        assert(BIO_MAX_CHARS == 140);
+    }
+
+    test "not signed in, the round stops" {
+        assert(round_go("signed_in"));
+        assert(!round_go("signed_out"));
+        assert(!round_go("expired"));
+        assert(!round_go("refused"));
+        assert(!round_go("unknown"));
+        assert(!round_go(""));
+        assert(!TYPES_PASSWORDS);
+    }
+
+    test "a network the round cannot read is unknown, not no programmers" {
+        assert(network_verdict(false, 0, 0) == "unknown");
+        assert(network_verdict(false, 40, 3) == "unknown");
+        assert(network_verdict(true, 0, 0) == "unknown");
+        assert(network_verdict(true, 40, 0) == "none");
+        assert(network_verdict(true, 40, 3) == "found");
+        assert(network_verdict(false, 0, 0) != "none");
+        assert(NETWORK_READ_MAX == 200);
+        assert(NETWORK_SCROLLS == 8);
+    }
+
+    test "a LinkedIn connection or an X follower can be written to" {
+        assert(network_channel("linkedin", true, false) == "linkedin");
+        assert(network_channel("linkedin", false, true) == "none");
+        assert(network_channel("x", false, true) == "x");
+        assert(network_channel("x", true, false) == "none");
+        assert(network_channel("telegram", true, true) == "none");
+    }
+
+    test "one card per LinkedIn or X message" {
+        assert(card_max("linkedin") == 1);
+        assert(card_max("x") == 1);
+        assert(card_max("telegram") == BATCH_MAX);
+        assert(card_ok("x", 1));
+        assert(!card_ok("x", 2));
+        assert(!card_ok("linkedin", 2));
+        assert(!card_ok("linkedin", 0));
+        assert(card_ok("telegram", 5));
+        assert(!card_ok("telegram", 6));
+        assert(NETWORK_CARD_MAX == 1);
+    }
+
+    test "no reply is read there, so nobody there is written to twice" {
+        assert(!NETWORK_REPLIES_READ);
+        assert(pitch_state(true, true, false, false, false, true, NETWORK_REPLIES_READ) == "pitched-no-reply");
+        assert(pitch_state(true, true, false, false, false, false, NETWORK_REPLIES_READ) == "ok");
+    }
+
+    test "nobody has been written to through it yet" {
+        assert(!RUN_LIVE);
+        assert(!may_send("pending"));
+        assert(VERSION == 2);
+        assert(HISTORY_ROWS == 5000);
+        assert(EVIDENCE_QUOTES == 3);
+        assert(EVIDENCE_CHARS == 80);
+    }
+}
+// phi^2 + 1/phi^2 = 3 | TRINITY

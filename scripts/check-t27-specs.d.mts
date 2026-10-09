@@ -30,6 +30,8 @@ export function checkSpec(o: {
   /** Named as debt in scripts/t27-specs.json "mirrored". */
   mirrored?: boolean
 }): Problem[]
+/** The spec fns a logic file names in __NOT_LOWERED__ (none when unreadable). */
+export function notLoweredOf(logic: string | null): string[]
 export function readManifest(root?: string): {
   hosts: Array<{ root: string; specDir: string }>
   unbound: string[]

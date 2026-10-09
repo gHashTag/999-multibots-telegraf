@@ -54,6 +54,15 @@ import { shelfLinkFor } from '../lib/shelf-access'
 import { imagesLookDown } from './image-health'
 import { openDebts } from './crm-owed'
 import { optedOutOf } from './assistant-opt-out'
+import { readBios, type BioReport, type BookUser } from './crm-bios'
+
+/** The pause between two bio calls; tests make it instant. */
+let bioSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+export function setBioSleepForTests(
+  f: ((ms: number) => Promise<void>) | null
+): void {
+  bioSleep = f ?? (ms => new Promise<void>(r => setTimeout(r, ms)))
+}
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -621,10 +630,11 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         skipped: 0,
         stopped: null as string | null,
       }
+      let bios: BioReport | null = null
       try {
         let users: unknown[] = []
+        const { Api } = await import('telegram')
         try {
-          const { Api } = await import('telegram')
           const r = await c.invoke(
             new Api.contacts.GetContacts({ hash: BigInt(0) as never })
           )
@@ -635,6 +645,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           return report
         }
         report.contacts_seen = users.length
+        const filed: BookUser[] = []
         for (const u of users) {
           const d = contactAsDialog(u)
           const lead = leadIdOf(d)
@@ -649,17 +660,45 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
               username: d.entity?.username ?? null,
             })
             report.people += 1
+            const e = u as { id?: unknown; accessHash?: unknown }
+            filed.push({
+              lead,
+              input: new Api.InputUser({
+                userId: e.id as never,
+                accessHash: e.accessHash as never,
+              }),
+            })
           } catch (e) {
             report.stopped = `${lead}: ${String(e).slice(0, 100)}`
             break
           }
         }
+        /*
+         * THEIR OWN BIOS (course-outreach spec v2, crm-bios.ts): through the
+         * same session, politely, resumed next run. Only after the names
+         * were all filed; a failure here costs the names nothing.
+         */
+        if (!report.stopped)
+          bios = await readBios(pool, owner, filed, {
+            full: input =>
+              c.invoke(new Api.users.GetFullUser({ id: input as never })),
+            sleep: bioSleep,
+            now: Date.now,
+          }).catch(e => ({
+            bios_read: 0,
+            bios_with_text: 0,
+            bios_left: filed.length,
+            bios_stopped: String(e).slice(0, 100),
+          }))
       } finally {
         await hangUp(c)
       }
       return {
         ...report,
-        note: 'Имена из книги контактов записаны в crm_people; переписку читает crm_ingest_chats.', // cyrillic-ok: tool result copy
+        ...(bios ?? {}),
+        note:
+          'Имена из книги контактов записаны в crm_people; переписку читает crm_ingest_chats. ' + // cyrillic-ok: tool result copy
+          'Био контактов (их собственные слова) — в crm_people.about, порциями; остаток дочитает следующий запуск.', // cyrillic-ok: tool result copy
       }
     },
   },
