@@ -55,6 +55,7 @@ import {
 import { imageModelRefusal } from './flat-price-model'
 import * as MEDIA from '../spec/agent-media-kie.gen'
 import { realPrompt, videoOrder } from './agent-media'
+import { kieImageOrder, SOURCE_TOOLS, sourceRefusal } from './agent-neuro'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -2199,7 +2200,13 @@ export const TOOLS: AgentTool[] = [
       // The model is settled BEFORE the charge: this tool is sold at one
       // price, and the route sends a `kie/...` name to a provider that price
       // does not cover (src/agent/flat-price-model.ts).
-      const refused = imageModelRefusal(args.model)
+      // A Kie picture model by name is sold at ITS price, named before the
+      // press (agent-neuro-kie.t27 may_order_image); any other name is
+      // settled by the flat price's own list.
+      const kie = kieImageOrder(args.model)
+      if (kie && 'refused' in kie)
+        return { сделано: false, причина: kie.refused } // cyrillic-ok: the tool's own response fields
+      const refused = kie ? null : imageModelRefusal(args.model)
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       // A date, time or price nobody confirmed is not printed (#3661) --
       // in the drawn title either (#3729).
@@ -2231,7 +2238,11 @@ export const TOOLS: AgentTool[] = [
             'Скажи человеку честно и предложи собрать ролик из уже готовых файлов (my_assets).',
         }
       }
-      const charge = await spendTokens(ctx, 'image_generate')
+      const charge = await spendTokens(
+        ctx,
+        'image_generate',
+        kie ? kie.model : undefined
+      )
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       /*
        * FOR A CLIENT, TEXT-TO-IMAGE HAS NOBODY IN IT (client-face.ts).
@@ -2252,7 +2263,7 @@ export const TOOLS: AgentTool[] = [
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: clientPrompt + backgroundPrompt(String(args.prompt), printed),
-          model: args.model,
+          model: kie ? kie.model : args.model,
           width: args.width,
           height: args.height,
         }),
@@ -2749,6 +2760,10 @@ export const TOOLS: AgentTool[] = [
           description:
             'только если человек назвал стиль: cartoon, anime, oil painting…', // cyrillic-ok: tool description for the model
         },
+        image_url: {
+          type: 'string',
+          description: 'картинка, из которой сделать ролик (Kie kling)', // cyrillic-ok: tool description for the model
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
@@ -2756,7 +2771,7 @@ export const TOOLS: AgentTool[] = [
     async handler(args, ctx) {
       // What is ordered and how it is charged, decided before the charge
       // (agent-media.ts, from the spec's compiled rules).
-      const order = videoOrder(args.model, args.duration)
+      const order = videoOrder(args.model, args.duration, args.image_url)
       if ('refused' in order) return { сделано: false, причина: order.refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
@@ -2782,6 +2797,9 @@ export const TOOLS: AgentTool[] = [
           model: order.model,
           duration: order.seconds,
           aspect_ratio: args.aspect_ratio ?? '9:16',
+          ...(typeof args.image_url === 'string'
+            ? { image_url: args.image_url }
+            : {}),
         }),
       })
       const genData: any = await gen.json().catch(() => null)
@@ -4269,6 +4287,73 @@ TOOLS.push(...CRM_MAP_TOOLS)
 TOOLS.push(...CRM_CLIENT_GROUP_TOOLS)
 // The owner assigns a task into the client's office (bot-office-crm.t27 v2).
 TOOLS.push(...OFFICE_CRM_TOOLS)
+/*
+ * KIE NEURO-FUNCTIONS FROM A SOURCE PICTURE (agent-neuro-kie.t27, #3924).
+ * Every tool is a row of the spec's table; this one runner, written once,
+ * makes each of them: refuse without a source, charge the row's Kie price,
+ * ask the route, keep the picture in our S3, refund what failed.
+ */
+function sourceTool(row: (typeof SOURCE_TOOLS)[number]): AgentTool {
+  return {
+    name: row.name,
+    description: row.help,
+    parameters: {
+      type: 'object',
+      properties: {
+        image_url: { type: 'string', description: 'source picture, https' },
+      },
+      required: ['image_url'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const refused = sourceRefusal(args.image_url)
+      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
+        }
+      const charge = await spendTokens(ctx, 'image_generate', row.model)
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
+      const gen = await selfFetch(`${selfBase()}/api/generate/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: row.model,
+          prompt: row.name,
+          image_url: String(args.image_url),
+        }),
+      })
+      const genData: any = await gen.json().catch(() => null)
+      const kept =
+        gen.ok && typeof genData?.url === 'string'
+          ? await keepGeneratedImage(ctx, genData.url, row.name)
+          : null
+      if (!kept || !kept.ok) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу', // cyrillic-ok: refund reason
+          charge['потрачено']
+        )
+        const why = String(
+          genData?.error || (kept && !kept.ok ? kept.reason : '')
+        ).slice(0, 300)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `не получилось: HTTP ${gen.status} ${why}`, // cyrillic-ok: the tool's answer
+        }
+      }
+      return withTokens(
+        ctx,
+        'image_generate',
+        { сделано: true, url: kept.url, id: kept.assetId, model: row.model }, // cyrillic-ok: the tool's own response field
+        charge['потрачено']
+      )
+    },
+  }
+}
+TOOLS.push(...SOURCE_TOOLS.map(sourceTool))
 // The client card's feed and summary (crm-client-timeline.ts): a screen.
 TOOLS.push(...CRM_CLIENT_TIMELINE_TOOLS)
 // The CRM screen's revenue strip (crm-revenue-tool.ts): a screen.
