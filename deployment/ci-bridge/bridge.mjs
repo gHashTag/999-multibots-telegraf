@@ -28,9 +28,14 @@
  * at most the run in flight, and that one is retried once it goes stale.
  *
  * Variables, all Railway references -- no value is ever copied or printed:
- *   GITHUB_TOKEN       ${{trios-agent-server.TRIOS_GITHUB_API_TOKEN}}
- *                      (needs read on code and pull requests, write on
- *                      commit statuses and issue comments)
+ *   GITHUB_TOKEN       a token that reads code and pull requests and
+ *                      writes commit statuses and issue comments, or
+ *   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY
+ *                      a GitHub App installed on the repository with the
+ *                      same permissions; the bridge mints an installation
+ *                      token (one hour) and renews it before it ends.
+ *                      2026-10-09: TRIOS_GITHUB_API_TOKEN answered 403 on
+ *                      this private repository's pull requests.
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
@@ -43,6 +48,7 @@
  * Every line this service logs or posts is scrubbed of both secret values.
  */
 import { spawn } from 'node:child_process'
+import { createSign } from 'node:crypto'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -66,6 +72,9 @@ const TAIL_BYTES = 256 * 1024
 export function config(env = process.env) {
   return {
     token: env.GITHUB_TOKEN || '',
+    appId: env.GITHUB_APP_ID || '',
+    appKey: (env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    minted: null,
     runnerKey: env.CHECK_RUNNER_KEY || '',
     runnerUrl: (env.CHECK_RUNNER_URL || '').replace(/\/+$/, ''),
     repo: env.REPO || 'gHashTag/999-multibots-telegraf',
@@ -167,11 +176,53 @@ export function commentBody(sha, v, tail) {
   ].join('\n')
 }
 
+/* A GitHub App's own JWT (RS256, ten minutes), for minting a token. */
+export function appJwt(appId, key, nowMs) {
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
+  const iat = Math.floor(nowMs / 1000) - 60
+  const head = b64({ alg: 'RS256', typ: 'JWT' })
+  const body = b64({ iat, exp: iat + 540, iss: String(appId) })
+  const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(key)
+  return `${head}.${body}.${sig.toString('base64url')}`
+}
+
+/* The token to call GitHub with: the given one, or a minted installation token. */
+export async function tokenOf(cfg, deps) {
+  if (cfg.token) return cfg.token
+  if (cfg.minted && cfg.minted.until - deps.now() > 5 * 60_000)
+    return cfg.minted.token
+  const jwt = appJwt(cfg.appId, cfg.appKey, deps.now())
+  const as = {
+    Authorization: `Bearer ${jwt}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'ci-bridge',
+  }
+  const inst = await deps.fetch(`${API}/repos/${cfg.repo}/installation`, {
+    headers: as,
+  })
+  if (!inst.ok) throw new Error(`app installation -> ${await why(inst)}`)
+  const { id } = await inst.json()
+  const res = await deps.fetch(`${API}/app/installations/${id}/access_tokens`, {
+    method: 'POST',
+    headers: as,
+  })
+  if (!res.ok) throw new Error(`installation token -> ${await why(res)}`)
+  const { token, expires_at } = await res.json()
+  cfg.minted = { token, until: Date.parse(expires_at) }
+  return token
+}
+
+/* A refusal's status and GitHub's own words for it (never a header). */
+async function why(res) {
+  const body = await res.json().catch(() => ({}))
+  return `${res.status} ${String(body?.message || '').slice(0, 120)}`.trim()
+}
+
 async function gh(cfg, deps, path, init = {}) {
   const res = await deps.fetch(`${API}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${cfg.token}`,
+      Authorization: `Bearer ${await tokenOf(cfg, deps)}`,
       Accept: 'application/vnd.github+json',
       'User-Agent': 'ci-bridge',
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -183,7 +234,7 @@ async function gh(cfg, deps, path, init = {}) {
 
 async function ghJson(cfg, deps, path) {
   const res = await gh(cfg, deps, path)
-  if (!res.ok) throw new Error(`GET ${path.split('?')[0]} -> ${res.status}`)
+  if (!res.ok) throw new Error(`GET ${path.split('?')[0]} -> ${await why(res)}`)
   return res.json()
 }
 
@@ -196,10 +247,15 @@ async function setStatus(cfg, deps, sha, state, description) {
       description: redact(description, secretsOf(cfg)).slice(0, 140),
     }),
   })
-  if (!res.ok) throw new Error(`status ${state} -> ${res.status}`)
+  if (!res.ok) throw new Error(`status ${state} -> ${await why(res)}`)
 }
 
-const secretsOf = cfg => [cfg.token, cfg.runnerKey]
+const secretsOf = cfg => [
+  cfg.token,
+  cfg.runnerKey,
+  cfg.appKey,
+  cfg.minted?.token,
+]
 
 /* Changed files of a PR, paths from the repository root, removed ones out. */
 async function changedFiles(cfg, deps, number) {
@@ -352,7 +408,8 @@ async function main() {
     now: Date.now,
     log: m => console.log(redact(`[ci-bridge] ${m}`, secretsOf(cfg))),
   }
-  const missing = ['token', 'runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  const missing = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  if (!cfg.token && !(cfg.appId && cfg.appKey)) missing.push('token or app')
   if (missing.length) {
     deps.log(
       `not configured: ${missing.join(', ')} -- see the header of bridge.mjs`
