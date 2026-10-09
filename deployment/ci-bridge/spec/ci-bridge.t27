@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/ci-bridge.t27 -- which pull request heads run on Railway, and how the verdict is marked.
+// Host: 999-multibots-telegraf deployment/ci-bridge/bridge.mjs (a Railway service that sends a
+// PR head to the check-runner and writes the verdict back to GitHub).
+// Trace: owner 2026-10-09: "fix CI/CD", "I have no money, find another way", "we have Railway,
+// do it there". No GitHub Actions job had started in that repository since June (account
+// billing), so every PR carried red checks that never ran.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled
+// logic in deployment/ci-bridge/spec/.
+// Claim status: host contract. The HTTP calls are the host's; every decision is this spec.
+// v1 (2026-10-09): a head runs once, a lost pending reruns after an hour, no backfill, no fork;
+// a commit status when allowed, else a check run, else nothing; error is never green; the
+// installation token is renewed before its last five minutes.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::ci_bridge {
+    pub const KIND : str = "automation";
+    pub const ID : str = "ci-bridge";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // The name of the mark on GitHub, a commit status context or a check run name.
+    pub const CONTEXT : str = "railway/checks";
+    // The local gates, in the runner's own names: the pre-commit type gates, the pre-push
+    // related tests and the bundle boot. tri remote-check runs the same list.
+    pub const SUITES : str = "types,render-types,guard,boots";
+
+    // One pass over the open pull requests every two minutes.
+    pub const POLL_S : u32 = 120;
+    // A pending mark older than this was lost to a restart: the head runs again.
+    pub const STALE_S : u32 = 3600;
+    // How much of the output a red run puts in its comment.
+    pub const TAIL_LINES : u32 = 80;
+
+    // A fork's head never runs: it would run inside the project's private network.
+    pub const FORK_HEADS_RUN : bool = false;
+
+    // Whether a head runs: our own repository, and touched since the bridge began (the day it
+    // started there were 34 open PRs, most stale; a backfill would hold the shared runner for
+    // hours and comment on each red one nobody works on).
+    fn runs_here(same_repo: bool, updated_s: u32, since_s: u32) -> bool {
+        return (same_repo || FORK_HEADS_RUN) && updated_s >= since_s;
+    }
+
+    // Whether a head needs a run: it has no mark, or only a pending one older than STALE_S.
+    // A finished mark -- green, red or error -- is never run again by the bridge.
+    fn needs_run(has_mark: bool, pending: bool, age_s: u32) -> bool {
+        if !has_mark { return true; }
+        return pending && age_s > STALE_S;
+    }
+
+    // How the verdict is written. A token with no permission map (a personal token) is taken
+    // to write statuses. 2026-10-09 the trios bees app read PRs and was refused statuses.
+    pub const MARK_NONE : u8 = 0;
+    pub const MARK_STATUS : u8 = 1;
+    pub const MARK_CHECK : u8 = 2;
+    fn mark_mode(has_perm_map: bool, statuses_write: bool, checks_write: bool) -> u8 {
+        if !has_perm_map { return MARK_STATUS; }
+        if statuses_write { return MARK_STATUS; }
+        if checks_write { return MARK_CHECK; }
+        return MARK_NONE;
+    }
+
+    // The verdict of one run. A runner that answered nothing, ran nothing or failed itself
+    // is an error -- never a green.
+    pub const STATE_SUCCESS : u8 = 0;
+    pub const STATE_FAILURE : u8 = 1;
+    pub const STATE_ERROR : u8 = 2;
+    fn verdict_state(has_result: bool, runner_error: bool, suites: u32, failed: u32) -> u8 {
+        if !has_result || runner_error || suites == 0 { return STATE_ERROR; }
+        if failed > 0 { return STATE_FAILURE; }
+        return STATE_SUCCESS;
+    }
+
+    // A run that is not green tells the person why, once, on the PR.
+    fn comments(state: u8) -> bool {
+        return state != STATE_SUCCESS;
+    }
+
+    // The app's own JWT: GitHub refuses one that lives over ten minutes, and the clock of the
+    // host may run ahead, so it is dated a minute back.
+    pub const GITHUB_JWT_MAX_S : u32 = 600;
+    pub const JWT_BACKDATE_S : u32 = 60;
+    pub const JWT_LIFE_S : u32 = 540;
+    // An installation token lives an hour; it is renewed before its last five minutes.
+    pub const RENEW_MARGIN_S : u32 = 300;
+    fn renew_due(seconds_left: u32) -> bool {
+        return seconds_left <= RENEW_MARGIN_S;
+    }
+
+    test "only our own heads touched since the bridge began run" {
+        assert(!FORK_HEADS_RUN);
+        assert(runs_here(true, 100, 100));
+        assert(runs_here(true, 101, 100));
+        assert(!runs_here(true, 99, 100));
+        assert(!runs_here(false, 200, 100));
+    }
+
+    test "a head runs once; only a lost pending older than an hour runs again" {
+        assert(needs_run(false, false, 0));
+        assert(!needs_run(true, false, 999999));
+        assert(!needs_run(true, true, STALE_S));
+        assert(needs_run(true, true, STALE_S + 1));
+        assert(!needs_run(true, true, 1800));
+    }
+
+    test "a status when allowed, else a check run, else nothing runs" {
+        assert(mark_mode(false, false, false) == MARK_STATUS);
+        assert(mark_mode(true, true, true) == MARK_STATUS);
+        assert(mark_mode(true, true, false) == MARK_STATUS);
+        assert(mark_mode(true, false, true) == MARK_CHECK);
+        assert(mark_mode(true, false, false) == MARK_NONE);
+    }
+
+    test "an error is never green and any failed suite is red" {
+        assert(verdict_state(true, false, 4, 0) == STATE_SUCCESS);
+        assert(verdict_state(true, false, 4, 1) == STATE_FAILURE);
+        assert(verdict_state(false, false, 4, 0) == STATE_ERROR);
+        assert(verdict_state(true, true, 4, 0) == STATE_ERROR);
+        assert(verdict_state(true, false, 0, 0) == STATE_ERROR);
+        assert(comments(STATE_FAILURE));
+        assert(comments(STATE_ERROR));
+        assert(!comments(STATE_SUCCESS));
+    }
+
+    test "the JWT stays under GitHub's ten minutes and the token is renewed early" {
+        assert(JWT_LIFE_S + JWT_BACKDATE_S <= GITHUB_JWT_MAX_S);
+        assert(renew_due(RENEW_MARGIN_S));
+        assert(renew_due(0));
+        assert(!renew_due(RENEW_MARGIN_S + 1));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
