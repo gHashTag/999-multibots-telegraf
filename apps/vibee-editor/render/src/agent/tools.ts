@@ -56,6 +56,8 @@ import { imageModelRefusal } from './flat-price-model'
 import * as MEDIA from '../spec/agent-media-kie.gen'
 import * as NEURO from '../spec/agent-neuro-kie.gen'
 import { realPrompt, videoOrder } from './agent-media'
+import { createSong, songState } from '../kie-music'
+import { musicKeepsWaiting } from '../spec/agent-neuro-kie.logic'
 import {
   editUsesGpt25,
   kieImageOrder,
@@ -496,10 +498,23 @@ function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
  * picture must be stored exactly the way an on-time one is: one copy of the
  * steps, not two that drift.
  */
+/** What kind of file is kept: a picture by default, a song for music. */
+export interface KeptKind {
+  type: string
+  ext: string
+  mime: string
+}
+const PICTURE: KeptKind = {
+  type: 'generated_image',
+  ext: 'png',
+  mime: 'image/png',
+}
+
 export async function keepGeneratedImage(
   ctx: ToolContext,
   providerUrl: string,
-  note: string
+  note: string,
+  kind: KeptKind = PICTURE
 ): Promise<
   | {
       ok: true
@@ -523,8 +538,8 @@ export async function keepGeneratedImage(
     const up = await selfFetch(`${selfBase()}/upload`, {
       method: 'POST',
       headers: {
-        'Content-Type': got.headers.get('content-type') || 'image/png',
-        'X-Filename': `agent-edit-${Date.now()}.png`,
+        'Content-Type': got.headers.get('content-type') || kind.mime,
+        'X-Filename': `agent-edit-${Date.now()}.${kind.ext}`,
       },
       body: new Uint8Array(bytes),
     })
@@ -551,9 +566,14 @@ export async function keepGeneratedImage(
     try {
       const row = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
-         VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+         VALUES ($4, '', $1, '', $2, $3, 'agent')
          RETURNING id`,
-        [ctx.telegramId, upData.directUrl, String(note).slice(0, 500)]
+        [
+          ctx.telegramId,
+          upData.directUrl,
+          String(note).slice(0, 500),
+          kind.type,
+        ]
       )
       assetId = row.rows[0]?.id ?? null
     } catch (e) {
@@ -4371,6 +4391,191 @@ function sourceTool(row: (typeof SOURCE_TOOLS)[number]): AgentTool {
   }
 }
 TOOLS.push(...SOURCE_TOOLS.map(sourceTool))
+
+/*
+ * MUSIC ON KIE SUNO (agent-neuro-kie.t27, #3924). The tools are the spec's
+ * rows; a turn waits at most MUSIC_WAIT_SECONDS (music_keeps_waiting), then
+ * says the song is still writing and music_status fetches it later. The task
+ * is recorded with its owner and the sum charged, so a song goes only to who
+ * ordered it and a failure is refunded exactly once.
+ */
+const MUSIC_TASKS_TABLE = `CREATE TABLE IF NOT EXISTS agent_music_tasks (
+  task_id text PRIMARY KEY,
+  telegram_id text NOT NULL,
+  spent integer NOT NULL,
+  state text NOT NULL DEFAULT 'writing',
+  url text,
+  created_at timestamptz NOT NULL DEFAULT now()
+)`
+let musicPollMs = 10_000
+/** Tests only: how long one wait between two reads of the song lasts. */
+export function setMusicPollMsForTests(ms: number): void {
+  musicPollMs = ms
+}
+const SONG: KeptKind = {
+  type: 'generated_audio',
+  ext: 'mp3',
+  mime: 'audio/mpeg',
+}
+
+/** Settle a song's state once: keep it, or refund it, or say it is writing. */
+async function settleSong(
+  ctx: ToolContext,
+  taskId: string,
+  // The charge's measured sum, read back from the task row (as a render's
+  // owed tokens are): music_status settles minutes later, in another turn.
+  owed: number,
+  state: Awaited<ReturnType<typeof songState>>
+): Promise<Record<string, unknown>> {
+  if (state.state === 'writing')
+    return {
+      сделано: false, // cyrillic-ok: the tools' answer fields
+      pending: true,
+      task_id: taskId,
+      причина: `песня ещё пишется — спроси music_status {task_id: "${taskId}"} через минуту`, // cyrillic-ok: the tool's answer
+    }
+  if (state.state === 'failed') {
+    const won = await ctx.pool.query(
+      `UPDATE agent_music_tasks SET state = 'failed' WHERE task_id = $1 AND state = 'writing' RETURNING task_id`,
+      [taskId]
+    )
+    if (won.rows.length)
+      await refundTokens(ctx, 'music_generate', 'песня не сложилась', owed) // cyrillic-ok: refund reason
+    return {
+      сделано: false, // cyrillic-ok: the tools' answer fields
+      причина: `песня не сложилась: ${state.reason}; деньги возвращены`, // cyrillic-ok: the tool's answer
+    }
+  }
+  const kept = await keepGeneratedImage(
+    ctx,
+    state.audioUrl,
+    `song ${taskId}`,
+    SONG
+  )
+  const url = kept.ok ? kept.url : state.audioUrl
+  await ctx.pool.query(
+    `UPDATE agent_music_tasks SET state = 'done', url = $2 WHERE task_id = $1`,
+    [taskId, url]
+  )
+  return { сделано: true, url, task_id: taskId } // cyrillic-ok: the tool's own response field
+}
+
+TOOLS.push(
+  {
+    name: NEURO.MUSIC_TOOL_NAME,
+    description: NEURO.MUSIC_HELP,
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'what the song is about, mood, genre',
+        },
+        instrumental: { type: 'boolean', description: 'no vocals' },
+        style: { type: 'string', description: 'genre or style, if named' },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const prompt = String(args.prompt ?? '').trim()
+      if (!prompt)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: 'нужно описание песни. Ничего не списано.', // cyrillic-ok: the tool's answer
+        }
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
+        }
+      const charge = await spendTokens(ctx, 'music_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
+      const spent = Number(charge['потрачено'] ?? 0) // cyrillic-ok: the charge's field
+      const made = await createSong({
+        prompt,
+        instrumental: args.instrumental === true,
+        model: NEURO.SUNO_MODEL,
+        style: typeof args.style === 'string' ? args.style : undefined,
+      }).catch((e: unknown) => ({
+        ok: false as const,
+        reason: String(e).slice(0, 200),
+      }))
+      if (!made.ok) {
+        await refundTokens(
+          ctx,
+          'music_generate',
+          'песня не запустилась', // cyrillic-ok: refund reason
+          charge['потрачено'] // cyrillic-ok: the charge's field
+        )
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `песня не запустилась: ${made.reason}; деньги возвращены`, // cyrillic-ok: the tool's answer
+        }
+      }
+      await ctx.pool.query(MUSIC_TASKS_TABLE)
+      await ctx.pool.query(
+        `INSERT INTO agent_music_tasks (task_id, telegram_id, spent) VALUES ($1, $2, $3) ON CONFLICT (task_id) DO NOTHING`,
+        [made.taskId, String(ctx.telegramId), spent]
+      )
+      let waited = 0
+      let state = await songState(made.taskId).catch(
+        () => ({ state: 'writing' }) as const
+      )
+      while (
+        musicKeepsWaiting(
+          waited,
+          state.state === 'ready' || state.state === 'failed'
+        )
+      ) {
+        await new Promise(r => setTimeout(r, musicPollMs))
+        waited += Math.max(1, Math.round(musicPollMs / 1000))
+        state = await songState(made.taskId).catch(
+          () => ({ state: 'writing' }) as const
+        )
+      }
+      return withTokens(
+        ctx,
+        'music_generate',
+        await settleSong(ctx, made.taskId, spent, state),
+        spent
+      )
+    },
+  },
+  {
+    name: NEURO.MUSIC_STATUS_TOOL_NAME,
+    description: NEURO.MUSIC_STATUS_HELP,
+    parameters: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'from music_generate' },
+      },
+      required: ['task_id'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const taskId = String(args.task_id ?? '').trim()
+      await ctx.pool.query(MUSIC_TASKS_TABLE)
+      const r = await ctx.pool.query(
+        `SELECT task_id, spent, state, url FROM agent_music_tasks WHERE task_id = $1 AND telegram_id = $2`,
+        [taskId, String(ctx.telegramId)]
+      )
+      const row = r.rows[0]
+      if (!row) return { сделано: false, причина: 'такой песни у тебя нет' } // cyrillic-ok: the tool's answer
+      if (row.state === 'done')
+        return { сделано: true, url: row.url, task_id: taskId } // cyrillic-ok: the tool's own response field
+      if (row.state === 'failed')
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: 'песня не сложилась; деньги уже возвращены', // cyrillic-ok: the tool's answer
+        }
+      const state = await songState(taskId).catch(
+        () => ({ state: 'writing' }) as const
+      )
+      return settleSong(ctx, taskId, Number(row.spent), state)
+    },
+  }
+)
 // The client card's feed and summary (crm-client-timeline.ts): a screen.
 TOOLS.push(...CRM_CLIENT_TIMELINE_TOOLS)
 // The CRM screen's revenue strip (crm-revenue-tool.ts): a screen.

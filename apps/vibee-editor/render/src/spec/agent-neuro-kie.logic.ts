@@ -3,15 +3,22 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 5d2e030b1c4d9deaf5d1377da36cb4ed3f9b799808f13d48c85d8ee362d8ccf6
+// spec-sha256: 6c2bdc5475377b3d974e452c126763223d5d16968d96c430d5dc03b7a2f54850
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMFBAABAQEEBQFwAQEBBQMBABAGCQF/AUGAgMAACwdYBQZtZW1vcnkCAA90MjdfdmlkZW9fcm91dGUAABN0MjdfZWRpdF91c2VzX2dwdDI1AAENdDI3X3NvdXJjZV9vawACE3QyN19tYXlfb3JkZXJfaW1hZ2UAAwonBAcAIABBAXELCgAgACABQQFzcgsKACAAQQFzIAFyCwcAIAAgAXEL'
+  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMGBQABAQEBBAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsHcgYGbWVtb3J5AgAPdDI3X3ZpZGVvX3JvdXRlAAAXdDI3X211c2ljX2tlZXBzX3dhaXRpbmcAARN0MjdfZWRpdF91c2VzX2dwdDI1AAINdDI3X3NvdXJjZV9vawADE3QyN19tYXlfb3JkZXJfaW1hZ2UABAo2BQcAIABBAXELDgAgAUF/cyAAQfgASXELCgAgACABQQFzcgsKACAAQQFzIAFyCwcAIAAgAXEL'
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
 ).exports as Record<string, unknown>
+
+/** An integer the spec's type can hold, or a thrown error: never a wrapped value. */
+function int(v: number, lo: number, hi: number, at: string): number {
+  if (!Number.isInteger(v) || v < lo || v > hi)
+    throw new RangeError(`${at}: ${v} is outside ${lo}..${hi}`)
+  return v
+}
 
 /** spec fn may_order_image */
 export function mayOrderImage(kieModel: boolean, billNamed: boolean): boolean {
@@ -42,6 +49,19 @@ export function editUsesGpt25(
     (W.t27_edit_uses_gpt25 as (...a: number[]) => number)(
       namedGpt25 ? 1 : 0,
       namedOther ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn music_keeps_waiting */
+export function musicKeepsWaiting(
+  waitedSeconds: number,
+  ready: boolean
+): boolean {
+  return (
+    (W.t27_music_keeps_waiting as (...a: number[]) => number)(
+      int(waitedSeconds, 0, 4294967295, 'music_keeps_waiting.waited_seconds'),
+      ready ? 1 : 0
     ) !== 0
   )
 }
