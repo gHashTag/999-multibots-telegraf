@@ -68,6 +68,13 @@ function walletConnected(ui: TonConnectUI): Promise<void> {
   })
 }
 
+/** Refusals grouped by code, for the summary under Withdraw all. */
+function countByCode(m: Map<string, { code: string }>): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const { code } of m.values()) out.set(code, (out.get(code) ?? 0) + 1)
+  return out
+}
+
 export interface TriClaimCardProps {
   isOwn: boolean
 }
@@ -78,6 +85,10 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
   const [code, setCode] = useState<GithubCode | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [sent, setSent] = useState<Set<string>>(() => new Set())
+  /** Why an earning did not go out in the last run, by work id. */
+  const [refused, setRefused] = useState<
+    Map<string, { code: string; kind: number }>
+  >(() => new Map())
   const [progress, setProgress] = useState<{
     done: number
     total: number
@@ -182,62 +193,91 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
     if (!claims) return
     setError(null)
     setBusy('all')
+    setRefused(new Map())
     // Spec selectable: neither revoked nor sent; oldest first.
-    const queue = claims.earnings
+    let queue = claims.earnings
       .filter(e => !e.revokedAt && !sent.has(e.workId))
       .sort((a, b) => a.acceptedAt.localeCompare(b.acceptedAt))
       .map(e => e.workId)
     const total = queue.length
-    let done = 0
-    setProgress({ done, total })
+    // Each earning counts once: sent to the wallet, or minted before.
+    const counted = new Set<string>()
+    const kept = new Map<string, { code: string; kind: number }>()
+    const show = () => {
+      setProgress({ done: counted.size, total })
+      setRefused(new Map(kept))
+    }
+    show()
     let ui: TonConnectUI | null = null
+    let cancelled = false
     try {
       ui = await tonConnect(lang)
       await walletConnected(ui)
       const walletMax = walletMaxMessages(ui.wallet)
-      while (queue.length) {
-        const b = await buildTriClaimBatch(
-          queue.slice(0, claims.batchMax ?? queue.length),
-          walletMax
-        )
-        const touched = new Set([
-          ...b.messages.map(m => m.workId),
-          ...b.refused.map(r => r.workId),
-        ])
-        // Spec continue_after: a batch that built and refused nothing ends it.
-        if (!touched.size) break
-        for (let i = queue.length - 1; i >= 0; i--)
-          if (touched.has(queue[i])) queue.splice(i, 1)
-        const minted = b.refused
-          .filter(r => r.code === 'already_minted')
-          .map(r => r.workId)
-        done += minted.length
-        setSent(s => new Set([...s, ...minted]))
-        for (let i = 0; i < b.messages.length; i += b.perTx) {
-          const chunk = b.messages.slice(i, i + b.perTx)
-          await ui.sendTransaction({
-            validUntil: b.validUntil,
-            network: b.network,
-            messages: chunk.map(({ address, amount, payload }) => ({
-              address,
-              amount,
-              payload,
-            })),
-          })
-          done += chunk.length
-          setSent(s => new Set([...s, ...chunk.map(m => m.workId)]))
-          setProgress({ done, total })
+      // Rounds: the whole queue, then only what the server says to ask
+      // again (spec may_retry: passing refusals, at most two more rounds).
+      for (let round = 0; queue.length && !cancelled; round++) {
+        const again: string[] = []
+        while (queue.length && !cancelled) {
+          const b = await buildTriClaimBatch(
+            queue.slice(0, claims.batchMax ?? queue.length),
+            walletMax,
+            round
+          )
+          const touched = new Set([
+            ...b.messages.map(m => m.workId),
+            ...b.refused.map(r => r.workId),
+          ])
+          // Spec continue_after: a batch that built and refused nothing ends it.
+          if (!touched.size) {
+            queue = []
+            break
+          }
+          queue = queue.filter(id => !touched.has(id))
+          for (const r of b.refused) {
+            if (r.code === 'already_minted') {
+              counted.add(r.workId)
+              kept.delete(r.workId)
+            } else {
+              kept.set(r.workId, { code: r.code, kind: r.kind })
+              if (r.retry) again.push(r.workId)
+            }
+          }
+          show()
+          for (let i = 0; i < b.messages.length; i += b.perTx) {
+            const chunk = b.messages.slice(i, i + b.perTx)
+            try {
+              await ui.sendTransaction({
+                validUntil: b.validUntil,
+                network: b.network,
+                messages: chunk.map(({ address, amount, payload }) => ({
+                  address,
+                  amount,
+                  payload,
+                })),
+              })
+            } catch (err) {
+              // Closing the wallet is the person's answer and ends the run.
+              cancelled = /cancel|reject/i.test(String((err as Error).message))
+              throw err
+            }
+            for (const m of chunk) {
+              counted.add(m.workId)
+              kept.delete(m.workId)
+            }
+            setSent(s => new Set([...s, ...chunk.map(m => m.workId)]))
+            show()
+          }
         }
+        queue = again
       }
     } catch (err) {
       const c = (err as ApiError).code
-      // Closing the wallet is the person's answer and ends the run.
-      if (c || !/cancel|reject/i.test(String((err as Error).message)))
-        setError(t(triClaimErrorKey(c)))
+      if (!cancelled) setError(t(triClaimErrorKey(c)))
     } finally {
       if (ui?.connected) await ui.disconnect().catch(() => undefined)
       setBusy(null)
-      setProgress({ done, total })
+      show()
       await reload()
     }
   }, [claims, lang, reload, sent, t])
@@ -317,6 +357,9 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
               ton: String(
                 (pendingCount * (claims.mintValueMilliton ?? 0)) / 1000
               ),
+              w5: claims.confirmations?.w5 ?? '?',
+              v4: claims.confirmations?.v4 ?? '?',
+              batch: claims.batchMax ?? '?',
             })}
           </p>
         </div>
@@ -326,8 +369,25 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
           {t('tri.claim.all.progress', {
             done: progress.done,
             total: progress.total,
+            left: refused.size,
           })}
         </p>
+      )}
+      {refused.size > 0 && (
+        <div
+          className="profile-topup__note"
+          role={busy === 'all' ? undefined : 'alert'}
+          data-testid="tri-claim-refused"
+        >
+          <p>{t('tri.claim.all.refused', { n: refused.size })}</p>
+          <ul>
+            {[...countByCode(refused)].map(([code, n]) => (
+              <li key={code} data-code={code}>
+                {t(triClaimErrorKey(code))} ({code}) x{n}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {claims.earnings.length > 0 && (
         <ul className="profile-bots__list">

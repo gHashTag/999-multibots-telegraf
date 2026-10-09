@@ -29,7 +29,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Address, beginCell, Dictionary } from '@ton/core'
 import { ensureTriWalletTables } from './tri-wallet'
 import * as BATCH from './spec/tri-claim-batch.gen'
-import { batchSize, messagesPerTx } from './spec/tri-claim-batch.logic'
+import {
+  batchSize,
+  confirmationsFor,
+  mayRetry,
+  messagesPerTx,
+} from './spec/tri-claim-batch.logic'
 
 /** The "Trinity S3AI" OAuth App. A client id is public; device flow needs no secret. */
 export const TRI_GITHUB_CLIENT_ID = 'Ov23lin1tYAHrKx2IaDw'
@@ -592,6 +597,23 @@ export const TRI_CLAIM_PATH = '/api/tri/claim'
 /** Many mint messages at once (spec automation/tri-claim-batch.t27). */
 export const TRI_CLAIM_BATCH_PATH = '/api/tri/claim/batch'
 
+const DONE = new Set(BATCH.DONE_CODES.split(','))
+const PASSING = new Set(BATCH.PASSING_CODES.split(','))
+
+/** A refusal code in the spec's three classes; the lists are the spec's. */
+export function refusalKind(code: string): number {
+  if (DONE.has(code)) return BATCH.REFUSAL_DONE
+  if (PASSING.has(code)) return BATCH.REFUSAL_PASSING
+  return BATCH.REFUSAL_FINAL
+}
+
+/** A spec u32 from an untrusted number: anything else counts as 0. */
+// t27-plumbing: brings request input into the range the spec fns take
+function u32Of(v: unknown): number {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff ? n : 0
+}
+
 const ROUTES: Record<string, string[]> = {
   [TRI_GITHUB_PATH]: ['GET', 'DELETE'],
   [TRI_GITHUB_START_PATH]: ['POST'],
@@ -912,6 +934,18 @@ export async function handleTriClaim(
           // What "withdraw all" needs to plan (spec tri-claim-batch).
           batchMax: BATCH.BATCH_MAX,
           mintValueMilliton: BATCH.MINT_VALUE_MILLITON,
+          // Wallet confirmations before the press: one per batch of
+          // BATCH_MAX, for a W5 wallet and for a v4 wallet.
+          confirmations: {
+            w5: confirmationsFor(
+              of.earnings.filter(e => !e.revokedAt).length,
+              BATCH.WALLET_MESSAGES_MAX
+            ),
+            v4: confirmationsFor(
+              of.earnings.filter(e => !e.revokedAt).length,
+              BATCH.WALLET_MESSAGES_DEFAULT
+            ),
+          },
           earnings: of.earnings.map(e => ({
             ...e,
             requested: built.has(e.workId),
@@ -923,7 +957,7 @@ export async function handleTriClaim(
     }
 
     if (path === TRI_CLAIM_BATCH_PATH) {
-      let asked: { workIds?: unknown; walletMax?: unknown }
+      let asked: { workIds?: unknown; walletMax?: unknown; round?: unknown }
       try {
         asked = JSON.parse((await deps.readBody(req, 16 * 1024)) || '{}')
       } catch {
@@ -939,13 +973,9 @@ export async function handleTriClaim(
       if (!wallet)
         return answer(409, { error: 'wallet_unbound' }, 'wallet_unbound')
       const take = ids.slice(0, batchSize(ids.length))
-      const walletMax = Number(asked.walletMax)
-      const perTx = messagesPerTx(
-        // t27-plumbing: an untrusted number brought into the spec fn's u32
-        Number.isInteger(walletMax) && walletMax >= 0 && walletMax <= 0xffffffff
-          ? walletMax
-          : 0
-      )
+      const perTx = messagesPerTx(u32Of(asked.walletMax))
+      // Which retry round this is: the card counts, the spec decides.
+      const round = u32Of(asked.round)
       const minter = await outside.minter()
       const results: Built[] = new Array(take.length)
       // The signers are asked for SIGN_CONCURRENCY earnings at a time.
@@ -972,7 +1002,15 @@ export async function handleTriClaim(
       )
       const refused = results
         .filter((r): r is Extract<Built, { ok: false }> => !r.ok)
-        .map(r => ({ workId: r.workId, code: r.code }))
+        .map(r => {
+          const kind = refusalKind(r.code)
+          return {
+            workId: r.workId,
+            code: r.code,
+            kind,
+            retry: mayRetry(kind, round),
+          }
+        })
       return answer(
         200,
         {

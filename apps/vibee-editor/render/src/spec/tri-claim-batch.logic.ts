@@ -3,10 +3,10 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 97772db1e88e6c8ad492ea8481c176f4dc5e47cf71280aac594a9e1a9d7d19db
+// spec-sha256: 33f052bcbb1c754e12062ccd17b25d22853eecda7fe06cf8b158805447047c47
 /* eslint-disable */
 
-const WASM = 'AGFzbQEAAAABEwNgA39/fwF/YAF/AX9gAn9/AX8DBwYAAQIBAgEEBQFwAQEBBQMBABAGCQF/AUGAgMAACweDAQcGbWVtb3J5AgASdDI3X2NvbnRpbnVlX2FmdGVyAAASdDI3X3ZhbHVlX21pbGxpdG9uAAEUdDI3X3RyYW5zYWN0aW9uc19mb3IAAhN0MjdfbWVzc2FnZXNfcGVyX3R4AAMOdDI3X3NlbGVjdGFibGUABA50MjdfYmF0Y2hfc2l6ZQAFCmYGEAAgAEEARyABcSACQQFzcQsIACAAQeQAbAseACAAIAFB/wEgAUH/AUkbQQQgARsiAWpBf2ogAW4LEwAgAEH/ASAAQf8BSRtBBCAAGwsKACAAIAFyQQFzCwwAIABBECAAQRBJGws='
+const WASM = 'AGFzbQEAAAABEwNgA39/fwF/YAJ/fwF/YAF/AX8DCgkAAQIBAgECAQIEBQFwAQEBBQMBABAGCQF/AUGAgMAACwfAAQoGbWVtb3J5AgASdDI3X2NvbnRpbnVlX2FmdGVyAAANdDI3X21heV9yZXRyeQABEnQyN19jb3VudHNfYXNfZG9uZQACFXQyN19jb25maXJtYXRpb25zX2ZvcgADEnQyN192YWx1ZV9taWxsaXRvbgAEFHQyN190cmFuc2FjdGlvbnNfZm9yAAUTdDI3X21lc3NhZ2VzX3Blcl90eAAGDnQyN19zZWxlY3RhYmxlAAcOdDI3X2JhdGNoX3NpemUACAqtAQkQACAAQQBHIAFxIAJBAXNxCw0AIABBAkYgAUECSXELBwAgAEEBRgswACAAQQR2IAFB/wEgAUH/AUkbQQQgARsiAUEPaiABbmwgAEEPcSABakF/aiABbmoLCAAgAEHkAGwLHgAgACABQf8BIAFB/wFJG0EEIAEbIgFqQX9qIAFuCxMAIABB/wEgAEH/AUkbQQQgABsLCgAgACABckEBcwsMACAAQRAgAEEQSRsL'
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -42,6 +42,21 @@ export function transactionsFor(messages: number, walletMax: number): number {
 /** spec fn value_milliton */
 export function valueMilliton(messages: number): number {
   return (W.t27_value_milliton as (...a: number[]) => number)(int(messages, 0, 4294967295, 'value_milliton.messages')) >>> 0
+}
+
+/** spec fn confirmations_for */
+export function confirmationsFor(pending: number, walletMax: number): number {
+  return (W.t27_confirmations_for as (...a: number[]) => number)(int(pending, 0, 4294967295, 'confirmations_for.pending'), int(walletMax, 0, 4294967295, 'confirmations_for.wallet_max')) >>> 0
+}
+
+/** spec fn counts_as_done */
+export function countsAsDone(kind: number): boolean {
+  return (W.t27_counts_as_done as (...a: number[]) => number)(int(kind, 0, 255, 'counts_as_done.kind')) !== 0
+}
+
+/** spec fn may_retry */
+export function mayRetry(kind: number, roundsDone: number): boolean {
+  return (W.t27_may_retry as (...a: number[]) => number)(int(kind, 0, 255, 'may_retry.kind'), int(roundsDone, 0, 4294967295, 'may_retry.rounds_done')) !== 0
 }
 
 /** spec fn continue_after */

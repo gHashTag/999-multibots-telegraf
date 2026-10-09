@@ -1077,8 +1077,10 @@ const en: Translations = {
   'tri.claim.needWallet': 'Bind a TON testnet wallet above to withdraw.',
   'tri.claim.all': 'Withdraw all ({n})',
   'tri.claim.all.note':
-    'Each spec carries 0.1 testnet TON to the minter, about {ton} TON in all; the minter returns what the mint does not use. Your wallet asks once per batch.',
-  'tri.claim.all.progress': 'Sent {done} of {total}',
+    'Each spec carries 0.1 testnet TON to the minter, about {ton} TON in all; the minter returns what the mint does not use. The server signs at most {batch} specs per request and each request is one wallet confirmation: about {w5} confirmations on a W5 wallet, {v4} on a v4 wallet.',
+  'tri.claim.all.progress':
+    'Sent to the wallet: {done} of {total}. Not withdrawn: {left}. A sent transaction is not yet a mint: the minter confirms it on chain.',
+  'tri.claim.all.refused': 'Not withdrawn: {n}. Reasons:',
   'tri.claim.empty': 'No accepted specs are credited to this account yet.',
   'tri.claim.withdraw': 'Withdraw',
   'tri.claim.working': 'Waiting for the wallet…',
@@ -4182,8 +4184,10 @@ const ru: Translations = {
     'Чтобы вывести, привяжите выше TON-кошелёк тестовой сети.',
   'tri.claim.all': 'Вывести всё ({n})',
   'tri.claim.all.note':
-    'Каждая спека несёт минтеру 0,1 TON тестовой сети, всего около {ton} TON; лишнее минтер возвращает. Кошелёк спросит один раз на пачку.',
-  'tri.claim.all.progress': 'Отправлено {done} из {total}',
+    'Каждая спека несёт минтеру 0,1 TON тестовой сети, всего около {ton} TON; лишнее минтер возвращает. Сервер подписывает не больше {batch} спек за запрос, и каждый запрос — одно подтверждение в кошельке: около {w5} подтверждений в кошельке W5, {v4} — в v4.',
+  'tri.claim.all.progress':
+    'Отправлено в кошелёк: {done} из {total}. Не выведено: {left}. Отправка ещё не выпуск: выпуск подтверждает минтер в сети.',
+  'tri.claim.all.refused': 'Не выведено: {n}. Причины:',
   'tri.claim.empty': 'На этот аккаунт пока не засчитано ни одной спеки.',
   'tri.claim.withdraw': 'Вывести',
   'tri.claim.working': 'Ждём кошелёк…',
