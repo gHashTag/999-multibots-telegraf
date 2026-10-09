@@ -121,8 +121,11 @@ describe('spec agent-claims-honest.t27', () => {
       join(__dirname, '..', 'agent', 'tools.ts'),
       'utf8'
     )
-    const edit = tools.slice(tools.indexOf("name: 'image_edit'"))
-    expect(edit.slice(0, edit.indexOf("name: 'image_generate'"))).toMatch(
+    const at = tools.indexOf("name: 'image_edit'")
+    const end = tools.indexOf("name: 'image_generate'", at)
+    expect(at).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(at)
+    expect(tools.slice(at, end)).toMatch(
       /\.then\(out =>\s*onLateOutcome\(ctx, out, async \(\) => \{/
     )
   })

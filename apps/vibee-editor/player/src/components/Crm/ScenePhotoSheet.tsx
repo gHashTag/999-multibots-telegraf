@@ -40,6 +40,11 @@ export function ScenePhotoSheet({
   const { t } = useLanguage()
   const [uploading, setUploading] = useState(false)
   const [failed, setFailed] = useState(false)
+  // A signed link expires: a photo that does not load shows the empty mark,
+  // not the browser's broken-picture icon.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(new Set())
+  const markBroken = (url: string) =>
+    setBroken(prev => (prev.has(url) ? prev : new Set(prev).add(url)))
   const open = scene !== null
   const n = (scene ?? 0) + 1
 
@@ -66,8 +71,13 @@ export function ScenePhotoSheet({
     >
       <div className="scene-photo" data-testid="scene-photo-sheet">
         <div className="scene-photo__big">
-          {current ? (
-            <img src={current} alt="" draggable={false} />
+          {current && !broken.has(current) ? (
+            <img
+              src={current}
+              alt=""
+              draggable={false}
+              onError={() => markBroken(current)}
+            />
           ) : (
             <span aria-hidden>◎</span>
           )}
@@ -91,7 +101,17 @@ export function ScenePhotoSheet({
                 disabled={busy || uploading}
                 onClick={() => onPick(url)}
               >
-                <img src={url} alt="" loading="lazy" draggable={false} />
+                {broken.has(url) ? (
+                  <span aria-hidden>◎</span>
+                ) : (
+                  <img
+                    src={url}
+                    alt=""
+                    loading="lazy"
+                    draggable={false}
+                    onError={() => markBroken(url)}
+                  />
+                )}
               </button>
             </li>
           ))}

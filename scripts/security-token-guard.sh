@@ -91,7 +91,10 @@ declare -a NAMES=(
 )
 declare -a PATTERNS=(
   '(^|[^0-9])[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}'
-  'sk-(ant-)?(proj-)?[A-Za-z0-9_-]{20,}'
+  # A key starts at a word edge, never glued to a letter: test files named
+  # a-desk-start-tells-the-person-once.test.ts matched as "sk-start-tells..."
+  # (2026-10-09, the test-gate snapshot). Same left edge as the Telegram rule.
+  '(^|[^A-Za-z0-9])sk-(ant-)?(proj-)?[A-Za-z0-9_-]{20,}'
   'fm[12]_[A-Za-z0-9+/=_-]{40,}'
   '\br8_[A-Za-z0-9]{30,}'
   '\bAKIA[0-9A-Z]{16}\b'
