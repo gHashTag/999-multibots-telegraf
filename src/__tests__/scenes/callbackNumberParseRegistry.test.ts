@@ -59,6 +59,12 @@ const REGISTERED: Record<string, string> = {
   // unknown id reads as "no such lead". No money call is reachable from them.
   'navigation/helpers/crmMenu.ts':
     'crm:(verb):(d{5,15}) via parseCrmCallback; id is a lead key for a crm_leads lookup by an owner; no pricing, no charge',
+  // The office (bot-neuro-office.t27 v7): the digits are a proposal's row id,
+  // looked up together with this bot and THIS chat (a crafted id from another
+  // room finds nothing), taken once by `taken_at IS NULL`; the press writes a
+  // task line. No price, no quantity, no charge anywhere in the file.
+  'navigation/topics/officeTasks.ts':
+    'otp:(d+) is an office_task_proposals id; looked up by id AND bot AND chat, taken once (taken_at IS NULL), writes an office_tasks row; no pricing, no charge',
   'navigation/helpers/actionButtons.ts':
     'the digit capture reads a star PRICE out of an answer text to label the invoice row; callback_data is only compared to fixed act:<id> strings (MONEY_ACTIONS), no number is parsed from it',
   'navigation/registerCommands.ts':
