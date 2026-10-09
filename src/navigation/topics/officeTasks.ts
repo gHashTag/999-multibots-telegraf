@@ -13,83 +13,39 @@
  * markers and puts a button per proposal under the answer. Only a person's
  * press makes a task, within the day, once -- the presser is its author.
  *
- * The numbers and rules are the spec's (src/spec/bot-neuro-office.gen.ts);
- * src/spec/bot-neuro-office.test.ts runs every test of the spec against
- * the functions below.
+ * The numbers are the spec's (bot-neuro-office.gen.ts) and every rule is the
+ * spec's compiled body (bot-neuro-office.logic.ts); none is restated here.
  */
 import { Pool } from 'pg'
 import type { Telegraf } from 'telegraf'
 import * as OFFICE from '@/spec/bot-neuro-office.gen'
 import * as TEAM from '@/spec/bot-agent-team.gen'
+import {
+  mayClose,
+  mayPropose,
+  mayTake,
+  mayTrack,
+  ownerSource,
+  proposalOk,
+  proposalsKept,
+  taskChars,
+  taskFromAnswer,
+} from '@/spec/bot-neuro-office.logic'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { isOffice, memberNamedFirst, speakerName } from './office'
 
-/** spec may_track: tasks are kept in an office only. */
-export function mayTrack(office: boolean): boolean {
-  return office
-}
-
-/** spec task_chars: a task is cut to TASK_TEXT_MAX_CHARS. */
-export function taskChars(chars: number): number {
-  return chars > OFFICE.TASK_TEXT_MAX_CHARS ? OFFICE.TASK_TEXT_MAX_CHARS : chars
-}
-
-/** spec owner_source: a reply wins, then a mention, then the sender. */
-export function ownerSource(hasReply: boolean, hasMention: boolean): number {
-  if (hasReply) return OFFICE.OWNER_FROM_REPLY
-  if (hasMention) return OFFICE.OWNER_FROM_MENTION
-  return OFFICE.OWNER_FROM_SENDER
-}
-
-/** spec may_close: the owner, the author or an admin. */
-export function mayClose(
-  isOwner: boolean,
-  isAuthor: boolean,
-  isAdmin: boolean
-): boolean {
-  return isOwner || isAuthor || isAdmin
-}
-
-/** spec task_from_answer: an answer alone never makes a task. */
-export function taskFromAnswer(pressed: boolean): boolean {
-  return pressed || !OFFICE.AGENT_TASK_NEEDS_PRESS
-}
-
-/** spec may_propose: proposals are made in an office only. */
-export function mayPropose(office: boolean): boolean {
-  return office
-}
-
-/** spec proposal_ok: a person's name and the work, within bounds. */
-export function proposalOk(
-  nameChars: number,
-  textChars: number,
-  namesMember: boolean
-): boolean {
-  return (
-    nameChars > 0 &&
-    nameChars <= OFFICE.SPEAKER_NAME_MAX_CHARS &&
-    textChars > 0 &&
-    textChars <= OFFICE.TASK_TEXT_MAX_CHARS &&
-    !namesMember
-  )
-}
-
-/** spec proposals_kept: at most PROPOSALS_PER_ANSWER_MAX buttons. */
-export function proposalsKept(proposed: number): number {
-  return proposed > OFFICE.PROPOSALS_PER_ANSWER_MAX
-    ? OFFICE.PROPOSALS_PER_ANSWER_MAX
-    : proposed
-}
-
-/** spec may_take: a person, within the day, once. */
-export function mayTake(
-  ageHours: number,
-  taken: boolean,
-  presserIsBot: boolean
-): boolean {
-  return ageHours < OFFICE.PROPOSAL_TTL_HOURS && !taken && !presserIsBot
+// The spec's rules, compiled from bot-neuro-office.t27 (never retyped here).
+export {
+  mayClose,
+  mayPropose,
+  mayTake,
+  mayTrack,
+  ownerSource,
+  proposalOk,
+  proposalsKept,
+  taskChars,
+  taskFromAnswer,
 }
 
 export interface Db {

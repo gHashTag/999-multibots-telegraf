@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-office-crm" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 // t27c gen-ts: fn teaches_task_marker was not emitted -- this backend lowers declarations, not bodies.
 export const CLIENT_CARD_SHOWS_OFFICE_TASKS = true satisfies boolean;
 // t27c gen-ts: fn client_card_lists_tasks was not emitted -- this backend lowers declarations, not bodies.
@@ -14,6 +14,15 @@ export const CLIENT_CARD_TASKS_MAX = 5 satisfies number;
 // t27c gen-ts: fn card_tasks_shown was not emitted -- this backend lowers declarations, not bodies.
 export const ROOM_SEES_CLIENT_CARD = false satisfies boolean;
 // t27c gen-ts: fn room_gets_client_card was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_assign was not emitted -- this backend lowers declarations, not bodies.
+export const ASSIGN_IS_PROPOSAL = true satisfies boolean;
+// t27c gen-ts: fn assigned_is_task was not emitted -- this backend lowers declarations, not bodies.
+export const ASSIGN_NAME_MAX_CHARS = 64 satisfies number;
+export const ASSIGN_TEXT_MAX_CHARS = 300 satisfies number;
+// t27c gen-ts: fn assign_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -22,7 +31,7 @@ export const ROOM_SEES_CLIENT_CARD = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CLIENT_CARD_SHOWS_OFFICE_TASKS", "CLIENT_CARD_TASKS_MAX", "ROOM_SEES_CLIENT_CARD"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CLIENT_CARD_SHOWS_OFFICE_TASKS", "CLIENT_CARD_TASKS_MAX", "ROOM_SEES_CLIENT_CARD", "ASSIGN_IS_PROPOSAL", "ASSIGN_NAME_MAX_CHARS", "ASSIGN_TEXT_MAX_CHARS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

@@ -23,6 +23,7 @@ import { stageOf, type Stage } from './crm-stages'
 import { visibleScope, whoPaid } from './crm-tools'
 import { touchesByLead, type TouchKind } from './crm-touches'
 import { botsByOwner } from './hive-tools'
+import { searchTelegram, syncPeopleOnce } from './crm-people-sync'
 import * as REEL from '../spec/crm-story-reel.gen'
 
 const ID_RE = /^\d{5,15}$/
@@ -155,6 +156,24 @@ const later = (a: string | null, b: string | null): string | null => {
 
 /** Pure: one row per person, profile and ingest merged, newest first. */
 /** A search for the clients list: an exact id, or a name / @username. */
+/*
+ * THE LIST IS IN THE ORDER OF THE CONVERSATION (owner, 2026-10-09: "the
+ * list should show the most recent from the conversation first"). A person
+ * is dated by the last message with them in crm_messages; somebody never
+ * talked to (a contact-book name) comes after everybody talked to, by when
+ * they were filed. seen_at alone dated a person by when an ingest last ran
+ * over them, so a sweep reshuffled the list.
+ */
+const PEOPLE_BY_LAST_TALK = `SELECT p.lead_id, p.first_name, p.last_name, p.username,
+       coalesce(m.last_at, p.seen_at)::text AS seen_at
+  FROM crm_people p
+  LEFT JOIN LATERAL (
+    SELECT max(c.at) AS last_at FROM crm_messages c
+     WHERE c.owner_id = p.owner_id AND c.lead_id = p.lead_id
+  ) m ON true`
+const PEOPLE_ORDER = `ORDER BY m.last_at DESC NULLS LAST, p.seen_at DESC, p.lead_id
+ LIMIT $2 OFFSET $3`
+
 export function clientQuery(
   raw: unknown
 ): { id: string; like: string; text: string } | null {
@@ -375,23 +394,37 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       } catch {
         // No profiles table: the list is built from the ingest alone.
       }
-      const people = await tryQuery<PersonRow>(
-        ctx!,
-        query
-          ? `SELECT lead_id, first_name, last_name, username, seen_at::text AS seen_at
-               FROM crm_people
-              WHERE owner_id = $1
-                AND (lead_id = $4
-                     OR coalesce(first_name, '') || ' ' || coalesce(last_name, '') ILIKE $5
-                     OR username ILIKE $5)
-              ORDER BY seen_at DESC, lead_id LIMIT $2 OFFSET $3`
-          : `SELECT lead_id, first_name, last_name, username, seen_at::text AS seen_at
-               FROM crm_people WHERE owner_id = $1
-              ORDER BY seen_at DESC, lead_id LIMIT $2 OFFSET $3`,
-        query
-          ? [owner, limit, offset, query.id, query.like]
-          : [owner, limit, offset]
-      )
+      /*
+       * EVERY PERSON OF THE ACCOUNT (crm-people-sync.ts). The first open of
+       * the list files the contact book and the people of every dialog in
+       * the background; a search the table cannot answer asks the account
+       * itself and files who it found.
+       */
+      if (!query && offset === 0) syncPeopleOnce(ctx!)
+      const readPeople = () =>
+        tryQuery<PersonRow>(
+          ctx!,
+          query
+            ? `${PEOPLE_BY_LAST_TALK}
+              WHERE p.owner_id = $1
+                AND (p.lead_id = $4
+                     OR coalesce(p.first_name, '') || ' ' || coalesce(p.last_name, '') ILIKE $5
+                     OR p.username ILIKE $5)
+              ${PEOPLE_ORDER}`
+            : `${PEOPLE_BY_LAST_TALK}
+              WHERE p.owner_id = $1
+              ${PEOPLE_ORDER}`,
+          query
+            ? [owner, limit, offset, query.id, query.like]
+            : [owner, limit, offset]
+        )
+      let people = await readPeople()
+      if (query && people.length === 0 && offset === 0) {
+        const found = await searchTelegram(ctx!, query.id, limit).catch(
+          () => [] as string[]
+        )
+        if (found.length) people = await readPeople()
+      }
       // Our own profiles and the legacy rows nobody has claimed yet. In page
       // mode they come with the first page only, so a later page is people.
       const profiles =

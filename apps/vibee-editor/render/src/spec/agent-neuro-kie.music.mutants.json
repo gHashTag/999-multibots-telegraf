@@ -1,0 +1,62 @@
+[
+  {
+    "name": "a failed song is refunded on every ask",
+    "file": "src/agent/tools.ts",
+    "from": "    if (won.rows.length)\n      await refundTokens(ctx, 'music_generate'",
+    "to": "    if (true)\n      await refundTokens(ctx, 'music_generate'"
+  },
+  {
+    "name": "a song that does not start is not refunded",
+    "file": "src/agent/tools.ts",
+    "from": "          'песня не запустилась', // cyrillic-ok: refund reason\n          charge['потрачено'] // cyrillic-ok: the charge's field",
+    "to": "          'песня не запустилась', // cyrillic-ok: refund reason\n          0"
+  },
+  {
+    "name": "anybody's song is fetched",
+    "file": "src/agent/tools.ts",
+    "from": "agent_music_tasks WHERE task_id = $1 AND telegram_id = $2`,\n        [taskId, String(ctx.telegramId)]",
+    "to": "agent_music_tasks WHERE task_id = $1`,\n        [taskId]"
+  },
+  {
+    "name": "the song is not waited for",
+    "file": "src/agent/tools.ts",
+    "from": "        musicKeepsWaiting(\n          waited,",
+    "to": "        false && musicKeepsWaiting(\n          waited,"
+  },
+  {
+    "name": "an empty prompt is charged",
+    "file": "src/agent/tools.ts",
+    "from": "      if (!prompt)\n        return {",
+    "to": "      if (false)\n        return {"
+  },
+  {
+    "name": "instrumental from any truthy value",
+    "file": "src/agent/tools.ts",
+    "from": "        instrumental: args.instrumental === true,",
+    "to": "        instrumental: !!args.instrumental,"
+  },
+  {
+    "name": "a hand-typed Suno model",
+    "file": "src/agent/tools.ts",
+    "from": "        model: NEURO.SUNO_MODEL,",
+    "to": "        model: 'V4',"
+  },
+  {
+    "name": "a failed status reads as writing",
+    "file": "src/kie-music.ts",
+    "from": "  if (FAILED.has(status) || (r.status >= 400 && r.status !== 429))",
+    "to": "  if (r.status >= 400 && r.status !== 429)"
+  },
+  {
+    "name": "the song is not kept in our storage",
+    "file": "src/agent/tools.ts",
+    "from": "  const url = kept.ok ? kept.url : state.audioUrl",
+    "to": "  const url = state.audioUrl"
+  },
+  {
+    "name": "a ready song is not marked done",
+    "file": "src/agent/tools.ts",
+    "from": "`UPDATE agent_music_tasks SET state = 'done', url = $2 WHERE task_id = $1`",
+    "to": "`UPDATE agent_music_tasks SET state = 'writing', url = $2 WHERE task_id = $1`"
+  }
+]

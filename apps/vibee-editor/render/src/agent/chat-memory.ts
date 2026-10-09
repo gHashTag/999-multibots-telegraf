@@ -110,7 +110,13 @@ export async function rememberPerson(
   pool: Pool,
   owner: string,
   lead: string,
-  p: Partial<PersonName>
+  p: Partial<PersonName>,
+  /*
+   * A names-only sync (crm-people-sync.ts) files names and leaves seen_at
+   * alone: touching it for the whole contact book would put everybody on
+   * top of the list at once.
+   */
+  opts: { touch?: boolean } = {}
 ): Promise<void> {
   await ensureTable(pool)
   await pool.query(
@@ -119,8 +125,9 @@ export async function rememberPerson(
      ON CONFLICT (owner_id, lead_id) DO UPDATE
        SET first_name = EXCLUDED.first_name,
            last_name  = EXCLUDED.last_name,
-           username   = EXCLUDED.username,
-           seen_at    = now()`,
+           username   = EXCLUDED.username${
+             opts.touch === false ? '' : ',\n           seen_at    = now()'
+           }`,
     [
       owner,
       lead,

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { TOKEN_PRICES } from './src/agent/billing-shared'
+import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
+import * as MEDIA_SPEC from './src/spec/agent-media-kie.gen'
 import { pricingSummary } from './src/agent/pricing'
 import { systemPrompt } from './src/agent/chat'
 
@@ -34,6 +35,16 @@ const paidRows = () => pricingSummary().платно as PaidRow[] // cyrillic-ok
 const opOf = (r: PaidRow) => r.функция // cyrillic-ok: field name
 const tokensOf = (r: PaidRow) => r.токенов // cyrillic-ok: field name
 
+/**
+ * What one press of an operation is charged. A video is the agent's default
+ * clip on Kie (agent-media-kie.t27, videoOrder): the tool charges
+ * priceForModel of that model, not the old flat Replicate price.
+ */
+const charged = (op: string): number =>
+  op === 'video_generate'
+    ? (priceForModel(op, MEDIA_SPEC.AGENT_VIDEO_MODEL) ?? 0)
+    : TOKEN_PRICES[op]
+
 const OPS = [
   'image_generate',
   'audio_generate',
@@ -49,7 +60,7 @@ describe('the quote equals the charge', () => {
     for (const row of paid) {
       const op = opOf(row)
       const msg = `${op}: quoted price is not the charged one`
-      expect(TOKEN_PRICES[op], msg).toBe(tokensOf(row))
+      expect(charged(op), msg).toBe(tokensOf(row))
     }
   })
 
@@ -67,7 +78,7 @@ describe('the quote equals the charge', () => {
   it('the system prompt names the charged number for every operation', () => {
     const prompt = systemPrompt('bot')
     for (const op of OPS) {
-      expect(TOKEN_PRICES[op], `${op} has no price`).toBeGreaterThan(0)
+      expect(charged(op), `${op} has no price`).toBeGreaterThan(0)
     }
     // The prompt spells prices as "<label> <number>"; assert the number that
     // is actually charged appears, and that its half -- the old wrong value
@@ -78,7 +89,8 @@ describe('the quote equals the charge', () => {
       ['картинка', TOKEN_PRICES.image_generate],
       ['рилс', TOKEN_PRICES.reel_render],
       ['озвучка', TOKEN_PRICES.audio_generate],
-      ['видео', TOKEN_PRICES.video_generate],
+      ['видео', charged('video_generate')],
+      ['песня', TOKEN_PRICES.music_generate],
     ]
     for (const [label, price] of pairs) {
       expect(line, `${label}: промпт называет не ту цену`).toContain(

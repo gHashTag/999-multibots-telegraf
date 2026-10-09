@@ -63,6 +63,7 @@ import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated
 import { T2I_MODEL } from './src/kie-image'
 import { PAID } from './src/agent/pricing'
 import { TOOLS } from './src/agent/tools'
+import * as MEDIA from './src/spec/agent-media-kie.gen'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const {
   sliceFrom,
@@ -406,20 +407,24 @@ describe('the route actually uses the chain', () => {
     expect(SERVER).toMatch(/await runImageChain\(/)
   })
 
-  it('offers all three providers, cheapest-that-works first, funded one last', () => {
-    const at = (needle: string) => {
-      const i = SERVER.indexOf(needle)
-      expect(i, `${needle} must be a leg of the chain`).toBeGreaterThan(-1)
-      return i
-    }
-    const fal = at('generateImageViaFal(prompt, aspectRatio, modelEndpoint)')
-    const replicate = at('generateImageViaReplicate(prompt, aspectRatio)')
-    const kie = at('generateImageViaKie(prompt, aspectRatio)')
-    // Kie last is deliberate: 4 credits an image out of the SAME purse that
-    // pays veed/fabric-1 at 18 credits a second. Reordering it first would
-    // silently multiply the reel budget, so the order is pinned.
-    expect(fal).toBeLessThan(replicate)
-    expect(replicate).toBeLessThan(kie)
+  it("hands the chain a call for every vendor; the ORDER is the spec's, not the route's text", () => {
+    /**
+     * Until 2026-10-09 this pinned the textual order of the calls in the
+     * route (FAL, Replicate, Kie last). Since agent-media-kie.t27 the order
+     * is IMAGE_VENDOR_ORDER, applied inside imageChainLegs, so the position
+     * of a call in render-server.ts no longer decides who draws first --
+     * pinning it would guard nothing. What the route must still do is give
+     * the chain a function for every vendor a leg can name; the order is
+     * pinned below, against the spec, in "the price table and the route
+     * name the same legs".
+     */
+    for (const needle of [
+      'generateImageViaFal(prompt, aspectRatio, modelEndpoint)',
+      'generateImageViaReplicate(prompt, aspectRatio)',
+      'generateImageViaPollinations(prompt, aspectRatio)',
+      'generateImageViaKie(prompt, aspectRatio)',
+    ])
+      expect(SERVER, `${needle} must be a leg of the chain`).toContain(needle)
   })
 
   it('answers with the provider that served and every one that refused', () => {
@@ -588,9 +593,19 @@ describe('every leg the route can build carries its price', () => {
    * -- and at run time it would be skipped, never run at a loss.
    */
   it('each leg of each chain has a real cost', () => {
+    // Every leg the route CAN build, not only the ones the default chain
+    // uses: a FAL or Replicate leg is priced even while it is out of the
+    // order, so putting it back cannot bring it back unpriced.
+    for (const name of everyImageLegName()) {
+      expect(imageLegCost(name), `${name} has no price`).not.toBeNull()
+      if (imageLegCost(name) === 0)
+        expect(name, 'the only $0 leg').toBe(POLLINATIONS_IMAGE_LEG)
+    }
     for (const model of [...FAL_IMAGE_MODELS, 'nobody/knows-this', undefined]) {
       const legs = imageChainLegs(falEndpointFor(model), neverCalled)
-      expect(legs.length, String(model)).toBeGreaterThanOrEqual(3)
+      // A drawing leg AND a rescue: one leg is no chain at all.
+      expect(legs.length, String(model)).toBe(MEDIA.IMAGE_VENDOR_ORDER.length)
+      expect(legs.length, String(model)).toBeGreaterThanOrEqual(2)
       for (const leg of legs) {
         expect(leg.costUsd, `${leg.name} has no price`).not.toBeNull()
         expect(Number.isFinite(leg.costUsd), leg.name).toBe(true)
@@ -643,15 +658,17 @@ describe('every leg the route can build carries its price', () => {
       // Written out, not derived: deriving the expectation from the same
       // prefix rule the code uses would agree with the code by construction.
       expect(pairs, String(model)).toEqual([
-        [falLeg(endpoint), 'fal'],
-        [REPLICATE_IMAGE_LEG, 'replicate'],
-        [POLLINATIONS_IMAGE_LEG, 'pollinations'],
         [KIE_IMAGE_LEG, 'kie'],
+        [POLLINATIONS_IMAGE_LEG, 'pollinations'],
       ])
     }
+    // The pairing for the legs OUT of the default order is still the name's
+    // own vendor: vendorOfLeg is what imageChainLegs runs them by.
+    expect(vendorOfLeg(falLeg('fal-ai/flux/dev'))).toBe('fal')
+    expect(vendorOfLeg(REPLICATE_IMAGE_LEG)).toBe('replicate')
   })
 
-  it("at today's price the real chain pays Replicate, not Kie and not the free leg", async () => {
+  it("at today's price the real chain pays Kie, and the free leg is not asked", async () => {
     const { called, run } = recordingVendors()
     const outcome = await runImageChain(
       imageChainLegs(falEndpointFor(undefined), run),
@@ -659,12 +676,62 @@ describe('every leg the route can build carries its price', () => {
     )
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
-    expect(outcome.provider).toBe(REPLICATE_IMAGE_LEG)
-    expect(outcome.url).toBe('https://replicate.invalid/picture.png')
-    // The money property itself: while the paid leg the 2-token price was
-    // set for answers, the free leg is not asked and the funded purse stays
-    // shut. Free is the rescue, not the default.
-    expect(called).toEqual(['replicate'])
+    expect(outcome.provider).toBe(KIE_IMAGE_LEG)
+    expect(outcome.url).toBe('https://kie.invalid/picture.png')
+    expect(outcome.tried).toEqual([])
+    // The money property itself: Kie is priced in (agent-media-kie.t27), so
+    // it is CALLED, not skipped as "below cost" -- the cow drawn by the free
+    // leg is the failure this order exists to end. Free is the rescue only.
+    expect(called).toEqual(['kie'])
+  })
+
+  it('when Kie refuses, the free leg rescues, and nothing else is asked', async () => {
+    const called: ImageVendor[] = []
+    const run = {
+      fal: async () => {
+        called.push('fal')
+        return 'https://fal.invalid/x.png'
+      },
+      replicate: async () => {
+        called.push('replicate')
+        return 'https://replicate.invalid/x.png'
+      },
+      pollinations: async () => {
+        called.push('pollinations')
+        return 'https://pollinations.invalid/x.png'
+      },
+      kie: async () => {
+        called.push('kie')
+        throw new Error('kie: 402 credits')
+      },
+    }
+    const outcome = await runImageChain(
+      imageChainLegs(falEndpointFor(undefined), run),
+      { ceilingUsd: imageChainCeilingUsd() }
+    )
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.provider).toBe(POLLINATIONS_IMAGE_LEG)
+    expect(watermarkOf(outcome.provider)).toBe('pollinations.ai')
+    expect(outcome.tried).toEqual([
+      { provider: KIE_IMAGE_LEG, error: 'kie: 402 credits' },
+    ])
+    // FAL and Replicate are not a fallback any more (skill kie-only).
+    expect(called).toEqual(['kie', 'pollinations'])
+  })
+
+  it('no leg of the real chain runs below its cost, for any endpoint asked', () => {
+    const ceiling = imageChainCeilingUsd()
+    for (const model of [...FAL_IMAGE_MODELS, 'nobody/knows-this', undefined]) {
+      for (const leg of imageChainLegs(falEndpointFor(model), neverCalled)) {
+        expect(legFitsPrice(leg.costUsd, ceiling), leg.name).toBe(true)
+      }
+    }
+    // Negative control: the same check says no to a leg dearer than the
+    // price -- the $0.15 FAL leg -- so the loop above can fail.
+    expect(
+      legFitsPrice(imageLegCost(falLeg('fal-ai/nano-banana-pro')), ceiling)
+    ).toBe(false)
   })
 
   it('a leg name with no callable vendor is an error, not a guess', () => {
@@ -681,22 +748,29 @@ describe('every leg the route can build carries its price', () => {
         imageChainLegs(falEndpointFor(m), neverCalled).map(l => l.name)
       )
     )
-    expect([...built].sort()).toEqual([...everyImageLegName()].sort())
+    // Every leg the default chain builds is one the census knows and prices.
+    for (const name of built) expect(everyImageLegName()).toContain(name)
     // No stale row either: a price for a leg that no longer exists is a
     // price nobody will ever check again.
     expect(Object.keys(IMAGE_LEG_COST_USD).sort()).toEqual(
       [...everyImageLegName()].sort()
     )
-    // The ORDER is the design, not a detail: paid quality first, the free
-    // rescue when the paid purses refuse, the talking heads' purse last.
-    expect(
-      imageChainLegs('fal-ai/nano-banana-pro', neverCalled).map(l => l.name)
-    ).toEqual([
-      'fal/fal-ai/nano-banana-pro',
-      REPLICATE_IMAGE_LEG,
-      POLLINATIONS_IMAGE_LEG,
-      KIE_IMAGE_LEG,
-    ])
+    // The ORDER is the design, not a detail (agent-media-kie.t27): Kie, the
+    // one provider the owner pays for, draws first; the free leg is the
+    // rescue only. Written out, then checked against the spec constant, so
+    // neither can move without the other.
+    expect(MEDIA.IMAGE_VENDOR_ORDER).toEqual(['kie', 'pollinations'])
+    for (const m of [...FAL_IMAGE_MODELS, 'nobody/knows-this', undefined])
+      expect(
+        imageChainLegs(falEndpointFor(m), neverCalled).map(l => l.name),
+        String(m)
+      ).toEqual([KIE_IMAGE_LEG, POLLINATIONS_IMAGE_LEG])
+    // FAL and Replicate are out of the default chain (skill kie-only),
+    // whichever FAL endpoint a caller prefers.
+    for (const name of built) {
+      expect(vendorOfLeg(name), name).not.toBe('fal')
+      expect(vendorOfLeg(name), name).not.toBe('replicate')
+    }
   })
 
   it('an unknown leg name reads as no price, not as free', () => {
@@ -715,7 +789,18 @@ describe('every leg the route can build carries its price', () => {
     const expected =
       (TOKEN_PRICES.image_generate * COST_PER_TOKEN_USD) / НАЦЕНКА // cyrillic-ok: markup constant
     expect(imageChainCeilingUsd()).toBeCloseTo(expected, 9)
-    expect(imageChainCeilingUsd()).toBeCloseTo(0.005, 9)
+    // The price was raised to cover Kie (agent-media-kie.t27): the ceiling
+    // reaches the spec's cost exactly, and the Kie leg's own price.
+    expect(imageChainCeilingUsd()).toBeCloseTo(
+      MEDIA.IMAGE_GENERATE_COST_MICRO_USD / 1_000_000,
+      9
+    )
+    expect(OPERATION_COST_USD.image_generate).toBe(
+      MEDIA.IMAGE_GENERATE_COST_MICRO_USD / 1_000_000
+    )
+    expect(imageChainCeilingUsd()).toBeGreaterThanOrEqual(
+      imageLegCost(KIE_IMAGE_LEG) as number
+    )
     expect(costCeilingUsd('no_such_op')).toBe(0)
     // Every op's own price covers the nominal cost it was derived from.
     for (const [op, cost] of Object.entries(OPERATION_COST_USD)) {
@@ -731,11 +816,29 @@ describe('every leg the route can build carries its price', () => {
     // A floor that skips every leg is an outage, not a price rule -- the
     // exact outage this suite sat green through until 2026-09-29, when the
     // only runnable leg was Replicate and its purse was empty.
-    expect(runnable).toEqual([REPLICATE_IMAGE_LEG, POLLINATIONS_IMAGE_LEG])
+    expect(runnable).toEqual([
+      REPLICATE_IMAGE_LEG,
+      POLLINATIONS_IMAGE_LEG,
+      KIE_IMAGE_LEG,
+    ])
+    // Both legs of the DEFAULT chain are covered -- Kie is no longer priced
+    // out, which is what put the free watermarked draft first (#3920).
+    for (const v of MEDIA.IMAGE_VENDOR_ORDER)
+      expect(
+        imageChainLegs(falEndpointFor(undefined), neverCalled)
+          .filter(l => vendorOfLeg(l.name) === v)
+          .every(l => runnable.includes(l.name)),
+        v
+      ).toBe(true)
     expect(
       legFitsPrice(imageLegCost(falLeg('fal-ai/nano-banana-pro')), ceiling)
     ).toBe(false)
-    expect(legFitsPrice(imageLegCost(KIE_IMAGE_LEG), ceiling)).toBe(false)
+    expect(legFitsPrice(imageLegCost(KIE_IMAGE_LEG), ceiling)).toBe(true)
+    // ...and only just: a cent above the spec's cost would price Kie out
+    // again, so the price is not covering it by accident.
+    expect(
+      legFitsPrice((imageLegCost(KIE_IMAGE_LEG) as number) + 0.01, ceiling)
+    ).toBe(false)
     // The free leg is priced as a fact, not a hope: $0 fits any ceiling a
     // price can name, including a price of nothing.
     expect(imageLegCost(POLLINATIONS_IMAGE_LEG)).toBe(0)
@@ -744,14 +847,18 @@ describe('every leg the route can build carries its price', () => {
 
   it('the tool and the price list say who draws, from the same computation', () => {
     const note = imageChainNote()
-    expect(note).toContain(`${REPLICATE_IMAGE_LEG} ($0.003)`)
+    expect(note).toContain(`${KIE_IMAGE_LEG} ($0.02)`)
     expect(note).toContain(`${POLLINATIONS_IMAGE_LEG} ($0)`)
     expect(note).toContain(`${falLeg('fal-ai/nano-banana-pro')} ($0.15)`)
+    const priceWords = `Цена картинки в токенах — ${TOKEN_PRICES.image_generate};` // cyrillic-ok: tool copy
+    expect(note).toContain(priceWords)
     // The tool description carries the short form: it sits in the compact
     // kit a 16k model is shown, and provider.test.ts pins that size.
     const short = imageChainShortNote()
-    expect(short).toContain(REPLICATE_IMAGE_LEG)
-    expect(short).toMatch(/fal, kie дороже/) // cyrillic-ok: tool copy
+    expect(short).toContain(KIE_IMAGE_LEG)
+    expect(short).toMatch(/; fal дороже/) // cyrillic-ok: tool copy
+    // Kie is among those who draw, not among the vendors skipped as dear.
+    expect(short).not.toMatch(/kie дороже/) // cyrillic-ok: tool copy
     const tool = TOOLS.find(t => t.name === 'image_generate')
     expect(tool?.description).toContain(short)
     const row = PAID.find(p => p.функция === 'image_generate') // cyrillic-ok: field name

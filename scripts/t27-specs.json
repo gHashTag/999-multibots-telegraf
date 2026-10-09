@@ -6,7 +6,8 @@
     "  Binding one = node apps/vibee-editor/render/scripts/sync-t27-spec.mjs <t27> <id>, import its numbers,",
     "  a <id>.test.ts running its vectors, and the id removed from here (the checker insists).",
     "foreign: specs of OTHER repos that our comments cite for reference; nothing to bind.",
-    "citedMissing: specs our comments cite that gHashTag/t27 does not have. Debt too: write the spec or drop the citation."
+    "citedMissing: specs our comments cite that gHashTag/t27 does not have. Debt too: write the spec or drop the citation.",
+    "mirrored: bound specs whose fns still run from a hand-written host copy, not from <id>.logic.ts (scripts/t27-logic.mjs). Owner 2026-10-09: logic only in .t27. Debt: the list only shrinks, and a new spec cannot join it."
   ],
   "hosts": [
     {
@@ -103,5 +104,44 @@
     "numeric/formats",
     "server/api"
   ],
-  "citedMissing": []
+  "citedMissing": [],
+  "mirrored": [
+    "apps/vibee-editor/packages/vibee-atoms/src/spec/token-wallet.t27",
+    "apps/vibee-editor/player/src/spec/crm-first-screen.t27",
+    "apps/vibee-editor/render/src/spec/agent-provider-chain.t27",
+    "apps/vibee-editor/render/src/spec/agent-spec-bank.t27",
+    "apps/vibee-editor/render/src/spec/ball-board.t27",
+    "apps/vibee-editor/render/src/spec/ball-grants.t27",
+    "apps/vibee-editor/render/src/spec/blog-share.t27",
+    "apps/vibee-editor/render/src/spec/bot-agent-team.t27",
+    "apps/vibee-editor/render/src/spec/bot-event-tabs.t27",
+    "apps/vibee-editor/render/src/spec/bot-topic-tabs.t27",
+    "apps/vibee-editor/render/src/spec/browser-tab-strip.t27",
+    "apps/vibee-editor/render/src/spec/browser-viewer-boot.t27",
+    "apps/vibee-editor/render/src/spec/connect-card.t27",
+    "apps/vibee-editor/render/src/spec/crm-client-workspace.t27",
+    "apps/vibee-editor/render/src/spec/crm-duet.t27",
+    "apps/vibee-editor/render/src/spec/crm-lead-magnet.t27",
+    "apps/vibee-editor/render/src/spec/crm-sellers.t27",
+    "apps/vibee-editor/render/src/spec/crm-story-reel.t27",
+    "apps/vibee-editor/render/src/spec/engage-desk.t27",
+    "apps/vibee-editor/render/src/spec/hive-contributor-keys.t27",
+    "apps/vibee-editor/render/src/spec/kanban-card-chat.t27",
+    "apps/vibee-editor/render/src/spec/mail-push.t27",
+    "apps/vibee-editor/render/src/spec/meeting-reminders.t27",
+    "apps/vibee-editor/render/src/spec/meta-connect.t27",
+    "apps/vibee-editor/render/src/spec/owner-studio.t27",
+    "apps/vibee-editor/render/src/spec/plan-reel.t27",
+    "apps/vibee-editor/render/src/spec/poster-facts-overlay.t27",
+    "apps/vibee-editor/render/src/spec/queen-growth.t27",
+    "apps/vibee-editor/render/src/spec/reddit-desk.t27",
+    "apps/vibee-editor/render/src/spec/social-api.t27",
+    "apps/vibee-editor/render/src/spec/split-reel.t27",
+    "src/spec/bot-agent-memory.t27",
+    "src/spec/bot-agent-stream.t27",
+    "src/spec/bot-agent-team.t27",
+    "src/spec/bot-event-tabs.t27",
+    "src/spec/bot-menu-press.t27",
+    "src/spec/bot-topic-tabs.t27"
+  ]
 }

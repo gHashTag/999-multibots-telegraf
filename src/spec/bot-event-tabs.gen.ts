@@ -6,11 +6,14 @@
 export const KIND = "automation" satisfies string;
 export const ID = "bot-event-tabs" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const EVENT_COUNT = 3 satisfies number;
 export const EVENT_KEYS = ["reel", "payment", "browser"] as const satisfies readonly [string, string, string];
 export const EVENT_TABS = ["reels", "wallet", "browser"] as const satisfies readonly [string, string, string];
 // t27c gen-ts: fn routes_to_tab was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn via_house_bot was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn tries_service_bot was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
