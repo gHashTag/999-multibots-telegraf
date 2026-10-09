@@ -17,6 +17,7 @@ import {
   SUITES,
   needsRun,
   ownHead,
+  recent,
   redact,
   resultOf,
   sh,
@@ -36,6 +37,7 @@ const cfg = {
   pollMs: 1000,
   staleMs: 60 * 60_000,
   work: mkdtempSync(join(tmpdir(), 'ci-bridge-')),
+  since: Date.parse('2026-10-09T10:00:00Z'),
 }
 
 /* A commit tarball the way GitHub sends it: one top directory. */
@@ -58,8 +60,14 @@ function tarball() {
   ])
 }
 
-const pr = (number, sha, fullName = REPO) => ({
+const pr = (
   number,
+  sha,
+  fullName = REPO,
+  updated = '2026-10-09T11:00:00Z'
+) => ({
+  number,
+  updated_at: updated,
   head: { sha, repo: { full_name: fullName } },
 })
 
@@ -151,6 +159,13 @@ describe('which pull requests run', () => {
       true
     )
   })
+
+  it('a PR untouched since the bridge began is not backfilled', () => {
+    const since = Date.parse('2026-10-09T10:00:00Z')
+    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T10:00:00Z'), since), true)
+    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T09:59:59Z'), since), false)
+    assert.equal(recent({}, since), false)
+  })
 })
 
 describe('the verdict', () => {
@@ -192,7 +207,12 @@ describe('the verdict', () => {
 describe('one pass', () => {
   it('runs our own unchecked head and posts pending, then success', async () => {
     const w = world({
-      prs: [pr(7, 'aaa111'), pr(8, 'bbb222', 'stranger/fork'), pr(9, 'ccc333')],
+      prs: [
+        pr(7, 'aaa111'),
+        pr(8, 'bbb222', 'stranger/fork'),
+        pr(9, 'ccc333'),
+        pr(10, 'ddd444', REPO, '2026-10-08T00:00:00Z'),
+      ],
       statuses: {
         ccc333: [
           {
@@ -223,6 +243,10 @@ describe('one pass', () => {
     assert.ok(
       !w.calls.some(c => c.url.includes('bbb222')),
       'the fork is never touched'
+    )
+    assert.ok(
+      !w.calls.some(c => c.url.includes('ddd444')),
+      'a PR untouched since the start is not backfilled'
     )
   })
 
