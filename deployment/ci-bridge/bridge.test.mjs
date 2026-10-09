@@ -24,6 +24,8 @@ import {
   resultOf,
   appJwt,
   config,
+  heal,
+  recheckAsked,
   missing,
   serve,
   sh,
@@ -85,7 +87,13 @@ const ok = (data, status = 200) =>
   })
 
 /* A fake GitHub + runner; records every call. */
-function world({ prs, statuses = {}, checkRuns = {}, runnerSays }) {
+function world({
+  prs,
+  statuses = {},
+  checkRuns = {},
+  issueComments = {},
+  runnerSays,
+}) {
   const calls = []
   const fetch = async (url, init = {}) => {
     const u = new URL(url)
@@ -108,6 +116,10 @@ function world({ prs, statuses = {}, checkRuns = {}, runnerSays }) {
     if (runs) return ok({ check_runs: checkRuns[runs[1]] || [] })
     if (u.pathname.endsWith('/check-runs')) return ok({ id: 5 }, 201)
     if (u.pathname.endsWith('/check-runs/5')) return ok({ id: 5 })
+    if (u.pathname.endsWith('/comments') && (init.method || 'GET') === 'GET') {
+      const n = u.pathname.match(/issues\/(\d+)\/comments/)[1]
+      return ok(issueComments[n] || [])
+    }
     if (u.pathname.endsWith('/comments')) return ok({}, 201)
     if (u.pathname === '/run') return new Response(runnerSays)
     throw new Error(`unexpected ${url}`)
@@ -572,6 +584,26 @@ describe('starting the service', () => {
     assert.match(logs[0], /^watching /)
   })
 
+  it('each round looks after its own deploy before the pass', async () => {
+    const logs = []
+    const deps = {
+      fetch: async () => new Response('{}', { status: 500 }),
+      now: Date.now,
+      sleep: async () => {},
+      log: m => logs.push(m),
+    }
+    const c = {
+      ...cfg,
+      ownSha: 'a',
+      railwayToken: 'r',
+      serviceId: 's',
+      environmentId: 'e',
+    }
+    await serve(c, deps, 1)
+    assert.match(logs[1], /^heal failed: GET \/repos\/.*\/commits -> 500/)
+    assert.match(logs[2], /^tick failed/)
+  })
+
   it('tar that dies early fails the pack, not the service', async () => {
     const { Readable } = await import('node:stream')
     const broken = new Readable({
@@ -628,5 +660,161 @@ describe('a fallback that fails says both reasons and lasts one pass', () => {
     assert.ok(
       w.calls.some(x => x.url.endsWith('/check-runs') && x.method === 'POST')
     )
+  })
+})
+
+describe('/recheck runs a finished head again', () => {
+  const done = { state: 'failure', updated_at: '2026-10-09T11:00:00Z' }
+  const said = (body, association, at = '2026-10-09T11:30:00Z') => ({
+    body,
+    author_association: association,
+    created_at: at,
+  })
+
+  it('a trusted /recheck after the mark asks; anything else does not', async () => {
+    const ask = async comments => {
+      const w = world({ prs: [], issueComments: { 7: comments } })
+      return recheckAsked(cfg, w.deps, pr(7, 'aaa111'), done)
+    }
+    assert.equal(await ask([said(' /Recheck ', 'OWNER')]), true)
+    assert.equal(await ask([said('/recheck', 'COLLABORATOR')]), true)
+    assert.equal(await ask([said('/recheck', 'NONE')]), false)
+    assert.equal(await ask([said('please /recheck', 'OWNER')]), false)
+    assert.equal(
+      await ask([said('/recheck', 'OWNER', '2026-10-09T10:00:00Z')]),
+      false,
+      'older than the mark'
+    )
+    assert.equal(await ask([]), false)
+  })
+
+  it('a pending or missing mark is never rechecked (and costs no request)', async () => {
+    const w = world({ prs: [] })
+    assert.equal(await recheckAsked(cfg, w.deps, pr(7, 'a'), null), false)
+    assert.equal(
+      await recheckAsked(cfg, w.deps, pr(7, 'a'), {
+        state: 'pending',
+        updated_at: done.updated_at,
+      }),
+      false
+    )
+    assert.equal(w.calls.length, 0)
+  })
+
+  it('a pass runs a rechecked head again', async () => {
+    const w = world({
+      prs: [pr(9, 'ccc333')],
+      statuses: { ccc333: [{ context: CONTEXT, ...done }] },
+      issueComments: { 9: [said('/recheck', 'MEMBER')] },
+      runnerSays: '::result {"types":0}\n',
+    })
+    const [d] = await tick({ ...cfg }, w.deps)
+    assert.equal(d.number, 9)
+    assert.equal(d.state, 'success')
+  })
+})
+
+describe('a bridge left on old code heals itself', () => {
+  const base = {
+    ...cfg,
+    ownSha: 'old0000',
+    railwayToken: 'railway-token-value-1', // secret-guard-ok: test fake, not a credential
+    serviceId: 'svc',
+    environmentId: 'env',
+    startedAt: Date.parse('2026-10-09T12:00:00Z'),
+    healed: false,
+  }
+  function rail({
+    latest = 'new1111',
+    compare = 'behind',
+    railwayOk = true,
+  } = {}) {
+    const calls = []
+    const fetch = async (url, init = {}) => {
+      const u = new URL(url)
+      calls.push({ url: u.pathname + u.search, init })
+      if (u.hostname === 'backboard.railway.com')
+        return railwayOk
+          ? ok({ data: { serviceInstanceDeployV2: 'dep-1' } })
+          : ok({ errors: [{ message: 'Not Authorized' }] })
+      if (u.pathname.endsWith('/commits'))
+        return ok(latest ? [{ sha: latest }] : [])
+      if (u.pathname.includes('/compare/')) return ok({ status: compare })
+      if (u.pathname.endsWith('/commits/main')) return ok({ sha: 'head222' })
+      throw new Error(`unexpected ${url}`)
+    }
+    return { calls, fetch }
+  }
+  const at = min => Date.parse('2026-10-09T12:00:00Z') + min * 60_000
+
+  it('stale after the grace: asks Railway to deploy main, once', async () => {
+    const r = rail()
+    const logs = []
+    const c = { ...base }
+    const deps = { fetch: r.fetch, now: () => at(11), log: m => logs.push(m) }
+    assert.equal(await heal(c, deps), 'healing')
+    const ask = r.calls.find(x => x.url === '/graphql/v2')
+    assert.deepEqual(JSON.parse(ask.init.body).variables, {
+      s: 'svc',
+      e: 'env',
+      c: 'head222',
+    })
+    assert.equal(await heal(c, deps), 'stale, waiting', 'once per process')
+    assert.equal(r.calls.filter(x => x.url === '/graphql/v2').length, 1)
+    assert.ok(!logs.join('').includes('railway-token-value-1'))
+  })
+
+  it('within the grace it waits; containing the latest it is fresh', async () => {
+    assert.equal(
+      await heal(
+        { ...base },
+        { fetch: rail().fetch, now: () => at(5), log() {} }
+      ),
+      'stale, waiting'
+    )
+    assert.equal(
+      await heal(
+        { ...base },
+        { fetch: rail({ compare: 'ahead' }).fetch, now: () => at(30), log() {} }
+      ),
+      'fresh'
+    )
+    assert.equal(
+      await heal(
+        { ...base, ownSha: 'new1111' },
+        { fetch: rail().fetch, now: () => at(30), log() {} }
+      ),
+      'fresh'
+    )
+    assert.equal(
+      await heal(
+        { ...base },
+        { fetch: rail({ latest: null }).fetch, now: () => at(30), log() {} }
+      ),
+      'fresh'
+    )
+  })
+
+  it('without Railway variables it is off; a refused deploy says so', async () => {
+    assert.equal(
+      await heal(
+        { ...base, railwayToken: '' },
+        { fetch: rail().fetch, now: () => at(30), log() {} }
+      ),
+      'off'
+    )
+    const logs = []
+    assert.equal(
+      await heal(
+        { ...base },
+        {
+          fetch: rail({ railwayOk: false }).fetch,
+          now: () => at(30),
+          log: m => logs.push(m),
+        }
+      ),
+      'refused'
+    )
+    assert.match(logs.join(' '), /redeploy ci-bridge by hand/)
   })
 })

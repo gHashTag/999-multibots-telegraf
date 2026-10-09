@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: b47ba29dbc4fa04ce503f5bb2ec73c946a7d8469caade3aee16b1bf57802e9e7
+// spec-sha256: 045ed2383f4da2733d13398641d89e8096724fc41498183a74468143553582ce
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABFQNgAX8Bf2AEf39/fwF/YAN/f38BfwMHBgAAAQICAgQFAXABAQEFAwEAEAYJAX8BQYCAwAALB20HBm1lbW9yeQIADXQyN19yZW5ld19kdWUAAAx0MjdfY29tbWVudHMAARF0MjdfdmVyZGljdF9zdGF0ZQACDXQyN19tYXJrX21vZGUAAw10MjdfbmVlZHNfcnVuAAQNdDI3X3J1bnNfaGVyZQAFCngGCAAgAEGtAkkLBwAgAEEARwscAEECIANBAEdBAiACGyABQQFxG0ECIABBAXEbCxwAQQFBAkEAIAJBAXEbIAFBAXEbQQEgAEEBcRsLIAEBf0EBIQMCQCAAQQFxRQ0AIAEgAkGQHEtxIQMLIAMLCgAgACABIAJPcQs='
+  'AGFzbQEAAAABFQNgA39/fwF/YAF/AX9gBH9/f38BfwMJCAAAAQECAAAABAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsHjgEJBm1lbW9yeQIAD3QyN19yZWNoZWNrX2R1ZQAADHQyN19oZWFsX2R1ZQABDXQyN19yZW5ld19kdWUAAgx0MjdfY29tbWVudHMAAxF0MjdfdmVyZGljdF9zdGF0ZQAEDXQyN19tYXJrX21vZGUABQ10MjdfbmVlZHNfcnVuAAYNdDI3X3J1bnNfaGVyZQAHCpUBCAoAIAAgAXEgAnELEQAgACACckF/cyABQdcES3ELCAAgAEGtAkkLBwAgAEEARwscAEECIANBAEdBAiACGyABQQFxG0ECIABBAXEbCxwAQQFBAkEAIAJBAXEbIAFBAXEbQQEgAEEBcRsLIAEBf0EBIQMCQCAAQQFxRQ0AIAEgAkGQHEtxIQMLIAMLCgAgACABIAJPcQs='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -96,6 +96,36 @@ export function renewDue(secondsLeft: number): boolean {
   return (
     (W.t27_renew_due as (...a: number[]) => number)(
       int(secondsLeft, 0, 4294967295, 'renew_due.seconds_left')
+    ) !== 0
+  )
+}
+
+/** spec fn heal_due */
+export function healDue(
+  containsLatest: boolean,
+  uptimeS: number,
+  healed: boolean
+): boolean {
+  return (
+    (W.t27_heal_due as (...a: number[]) => number)(
+      containsLatest ? 1 : 0,
+      int(uptimeS, 0, 4294967295, 'heal_due.uptime_s'),
+      healed ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn recheck_due */
+export function recheckDue(
+  hasFinishedMark: boolean,
+  askedAfterMark: boolean,
+  trusted: boolean
+): boolean {
+  return (
+    (W.t27_recheck_due as (...a: number[]) => number)(
+      hasFinishedMark ? 1 : 0,
+      askedAfterMark ? 1 : 0,
+      trusted ? 1 : 0
     ) !== 0
   )
 }

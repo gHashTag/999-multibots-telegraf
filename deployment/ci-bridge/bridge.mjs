@@ -40,6 +40,11 @@
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
+ *   RAILWAY_API_TOKEN  ${{vibee-render.RAILWAY_API_TOKEN}} (project token), optional:
+ *                      with it a bridge left on old code asks Railway to deploy
+ *                      main (Railway skipped five of its auto-deploys on
+ *                      2026-10-09). RAILWAY_GIT_COMMIT_SHA, RAILWAY_SERVICE_ID
+ *                      and RAILWAY_ENVIRONMENT_ID are Railway's own.
  * Every number and decision -- when a head runs, how the mark is written,
  * the verdict, the token's renewal -- is spec automation/ci-bridge
  * (gHashTag/t27), vendored in spec/ with its compiled logic; this file
@@ -72,6 +77,7 @@ export const BALLAST = [
   '*.mov',
 ]
 const API = 'https://api.github.com'
+const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
 const TAIL_BYTES = 256 * 1024
 
 export function config(env = process.env) {
@@ -86,6 +92,12 @@ export function config(env = process.env) {
     pollMs: SPEC.POLL_S * 1000,
     work: env.WORK_DIR || '/tmp/ci-bridge',
     since: Date.parse(env.SINCE || '') || Date.now(),
+    ownSha: env.RAILWAY_GIT_COMMIT_SHA || '',
+    railwayToken: env.RAILWAY_API_TOKEN || '',
+    serviceId: env.RAILWAY_SERVICE_ID || '',
+    environmentId: env.RAILWAY_ENVIRONMENT_ID || '',
+    startedAt: Date.now(),
+    healed: false,
   }
 }
 
@@ -362,6 +374,7 @@ async function setStatus(cfg, deps, sha, state, description) {
 }
 
 const secretsOf = cfg => [
+  cfg.railwayToken,
   cfg.token,
   cfg.runnerKey,
   cfg.appKey,
@@ -494,7 +507,92 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   return v
 }
 
-/* One pass over the open pull requests; runs them one at a time. */
+/*
+ * Whether a person who may write here asked `/recheck` after a finished
+ * mark (spec recheck_due). The bridge's own comments never ask: they are
+ * not the word alone.
+ */
+export async function recheckAsked(cfg, deps, pr, mark) {
+  const finished = Boolean(mark) && mark.state !== 'pending'
+  if (!finished) return false
+  const at = Date.parse(mark.updated_at)
+  const trusted = SPEC.RECHECK_TRUSTED.split(',')
+  const comments = await ghJson(
+    cfg,
+    deps,
+    `/repos/${cfg.repo}/issues/${pr.number}/comments?since=${encodeURIComponent(mark.updated_at)}&per_page=100`
+  )
+  return comments.some(c =>
+    LOGIC.recheckDue(
+      finished,
+      Date.parse(c.created_at) > at &&
+        String(c.body || '')
+          .trim()
+          .toLowerCase() === SPEC.RECHECK_WORD,
+      trusted.includes(c.author_association)
+    )
+  )
+}
+
+/*
+ * A bridge Railway did not redeploy (spec heal_due): it does not contain
+ * the latest commit touching its own directory. It asks Railway to deploy
+ * main's head, once per process, after the grace. Returns what it did.
+ */
+const DEPLOY = `mutation($s: String!, $e: String!, $c: String) {
+  serviceInstanceDeployV2(serviceId: $s, environmentId: $e, commitSha: $c)
+}`
+export async function heal(cfg, deps) {
+  if (!cfg.ownSha || !cfg.railwayToken || !cfg.serviceId || !cfg.environmentId)
+    return 'off'
+  const [latest] = await ghJson(
+    cfg,
+    deps,
+    `/repos/${cfg.repo}/commits?sha=main&path=deployment/ci-bridge&per_page=1`
+  )
+  let contains = !latest || latest.sha === cfg.ownSha
+  if (!contains) {
+    const cmp = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/compare/${latest.sha}...${cfg.ownSha}`
+    )
+    contains = cmp.status === 'ahead' || cmp.status === 'identical'
+  }
+  const uptime = seconds(deps.now() - cfg.startedAt)
+  if (!LOGIC.healDue(contains, uptime, cfg.healed))
+    return contains ? 'fresh' : 'stale, waiting'
+  cfg.healed = true
+  const head = await ghJson(cfg, deps, `/repos/${cfg.repo}/commits/main`)
+  for (const auth of [
+    { authorization: `Bearer ${cfg.railwayToken}` },
+    { 'project-access-token': cfg.railwayToken },
+  ]) {
+    const res = await deps.fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'ci-bridge',
+        ...auth,
+      },
+      body: JSON.stringify({
+        query: DEPLOY,
+        variables: { s: cfg.serviceId, e: cfg.environmentId, c: head.sha },
+      }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (res.ok && !body.errors) {
+      deps.log(
+        `stale: running ${cfg.ownSha.slice(0, 9)}, asked Railway to deploy ${head.sha.slice(0, 9)}`
+      )
+      return 'healing'
+    }
+  }
+  deps.log('stale, and Railway refused the deploy: redeploy ci-bridge by hand')
+  return 'refused'
+}
+
 const APP_MAY_NOT_MARK =
   'the app may write neither commit statuses nor checks: give it ' +
   '"Commit statuses: write" or "Checks: write"'
@@ -528,7 +626,11 @@ export async function tick(cfg, deps, fallback = false) {
   for (const pr of prs) {
     if (!runsHere(pr, cfg.repo, cfg.since)) continue
     const mark = await readMark(cfg, deps, mode, pr.head.sha)
-    if (!needsRun(mark, deps.now())) continue
+    if (
+      !needsRun(mark, deps.now()) &&
+      !(await recheckAsked(cfg, deps, pr, mark))
+    )
+      continue
     done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr, mode)) })
   }
   return done
@@ -547,6 +649,11 @@ export async function serve(cfg, deps, rounds = Infinity) {
     `watching ${cfg.repo} every ${cfg.pollMs / 1000} s, suites ${SUITES.join(',')}`
   )
   for (let i = 0; i < rounds; i++) {
+    try {
+      await heal(cfg, deps)
+    } catch (e) {
+      deps.log(`heal failed: ${e?.message || e}`)
+    }
     try {
       await tick(cfg, deps)
     } catch (e) {

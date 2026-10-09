@@ -35,7 +35,17 @@ description: 'CI for this repository runs on Railway, not GitHub Actions: the ci
 ```bash
 tri ci                    # every open PR: head, mark, description (exit 1 = a red one)
 tri ci 3951               # one PR
+tri ci --recheck 3951     # run a finished head again (a /recheck comment)
 ```
+
+- `/recheck` alone in a PR comment, from OWNER/MEMBER/COLLABORATOR, newer than the
+  mark, runs that head on the next pass (spec v2 `recheck_due`).
+- **Self-healing deploy** (spec v2 `heal_due`): with `RAILWAY_API_TOKEN` set, a bridge
+  that does not contain the latest commit touching `deployment/ci-bridge` asks Railway
+  (`serviceInstanceDeployV2`, main's head) to deploy, once per process, after 600 s.
+  Log line `stale: running X, asked Railway to deploy Y`. Railway skipped five of its
+  merge deploys on 2026-10-09 (the merge commit carries no files of its own; why one
+  merge deploys and the next is SKIPPED was not found).
 
 Railway logs of `ci-bridge` (MCP `get-logs`, service id `899acae4-…`) say why a pass
 failed, with GitHub's own words:
