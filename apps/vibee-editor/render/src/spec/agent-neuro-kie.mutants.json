@@ -1,0 +1,82 @@
+[
+  {
+    "name": "the table rows drop a tool",
+    "file": "src/agent/agent-neuro.ts",
+    "from": "export const SOURCE_TOOLS = SPEC.SOURCE_TOOL_NAMES.map((name, i) => ({",
+    "to": "export const SOURCE_TOOLS = SPEC.SOURCE_TOOL_NAMES.slice(1).map((name, i) => ({",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "a non-https source passes",
+    "file": "src/agent/agent-neuro.ts",
+    "from": "  const given = typeof sourceUrl === 'string' && /^https?:\\/\\//i.test(sourceUrl)",
+    "to": "  const given = typeof sourceUrl === 'string'",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "a Kie name with no price is ordered",
+    "file": "src/agent/agent-neuro.ts",
+    "from": "  if (!mayOrderImage(true, typeof price === 'number' && price > 0))",
+    "to": "  if (!mayOrderImage(true, true))",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "the picture does not pick the model",
+    "file": "src/agent/agent-media.ts",
+    "from": "  const chosen = imageVideoModel(imageUrl) ?? named ?? SPEC.AGENT_VIDEO_MODEL",
+    "to": "  const chosen = named ?? SPEC.AGENT_VIDEO_MODEL",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "the Kie image is charged the flat price",
+    "file": "src/agent/tools.ts",
+    "from": "        kie ? kie.model : undefined\n",
+    "to": "        undefined\n",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "the Kie image asks the route for the old name",
+    "file": "src/agent/tools.ts",
+    "from": "          model: kie ? kie.model : args.model,",
+    "to": "          model: args.model,",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "the source tool is not refunded",
+    "file": "src/agent/tools.ts",
+    "from": "          'провайдер не выполнил работу', // cyrillic-ok: refund reason\n          charge['потрачено']\n        )\n        const why",
+    "to": "          'провайдер не выполнил работу', // cyrillic-ok: refund reason\n          0\n        )\n        const why",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  },
+  {
+    "name": "the picture is not sent to the video route",
+    "file": "src/agent/tools.ts",
+    "from": "          ...(typeof args.image_url === 'string'\n            ? { image_url: args.image_url }\n            : {}),",
+    "to": "          ...{},",
+    "tests": [
+      "src/spec/agent-neuro-kie.test.ts",
+      "a-flat-price-buys-only-what-it-covers.test.ts"
+    ]
+  }
+]

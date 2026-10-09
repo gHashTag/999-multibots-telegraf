@@ -24,6 +24,7 @@ import {
   videoChargeUnits,
   секундыКОплате, // cyrillic-ok: existing export
 } from './billing-shared'
+import { imageVideoModel } from './agent-neuro'
 
 /**
  * The words a prompt with no named style is given (spec adds_realism). The
@@ -58,11 +59,13 @@ export interface VideoOrder {
  */
 export function videoOrder(
   model: unknown,
-  duration: unknown
+  duration: unknown,
+  imageUrl?: unknown
 ): VideoOrder | { refused: string } {
   const named =
     typeof model === 'string' && /^\s*kie\//i.test(model) ? model.trim() : null
-  const chosen = named ?? SPEC.AGENT_VIDEO_MODEL
+  // A picture given makes the clip from the picture (agent-neuro-kie.t27).
+  const chosen = imageVideoModel(imageUrl) ?? named ?? SPEC.AGENT_VIDEO_MODEL
   const sale = kieVideoSaleOf(chosen)
   if (!mayOrderVideo(true, sale.sold))
     return {

@@ -27,7 +27,12 @@ import {
 } from './src/agent/flat-price-model'
 import { FAL_IMAGE_MODELS } from './src/image-chain'
 import { KIE_WEB_MODELS } from './src/agent/kie-web-provider'
-import { costCeilingUsd, kieVideoSaleOf } from './src/agent/billing-shared'
+import {
+  costCeilingUsd,
+  kieVideoSaleOf,
+  priceForModel,
+  TOKEN_PRICES,
+} from './src/agent/billing-shared'
 import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated' // cyrillic-ok: generated table name
 
 /*
@@ -143,16 +148,43 @@ describe('the real handlers: refused means not charged and not asked', () => {
   }
 
   it(
-    'image_generate with a Kie model: no charge, no request',
+    'image_generate with a Kie model: its OWN price, never the flat one (#3924)',
+    async () => {
+      const gen = await tool('image_generate')
+      // A Kie model with a named price is sold at that price
+      // (agent-neuro-kie.t27 may_order_image) -- the flat price never buys it.
+      const model = 'kie/google/imagen4-ultra'
+      const own = priceForModel('image_generate', model)
+      expect(typeof own === 'number' && own > TOKEN_PRICES.image_generate).toBe(
+        true
+      )
+      const pool = recordingPool()
+      await gen.handler(
+        { prompt: 'кот', model }, // cyrillic-ok: test input
+        { telegramId: CALLER, pool } as never
+      )
+      // One debit, for the model (its sum is pinned in
+      // src/spec/agent-neuro-kie.test.ts against priceForModel).
+      expect(charged(pool.sqls), 'the wallet moved once').toHaveLength(1)
+      expect(
+        calls.map(c => (c.body as { model?: string }).model),
+        'the route was asked for the model'
+      ).toContain(model)
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
+
+  it(
+    'image_generate with a Kie name that has no price: no charge, no request',
     async () => {
       const gen = await tool('image_generate')
       const pool = recordingPool()
       const r = (await gen.handler(
-        { prompt: 'кот', model: 'kie/google/imagen4-ultra' },
+        { prompt: 'кот', model: 'kie/no/such-model' }, // cyrillic-ok: test input
         { telegramId: CALLER, pool } as never
       )) as Record<string, unknown>
       expect(r['сделано']).toBe(false) // cyrillic-ok: the tool's response field
-      expect(String(r['причина'])).toContain('kie/google/imagen4-ultra') // cyrillic-ok: the tool's response field
+      expect(String(r['причина'])).toContain('kie/no/such-model') // cyrillic-ok: the tool's response field
       expect(
         charged(pool.sqls),
         'the wallet moved for a refused model'

@@ -85,6 +85,24 @@ zai answered 1305 / timed out, nemotron was exhausted and the reserve key had
 no funds, and `zai-lite` "talked instead of calling" -- a reel asked then got
 words, not a tool call. That is money and keys, not code.
 
+## Every Kie neuro-function the agent has (2026-10-09, spec agent-neuro-kie.t27, #3924)
+
+Owner: "connect ALL the neuro-functions", "Kie is our main one", "all new code
+in .t27". A source tool is a ROW of the spec's table (`SOURCE_TOOL_NAMES`,
+`SOURCE_TOOL_MODELS`, `SOURCE_TOOL_HELP`); one runner in tools.ts builds every
+row. A new Kie function = a new row in the spec, never new host code.
+
+| agent tool                                  | Kie model                                                                  | tokens (priceForModel) |
+| ------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
+| `image_upscale` (needs image_url)           | topaz/image-upscale                                                        | 20                     |
+| `image_remove_background` (needs image_url) | recraft/remove-background                                                  | 2                      |
+| `image_generate` + `model: kie/...`         | any image model with a price: imagen4 16, seedream 5 pro 14, ideogram v3 7 | its own                |
+| `video_generate` + `image_url`              | kling/v2-1-pro (clip from a picture)                                       | 100 a clip             |
+
+Not yet: Suno music (no render route; the bot's KieAiProvider.generateMusic
+has it), the TTS model choice beside the voice clones, face swap and LoRA
+training (Kie has none -- say so, never fake it).
+
 ## The free leg is not a way around Kie (2026-10-03)
 
 `image_generate` falls through to Pollinations ($0, keyless) when fal is above
