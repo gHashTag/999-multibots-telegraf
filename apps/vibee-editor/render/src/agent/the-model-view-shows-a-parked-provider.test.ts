@@ -15,6 +15,13 @@ import {
 } from './provider-breaker'
 import { forgetProviderChoiceForTests } from './provider-choice'
 
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
+
 beforeEach(() => {
   vi.stubEnv('GLM_API_KEY', 'g')
   vi.stubEnv('NVIDIA_API_KEY', 'n')

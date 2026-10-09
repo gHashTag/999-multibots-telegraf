@@ -20,7 +20,13 @@
 import { chosenProvider } from './provider-choice'
 import * as SPEC from '../spec/agent-provider-chain.gen'
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'reserve' | 'ollama'
+export type ProviderId =
+  | 'zai'
+  | 'kie'
+  | 'zai-lite'
+  | 'nemotron'
+  | 'reserve'
+  | 'ollama'
 
 export interface Provider {
   id: ProviderId
@@ -78,8 +84,8 @@ export interface Provider {
   /** A small context: the seller's tools only, not all sixty-odd. */
   compact: boolean
   /**
-   * Ceiling on the answer, sent as `max_tokens`. Set for the reserve route
-   * only (spec: agent-provider-chain.t27 RESERVE_SENDS_MAX_TOKENS).
+   * Ceiling on the answer, sent as `max_tokens`. Set for the reserve and Kie
+   * routes only (spec: agent-provider-chain.t27 `ceiling_for`).
    *
    * Measured 2026-09-15 against OpenRouter: with no max_tokens the vendor
    * priced the model ceiling (16000) against the prepaid balance (2506
@@ -153,7 +159,8 @@ const CATALOG: Record<
     base: string
     /**
      * Where the key is read: the first variable in the list that is set.
-     * Empty for ollama (no key) and unused for reserve (reserveEnv).
+     * Empty for ollama (no key) and unused for reserve (reserveEnv). The
+     * kie base and model are set per process in build (kieModel).
      */
     env: readonly string[]
     model: string
@@ -190,6 +197,33 @@ const CATALOG: Record<
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
     vision: false,
     audio: false,
+    context: 128_000,
+  },
+  /**
+   * KIE -- the second leg (agent-provider-chain.t27 v3, 2026-10-09).
+   *
+   * The owner's turn that day ended in "no model provider answered": zai
+   * 1305, nemotron silent for the 120 s ceiling, zai-lite silent 60 s,
+   * reserve 402 -- three minutes and nothing. Kie is the vendor the project
+   * already pays for every image, video, song and voice, and it serves
+   * Gemini over an OpenAI-compatible /chat/completions at
+   * https://api.kie.ai/<model>/v1. So: the free zai first, then a funded
+   * route on a DIFFERENT vendor, before the two that burned the minutes.
+   *
+   * gemini-2.5-flash by default: Gemini 3 wants its thought signatures sent
+   * back on every tool round, and this loop does not carry them.
+   * KIE_CHAT_MODEL switches the model without a commit. Tools are declared
+   * by Kie's docs, not measured here; sight and hearing are not declared,
+   * so images keep going to nemotron.
+   */
+  kie: {
+    base: '',
+    env: [SPEC.KIE_ENV_KEY],
+    model: SPEC.KIE_MODEL_DEFAULT,
+    thinking: SPEC.KIE_THINKING,
+    tools: SPEC.KIE_TOOLS,
+    vision: SPEC.KIE_VISION,
+    audio: SPEC.KIE_AUDIO,
     context: 128_000,
   },
   /**
@@ -351,13 +385,7 @@ export function providerOrder(): ProviderId[] {
     process.env.AGENT_PROVIDER ||
     ''
   ).toLowerCase() as ProviderId
-  const DEFAULT_ORDER: ProviderId[] = [
-    'zai',
-    'zai-lite',
-    'nemotron',
-    'reserve',
-    'ollama',
-  ]
+  const DEFAULT_ORDER = SPEC.ORDER_DEFAULT.split(',') as ProviderId[]
   return DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
@@ -403,6 +431,17 @@ export function reserveEnv(): {
   }
 }
 
+/**
+ * The Kie chat model: KIE_CHAT_MODEL when set, else the spec's default. It is
+ * part of the PATH (api.kie.ai/<model>/v1), so AGENT_MODEL -- a GLM name --
+ * never renames it (spec KIE_TAKES_AGENT_MODEL = false).
+ */
+export function kieModel(): string {
+  return (
+    (process.env[SPEC.KIE_ENV_MODEL] || '').trim() || SPEC.KIE_MODEL_DEFAULT
+  )
+}
+
 /** Spec: agent-provider-chain.t27 RESERVE_MAX_TOKENS_DEFAULT. */
 export const RESERVE_MAX_TOKENS_DEFAULT = SPEC.RESERVE_MAX_TOKENS_DEFAULT
 
@@ -432,6 +471,22 @@ function build(id: ProviderId, key: string): Provider {
       context: c.context,
       compact: c.context < COMPACT_BELOW,
       maxTokens: r.maxTokens,
+    }
+  }
+  if (id === 'kie') {
+    const model = kieModel()
+    return {
+      id,
+      base: endpointBase(undefined, `${SPEC.KIE_BASE_ROOT}/${model}/v1`),
+      model,
+      key,
+      thinking: c.thinking,
+      tools: c.tools,
+      vision: c.vision,
+      audio: c.audio,
+      context: c.context,
+      compact: c.context < COMPACT_BELOW,
+      maxTokens: SPEC.KIE_MAX_TOKENS,
     }
   }
   // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
@@ -616,6 +671,42 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
     )
   }
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
+}
+
+/**
+ * The reason for a 200 whose body is not a stream. Kie answers its own
+ * errors this way -- HTTP 200 and `{"code":402,"msg":"..."}` -- so the code
+ * inside the body is the real status when it looks like one, and diagnose()
+ * names it as it names any other refusal (402: no funds, 401: bad key).
+ */
+export function notAStream(
+  id: ProviderId,
+  status: number,
+  body: string
+): string {
+  const code = Number(vendorCode(body))
+  return diagnose(id, code >= 400 && code <= 599 ? code : status, body)
+}
+
+/**
+ * One whole chat.completion in a body that was asked to stream, or null.
+ * The message is what a stream would have accumulated: text and tool calls.
+ */
+export function plainCompletion(
+  body: string
+): { content: string; tool_calls: unknown[] } | null {
+  let j: any
+  try {
+    j = JSON.parse(body)
+  } catch {
+    return null
+  }
+  const m = j?.choices?.[0]?.message
+  if (!m || typeof m !== 'object') return null
+  return {
+    content: typeof m.content === 'string' ? m.content : '',
+    tool_calls: Array.isArray(m.tool_calls) ? m.tool_calls : [],
+  }
 }
 
 export function resolveProvider(): Provider {

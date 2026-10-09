@@ -1,8 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { allProviders } from './provider'
 import { forgetProviderChoiceForTests } from './provider-choice'
 import fs from 'node:fs'
 import path from 'node:path'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
 
 /**
  * THE SWEEP GETS A MODEL THAT CALLS TOOLS.
@@ -25,9 +32,18 @@ describe('the provider catalogue says who calls tools', () => {
     vi.stubEnv('OLLAMA_BASE_URL', 'http://ollama:11434')
     const all = allProviders()
     const byId = Object.fromEntries(all.map(p => [p.id, p.tools]))
-    expect(byId).toEqual({ zai: true, 'zai-lite': true, nemotron: true, ollama: false })
+    expect(byId).toEqual({
+      zai: true,
+      'zai-lite': true,
+      nemotron: true,
+      ollama: false,
+    })
     // What streamModel does under toolsOnly: the talker is gone, order kept.
-    expect(all.filter(p => p.tools).map(p => p.id)).toEqual(['zai', 'zai-lite', 'nemotron'])
+    expect(all.filter(p => p.tools).map(p => p.id)).toEqual([
+      'zai',
+      'zai-lite',
+      'nemotron',
+    ])
   })
 
   it('an Ollama-only deploy has nobody for a tools-only turn', () => {
@@ -41,9 +57,15 @@ describe('the wiring, read from the source', () => {
 
   it('streamModel filters by tools under toolsOnly and names the provider before streaming', () => {
     const chat = read('chat.ts')
-    expect(chat).toContain("allProviders().filter(p => !opts.toolsOnly || p.tools)")
-    expect(chat).toContain("yield { kind: 'provider', id: p.id, model: p.model }")
-    expect(chat).toContain("yield { тип: 'провайдер', id: ev.id, model: ev.model }") // cyrillic-ok: quoted source
+    expect(chat).toContain(
+      'allProviders().filter(p => !opts.toolsOnly || p.tools)'
+    )
+    expect(chat).toContain(
+      "yield { kind: 'provider', id: p.id, model: p.model }"
+    )
+    expect(chat).toContain(
+      "yield { тип: 'провайдер', id: ev.id, model: ev.model }"
+    ) // cyrillic-ok: quoted source
   })
 
   it('the chat route passes tools_only only when it is literally true', () => {
