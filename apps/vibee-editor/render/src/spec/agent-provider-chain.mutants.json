@@ -1,0 +1,122 @@
+[
+  {
+    "name": "kie sends no ceiling",
+    "file": "src/agent/provider.ts",
+    "from": "      maxTokens: SPEC.KIE_MAX_TOKENS,\n",
+    "to": "      maxTokens: undefined,\n",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "kie is declared to see images",
+    "file": "src/agent/provider.ts",
+    "from": "    vision: SPEC.KIE_VISION,",
+    "to": "    vision: true,",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "kie reads the wrong key",
+    "file": "src/agent/provider.ts",
+    "from": "    env: [SPEC.KIE_ENV_KEY],",
+    "to": "    env: ['KIE_API_KEY'],",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "AGENT_MODEL renames the Kie path",
+    "file": "src/agent/provider.ts",
+    "from": "    const model = kieModel()\n",
+    "to": "    const model = process.env.AGENT_MODEL || kieModel()\n",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "a blank KIE_CHAT_MODEL is a model",
+    "file": "src/agent/provider.ts",
+    "from": "(process.env[SPEC.KIE_ENV_MODEL] || '').trim() || SPEC.KIE_MODEL_DEFAULT",
+    "to": "(process.env[SPEC.KIE_ENV_MODEL] || '') || SPEC.KIE_MODEL_DEFAULT",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "the chain ignores the spec order",
+    "file": "src/agent/provider.ts",
+    "from": "  const DEFAULT_ORDER = SPEC.ORDER_DEFAULT.split(',') as ProviderId[]",
+    "to": "  const DEFAULT_ORDER = ['zai', 'zai-lite', 'nemotron', 'reserve', 'kie', 'ollama'] as ProviderId[]",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "the bot cannot pick kie",
+    "file": "src/agent/provider-choice.ts",
+    "from": "export const KNOWN_PROVIDERS = SPEC.ORDER_DEFAULT.split(',') as ProviderId[]",
+    "to": "export const KNOWN_PROVIDERS = SPEC.ORDER_DEFAULT.split(',').filter(x => x !== 'kie') as ProviderId[]",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "a 200 error body is an empty answer",
+    "file": "src/agent/chat.ts",
+    "from": "            if (!sawData) whole += chunk",
+    "to": "            if (false) whole += chunk",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "a whole completion is a refusal",
+    "file": "src/agent/chat.ts",
+    "from": "            const m = plainCompletion(whole)",
+    "to": "            const m = null as ReturnType<typeof plainCompletion>",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "a real stream is mistaken for a body",
+    "file": "src/agent/chat.ts",
+    "from": "              sawData = true\n",
+    "to": "",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "the code inside the body is ignored",
+    "file": "src/agent/provider.ts",
+    "from": "diagnose(id, code >= 400 && code <= 599 ? code : status, body)",
+    "to": "diagnose(id, status, body)",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  },
+  {
+    "name": "a whole completion loses its tool calls",
+    "file": "src/agent/provider.ts",
+    "from": "tool_calls: Array.isArray(m.tool_calls) ? m.tool_calls : [],",
+    "to": "tool_calls: [],",
+    "tests": [
+      "src/agent/a-200-that-is-not-a-stream.test.ts",
+      "src/agent/the-chain-has-a-reserve-route.test.ts"
+    ]
+  }
+]

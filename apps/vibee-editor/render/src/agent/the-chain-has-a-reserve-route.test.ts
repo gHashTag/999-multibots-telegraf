@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { allProviders, providerOrder, reserveEnv } from './provider'
 import {
   KNOWN_PROVIDERS,
   forgetProviderChoiceForTests,
 } from './provider-choice'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
 
 /**
  * THE CHAIN HAS A RESERVE ROUTE. Spec: t27 specs/automation/agent-provider-chain.t27.
@@ -26,8 +33,10 @@ const three = () => {
 
 describe('the reserve route', () => {
   it('sits after nemotron and before ollama in the default order', () => {
+    // v3: kie stands second (agent-provider-chain.t27).
     expect(providerOrder()).toEqual([
       'zai',
+      'kie',
       'zai-lite',
       'nemotron',
       'reserve',
@@ -82,6 +91,7 @@ describe('the reserve route', () => {
     expect(providerOrder()).toEqual([
       'reserve',
       'zai',
+      'kie',
       'zai-lite',
       'nemotron',
       'ollama',

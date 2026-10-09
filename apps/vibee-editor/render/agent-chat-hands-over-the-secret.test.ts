@@ -1,5 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Readable } from 'node:stream'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 /*
  * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).

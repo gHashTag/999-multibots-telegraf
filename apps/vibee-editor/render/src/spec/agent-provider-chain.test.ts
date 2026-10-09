@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import * as SPEC from './agent-provider-chain.gen'
 import {
   RESERVE_MAX_TOKENS_DEFAULT,
@@ -7,6 +7,7 @@ import {
   demotedIndex,
   diagnose,
   headNote,
+  kieModel,
   providerChain,
   providerOrder,
   reserveEnv,
@@ -18,6 +19,13 @@ import {
   forgetProviderChoiceForTests,
 } from '../agent/provider-choice'
 import { providerStatus } from '../agent/provider-status'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
 
 /**
  * THE PROVIDER CHAIN IS WRITTEN IN t27 FIRST (skill t27-spec-first).
@@ -31,6 +39,9 @@ import { providerStatus } from '../agent/provider-status'
  * v2 (#3659): a head without tools that the bot button did not choose moves
  * behind the first provider that calls tools; the bot pick still wins and is
  * flagged; a chain where nobody calls tools keeps its order and is flagged.
+ *
+ * v3 (2026-10-09): a Kie route right after zai -- Gemini over Kie's
+ * OpenAI-compatible chat, key KIE_AI_API_KEY, a bounded max_tokens.
  *
  * Refresh: node scripts/sync-t27-spec.mjs <t27 checkout> automation/agent-provider-chain
  */
@@ -85,6 +96,7 @@ describe('agent-provider-chain.t27 against the host', () => {
     expect(providerOrder()).toEqual([
       'nemotron',
       'zai',
+      'kie',
       'zai-lite',
       'reserve',
       'ollama',
@@ -92,6 +104,64 @@ describe('agent-provider-chain.t27 against the host', () => {
     // EVERY_CONFIGURED_PROVIDER_IS_TRIED and SKIPPED_PROVIDER_IS_LOGGED run
     // through the stream in a-skipped-provider-says-why.test.ts.
     expect(SPEC.EVERY_CONFIGURED_PROVIDER_IS_TRIED).toBe(true)
+  })
+
+  it('kie stands right after the free zai and before the routes that timed out', async () => {
+    const order = providerOrder()
+    expect(order.indexOf(SPEC.KIE_AFTER)).toBe(0)
+    expect(order.indexOf(SPEC.KIE_ID)).toBe(order.indexOf(SPEC.KIE_AFTER) + 1)
+    expect(order.indexOf(SPEC.KIE_BEFORE)).toBe(order.indexOf(SPEC.KIE_ID) + 1)
+    expect(order.indexOf('nemotron')).toBeGreaterThan(order.indexOf('kie'))
+    expect(order.indexOf('reserve')).toBeGreaterThan(order.indexOf('kie'))
+    // kie_available(key): no key, no route; the key alone makes it.
+    vi.stubEnv('GLM_API_KEY', 'g')
+    vi.stubEnv('NVIDIA_API_KEY', 'n')
+    vi.stubEnv(SPEC.KIE_ENV_KEY, '')
+    expect(ids()).not.toContain('kie')
+    vi.stubEnv(SPEC.KIE_ENV_KEY, 'k')
+    expect(ids()).toEqual(['zai', 'kie', 'zai-lite', 'nemotron'])
+    // KIE_IN_BOT_PICKER: the owner can put it first from the bot.
+    expect(KNOWN_PROVIDERS).toContain(SPEC.KIE_ID)
+    await chooseProvider(null, 'kie')
+    expect(ids()[0]).toBe('kie')
+  })
+
+  it('kie calls tools by declaration, looks at nothing, and answers within a bound', () => {
+    expect(SPEC.KIE_CAPABILITIES_DECLARED_NOT_MEASURED).toBe(true)
+    expect(SPEC.KIE_ANSWERED_LIVE).toBe(false)
+    vi.stubEnv('GLM_API_KEY', 'g')
+    vi.stubEnv('NVIDIA_API_KEY', 'n')
+    vi.stubEnv(SPEC.KIE_ENV_KEY, 'k')
+    three()
+    const by = (id: string) => allProviders().find(p => p.id === id)!
+    const kie = by('kie')
+    expect(kie.base).toBe(`${SPEC.KIE_BASE_ROOT}/${SPEC.KIE_MODEL_DEFAULT}/v1`)
+    expect(kie.model).toBe('gemini-2.5-flash')
+    expect(kie.tools).toBe(true)
+    expect(kie.vision).toBe(false)
+    expect(kie.audio).toBe(false)
+    expect(kie.thinking).toBe(false)
+    // Images still go to the provider that was measured to see them.
+    expect(allProviders().find(p => p.vision)?.id).toBe('nemotron')
+    // ceiling_for: kie 8192, reserve 1024, the rest send no max_tokens.
+    expect(kie.maxTokens).toBe(8192)
+    expect(by('reserve').maxTokens).toBe(1024)
+    for (const id of ['zai', 'zai-lite', 'nemotron'])
+      expect(by(id).maxTokens).toBeUndefined()
+    // AGENT_MODEL names a GLM model; it never renames the Kie path.
+    vi.stubEnv('AGENT_PROVIDER', 'kie')
+    vi.stubEnv('AGENT_MODEL', 'glm-5.3')
+    expect(by('kie').model).toBe(SPEC.KIE_MODEL_DEFAULT)
+    // KIE_CHAT_MODEL switches the model and the path with it.
+    vi.stubEnv(SPEC.KIE_ENV_MODEL, ' gemini-3-flash ')
+    expect(kieModel()).toBe('gemini-3-flash')
+    expect(by('kie').base).toBe('https://api.kie.ai/gemini-3-flash/v1')
+    vi.stubEnv(SPEC.KIE_ENV_MODEL, '  ')
+    expect(kieModel()).toBe(SPEC.KIE_MODEL_DEFAULT)
+  })
+
+  it("VERSION says what the header's last note says", () => {
+    expect(SPEC.VERSION).toBe(3)
   })
 
   it('the reserve route is configured live; an answer from it is not claimed', () => {
