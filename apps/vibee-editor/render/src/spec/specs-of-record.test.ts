@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   checkRepo,
   checkSpec,
+  notLoweredOf,
   readTestReport,
   type Problem,
 } from '../../../../../scripts/check-t27-specs.mjs'
+import { zigFns } from '../../../../../scripts/t27-logic.mjs'
 
 /**
  * EVERY VENDORED SPEC OBEYS THE LAWS (scripts/check-t27-specs.mjs).
@@ -279,6 +281,72 @@ describe('the logic runs from the spec', () => {
     const bad = checkSpec({ ...office, hostFiles })
     expect(laws(bad)).toEqual(['mirror'])
     expect(bad[0].what).toMatch(/may_assign/)
+  })
+
+  it('mirror: a fn the backend could not lower has no body to import yet', () => {
+    // course-outreach v2: may_send takes a str, number_ok a u32.
+    const outreach = {
+      file: `${DIR}/course-outreach.t27`,
+      spec: readFileSync(join(HERE, 'course-outreach.t27'), 'utf8'),
+      gen: readFileSync(join(HERE, 'course-outreach.gen.ts'), 'utf8'),
+      test: readFileSync(join(HERE, 'course-outreach.test.ts'), 'utf8'),
+      logic: readFileSync(join(HERE, 'course-outreach.logic.ts'), 'utf8'),
+      ignore: `${DIR}/*.gen.ts\n`,
+    }
+    expect(notLoweredOf(outreach.logic)).toContain('may_send')
+    expect(notLoweredOf(outreach.logic)).not.toContain('number_ok')
+    // As the script writes it, before prettier wraps it.
+    expect(
+      notLoweredOf('export const __NOT_LOWERED__ = Object.freeze(["a_b","c"])')
+    ).toEqual(['a_b', 'c'])
+    const host = (body: string) => [
+      {
+        path: 'apps/vibee-editor/render/src/agent/course-outreach.ts',
+        text: `import * as SPEC from '../spec/course-outreach.gen'\n${body}`,
+      },
+    ]
+    expect(
+      checkSpec({
+        ...outreach,
+        hostFiles: host(
+          'export function maySend(a: unknown) {\n  return a\n}\n'
+        ),
+      })
+    ).toEqual([])
+    const bad = checkSpec({
+      ...outreach,
+      hostFiles: host('export function numberOk(n: number) {\n  return n\n}\n'),
+    })
+    expect(laws(bad)).toEqual(['mirror'])
+    expect(bad[0].what).toMatch(/number_ok/)
+    // A logic file that names nothing exempts nothing.
+    expect(
+      laws(
+        checkSpec({
+          ...outreach,
+          logic: outreach.logic.replace(/__NOT_LOWERED__ = [^\n]*/, ''),
+          hostFiles: host(
+            'export function maySend(a: unknown) {\n  return a\n}\n'
+          ),
+        })
+      )
+    ).toEqual(['mirror'])
+  })
+
+  it('t27-logic reads a str-returning fn, so __NOT_LOWERED__ names it', () => {
+    const fns = zigFns(
+      [
+        'fn verdict(groups: u8, negated: bool) []const u8 {',
+        'fn may_send(answer: []const u8) bool {',
+        'fn number_ok(n: u32) bool {',
+        'fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {',
+      ].join('\n')
+    )
+    expect(fns.map(f => [f.name, f.ret])).toEqual([
+      ['verdict', '[]const u8'],
+      ['may_send', 'bool'],
+      ['number_ok', 'bool'],
+    ])
   })
 
   it('host-imports: an import of the compiled logic alone binds the host', () => {

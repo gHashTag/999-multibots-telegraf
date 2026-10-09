@@ -34,25 +34,6 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
-const [t27Dir, specId, ...rest] = process.argv.slice(2)
-const outArg = rest.find(a => a.startsWith('--out='))?.slice('--out='.length)
-if (!t27Dir || !specId || !outArg) {
-  console.error(
-    'usage: t27-logic.mjs <t27 checkout> <kind/id> --out=<spec dir>'
-  )
-  process.exit(2)
-}
-const source = join(t27Dir, 'specs', `${specId}.t27`)
-if (!existsSync(source)) {
-  console.error(`no spec at ${source}`)
-  process.exit(2)
-}
-const local = join(t27Dir, 'target', 'release', 't27c')
-const t27c = process.env.T27C || (existsSync(local) ? local : 't27c')
-const zig = process.env.T27_ZIG_DIR
-  ? join(process.env.T27_ZIG_DIR, 'zig')
-  : 'zig'
-
 const NUM = new Set(['u8', 'u16', 'u32', 'i8', 'i16', 'i32', 'f32', 'f64'])
 const LOWERED = new Set(['bool', ...NUM])
 const RANGE = {
@@ -66,10 +47,16 @@ const RANGE = {
 const camel = s => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
 const tsType = t => (t === 'bool' ? 'boolean' : 'number')
 
-/** The fns of the generated Zig: name, params [[name, type]], return type. */
+/**
+ * The fns of the generated Zig: name, params [[name, type]], return type.
+ * Any return type is read, `[]const u8` (a spec `str`) included: a fn the
+ * pattern did not see would be neither lowered nor named in __NOT_LOWERED__,
+ * and the host would keep its copy with no record that it must (course-outreach
+ * v2, 2026-10-09: seven str fns vanished that way).
+ */
 export function zigFns(zigSrc) {
   const out = []
-  for (const m of zigSrc.matchAll(/^fn (\w+)\(([^)]*)\) (\w+) \{/gm)) {
+  for (const m of zigSrc.matchAll(/^fn (\w+)\(([^)]*)\) ([^{\n]+?) \{/gm)) {
     const [, name, params, ret] = m
     if (name.startsWith('__') || name === 'assert_eq') continue
     const ps = params
@@ -105,6 +92,24 @@ export function door(f) {
 }
 
 function main() {
+  const [t27Dir, specId, ...rest] = process.argv.slice(2)
+  const outArg = rest.find(a => a.startsWith('--out='))?.slice('--out='.length)
+  if (!t27Dir || !specId || !outArg) {
+    console.error(
+      'usage: t27-logic.mjs <t27 checkout> <kind/id> --out=<spec dir>'
+    )
+    process.exit(2)
+  }
+  const source = join(t27Dir, 'specs', `${specId}.t27`)
+  if (!existsSync(source)) {
+    console.error(`no spec at ${source}`)
+    process.exit(2)
+  }
+  const local = join(t27Dir, 'target', 'release', 't27c')
+  const t27c = process.env.T27C || (existsSync(local) ? local : 't27c')
+  const zig = process.env.T27_ZIG_DIR
+    ? join(process.env.T27_ZIG_DIR, 'zig')
+    : 'zig'
   const spec = readFileSync(source, 'utf8')
   const hash = createHash('sha256').update(spec).digest('hex')
   const dir = mkdtempSync(join(tmpdir(), 't27-logic-'))

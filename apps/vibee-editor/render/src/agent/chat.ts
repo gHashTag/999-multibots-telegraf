@@ -82,6 +82,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { assertArgs } from './tool-args'
 import { SOCIAL_PROMPT_LINE } from './social-tools'
+import { COURSE_URL } from './course-outreach'
 import { professionSection } from './profession'
 import { todayLine } from './agent-today'
 import * as MEDIA_SPEC from '../spec/agent-media-kie.gen'
@@ -1457,6 +1458,12 @@ function ownerSideSection(surface?: string): string {
     'уходит только после нажатия владельца на карточке mail_send. ' +
     /* social-tools.ts: the owner's networks by their own APIs, one tap. */
     SOCIAL_PROMPT_LINE +
+    /* course-outreach.t27: the course for the programmers in his contacts. */
+    'Рассказать программистам из его контактов про курс — course_outreach: find ' + // cyrillic-ok: prompt copy
+    '(кто программист по их словам и био, тег в CRM), draft (одно личное сообщение каждому, ' + // cyrillic-ok: prompt copy
+    'карточка владельцу), send после его нажатия; LinkedIn и X — networks (только чтение ' + // cyrillic-ok: prompt copy
+    'в его браузере), там одно сообщение — одна карточка; пост о курсе — social_post со ' + // cyrillic-ok: prompt copy
+    `ссылкой ${COURSE_URL}. ` + // cyrillic-ok: prompt copy
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
     '«Подключи мои сети» — browser_logins, затем каждую signed_out и refused по ' + // cyrillic-ok: prompt copy

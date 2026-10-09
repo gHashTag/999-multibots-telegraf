@@ -201,6 +201,8 @@ export const OUTWARD_TOOLS = new Set<string>([
   'tg_forward',
   'crm_duet',
   'crm_agent_link',
+  // Tags people in the CRM and sends the course to them on the owner's press.
+  'course_outreach',
 ])
 
 /**
