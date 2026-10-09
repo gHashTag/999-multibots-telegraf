@@ -40,7 +40,10 @@
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
- *   POLL_S, STALE_MIN  120 and 60 by default
+ * Every number and decision -- when a head runs, how the mark is written,
+ * the verdict, the token's renewal -- is spec automation/ci-bridge
+ * (gHashTag/t27), vendored in spec/ with its compiled logic; this file
+ * makes the HTTP calls around it.
  *   SINCE              ISO time; a PR last updated before it is left alone.
  *                      Default: when this process started. 2026-10-09 the
  *                      repository had 34 open PRs, most of them stale: a
@@ -54,9 +57,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
+import * as SPEC from './spec/ci-bridge.gen.ts'
+import * as LOGIC from './spec/ci-bridge.logic.ts'
 
-export const CONTEXT = 'railway/checks'
-export const SUITES = ['types', 'render-types', 'guard', 'boots']
+export const CONTEXT = SPEC.CONTEXT
+export const SUITES = SPEC.SUITES.split(',')
 /* What bin/helpers/remote-check.sh leaves out: no test opens it. */
 export const BALLAST = [
   '*/avatar_brain',
@@ -67,7 +72,6 @@ export const BALLAST = [
   '*.mov',
 ]
 const API = 'https://api.github.com'
-const TAIL_LINES = 80
 const TAIL_BYTES = 256 * 1024
 
 export function config(env = process.env) {
@@ -79,8 +83,7 @@ export function config(env = process.env) {
     runnerKey: env.CHECK_RUNNER_KEY || '',
     runnerUrl: (env.CHECK_RUNNER_URL || '').replace(/\/+$/, ''),
     repo: env.REPO || 'gHashTag/999-multibots-telegraf',
-    pollMs: Number(env.POLL_S || 120) * 1000,
-    staleMs: Number(env.STALE_MIN || 60) * 60_000,
+    pollMs: SPEC.POLL_S * 1000,
     work: env.WORK_DIR || '/tmp/ci-bridge',
     since: Date.parse(env.SINCE || '') || Date.now(),
   }
@@ -99,44 +102,53 @@ export function ourStatus(combined) {
   return (combined?.statuses || []).find(s => s.context === CONTEXT) || null
 }
 
-/* Whether a head commit still needs a run. */
-export function needsRun(status, now, staleMs) {
-  if (!status) return true
-  if (status.state !== 'pending') return false
-  return now - Date.parse(status.updated_at) > staleMs
+const seconds = ms => Math.max(0, Math.floor(ms / 1000))
+
+/* Whether a head commit still needs a run (spec needs_run). */
+export function needsRun(status, now) {
+  return LOGIC.needsRun(
+    Boolean(status),
+    status?.state === 'pending',
+    status ? seconds(now - Date.parse(status.updated_at)) : 0
+  )
 }
 
-/* A PR nobody has touched since the bridge began is not backfilled. */
-export function recent(pr, since) {
-  return Date.parse(pr?.updated_at) >= since
-}
-
-/* Only a head that lives in this repository: a fork's code never runs here. */
-export function ownHead(pr, repo) {
-  return pr?.head?.repo?.full_name?.toLowerCase() === repo.toLowerCase()
+/* Whether a PR's head runs here at all (spec runs_here): our own
+ * repository, touched since the bridge began. */
+export function runsHere(pr, repo, since) {
+  const updated = Date.parse(pr?.updated_at)
+  return LOGIC.runsHere(
+    pr?.head?.repo?.full_name?.toLowerCase() === repo.toLowerCase(),
+    Number.isFinite(updated) ? seconds(updated) : 0,
+    seconds(since)
+  )
 }
 
 /*
  * The runner's verdict as a commit status. The runner's last line is
  * `::result {json}` with each suite's exit code, or {"error": ...}.
  */
+const STATES = {
+  [SPEC.STATE_SUCCESS]: 'success',
+  [SPEC.STATE_FAILURE]: 'failure',
+  [SPEC.STATE_ERROR]: 'error',
+}
 export function verdict(result) {
-  if (!result || typeof result !== 'object')
-    return { state: 'error', description: 'the runner gave no result' }
-  if ('error' in result)
-    return {
-      state: 'error',
-      description: `runner: ${String(result.error)}`.slice(0, 140),
-    }
-  const names = Object.keys(result)
-  if (!names.length)
-    return { state: 'error', description: 'the runner ran nothing' }
+  const has = Boolean(result) && typeof result === 'object'
+  const error = has && 'error' in result
+  const names = has && !error ? Object.keys(result) : []
   const failed = names.filter(k => result[k] !== 0)
-  const description = names
-    .map(k => `${k}:${result[k] === 0 ? 'ok' : `FAIL(${result[k]})`}`)
-    .join(' ')
-    .slice(0, 140)
-  return { state: failed.length ? 'failure' : 'success', description }
+  const code = LOGIC.verdictState(has, error, names.length, failed.length)
+  const description = !has
+    ? 'the runner gave no result'
+    : error
+      ? `runner: ${String(result.error)}`
+      : !names.length
+        ? 'the runner ran nothing'
+        : names
+            .map(k => `${k}:${result[k] === 0 ? 'ok' : `FAIL(${result[k]})`}`)
+            .join(' ')
+  return { state: STATES[code], code, description: description.slice(0, 140) }
 }
 
 /* The last `::result` line of the runner's output, parsed, or null. */
@@ -154,7 +166,7 @@ export function resultOf(text) {
 }
 
 /* The end of the output a person needs to see, heartbeats dropped. */
-export function tailOf(text, n = TAIL_LINES) {
+export function tailOf(text, n = SPEC.TAIL_LINES) {
   return String(text)
     .split('\n')
     .filter(l => l !== ':: still working' && !l.startsWith(':: queued'))
@@ -180,9 +192,9 @@ export function commentBody(sha, v, tail) {
 /* A GitHub App's own JWT (RS256, ten minutes), for minting a token. */
 export function appJwt(appId, key, nowMs) {
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
-  const iat = Math.floor(nowMs / 1000) - 60
+  const iat = Math.floor(nowMs / 1000) - SPEC.JWT_BACKDATE_S
   const head = b64({ alg: 'RS256', typ: 'JWT' })
-  const body = b64({ iat, exp: iat + 540, iss: String(appId) })
+  const body = b64({ iat, exp: iat + SPEC.JWT_LIFE_S, iss: String(appId) })
   const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(key)
   return `${head}.${body}.${sig.toString('base64url')}`
 }
@@ -190,8 +202,9 @@ export function appJwt(appId, key, nowMs) {
 /* The token to call GitHub with: the given one, or a minted installation token. */
 export async function tokenOf(cfg, deps) {
   /* An app, when configured, wins: Railway keeps a variable set to "". */
-  if (cfg.token && !(cfg.appId && cfg.appKey)) return cfg.token
-  if (cfg.minted && cfg.minted.until - deps.now() > 5 * 60_000)
+  if (cfg.token && (cfg.preferToken || !(cfg.appId && cfg.appKey)))
+    return cfg.token
+  if (cfg.minted && !LOGIC.renewDue(seconds(cfg.minted.until - deps.now())))
     return cfg.minted.token
   const jwt = appJwt(cfg.appId, cfg.appKey, deps.now())
   const as = {
@@ -225,11 +238,19 @@ export async function tokenOf(cfg, deps) {
  * integration" on commit statuses. A personal token carries no permission
  * map and is taken to write statuses. null: neither can be written.
  */
+const MODES = {
+  [SPEC.MARK_STATUS]: 'statuses',
+  [SPEC.MARK_CHECK]: 'checks',
+  [SPEC.MARK_NONE]: null,
+}
 export function markMode(perms) {
-  if (!perms) return 'statuses'
-  if (perms.statuses === 'write') return 'statuses'
-  if (perms.checks === 'write') return 'checks'
-  return null
+  return MODES[
+    LOGIC.markMode(
+      Boolean(perms),
+      perms?.statuses === 'write',
+      perms?.checks === 'write'
+    )
+  ]
 }
 
 /* A check run read as a status: the shape needsRun() takes. */
@@ -459,7 +480,7 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const v = verdict(resultOf(text))
   await endMark(cfg, deps, mode, sha, id, v, tailOf(text))
   log(`#${pr.number} ${sha.slice(0, 9)}: ${v.state} ${v.description}`)
-  if (v.state !== 'success') {
+  if (LOGIC.comments(v.code)) {
     const comment = redact(commentBody(sha, v, tailOf(text)), secretsOf(cfg))
     const res = await gh(
       cfg,
@@ -480,7 +501,13 @@ export async function tick(cfg, deps) {
     deps,
     `/repos/${cfg.repo}/pulls?state=open&per_page=50`
   )
-  const mode = markMode(cfg.minted?.perms)
+  let mode = markMode(cfg.preferToken ? undefined : cfg.minted?.perms)
+  if (!mode && cfg.token) {
+    /* the app reads but may not mark: a configured token marks instead */
+    deps.log('the app may not mark; falling back to GITHUB_TOKEN')
+    cfg.preferToken = true
+    return tick(cfg, deps)
+  }
   if (!mode)
     throw new Error(
       'the app may write neither commit statuses nor checks: give it ' +
@@ -488,12 +515,34 @@ export async function tick(cfg, deps) {
     )
   const done = []
   for (const pr of prs) {
-    if (!ownHead(pr, cfg.repo) || !recent(pr, cfg.since)) continue
+    if (!runsHere(pr, cfg.repo, cfg.since)) continue
     const mark = await readMark(cfg, deps, mode, pr.head.sha)
-    if (!needsRun(mark, deps.now(), cfg.staleMs)) continue
+    if (!needsRun(mark, deps.now())) continue
     done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr, mode)) })
   }
   return done
+}
+
+/* What a start lacks, by name; empty when the bridge can run. */
+export function missing(cfg) {
+  const out = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  if (!cfg.token && !(cfg.appId && cfg.appKey)) out.push('token or app')
+  return out
+}
+
+/* The service: one pass, a pause, again; a failed pass is one log line. */
+export async function serve(cfg, deps, rounds = Infinity) {
+  deps.log(
+    `watching ${cfg.repo} every ${cfg.pollMs / 1000} s, suites ${SUITES.join(',')}`
+  )
+  for (let i = 0; i < rounds; i++) {
+    try {
+      await tick(cfg, deps)
+    } catch (e) {
+      deps.log(`tick failed: ${e?.message || e}`)
+    }
+    await deps.sleep(cfg.pollMs)
+  }
 }
 
 async function main() {
@@ -502,27 +551,17 @@ async function main() {
     fetch,
     sh,
     now: Date.now,
+    sleep: ms => new Promise(r => setTimeout(r, ms)),
     log: m => console.log(redact(`[ci-bridge] ${m}`, secretsOf(cfg))),
   }
-  const missing = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
-  if (!cfg.token && !(cfg.appId && cfg.appKey)) missing.push('token or app')
-  if (missing.length) {
+  const lacks = missing(cfg)
+  if (lacks.length) {
     deps.log(
-      `not configured: ${missing.join(', ')} -- see the header of bridge.mjs`
+      `not configured: ${lacks.join(', ')} -- see the header of bridge.mjs`
     )
     process.exit(1)
   }
-  deps.log(
-    `watching ${cfg.repo} every ${cfg.pollMs / 1000} s, suites ${SUITES.join(',')}`
-  )
-  for (;;) {
-    try {
-      await tick(cfg, deps)
-    } catch (e) {
-      deps.log(`tick failed: ${e?.message || e}`)
-    }
-    await new Promise(r => setTimeout(r, cfg.pollMs))
-  }
+  await serve(cfg, deps)
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()
