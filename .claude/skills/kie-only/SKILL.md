@@ -65,6 +65,26 @@ The default face for the owner's reels is **studio-lab**:
 to studio-lab: reel 1 (2026-10-03) was re-rendered from an old noir lipsync
 and sent to him that way.
 
+## The Director makes the clip on Kie (2026-10-09, spec agent-media-kie.t27, #3920)
+
+Owner: "why can the reels agent not make reels? the cow must be real!" Measured:
+`video_generate` called Replicate only (off), and Kie video was refused to the
+agent; `image_generate` put Kie LAST and priced it out ($0.005 ceiling), so
+pollinations drew a watermarked cartoon cow. Now:
+
+| what          | rule (from the spec's compiled logic)                                                                                                                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| video default | `kie/hailuo/02-text-to-video-pro`, per clip, 114 tokens                                                                                                                                                                           |
+| other video   | any `kie/...` whose bill is named before the press (`kieVideoSaleOf(...).sold`): minimax-h3 t2v 26/s, kling v3 turbo 36/s, kling v2.1 pro 100/clip; seedance-2, grok-imagine, wan 3.0 are refused (the provider picks the length) |
+| length        | 6 or 10 s (`clip_seconds`)                                                                                                                                                                                                        |
+| realism       | no `style` -> the prompt asks for live-action footage (`adds_realism`)                                                                                                                                                            |
+| pictures      | chain Kie (`google/nano-banana`, $0.02) first, pollinations only as the rescue; `image_generate` = 8 tokens                                                                                                                       |
+
+The agent's provider outages are a separate thing: on 2026-10-09 07:01-07:15
+zai answered 1305 / timed out, nemotron was exhausted and the reserve key had
+no funds, and `zai-lite` "talked instead of calling" -- a reel asked then got
+words, not a tool call. That is money and keys, not code.
+
 ## The free leg is not a way around Kie (2026-10-03)
 
 `image_generate` falls through to Pollinations ($0, keyless) when fal is above

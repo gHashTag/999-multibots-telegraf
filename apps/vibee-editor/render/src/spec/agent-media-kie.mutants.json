@@ -1,0 +1,90 @@
+[
+  {
+    "name": "a non-Kie name is ordered as named",
+    "file": "src/agent/agent-media.ts",
+    "from": "/^\\s*kie\\//i.test(model) ? model.trim() : null",
+    "to": "true ? String(model) : null",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "a file-priced model is ordered",
+    "file": "src/agent/agent-media.ts",
+    "from": "  if (rule === 'file')\n",
+    "to": "  if (false)\n",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "units ignore the length",
+    "file": "src/agent/agent-media.ts",
+    "from": "    units: videoChargeUnits(rule, seconds),",
+    "to": "    units: 1,",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "the realism words are dropped",
+    "file": "src/agent/agent-media.ts",
+    "from": "  return `${words}\\n${REALISM_WORDS}`",
+    "to": "  return words",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "the tool asks the route for the default length",
+    "file": "src/agent/tools.ts",
+    "from": "          duration: order.seconds,",
+    "to": "          duration: 6,",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "the tool charges the default model",
+    "file": "src/agent/tools.ts",
+    "from": "        order.model,\n        order.units\n",
+    "to": "        'kie/hailuo/02-text-to-video-pro',\n        order.units\n",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "the prompt goes without realism",
+    "file": "src/agent/tools.ts",
+    "from": "          prompt: realPrompt(String(args.prompt), args.style),",
+    "to": "          prompt: String(args.prompt),",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  },
+  {
+    "name": "the chain ignores the spec's order",
+    "file": "src/image-chain.ts",
+    "from": "  return MEDIA.IMAGE_VENDOR_ORDER.map(v => legOf[v]).map(name => ({",
+    "to": "  return ['pollinations', 'kie'].map(v => legOf[v]).map(name => ({",
+    "tests": [
+      "src/spec/agent-media-kie.test.ts",
+      "no-video-below-cost.test.ts",
+      "image-chain.test.ts"
+    ]
+  }
+]

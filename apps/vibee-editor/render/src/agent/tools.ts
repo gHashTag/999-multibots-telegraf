@@ -52,7 +52,9 @@ import {
   imageChainShortNote,
   watermarkOf,
 } from '../image-chain'
-import { imageModelRefusal, videoModelRefusal } from './flat-price-model'
+import { imageModelRefusal } from './flat-price-model'
+import * as MEDIA from '../spec/agent-media-kie.gen'
+import { realPrompt, videoOrder } from './agent-media'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -611,9 +613,6 @@ import {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
   priceForModel,
-  replicateVideoSeconds,
-  replicateClipModel,
-  replicateClipTokens,
 } from './billing-shared'
 
 // The start gift: specs/automation/token-wallet.t27 START_TOKENS.
@@ -2727,56 +2726,56 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'video_generate',
     description:
-      `Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 720p): 5 с — ${replicateClipTokens(5)} ток., 10 с — ${replicateClipTokens(10)}. ` +
-      'Ролик сразу перекладывается в наше S3. Если вернулась ошибка — скажи человеку честно ' +
-      'и собери ролик из картинок через reel_render.',
+      `Видеоролик по описанию на Kie (по умолчанию ${MEDIA.AGENT_VIDEO_MODEL.slice(4)}, фотореалистично). ` + // cyrillic-ok: tool description for the model
+      'Стиль — только если человек его назвал. Файл сразу в S3.', // cyrillic-ok: tool description for the model
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'что происходит в кадре' },
+        prompt: { type: 'string', description: 'что происходит в кадре' }, // cyrillic-ok: tool description for the model
         model: {
           type: 'string',
-          description:
-            'например kling-v1-6 std/pro — если не уверен, не указывай',
+          description: 'kie/<модель> или пусто', // cyrillic-ok: tool description for the model
         },
-        duration: { type: 'integer', description: 'длительность в секундах' },
-        aspect_ratio: { type: 'string', description: 'например 9:16' },
+        duration: { type: 'integer', description: 'секунды: 6 или 10' }, // cyrillic-ok: tool description for the model
+        aspect_ratio: { type: 'string', description: 'например 9:16' }, // cyrillic-ok: tool description for the model
+        style: {
+          type: 'string',
+          description:
+            'только если человек назвал стиль: cartoon, anime, oil painting…', // cyrillic-ok: tool description for the model
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      // Settled before the charge, as in image_generate: a `kie/...` name
-      // would buy a per-model-priced clip at this tool's one price.
-      const refused = videoModelRefusal(args.model)
-      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      // What is ordered and how it is charged, decided before the charge
+      // (agent-media.ts, from the spec's compiled rules).
+      const order = videoOrder(args.model, args.duration)
+      if ('refused' in order) return { сделано: false, причина: order.refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
         }
       }
-      /*
-       * THE CLIP IS PRICED BY ITS LENGTH, and the route is asked for exactly
-       * that length. This used to charge one flat 40 for a 5- or 10-second
-       * clip that costs $0.18 or $0.36 at the provider; now both the charge
-       * and the order read `replicateVideoSeconds` of the same argument.
-       */
-      const clipSeconds = replicateVideoSeconds(args.duration)
+      // Priced by the SAME priceForModel the app's press uses, for the same
+      // units the route orders: the agent and the app cannot charge two
+      // numbers for one clip.
       const charge = await spendTokens(
         ctx,
         'video_generate',
-        replicateClipModel(clipSeconds)
+        order.model,
+        order.units
       )
-      if (!charge.ok) return { сделано: false, причина: charge.причина }
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
       const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: String(args.prompt),
-          model: args.model,
-          duration: clipSeconds,
-          aspect_ratio: args.aspect_ratio,
+          prompt: realPrompt(String(args.prompt), args.style),
+          model: order.model,
+          duration: order.seconds,
+          aspect_ratio: args.aspect_ratio ?? '9:16',
         }),
       })
       const genData: any = await gen.json().catch(() => null)
@@ -2784,12 +2783,12 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'video_generate',
-          'провайдер не выполнил работу',
+          'провайдер не выполнил работу', // cyrillic-ok: refund reason
           charge['потрачено']
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
+          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`, // cyrillic-ok: the tool's answer
         }
       }
       const r = await ctx.pool.query(
@@ -2805,6 +2804,7 @@ export const TOOLS: AgentTool[] = [
           сделано: true, // cyrillic-ok: the tool's own response field
           url: genData.url,
           id: r.rows[0]?.id,
+          model: order.model,
         },
         charge['потрачено']
       )

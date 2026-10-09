@@ -528,7 +528,7 @@ const CARD = () => {
     производство: [
       'image_generate: картинка по описанию — файл сразу в S3; цепочка и кто нарисовал — в поле provider. Бесплатное звено ставит знак pollinations.ai (поле watermark): это черновик, не для клиента и не для поста', // cyrillic-ok: the manifest's own words
       'audio_generate: озвучка текста (Kie ElevenLabs; клон голоса недоступен — Replicate выключен)', // cyrillic-ok: the manifest's own words
-      'video_generate: пока не работает — модели Kie в нём ещё не подключены; видео собирается из картинок через reel_render', // cyrillic-ok: the manifest's own words
+      'video_generate: видеоролик по описанию на Kie (по умолчанию hailuo 02 pro, фотореалистично, если стиль не назван); цена до нажатия, как в приложении', // cyrillic-ok: the manifest's own words
       'reel_render: сборка рилса в mp4 (Remotion), ждёт окончания',
     ],
     совет:
