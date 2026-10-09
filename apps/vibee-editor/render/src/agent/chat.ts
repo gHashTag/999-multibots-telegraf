@@ -80,6 +80,12 @@ import { assertArgs } from './tool-args'
 import { SOCIAL_PROMPT_LINE } from './social-tools'
 import { professionSection } from './profession'
 import {
+  OFFICE_TASK_MARKERS,
+  officeTasksFor,
+  officeTasksLine,
+  teachesTaskMarker,
+} from './office-crm'
+import {
   MARKETPLACE_AGENTS,
   marketplaceAgentById,
 } from '../../../packages/vibee-atoms/src/agent-marketplace'
@@ -873,10 +879,18 @@ export async function clientContextBlock(
     const { clientGroupFor, clientGroupLine } = await import(
       './crm-client-group'
     )
-    const line = clientGroupLine(
-      await clientGroupFor(ctx.pool as never, owner, lead)
-    )
+    const group = await clientGroupFor(ctx.pool as never, owner, lead)
+    const line = clientGroupLine(group)
     if (line) parts.push(line)
+    // The office in that group, when there is one: what the team agreed
+    // about this client (bot-office-crm.t27 client_card_lists_tasks).
+    const tasks = officeTasksLine(
+      group !== null,
+      group
+        ? await officeTasksFor(ctx.pool as never, group.chat_id)
+        : { tasks: [], open: 0 }
+    )
+    if (tasks) parts.push(tasks)
   } catch {
     // No group memory yet: the brief simply has no group line.
   }
@@ -2361,6 +2375,23 @@ export function teamSection(
   )
 }
 
+/**
+ * The task marker, for an office turn of the bot only (bot-office-crm.t27
+ * teaches_task_marker): the bot turns each marker into a button, and a
+ * person's press makes the task.
+ */
+export function officeTaskSection(
+  opts: { office?: boolean; surface?: string; toolsOnly?: boolean } | undefined
+): string {
+  return teachesTaskMarker(
+    opts?.office === true,
+    opts?.surface === 'bot',
+    opts?.toolsOnly === true
+  )
+    ? OFFICE_TASK_MARKERS
+    : ''
+}
+
 export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext,
@@ -2398,6 +2429,11 @@ async function* runAgentTurn(
      * bot-agent-team.t27). Every tool stays shown.
      */
     profession?: string
+    /**
+     * An office room turn (routes.ts officeMember): the agent is taught to
+     * propose tasks to the people there (bot-office-crm.t27).
+     */
+    office?: boolean
     /**
      * THE QUEEN: a supervisor's turn about `client` (routes.ts threadFor
      * role=supervisor). No tools at all -- she reads, reasons and writes
@@ -2818,7 +2854,8 @@ async function* runAgentTurn(
             })) +
         dmContext +
         specialistSkills +
-        teamSection(opts, history),
+        teamSection(opts, history) +
+        officeTaskSection(opts),
     },
     ...history,
   ]

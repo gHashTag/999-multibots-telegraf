@@ -231,5 +231,227 @@
     "from": "      openTasks\n    )",
     "to": "    )",
     "tests": ["src/__tests__/navigation/officeEdges.test.ts"]
+  },
+  {
+    "name": "an answer alone makes a task",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "return pressed || !OFFICE.AGENT_TASK_NEEDS_PRESS",
+    "to": "return true",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "proposals outside an office",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "if (!mayPropose(await isOffice(ctx))) return 0",
+    "to": "if (!mayPropose(true)) return 0",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a team member is given a task",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "    !namesMember\n",
+    "to": "    true\n",
+    "tests": [
+      "src/spec/bot-neuro-office.test.ts",
+      "src/__tests__/navigation/officeProposals.test.ts"
+    ]
+  },
+  {
+    "name": "a proposal's name is unbounded",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "nameChars <= OFFICE.SPEAKER_NAME_MAX_CHARS &&",
+    "to": "true &&",
+    "tests": [
+      "src/spec/bot-neuro-office.test.ts",
+      "src/__tests__/navigation/officeProposals.test.ts"
+    ]
+  },
+  {
+    "name": "a proposal's work is unbounded",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "textChars <= OFFICE.TASK_TEXT_MAX_CHARS &&",
+    "to": "true &&",
+    "tests": [
+      "src/spec/bot-neuro-office.test.ts",
+      "src/__tests__/navigation/officeProposals.test.ts"
+    ]
+  },
+  {
+    "name": "every proposal gets a button",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "items: found.slice(0, proposalsKept(found.length))",
+    "to": "items: found",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a dropped marker stays in the words",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "    .replace(TODO_MARKER, '')\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a stale proposal is taken",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "return ageHours < OFFICE.PROPOSAL_TTL_HOURS && !taken && !presserIsBot",
+    "to": "return !taken && !presserIsBot",
+    "tests": [
+      "src/spec/bot-neuro-office.test.ts",
+      "src/__tests__/navigation/officeProposals.test.ts"
+    ]
+  },
+  {
+    "name": "a taken proposal is taken again",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "const taken = p.taken_at !== null && p.taken_at !== undefined",
+    "to": "const taken = false",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a bot's press counts",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "const presserIsBot = ctx.from?.is_bot === true",
+    "to": "const presserIsBot = false",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the race is not checked",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "WHERE id = $1 AND taken_at IS NULL RETURNING id",
+    "to": "WHERE id = $1 RETURNING id",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a proposal of another room is taken",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "FROM office_task_proposals WHERE id = $1 AND bot_username = $2 AND chat_id = $3",
+    "to": "FROM office_task_proposals WHERE id = $1 AND bot_username = $2",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the press is answered last",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  await ctx.answerCbQuery().catch(() => undefined)\n  const data",
+    "to": "  const data",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the pressed button stays",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": ".map((row: any[]) => row.filter(b => b?.callback_data !== data))",
+    "to": ".map((row: any[]) => row)",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the presser is not the author",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "      p.owner_name,\n      Number(ctx.from.id),",
+    "to": "      p.owner_name,\n      0,",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the press is not registered",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  bot.action(/^otp:\\d+$/, guard('take', takeProposal))\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "an office answer keeps its markers",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "            offered.text,\n",
+    "to": "            ответ.текст, // cyrillic-ok: field of ОтветАгента\n",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a room gets no proposals",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "await proposeTasks(ctx, offered.items)",
+    "to": "void offered.items",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the marker is taught everywhere",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "return office && surfaceBot && !toolsOnly",
+    "to": "return surfaceBot && !toolsOnly",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the sweep is taught the marker",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "return office && surfaceBot && !toolsOnly",
+    "to": "return office && surfaceBot",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "no turn is taught the marker",
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "from": "        teamSection(opts, history) +\n        officeTaskSection(opts),",
+    "to": "        teamSection(opts, history),",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the route never marks an office",
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "from": "office: officeMember(body.member, gate.room),",
+    "to": "office: false,",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "a room turn carries a client's card",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "return !room || SPEC.ROOM_SEES_CLIENT_CARD",
+    "to": "return true",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card lists an unbound client's tasks",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "return SPEC.CLIENT_CARD_SHOWS_OFFICE_TASKS && groupBound && openTasks > 0",
+    "to": "return SPEC.CLIENT_CARD_SHOWS_OFFICE_TASKS && openTasks > 0",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card shows every task",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "const shown = found.tasks.slice(0, cardTasksShown(found.open))",
+    "to": "const shown = found.tasks",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card cap is unbounded",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "return openTasks > SPEC.CLIENT_CARD_TASKS_MAX",
+    "to": "return openTasks > 99",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card reads closed tasks",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "WHERE chat_id = $1 AND NOT done",
+    "to": "WHERE chat_id = $1",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card counts only the shown",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "SELECT id, text, owner_name, count(*) OVER () AS open",
+    "to": "SELECT id, text, owner_name, 5 AS open",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the client card skips the office",
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "from": "    if (tasks) parts.push(tasks)\n",
+    "to": "",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card reads a person as a group",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "if (!/^-\\d{5,20}$/.test(String(chatId))) return { tasks: [], open: 0 }",
+    "to": "",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
   }
 ]

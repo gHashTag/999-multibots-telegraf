@@ -46,6 +46,7 @@ import { widgetsOfTurn } from './client-widgets'
 import { ownerWordsOf } from './assistant-opt-out'
 import { heardFrom } from './printed-facts'
 import { resolveProvider } from './provider'
+import { roomGetsClientCard } from './office-crm'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
   editorialAccess,
@@ -1292,7 +1293,10 @@ export async function handleAgentChat(
             /^\d{5,15}$/.test(body.seller_id)
               ? body.seller_id
               : undefined,
-          client: gate.client ?? undefined,
+          // A room turn never carries a client's card (bot-office-crm.t27).
+          client: roomGetsClientCard(!!gate.room)
+            ? (gate.client ?? undefined)
+            : undefined,
           /*
            * The widgets beside the client's chat (client-widgets.ts): what
            * the owner is looking at when he writes. Only in a client's
@@ -1311,6 +1315,7 @@ export async function handleAgentChat(
                 // keeps its memory, the turn takes that member's trade.
                 { profession: `${TAB_CONVERSATION_PREFIX}${body.member}` }
               : {}),
+          office: officeMember(body.member, gate.room),
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.
           agentLog:
