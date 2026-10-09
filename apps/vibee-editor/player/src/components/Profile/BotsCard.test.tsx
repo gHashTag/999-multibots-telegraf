@@ -113,7 +113,7 @@ describe('the my-bots card', () => {
   })
 
   it('asks the server when nothing was handed to it', async () => {
-    const fetchMock = vi.fn(async (_url: string) => ({
+    const fetchMock = vi.fn<(url: string) => Promise<unknown>>(async () => ({
       ok: true,
       json: async () => ({ bots: [bot({ bot: 'from_server' })] }),
     }))

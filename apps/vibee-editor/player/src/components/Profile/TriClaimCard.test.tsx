@@ -350,11 +350,11 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
       )
     ).toEqual([['p-a', 'p-d'], ['p-c']])
     // The messages are exactly TON Connect's: no workId leaks to the wallet.
-    expect(Object.keys((ui.sent[before] as any).messages[0]).sort()).toEqual([
-      'address',
-      'amount',
-      'payload',
-    ])
+    expect(
+      Object.keys(
+        (ui.sent[before] as { messages: Record<string, unknown>[] }).messages[0]
+      ).sort()
+    ).toEqual(['address', 'amount', 'payload'])
     expect(host.textContent).toContain('Sent 3 of 3')
     expect(ui.disconnect).toHaveBeenCalled()
   })
