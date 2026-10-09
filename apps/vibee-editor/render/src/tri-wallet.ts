@@ -54,7 +54,9 @@ import {
 } from '@ton/core'
 import * as SPEC from './spec/tri-wallet-chains.gen'
 import {
+  checksSignature,
   mayBind,
+  mayCallPublic,
   mayConfirm,
   mayIssue,
   mayPropose,
@@ -596,11 +598,42 @@ export const TRI_WALLET_PUBLIC_PATHS = [
   TRI_WALLET_PROPOSE_PATH,
 ] as const
 
+/**
+ * Calls of the two public doors per caller address in the current window
+ * (spec may_call_public). Memory only: a restart forgets, nothing is stored,
+ * and past PUBLIC_CALLERS_TRACKED the oldest callers are let go.
+ */
+const publicCalls = new Map<string, { window: number; n: number }>()
+
+export function countPublicCall(caller: string, nowMs: number): number {
+  const window = Math.floor(nowMs / SPEC.PUBLIC_WINDOW_MS)
+  const key = caller || 'unknown'
+  const seen = publicCalls.get(key)
+  if (seen && seen.window === window) {
+    seen.n += 1
+    return seen.n
+  }
+  publicCalls.delete(key)
+  if (publicCalls.size >= SPEC.PUBLIC_CALLERS_TRACKED) {
+    const oldest = publicCalls.keys().next().value
+    if (oldest !== undefined) publicCalls.delete(oldest)
+  }
+  publicCalls.set(key, { window, n: 1 })
+  return 1
+}
+
+/** Test seam: forget every counted call. */
+export function resetPublicCallsForTests(): void {
+  publicCalls.clear()
+}
+
 export interface TriWalletDeps {
   getPool: () => Queryable | Promise<Queryable>
   /** The person's own telegram_id, or null for any other credential. */
   personOf: (req: IncomingMessage) => string | null
   readBody: (req: IncomingMessage, maxBytes: number) => Promise<string>
+  /** The caller's address, for the public doors' budget; forgeable. */
+  callerOf?: (req: IncomingMessage) => string
   /** The host a proof must name: the player's, app.t27.ai. */
   proofDomain: string
   now?: () => number
@@ -669,6 +702,17 @@ export async function handleTriWallet(
     }
   }
 
+  // The doors without a person answer each caller a budget per window;
+  // past it nothing is read, checked or written (spec may_call_public).
+  const isPublicDoor = (TRI_WALLET_PUBLIC_PATHS as readonly string[]).includes(
+    path
+  )
+  if (
+    isPublicDoor &&
+    !mayCallPublic(countPublicCall(deps.callerOf?.(req) ?? '', now()))
+  )
+    return answer(429, { error: 'too_many_requests' }, 'too_many_requests')
+
   // The text a wallet signs: pure, so it needs neither a person nor the
   // database. A chain or address it cannot parse gets no text to sign.
   if (path === TRI_WALLET_MESSAGE_PATH) {
@@ -720,19 +764,23 @@ export async function handleTriWallet(
       const body = await readJson()
       if (!body)
         return answer(400, { error: 'body_malformed' }, 'body_malformed')
+      // The nonce first: a signature is checked only on an open nonce
+      // nobody proposed on (spec checks_signature), so a dead one is cheap.
+      const row = isNonceShape(body.nonce)
+        ? await nonceRow(pool, body.nonce, now())
+        : null
+      const open = row?.open === true
+      const proposedBefore = row?.proposed === true
+      if (!checksSignature(open, proposedBefore)) {
+        const code = open ? 'already_proposed' : 'payload_unknown'
+        return answer(400, { error: code }, code)
+      }
       const checked = checkChainProof(
         body as ChainProofInput,
         deps.proofDomain,
         now()
       )
-      const row = isNonceShape(body.nonce)
-        ? await nonceRow(pool, body.nonce, now())
-        : null
-      const may = mayPropose(
-        row?.open === true,
-        checked.ok,
-        row?.proposed === true
-      )
+      const may = mayPropose(open, checked.ok, proposedBefore)
       if (!may || !checked.ok) {
         const code = !checked.ok
           ? checked.code

@@ -18,9 +18,11 @@ import * as SPEC from './tri-wallet-chains.gen'
 import {
   addressBytes,
   chainKnown,
+  checksSignature,
   keySource,
   mayBind,
   mayConfirm,
+  mayCallPublic,
   mayIssue,
   mayPropose,
   networksOf,
@@ -43,6 +45,8 @@ import {
   textChainOf,
 } from '../tri-wallet-chains'
 import {
+  countPublicCall,
+  resetPublicCallsForTests,
   MAX_OPEN_CHALLENGES,
   PROOF_TTL_MS,
   TON_NETWORKS,
@@ -305,6 +309,34 @@ describe('spec tri-wallet-chains.t27', () => {
     expect(lib).toMatch(/#c=\$\{/)
   })
 
+  it('a caller without a person gets thirty calls a minute, and a dead nonce costs no curve', () => {
+    expect(SPEC.PUBLIC_CALLS_PER_WINDOW).toBe(30)
+    expect(SPEC.PUBLIC_WINDOW_MS).toBe(60000)
+    expect(SPEC.PUBLIC_CALLERS_TRACKED).toBe(10000)
+    expect(mayCallPublic(1)).toBe(true)
+    expect(mayCallPublic(30)).toBe(true)
+    expect(mayCallPublic(31)).toBe(false)
+    expect(SPEC.NONCE_BEFORE_SIGNATURE).toBe(true)
+    expect(checksSignature(true, false)).toBe(true)
+    expect(checksSignature(false, false)).toBe(false)
+    expect(checksSignature(true, true)).toBe(false)
+    // The host's counter: one window per PUBLIC_WINDOW_MS, per caller, and
+    // the oldest caller let go past PUBLIC_CALLERS_TRACKED.
+    resetPublicCallsForTests()
+    let n = 0
+    for (let i = 0; i < 31; i++) n = countPublicCall('a', NOW)
+    expect(n).toBe(31)
+    expect(mayCallPublic(n)).toBe(false)
+    expect(countPublicCall('a', NOW + SPEC.PUBLIC_WINDOW_MS)).toBe(1)
+    for (let i = 0; i < SPEC.PUBLIC_CALLERS_TRACKED + 5; i++)
+      countPublicCall(`c${i}`, NOW)
+    // 'a' was among the oldest and was let go: it starts over.
+    expect(countPublicCall('a', NOW + SPEC.PUBLIC_WINDOW_MS)).toBe(1)
+    resetPublicCallsForTests()
+    // End to end: tri-wallet.test.ts "the public doors hold each caller to
+    // a budget".
+  })
+
   it('TRI is paid on TON only until the bridge is live', () => {
     expect(SPEC.PAYOUT_CHAIN).toBe(SPEC.CHAIN_TON)
     expect(SPEC.BRIDGE_LIVE).toBe(false)
@@ -316,7 +348,7 @@ describe('spec tri-wallet-chains.t27', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
     const spec = readFileSync(join(__dirname, 'tri-wallet-chains.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
     expect(Math.max(...notes)).toBe(SPEC.VERSION)
