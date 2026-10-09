@@ -499,7 +499,6 @@ describe('a token takes over when the app may not mark', () => {
     }
     const [d] = await tick(c, w.deps)
     assert.equal(d.state, 'success')
-    assert.equal(c.preferToken, true)
     const marks = w.calls.filter(x => x.url.includes('/statuses/'))
     assert.equal(marks.length, 2)
     assert.ok(
@@ -583,6 +582,51 @@ describe('starting the service', () => {
     await assert.rejects(
       sh('tar', ['-xzf', '-', '-C', tmpdir()], broken),
       /connection reset|tar exited/
+    )
+  })
+})
+
+describe('a fallback that fails says both reasons and lasts one pass', () => {
+  it('names the missing permission and the token refusal; the next pass tries the app', async () => {
+    const w = world({ prs: [pr(7, 'aaa111')], runnerSays: '' })
+    const inner = w.deps.fetch
+    w.deps.fetch = async (url, init) => {
+      if (init?.headers?.Authorization === 'Bearer refused-token-value-1')
+        return new Response(
+          JSON.stringify({
+            message: 'Resource not accessible by personal access token',
+          }),
+          { status: 403 }
+        )
+      return inner(url, init)
+    }
+    const c = {
+      ...cfg,
+      token: 'refused-token-value-1', // secret-guard-ok: test fake, not a credential
+      appId: '42',
+      appKey: 'unused: the minted token is fresh',
+      minted: {
+        token: 'inst-token-value-3', // secret-guard-ok: test fake, not a credential
+        until: Date.parse('2026-10-10T00:00:00Z'),
+        perms: { pull_requests: 'read' },
+      },
+    }
+    await assert.rejects(tick(c, w.deps), err => {
+      assert.match(err.message, /Checks: write/)
+      assert.match(
+        err.message,
+        /GITHUB_TOKEN: GET .*403 Resource not accessible/
+      )
+      assert.ok(!err.message.includes('refused-token-value-1'))
+      return true
+    })
+    assert.equal(c.preferToken, false, 'the next pass starts from the app')
+    c.minted.perms = { checks: 'write' }
+    w.deps.fetch = inner
+    const [d] = await tick(c, w.deps)
+    assert.ok(d, 'with the permission granted the app marks')
+    assert.ok(
+      w.calls.some(x => x.url.endsWith('/check-runs') && x.method === 'POST')
     )
   })
 })
