@@ -73,3 +73,39 @@ or undo what is merged. Epic gHashTag/999-multibots-telegraf#3896.
 
 Our edge: each agent has a trade and every tool, the room has its own memory,
 pay buttons stay in the person's Treasurer tab.
+
+## Telegram Bot API to 10.3 (24 Aug 2026) and our actors -- research 2026-10-09
+
+Sources: @gramio/types diffs 7.11..10.3.1 (official doc text), aiogram 3.31,
+PTB #5228; core.telegram.org is blocked from the cloud container -- check the
+official changelog once before building on a line below.
+
+Actors here: no Actor class. The mailbox is `src/services/agentLanes.ts`
+(`agentLanes.enqueue(key, msg, batch => ...)` merges a burst, `exclusive(key,
+fn)` strict order, `drain` on shutdown; keys `biz:`, `dm:`, `crm:`), the
+person queue `src/services/personTurns.ts` (1 turn, 6 waiting), long-lived
+agent bots `src/core/bot/managedBots/runner.ts` (spawn/stop, no
+restart-on-crash; only Rust `worker.rs spawn_traced` supervises). The office
+has NO actor: a member is a trade prompt per turn, hand-off is a synchronous
+call. No .t27 spec describes an actor -- write one first.
+
+Features worth building, by place:
+
+- Office (forum): Rich Messages 10.1-10.3 (`sendRichMessage`, tables,
+  `RichBlockThinking`, button blocks) -- task cards in a group, where
+  checklists cannot go; ephemeral messages 10.2-10.3
+  (`ephemeral_message_parameters`) -- an agent's hint to one person; member
+  tags 9.5 (`setChatMemberTag`, needs can_manage_tags) -- roles of people and
+  agents; bot-to-bot 10.0 (`chat_id: @bot`, BotFather toggle on both) --
+  agents hand off directly; guest mode 10.0 (`answerGuestQuery`) -- call a
+  catalogue agent into a client group without adding it; polls 9.6/10.0
+  (`allow_adding_options`, `members_only`) -- team votes on proposals;
+  `sendMessageDraft` + 10.3 `can_stop` / `stopped_message_generation` -- a
+  real Stop that cancels the job (private chats only).
+- CRM (business): checklists 9.1 (`sendChecklist`, BUSINESS ONLY, needs
+  can_reply; `checklist_tasks_done`) -- an order checklist in the client's
+  chat, ticks move the stage; `readBusinessMessage` 9.0 -- unread means the
+  owner has not seen it; `ChatFullInfo.rating` 9.3 -- a lead-quality signal;
+  `getUserPersonalChatMessages` 10.0 -- what the client publishes; Stars
+  subscription updates 10.2 (`Update.subscription`) -- club access without
+  polling; business bots without Premium 10.0.

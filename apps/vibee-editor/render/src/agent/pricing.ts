@@ -1,11 +1,7 @@
-import {
-  priceFor,
-  replicateClipTokens,
-  REPLICATE_VIDEO_LENGTHS,
-  REPLICATE_VIDEO_RESOLUTION,
-} from './billing-shared'
+import { priceFor, priceForModel } from './billing-shared'
 import { CLUB_OFFER_WHEN, clubOffer, spacedNumber } from './club-membership'
 import { imageChainNote } from '../image-chain'
+import * as MEDIA_SPEC from '../spec/agent-media-kie.gen'
 import { voiceLooksDown } from './image-health'
 
 /**
@@ -81,16 +77,11 @@ export const FREE = [
 ]
 
 /**
- * The video line of the price list: which clip, at which quality, for how
- * much -- every length with its price. The price is the video floor
- * (billing-shared `replicateClipTokens`): never below what the provider bills
- * for that clip, times the owner's markup.
+ * The video line of the price list: the clip the agent orders by default on
+ * Kie (agent-media-kie.t27) -- one price per clip, whatever its length.
  */
 function videoProviderNote(): string {
-  const byLength = REPLICATE_VIDEO_LENGTHS.map(
-    s => `${s} с — ${replicateClipTokens(s)}` // cyrillic-ok: price list copy
-  ).join(', ')
-  return `Replicate seedance-1-lite, ${REPLICATE_VIDEO_RESOLUTION}: ${byLength} токенов` // cyrillic-ok: price list copy
+  return `Kie ${MEDIA_SPEC.AGENT_VIDEO_MODEL.slice(4)}, ${MEDIA_SPEC.CLIP_SHORT_SECONDS} с, за ролик` // cyrillic-ok: price list copy
 }
 
 /**
@@ -142,15 +133,26 @@ export const PAID = [
   },
   {
     функция: 'video_generate',
-    // The default 5-second clip. A 10-second one costs more, and the line
-    // below names both from the same function the charge reads.
-    токенов: priceFor('video_generate'), // cyrillic-ok: existing field name
+    // The agent's default clip on Kie (agent-media-kie.t27), priced by the
+    // same priceForModel its charge reads: the old flat Replicate number is
+    // a price nobody is charged since video moved to Kie.
+    токенов: priceForModel('video_generate', MEDIA_SPEC.AGENT_VIDEO_MODEL) ?? 0, // cyrillic-ok: existing field name
     провайдер: videoProviderNote(), // cyrillic-ok: existing field name
   },
   {
     функция: 'reel_render',
     токенов: priceFor('reel_render'),
     провайдер: 'локальный Remotion (в проде дом-аккаунту бесплатно)',
+  },
+  /**
+   * One Suno request on Kie (agent-neuro-kie.t27): the provider picks the
+   * length, so it is one price per song, whatever the length.
+   */
+  {
+    функция: 'music_generate', // cyrillic-ok: existing field name
+    токенов: priceFor('music_generate'), // cyrillic-ok: existing field name
+    единица: 'за песню (Suno пишет два варианта)', // cyrillic-ok: existing field name
+    провайдер: 'Kie Suno', // cyrillic-ok: existing field name
   },
   /**
    * Lipsync is charged PER SECOND of audio, and it was missing from the

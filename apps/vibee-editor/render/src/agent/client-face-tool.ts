@@ -44,7 +44,7 @@
  * they sent that shows exactly one adult face, 'none' means ask them.
  */
 import type { AgentTool, ToolContext } from './tools'
-import { clientFace } from './client-face'
+import { clientFace, leadUsername } from './client-face'
 
 export interface FaceToolDeps {
   /** A lead's profile photo on our storage; '' when there is none. */
@@ -111,16 +111,7 @@ export function makeClientFaceTool(deps: FaceToolDeps): AgentTool[] {
          * schema tokens on a fact we already hold, and invites it to guess
          * one. A row that is missing simply leaves it null.
          */
-        let username: string | null = null
-        try {
-          const r = await ctx.pool.query(
-            `SELECT username FROM crm_people WHERE owner_id = $1 AND lead_id = $2`,
-            [owner, target]
-          )
-          username = String(r.rows?.[0]?.username ?? '').trim() || null
-        } catch {
-          username = null
-        }
+        const username = await leadUsername(ctx, target)
         /*
          * clientFace, not the avatar helper directly: the rules about WHAT
          * counts as this person's face -- avatar first, a sent photo only

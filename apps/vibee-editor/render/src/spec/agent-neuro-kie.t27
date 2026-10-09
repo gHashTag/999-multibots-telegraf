@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/agent-neuro-kie.t27 -- every Kie neuro-function the agent may order.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/agent-neuro.ts (the source
+// tools built from the table below, the Kie model of image_generate, the picture of
+// video_generate).
+// Trace: owner 2026-10-09 "where are all the neuro-functions? connect them all!" and "Kie is
+// our main one!". Measured that day: the agent had five raw media tools; upscale, background
+// removal, image-to-video and a choice of Kie image models lived only in bot scenes on dead
+// providers, though Kie sells each with its price named before the press.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled
+// logic in src/spec/.
+// Claim status: render contract; the prices are the route's (priceForModel over the Kie list).
+// v1 (2026-10-09): upscale and background removal from a source -- rows of a tool table the host
+// builds from -- a Kie text-to-image model by name, a clip from a picture; a source tool
+// without a source is refused before any charge. A picture redrawn from a photo is GPT Image 2.5
+// unless another model is named (owner 2026-10-09: "by default use gpt 2.5 and 9:16"). Music:
+// Suno on Kie, one price per request, a turn waits a bounded time and then says "still writing".
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::agent_neuro_kie {
+    pub const KIND : str = "automation";
+    pub const ID : str = "agent-neuro-kie";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- the tools, as a table ----
+
+    // Owner, 2026-10-09: "all new code is written in .t27, exclusively". A neuro-function
+    // the agent gets is a ROW here -- the tool's name, its Kie model, what the agent is told
+    // -- and the host builds every tool from these rows with one runner written once. A new
+    // Kie function is a new row, not new host code.
+    pub const SOURCE_TOOL_NAMES : [2]str = ["image_upscale", "image_remove_background"];
+    pub const SOURCE_TOOL_MODELS : [2]str = ["kie/topaz/image-upscale", "kie/recraft/remove-background"];
+    pub const SOURCE_TOOL_HELP : [2]str = ["Upscale a picture and make it sharper (Kie topaz). Needs image_url; the price is named before the press.", "Remove the background of a picture, leaving it transparent (Kie recraft). Needs image_url."];
+
+    pub const IMAGE_TO_VIDEO_MODEL : str = "kie/kling/v2-1-pro";
+
+    // ---- what may be ordered ----
+
+    // A Kie picture model named by the agent is ordered only when its bill is named before
+    // the press -- the same rule as the agent's video (agent-media-kie may_order_video).
+    fn may_order_image(kie_model: bool, bill_named: bool) -> bool {
+        return kie_model && bill_named;
+    }
+
+    // A tool that works on a source picture refuses before any charge when it was given none.
+    fn source_ok(takes_source: bool, source_given: bool) -> bool {
+        return !takes_source || source_given;
+    }
+
+    // ---- a picture from a photo ----
+
+    // Owner, 2026-10-09: "by default use model gpt 2.5 and size 9:16". image_edit draws on GPT
+    // Image 2.5 unless the person named another model; its frame stays 9:16.
+    pub const EDIT_DEFAULT_IS_GPT25 : bool = true;
+    fn edit_uses_gpt25(named_gpt25: bool, named_other: bool) -> bool {
+        return named_gpt25 || (EDIT_DEFAULT_IS_GPT25 && !named_other);
+    }
+    pub const EDIT_DEFAULT_ASPECT : str = "9:16";
+
+    // ---- music (Suno on Kie) ----
+
+    // One request makes the song (Kie returns two takes); the provider picks the length, so the
+    // bill is one price per request. Cost: $0.06 a request, 12 credits at $0.005 -- read
+    // 2026-10-09 from a third-party table citing Kie's model page (kie.ai itself did not open
+    // from here); NOT MEASURED -- check the Kie dashboard on the first live song.
+    pub const MUSIC_TOOL_NAME : str = "music_generate";
+    pub const MUSIC_STATUS_TOOL_NAME : str = "music_status";
+    pub const MUSIC_HELP : str = "Write a song or an instrumental from a description (Suno on Kie). Takes 1-3 minutes; if it is not ready the answer says still writing with a task id for music_status.";
+    pub const MUSIC_STATUS_HELP : str = "Check a song music_generate started (task id); returns the song when it is ready. Free.";
+    pub const SUNO_MODEL : str = "V4_5PLUS";
+    pub const MUSIC_COST_MICRO_USD : u32 = 60000;
+
+    // A turn waits this long for the song; a bot waits 180 s for the whole turn.
+    pub const MUSIC_WAIT_SECONDS : u32 = 120;
+    fn music_keeps_waiting(waited_seconds: u32, ready: bool) -> bool {
+        return !ready && waited_seconds < MUSIC_WAIT_SECONDS;
+    }
+
+    // ---- the clip ----
+
+    // Words make a clip on the agent's video model; a picture given makes it from the picture.
+    pub const VIDEO_FROM_WORDS : u32 = 0;
+    pub const VIDEO_FROM_IMAGE : u32 = 1;
+    fn video_route(image_given: bool) -> u32 {
+        if image_given { return VIDEO_FROM_IMAGE; }
+        return VIDEO_FROM_WORDS;
+    }
+
+    test "a Kie picture model is ordered only with its bill named first" {
+        assert(may_order_image(true, true));
+        assert(!may_order_image(false, true));
+        assert(!may_order_image(true, false));
+    }
+
+    test "a source tool without a source is refused, a tool without one needs none" {
+        assert(source_ok(true, true));
+        assert(!source_ok(true, false));
+        assert(source_ok(false, false));
+        assert(source_ok(false, true));
+    }
+
+    test "a picture given makes the clip from the picture" {
+        assert(VIDEO_FROM_WORDS == 0);
+        assert(VIDEO_FROM_IMAGE == 1);
+        assert(video_route(true) == VIDEO_FROM_IMAGE);
+        assert(video_route(false) == VIDEO_FROM_WORDS);
+    }
+
+    test "a picture from a photo is GPT Image 2.5 unless another model is named" {
+        assert(EDIT_DEFAULT_IS_GPT25);
+        assert(edit_uses_gpt25(false, false));
+        assert(edit_uses_gpt25(true, false));
+        assert(!edit_uses_gpt25(false, true));
+    }
+
+    test "a song is waited for a bounded time, then it is still writing" {
+        assert(MUSIC_WAIT_SECONDS == 120);
+        assert(MUSIC_COST_MICRO_USD == 60000);
+        assert(music_keeps_waiting(0, false));
+        assert(music_keeps_waiting(119, false));
+        assert(!music_keeps_waiting(120, false));
+        assert(!music_keeps_waiting(10, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

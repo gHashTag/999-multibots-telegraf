@@ -207,6 +207,7 @@ tri — оболочка Trinity S³AI
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
+  tri bridge-preflight  хватает ли ОБЛАЧНОМУ контейнеру сети и секретов для моста: какие адреса закрыты, каких имён нет (значения не печатает)
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
   tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
@@ -1252,6 +1253,37 @@ PYEOF
       console.log(composePitch({ name: name || null, tokens: p.токенов, stars: p.звёзд, url: "https://t.me/$invoice-link-here", note: note || undefined }));
       console.log("\n— цена по шкале:", p.токенов, "токенов =", p.звёзд, "⭐️");
     ' -- "$NAME" "$TOK" "$NOTE")
+    ;;
+  bridge-preflight)
+    # ЧТО НУЖНО МОСТУ В ОБЛАКЕ (2026-10-09). На Mac мост берёт токены ботов и
+    # ключ агента через `railway variables`; облачному контейнеру Claude Code
+    # нужны три вещи, и без любой из них мост «не измерен», а не «зелёный»:
+    #   сеть  -- окружение пускает к четырём адресам ниже (Allowed domains);
+    #            правка политики действует на НОВЫЙ контейнер, не на текущий;
+    #   секрет -- RAILWAY_TOKEN (токен проекта 999): из него мост сам читает
+    #            ключи, как на Mac; или AGENT_KEY для одной двери /mcp;
+    #   CLI   -- railway (npm i -g @railway/cli: реестр npm открыт всегда).
+    # Значения секретов не печатаются: только «задан / нет».
+    hosts="vibee-render-production.up.railway.app api.telegram.org api.kie.ai backboard.railway.com"
+    bad=0
+    echo "сеть:"
+    for h in $hosts; do
+      code=$(curl -s -o /dev/null -m 10 -w "%{http_code}" "https://$h/" 2>/dev/null)
+      if [ "$code" = "000" ]; then echo "  ✗ $h — закрыт (Allowed domains окружения, затем НОВАЯ сессия)"; bad=1
+      else echo "  ✓ $h ($code)"; fi
+    done
+    echo "секреты (только имена):"
+    for v in RAILWAY_TOKEN AGENT_KEY; do
+      if [ -n "${!v:-}" ]; then echo "  ✓ $v задан"; else echo "  · $v нет"; fi
+    done
+    if [ -z "${RAILWAY_TOKEN:-}" ] && [ -z "${AGENT_KEY:-}" ]; then
+      echo "  ✗ нужен RAILWAY_TOKEN (или AGENT_KEY) в Secrets окружения"; bad=1
+    fi
+    if command -v railway >/dev/null 2>&1; then echo "cli: ✓ railway"
+    elif [ -n "${RAILWAY_TOKEN:-}" ]; then echo "cli: ✗ railway нет — npm i -g @railway/cli"; bad=1
+    else echo "cli: · railway нет (нужен вместе с RAILWAY_TOKEN)"; fi
+    [ "$bad" = 0 ] && echo "мост готов: tri bridge 144022504 435572800" || echo "мост НЕ измерим из этого контейнера: см. ✗ выше"
+    exit "$bad"
     ;;
   bridge)
     # РАДУЖНЫЙ МОСТ: вся ферма и обе стороны за один проход, параллельно.

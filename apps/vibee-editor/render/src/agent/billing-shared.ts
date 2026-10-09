@@ -1,3 +1,5 @@
+import * as MEDIA from '../spec/agent-media-kie.gen'
+import * as NEURO from '../spec/agent-neuro-kie.gen'
 import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
 import { DEAREST_VARIANT_USD } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
@@ -88,7 +90,10 @@ export function replicateClipModel(seconds: ReplicateVideoLength): string {
 export const COST_PER_TOKEN_USD = TOKEN_USD
 /** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
 export const OPERATION_COST_USD: Record<string, number> = {
-  image_generate: 0.003,
+  // Kie draws first, so the price covers Kie (agent-media-kie.t27).
+  image_generate: MEDIA.IMAGE_GENERATE_COST_MICRO_USD / 1_000_000,
+  // One Suno request on Kie (agent-neuro-kie.t27, unmeasured: see the spec).
+  music_generate: NEURO.MUSIC_COST_MICRO_USD / 1_000_000,
   /**
    * GPT Image 2.5 image-to-image at 1K on Kie: 6 credits = $0.03 per image.
    * Read 2026-09-13 from the Kie price list (POST
@@ -506,7 +511,8 @@ export function секундыКОплате(duration: unknown): number {
 }
 
 export const TOKEN_PRICES: Record<string, number> = {
-  image_generate: priceFor('image_generate'), // 2
+  image_generate: priceFor('image_generate'), // 8: Kie nano-banana at $0.02
+  music_generate: priceFor('music_generate'), // 24: one Suno request on Kie at $0.06
   gpt_image_edit: priceFor('gpt_image_edit'), // 12
   image_edit: priceFor('image_edit'), // 8: Kie nano-banana-edit at $0.02
   audio_generate: priceFor('audio_generate'), // 12
