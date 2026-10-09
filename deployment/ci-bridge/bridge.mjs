@@ -34,6 +34,7 @@
  *                      a GitHub App installed on the repository with the
  *                      same permissions; the bridge mints an installation
  *                      token (one hour) and renews it before it ends.
+ *                      When both are set, the app is used.
  *                      2026-10-09: TRIOS_GITHUB_API_TOKEN answered 403 on
  *                      this private repository's pull requests.
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
@@ -188,7 +189,8 @@ export function appJwt(appId, key, nowMs) {
 
 /* The token to call GitHub with: the given one, or a minted installation token. */
 export async function tokenOf(cfg, deps) {
-  if (cfg.token) return cfg.token
+  /* An app, when configured, wins: Railway keeps a variable set to "". */
+  if (cfg.token && !(cfg.appId && cfg.appKey)) return cfg.token
   if (cfg.minted && cfg.minted.until - deps.now() > 5 * 60_000)
     return cfg.minted.token
   const jwt = appJwt(cfg.appId, cfg.appKey, deps.now())
