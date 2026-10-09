@@ -313,11 +313,37 @@ function unloadableFiles(report) {
  * did not get to ask. Merging it into either answer states as a fact something
  * nobody observed.
  */
-function splitUnmeasured(suspects, unloadable) {
+function splitUnmeasured(suspects, unloadable, skipped = new Set()) {
+  const notAsked = id => unloadable.has(fileOf(id)) || skipped.has(id)
   return {
-    unmeasured: suspects.filter(id => unloadable.has(fileOf(id))),
-    measured: suspects.filter(id => !unloadable.has(fileOf(id))),
+    unmeasured: suspects.filter(notAsked),
+    measured: suspects.filter(id => !notAsked(id)),
   }
+}
+
+/**
+ * Names this run SKIPPED: produced, but never executed.
+ *
+ * A `skipIf(!has('ffmpeg'))` test on a machine without ffmpeg is the same
+ * question unasked as a file that cannot load -- and `--save` used to drop it
+ * the same way. On 2026-10-09 a save in a container without ffmpeg, pdftotext,
+ * bsdtar or deno would have deleted 16 names that pass on the machine that
+ * has them (media-extract, shelf-route, code-run, hdl-run, browser-shot-vision),
+ * and the verdict listed them as "renamed or removed".
+ *
+ * They are carried and routed out of the verdict, but never silently: both
+ * modes print them, so a hard-coded `.skip` stays visible in every run.
+ */
+function skippedSet(report) {
+  const set = new Set()
+  for (const file of report.testResults || []) {
+    const rel = path.relative(REPO, file.name)
+    for (const a of file.assertionResults || []) {
+      if (a.status === 'skipped' || a.status === 'pending')
+        set.add(`${rel} :: ${a.fullName || a.title}`)
+    }
+  }
+  return set
 }
 
 /**
@@ -340,9 +366,9 @@ function splitUnmeasured(suspects, unloadable) {
  * honest prune, and freezing it would turn the snapshot into a ratchet nobody
  * can lower.
  */
-function nextBaseline(previous, now, unloadable) {
+function nextBaseline(previous, now, unloadable, skipped = new Set()) {
   const carried = previous.filter(
-    id => !now.has(id) && unloadable.has(fileOf(id))
+    id => !now.has(id) && (unloadable.has(fileOf(id)) || skipped.has(id))
   )
   return { lines: [...new Set([...now, ...carried])].sort(), carried }
 }
@@ -371,6 +397,7 @@ function main() {
   }
 
   const unloadable = unloadableFiles(report)
+  const skipped = skippedSet(report)
 
   if (SAVE) {
     const header =
@@ -379,7 +406,8 @@ function main() {
     const { lines, carried } = nextBaseline(
       readBaseline() || [],
       now,
-      unloadable
+      unloadable,
+      skipped
     )
     fs.writeFileSync(BASELINE, header + lines.join('\n') + '\n')
     console.log(
@@ -397,7 +425,11 @@ function main() {
         '   Забыть их — то же самое, что списать покрытие, которого никто не удалял.'
       )
       for (const f of byFile)
-        console.log(`   ${f} — нет пакета ${unloadable.get(f)}`)
+        console.log(
+          unloadable.has(f)
+            ? `   ${f} — нет пакета ${unloadable.get(f)}`
+            : `   ${f} — пропущены здесь (skip/skipIf)`
+        )
     }
     return
   }
@@ -419,14 +451,22 @@ function main() {
   // loaded here was not measured, and re-running it would only fail to load a
   // second time. Calling it a regression would blame the change for the
   // machine; calling it nothing would hide that the coverage is not running.
-  const { unmeasured, measured } = splitUnmeasured(allSuspects, unloadable)
+  const { unmeasured, measured } = splitUnmeasured(
+    allSuspects,
+    unloadable,
+    skipped
+  )
   if (unmeasured.length) {
     const byFile = [...new Set(unmeasured.map(fileOf))]
     console.log(
       `\n📌 НЕ ИЗМЕРЕНО: ${unmeasured.length} имён в ${byFile.length} файл(ах) — не регрессия и не потеря`
     )
     for (const f of byFile) {
-      console.log(`   ${f}: нет пакета ${unloadable.get(f)} — это установка`)
+      console.log(
+        unloadable.has(f)
+          ? `   ${f}: нет пакета ${unloadable.get(f)} — это установка`
+          : `   ${f}: пропущены здесь (skip/skipIf) — проверьте, что это условие машины, а не .skip`
+      )
     }
     console.log(
       '   Эти тесты здесь не выполняются вовсе. Вердикт их не считает.'
@@ -588,6 +628,7 @@ module.exports = {
   missingModuleFrom,
   unloadableFiles,
   splitUnmeasured,
+  skippedSet,
   nextBaseline,
 }
 
