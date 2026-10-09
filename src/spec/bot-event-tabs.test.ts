@@ -6,6 +6,8 @@
  * apps/vibee-editor/render/src/spec/bot-event-tabs.test.ts.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import * as SPEC from './bot-event-tabs.gen'
 import { TAB_KEYS } from './bot-topic-tabs.gen'
 
@@ -21,6 +23,7 @@ import {
   routesToTab,
   tabOfEvent,
 } from '@/navigation/topics/eventTabs'
+import { getBotTokenByName } from '@/core/getBotTokenByName'
 
 describe('spec bot-event-tabs.t27', () => {
   it('an event lands in its tab only when the tab exists and no thread was named', () => {
@@ -42,8 +45,29 @@ describe('spec bot-event-tabs.t27', () => {
     expect(tabOfEvent('browser')).toBe('browser')
   })
 
+  it("the house hears the render from its own bot, the service's bot only as a fallback", () => {
+    /*
+     * The render's half -- which bot a message leaves from -- is bound in
+     * apps/vibee-editor/render/src/spec/bot-event-tabs.test.ts. The bot's
+     * half: the house's bot (crm-story-reel HOUSE_DELIVERY_BOT) is a bot of
+     * this farm, launched with every handler like the others, so a permission
+     * the render now asks through it is answered there (`bap:`).
+     */
+    vi.stubEnv('BOT_TOKEN_12', '12:TEST') // secret-guard-ok: invented for this test
+    try {
+      expect(getBotTokenByName('t27ai_bot')).toBe('12:TEST')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    const read = (p: string) => readFileSync(join(__dirname, p), 'utf8')
+    expect(read('../navigation/registerCommands.ts')).toMatch(
+      /bot\.action\(\/\^bap:\(\.\+\)\$\//
+    )
+    expect(read('../index.ts')).toMatch(/registerCommands\(\{ bot \}\)/)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 
