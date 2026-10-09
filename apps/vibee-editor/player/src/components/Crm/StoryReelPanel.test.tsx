@@ -609,49 +609,107 @@ describe('her palette on the story panel', () => {
 })
 
 describe('the face of the reel', () => {
-  it('is the avatar by default, a chosen photo over it, and the avatar back', async () => {
-    let own = ''
+  /*
+   * A PHOTO PER SCENE (crm-story-reel v31): the owner's storyboard showed
+   * one avatar three times. Every scene shows its own photo from the
+   * server, a tap on a scene opens its photo sheet, a pick there saves that
+   * scene only, and "as by default" takes the pick back.
+   */
+  it('shows a photo per scene; a tap opens the sheet, a pick saves that scene only, and the default comes back', async () => {
+    const A = 'https://cdn.example/a.jpg'
+    const B = 'https://cdn.example/b.jpg'
+    const C = 'https://cdn.example/c.jpg'
+    let picks: string[] = []
     serve(a => {
-      if (typeof a.face_url === 'string') own = a.face_url
+      if (Array.isArray(a.scene_faces)) picks = a.scene_faces as string[]
       if (a.ideas) return { lead: CLIENT, ideas: [] }
+      const faces = [A, B, C, A, B, C].map((f, i) => picks[i] || f)
       return {
         ...READY,
-        face: own || READY.face,
-        face_custom: own !== '',
-        avatar: READY.face,
+        avatars: [A, B, C],
+        scene_faces: faces,
+        scene_picked: faces.map((_, i) => Boolean(picks[i])),
       }
     })
     await draw()
-    const picker = () =>
-      host.querySelector('[data-testid="story-face-picker"]') as HTMLElement
-    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
-    expect(picker().querySelector('button')).toBeNull()
+    // No separate "replace photo" button in the seller's panel any more.
+    expect(host.querySelector('[data-testid="story-face-picker"]')).toBeNull()
+    expect(
+      host.querySelector('[data-testid="story-scene-hint"]')?.textContent
+    ).toContain('crm.client.story.scene.hint')
+    const tiles = () =>
+      [...host.querySelectorAll('.story-reel__frame img')].map(
+        i => (i as HTMLImageElement).src
+      )
+    expect(tiles()).toEqual([A, B, C])
 
-    const input = picker().querySelector(
-      'input[type="file"]'
+    // A tap on scene 2 opens its sheet with her photos.
+    await act(async () => {
+      ;(
+        host.querySelector('[data-testid="story-scene-1"]') as HTMLElement
+      ).click()
+    })
+    const sheet = () =>
+      document.querySelector('[data-testid="scene-photo-sheet"]') as HTMLElement
+    expect(sheet()).toBeTruthy()
+    expect(
+      sheet().querySelectorAll('[data-testid^="scene-photo-option-"]')
+    ).toHaveLength(3)
+    await act(async () => {
+      ;(
+        sheet().querySelector(
+          '[data-testid="scene-photo-option-2"]'
+        ) as HTMLElement
+      ).click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      scene_faces: ['', C, '', '', '', ''],
+    })
+    expect(tiles()).toEqual([A, C, C])
+    expect(sheet()).toBeNull()
+
+    // An upload in the sheet is that scene's photo too.
+    await act(async () => {
+      ;(
+        host.querySelector('[data-testid="story-scene-0"]') as HTMLElement
+      ).click()
+    })
+    const input = sheet().querySelector(
+      '[data-testid="scene-photo-upload"]'
     ) as HTMLInputElement
-    const file = new File(['x'], 'me.jpg', { type: 'image/jpeg' })
-    Object.defineProperty(input, 'files', { value: [file] })
+    Object.defineProperty(input, 'files', {
+      value: [new File(['x'], 'me.jpg', { type: 'image/jpeg' })],
+    })
     await act(async () => {
       input.dispatchEvent(new Event('change', { bubbles: true }))
       await new Promise(r => setTimeout(r, 0))
     })
     expect(calls).toContainEqual({
       lead: CLIENT,
-      face_url: 'https://cdn.example/own.jpg',
+      scene_faces: ['https://cdn.example/own.jpg', C, '', '', '', ''],
     })
-    expect(picker().textContent).toContain('crm.client.story.photo.own')
-    const tile = host.querySelector(
-      '.story-reel__frame img'
-    ) as HTMLImageElement
-    expect(tile.src).toBe('https://cdn.example/own.jpg')
 
+    // "As by default" takes scene 2's pick back.
     await act(async () => {
-      ;(picker().querySelector('button') as HTMLButtonElement).click()
+      ;(
+        host.querySelector('[data-testid="story-scene-1"]') as HTMLElement
+      ).click()
+    })
+    await act(async () => {
+      ;(
+        sheet().querySelector(
+          '[data-testid="scene-photo-default"]'
+        ) as HTMLElement
+      ).click()
       await new Promise(r => setTimeout(r, 0))
     })
-    expect(calls).toContainEqual({ lead: CLIENT, face_url: '' })
-    expect(picker().textContent).toContain('crm.client.story.photo.avatar')
+    expect(calls).toContainEqual({
+      lead: CLIENT,
+      scene_faces: ['https://cdn.example/own.jpg', '', '', '', '', ''],
+    })
+    expect(tiles()).toEqual(['https://cdn.example/own.jpg', B, C])
   })
 
   /*

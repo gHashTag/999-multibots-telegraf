@@ -1113,6 +1113,12 @@ export function makeStoryReelTool(
           description:
             'фото с лицом на нашей полке: эталон владельца или crm_client_face клиента',
         },
+        image_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'фото для каждой сцены по порядку (её аватарки); пусто — image_url для всех', // cyrillic-ok: tool description
+        },
         scenes: {
           type: 'array',
           items: {
@@ -1175,6 +1181,15 @@ export function makeStoryReelTool(
         return { done: false, reason: 'image_url: ссылка на фото с лицом' }
       const style = String(args.style ?? '')
       const n = scenes.length
+      /*
+       * A PHOTO PER SCENE (crm-story-reel.t27 v31): scene i is drawn from
+       * its own photo when the caller sends one, else from the one source.
+       */
+      const perScene = Array.isArray(args.image_urls)
+        ? (args.image_urls as unknown[]).map(u => String(u ?? '').trim())
+        : []
+      const srcOf = (i: number): string =>
+        /^https?:\/\//.test(perScene[i] ?? '') ? perScene[i] : source
       const pause = pauseOf(args.pause_sec)
       /*
        * WHOSE REEL THIS IS (spec v22, voice_of). In a turn for a client
@@ -1239,14 +1254,14 @@ export function makeStoryReelTool(
       // The opening scene is the talking head itself, wide (spec v19,
       // OPEN_ON_SOURCE): the source photo as it is, nothing drawn or checked.
       for (let i = 0; i < n; i++)
-        if (sceneIsSource(i) && !stills[i]) stills[i] = source
+        if (sceneIsSource(i) && !stills[i]) stills[i] = srcOf(i)
       // A scene with no setting is a shot of the same photo (STUDIO_SHOTS):
       // cut, not drawn -- the studio and the look stay exactly the source's.
       const uncut: string[] = []
       await Promise.all(
         scenes.map(async (s, i) => {
           if (stills[i] || clips[i] || s.setting) return
-          stills[i] = await cut(source, shotOfScene(i)).catch(e => {
+          stills[i] = await cut(srcOf(i), shotOfScene(i)).catch(e => {
             uncut.push(`${i + 1}: ${String(e).slice(0, 160)}`)
             return ''
           })
@@ -1343,7 +1358,7 @@ export function makeStoryReelTool(
           await edit
             .handler(
               {
-                image_url: source,
+                image_url: srcOf(i),
                 prompt: stillPrompt(s.setting, style),
                 aspect_ratio: SPEC.ASPECT_RATIO,
               },

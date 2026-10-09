@@ -812,6 +812,12 @@ export interface StoryReady {
   faceCustom: boolean
   /** Her avatar: the default face to go back to. */
   avatar: string | null
+  /** All her profile photos, newest first (crm-story-reel v31). */
+  avatars: string[]
+  /** The photo of each scene, up to the most a reel takes (v31). */
+  sceneFaces: string[]
+  /** Whether the seller picked that scene's photo herself. */
+  scenePicked: boolean[]
   voice: boolean
   vip: boolean
   link: string | null
@@ -951,6 +957,11 @@ export function toEndCard(v: unknown): StoryEndCard | null {
   return Object.keys(out).length ? out : null
 }
 
+const strList = (v: unknown): string[] =>
+  Array.isArray(v)
+    ? v.filter((u): u is string => typeof u === 'string' && u.length > 0)
+    : []
+
 export function toStoryReady(r: Record<string, unknown>): StoryReady {
   const jobs = Array.isArray(r['jobs']) ? (r['jobs'] as unknown[]) : []
   return {
@@ -959,6 +970,11 @@ export function toStoryReady(r: Record<string, unknown>): StoryReady {
     face: str(r['face']),
     faceCustom: bool(r['face_custom']) ?? false,
     avatar: str(r['avatar']),
+    avatars: strList(r['avatars']),
+    sceneFaces: strList(r['scene_faces']),
+    scenePicked: Array.isArray(r['scene_picked'])
+      ? (r['scene_picked'] as unknown[]).map(v => v === true)
+      : [],
     voice: bool(r['voice']) ?? false,
     vip: bool(r['vip']) ?? false,
     link: str(r['one_tap_link']),
@@ -999,6 +1015,19 @@ export const loadStoryReel = async (lead: string) =>
  * The seller's own photo for her reels instead of her avatar; '' puts the
  * avatar back. The answer is the panel's new state.
  */
+/**
+ * The seller's photo for each scene (crm-story-reel v31): a list by scene,
+ * '' -- as by default. The answer is the panel's new state.
+ */
+export const saveStoryScenes = async (lead: string, faces: string[]) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_story_reel', {
+      lead,
+      scene_faces: faces,
+    }),
+    toStoryReady
+  )
+
 export const saveStoryFace = async (lead: string, url: string) =>
   map(
     await callTool<Record<string, unknown>>('crm_story_reel', {

@@ -469,6 +469,41 @@ export async function profilePhotoViaSession(
   )
 }
 
+/**
+ * EVERY profile photo of a person, newest first, up to `limit` (crm-story-reel
+ * v31): Telegram keeps the history, and a story reel takes one per scene.
+ * photos.GetUserPhotos through the same session and the same resolve-retry
+ * as the single photo above; [] when the session cannot see any.
+ */
+export async function profilePhotosViaSession(
+  c: any,
+  lead: { id: string; username?: string | null },
+  limit: number
+): Promise<Buffer[]> {
+  if (!c?.invoke || !c?.downloadMedia) return []
+  const target = lead.username
+    ? `@${String(lead.username).replace(/^@/, '')}`
+    : String(lead.id)
+  const { Api } = await import('telegram')
+  return resolvingPeer(c, target, async () => {
+    const userId = await c.getInputEntity(target)
+    const r = await c.invoke(
+      new Api.photos.GetUserPhotos({
+        userId,
+        offset: 0,
+        maxId: BigInt(0) as never,
+        limit,
+      })
+    )
+    const out: Buffer[] = []
+    for (const photo of (r?.photos ?? []).slice(0, limit)) {
+      const bytes = await c.downloadMedia(photo, {}).catch(() => undefined)
+      if (Buffer.isBuffer(bytes) && bytes.length > 0) out.push(bytes)
+    }
+    return out
+  })
+}
+
 export async function leadAvatarUrl(
   ctx: any,
   lead: { id: string; username?: string | null }

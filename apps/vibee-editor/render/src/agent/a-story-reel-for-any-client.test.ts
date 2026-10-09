@@ -891,6 +891,8 @@ describe('the seller asks from the CRM', () => {
       cta: STORY_DEFAULT_CTA,
     })
     expect(seen[0].args.scenes).toHaveLength(3)
+    // A photo per scene (v31): her one avatar, round and round.
+    expect(seen[0].args.image_urls).toEqual([FACE, FACE, FACE])
     // The writer named three places; a topic reel stays in the studio anyway
     // (spec v21, setting_drawn): no still is drawn, no face is checked.
     expect(seen[0].args.scenes.map((s: any) => s.setting)).toEqual(['', '', ''])
@@ -1249,6 +1251,71 @@ describe('crm_story_reel, the seller tool', () => {
       one_tap_link: 'https://t.me/example_bot?start=reel',
       jobs: [],
     })
+  })
+
+  it('reads all her profile photos once and gives every scene its own; a tap picks one scene (v31)', async () => {
+    const base = fakeBase()
+    qualify(base)
+    const A = 'https://bucket.example/avatar-a.jpg'
+    const B = 'https://bucket.example/avatar-b.jpg'
+    const PICK = 'https://bucket.example/pick.jpg'
+    let history: string[] | null = null
+    let picks: string[] | null = null
+    const inner = base.pool as unknown as {
+      query: (sql: string, p?: unknown[]) => Promise<{ rows: any[] }>
+    }
+    const pool = {
+      query: async (sql: string, p: unknown[] = []) => {
+        if (/SELECT avatar_urls FROM crm_people/.test(sql))
+          return { rows: [{ avatar_urls: history }] }
+        if (/SELECT scene_faces FROM story_faces/.test(sql))
+          return { rows: picks ? [{ scene_faces: picks }] : [] }
+        if (
+          /INSERT INTO story_faces \(owner_id, lead_id, face_url, scene_faces/.test(
+            sql
+          )
+        ) {
+          picks = p[2] == null ? null : JSON.parse(String(p[2]))
+          return { rows: [] }
+        }
+        return inner.query(sql, p)
+      },
+    }
+    const asked: string[] = []
+    const tool = makeCrmStoryTool({
+      deps: () => ({
+        ...depsOn(base, async () => ({})).deps,
+        avatarHistory: async (_c, lead) => {
+          asked.push(lead.id)
+          history = [A, B]
+          return history
+        },
+      }),
+      lookup: lookupNone,
+    })
+    const ctx = { telegramId: SELLER, pool } as unknown as ToolContext
+    const out: any = await tool.handler({ lead: LENA }, ctx)
+    expect(asked).toEqual([LENA])
+    // Her current avatar first, then the history; a photo per scene.
+    expect(out.avatars).toEqual([FACE, A, B])
+    expect(out.scene_faces.slice(0, 4)).toEqual([FACE, A, B, FACE])
+    // Read once: the next open does not ask the session again.
+    await tool.handler({ lead: LENA }, ctx)
+    expect(asked).toHaveLength(1)
+    // A tap on scene 2 picks its photo; the rest stay by default.
+    const picked: any = await tool.handler(
+      { lead: LENA, scene_faces: ['', PICK] },
+      ctx
+    )
+    expect(picked.scene_faces.slice(0, 3)).toEqual([FACE, PICK, B])
+    expect(picked.scene_picked.slice(0, 3)).toEqual([false, true, false])
+    // A link that is not https is refused, and nothing is kept.
+    const bad: any = await tool.handler(
+      { lead: LENA, scene_faces: ['http://x.io/a.jpg'] },
+      ctx
+    )
+    expect(bad.why).toBeTruthy()
+    expect(picks).toEqual(['', PICK])
   })
 
   it('names the voice and its price before anything is spent: clone, or her notes while the clone is refused', async () => {
