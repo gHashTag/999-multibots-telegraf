@@ -8,6 +8,11 @@
  * first, `/done <id>` closes one: only its owner, its author or an admin of
  * the group. Elsewhere the commands say where they work.
  *
+ * v7 (issue #3912): the agent proposes tasks. An answer in an office that
+ * gives a person work carries `[[todo:Name|what]]`; the bot strips the
+ * markers and puts a button per proposal under the answer. Only a person's
+ * press makes a task, within the day, once -- the presser is its author.
+ *
  * The numbers and rules are the spec's (src/spec/bot-neuro-office.gen.ts);
  * src/spec/bot-neuro-office.test.ts runs every test of the spec against
  * the functions below.
@@ -15,9 +20,10 @@
 import { Pool } from 'pg'
 import type { Telegraf } from 'telegraf'
 import * as OFFICE from '@/spec/bot-neuro-office.gen'
+import * as TEAM from '@/spec/bot-agent-team.gen'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { isOffice, speakerName } from './office'
+import { isOffice, memberNamedFirst, speakerName } from './office'
 
 /** spec may_track: tasks are kept in an office only. */
 export function mayTrack(office: boolean): boolean {
@@ -45,6 +51,47 @@ export function mayClose(
   return isOwner || isAuthor || isAdmin
 }
 
+/** spec task_from_answer: an answer alone never makes a task. */
+export function taskFromAnswer(pressed: boolean): boolean {
+  return pressed || !OFFICE.AGENT_TASK_NEEDS_PRESS
+}
+
+/** spec may_propose: proposals are made in an office only. */
+export function mayPropose(office: boolean): boolean {
+  return office
+}
+
+/** spec proposal_ok: a person's name and the work, within bounds. */
+export function proposalOk(
+  nameChars: number,
+  textChars: number,
+  namesMember: boolean
+): boolean {
+  return (
+    nameChars > 0 &&
+    nameChars <= OFFICE.SPEAKER_NAME_MAX_CHARS &&
+    textChars > 0 &&
+    textChars <= OFFICE.TASK_TEXT_MAX_CHARS &&
+    !namesMember
+  )
+}
+
+/** spec proposals_kept: at most PROPOSALS_PER_ANSWER_MAX buttons. */
+export function proposalsKept(proposed: number): number {
+  return proposed > OFFICE.PROPOSALS_PER_ANSWER_MAX
+    ? OFFICE.PROPOSALS_PER_ANSWER_MAX
+    : proposed
+}
+
+/** spec may_take: a person, within the day, once. */
+export function mayTake(
+  ageHours: number,
+  taken: boolean,
+  presserIsBot: boolean
+): boolean {
+  return ageHours < OFFICE.PROPOSAL_TTL_HOURS && !taken && !presserIsBot
+}
+
 export interface Db {
   query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>
 }
@@ -60,6 +107,17 @@ export const OFFICE_TASKS_TABLE = `CREATE TABLE IF NOT EXISTS office_tasks (
   done boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   done_at timestamptz
+)`
+
+export const OFFICE_PROPOSALS_TABLE = `CREATE TABLE IF NOT EXISTS office_task_proposals (
+  id bigserial PRIMARY KEY,
+  bot_username text NOT NULL,
+  chat_id bigint NOT NULL,
+  text text NOT NULL,
+  owner_name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  taken_by bigint,
+  taken_at timestamptz
 )`
 
 let pool: Pool | null = null
@@ -97,6 +155,7 @@ async function ready(): Promise<Db | null> {
   if (!schemaReady) {
     schemaReady = d
       .query(OFFICE_TASKS_TABLE)
+      .then(() => d.query(OFFICE_PROPOSALS_TABLE))
       .then(() => undefined)
       .catch(e => {
         schemaReady = null
@@ -313,6 +372,186 @@ export async function closeTask(
   return 'closed'
 }
 
+/** The marker an office answer proposes a task with: `[[todo:Name|what]]`. */
+export const TODO_MARKER = /\[\[todo:([^\]|\n]{0,200})\|([^\]\n]{0,1000})\]\]/gi
+
+export interface Proposal {
+  name: string
+  text: string
+}
+
+/**
+ * The answer without its task markers, and the proposals worth a button:
+ * a person's name and the work within the spec's bounds, never a team
+ * member, at most PROPOSALS_PER_ANSWER_MAX. Markers are stripped from every
+ * answer, kept or not: a marker is not words for people.
+ */
+export function officeProposals(answer: string): {
+  text: string
+  items: Proposal[]
+} {
+  const raw = String(answer ?? '')
+  const found: Proposal[] = []
+  for (const m of raw.matchAll(TODO_MARKER)) {
+    const name = m[1].replace(/\s+/g, ' ').trim()
+    const text = m[2].replace(/\s+/g, ' ').trim()
+    const member = memberNamedFirst(name) < TEAM.TEAM_SIZE
+    if (proposalOk([...name].length, [...text].length, member))
+      found.push({ name, text })
+  }
+  const text = raw
+    .replace(TODO_MARKER, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return { text, items: found.slice(0, proposalsKept(found.length)) }
+}
+
+/** The callback a proposal's button sends. */
+export const PROPOSAL_PREFIX = 'otp:'
+
+const BUTTON_TEXT_MAX = 60
+
+function proposalLabel(p: Proposal): string {
+  const label = `📌 ${p.name}: ${p.text}`
+  const chars = [...label]
+  return chars.length > BUTTON_TEXT_MAX
+    ? chars.slice(0, BUTTON_TEXT_MAX - 1).join('') + '…'
+    : label
+}
+
+/**
+ * The proposals of an answer as buttons under it, in an office only. Each
+ * is stored first, so a press after a restart still finds it. Never throws:
+ * a proposal that could not be offered leaves the answer as it was.
+ */
+export async function proposeTasks(
+  ctx: any,
+  items: readonly Proposal[]
+): Promise<number> {
+  try {
+    if (!items.length) return 0
+    if (!mayPropose(await isOffice(ctx))) return 0
+    const d = await ready()
+    if (!d) return 0
+    const rows: any[][] = []
+    for (const p of items) {
+      const { rows: made } = await d.query(
+        'INSERT INTO office_task_proposals (bot_username, chat_id, text, owner_name) VALUES ($1, $2, $3, $4) RETURNING id',
+        [
+          String(ctx.botInfo?.username ?? ''),
+          Number(ctx.chat.id),
+          p.text,
+          p.name,
+        ]
+      )
+      rows.push([
+        {
+          text: proposalLabel(p),
+          callback_data: `${PROPOSAL_PREFIX}${made[0].id}`,
+        },
+      ])
+    }
+    const isRu = isRussianFromState(ctx as any)
+    await ctx.reply(
+      say(
+        isRu,
+        'Записать задачи? Нажмите — и задача в списке /todos.',
+        'Make these tasks? Press one and it is on the /todos list.'
+      ),
+      { reply_markup: { inline_keyboard: rows } }
+    )
+    return rows.length
+  } catch (e) {
+    logger.warn('[office-tasks] proposals not offered', {
+      error: e instanceof Error ? e.message.slice(0, 120) : String(e),
+    })
+    return 0
+  }
+}
+
+/** The keyboard without the pressed button; none left -- no keyboard. */
+function withoutButton(message: any, data: string): any {
+  const rows = (message?.reply_markup?.inline_keyboard ?? [])
+    .map((row: any[]) => row.filter(b => b?.callback_data !== data))
+    .filter((row: any[]) => row.length > 0)
+  return rows.length ? { inline_keyboard: rows } : undefined
+}
+
+/**
+ * A press on a proposal: the presser makes it a task (spec may_take), and
+ * the button goes. Taken or stale, the button goes too, and the room is
+ * told only when it is stale -- a taken one already has its task line.
+ */
+export async function takeProposal(
+  ctx: any
+): Promise<'taken' | 'stale' | 'gone' | 'refused'> {
+  await ctx.answerCbQuery().catch(() => undefined)
+  const data = String(ctx.callbackQuery?.data ?? '')
+  const id = Number(data.slice(PROPOSAL_PREFIX.length))
+  const d = await ready()
+  if (!d || !Number.isSafeInteger(id) || id <= 0) return 'refused'
+  const isRu = isRussianFromState(ctx as any)
+  const dropButton = () =>
+    ctx
+      .editMessageReplyMarkup(withoutButton(ctx.callbackQuery?.message, data))
+      .catch(() => undefined)
+  const { rows } = await d.query(
+    'SELECT id, text, owner_name, taken_at, EXTRACT(EPOCH FROM (now() - created_at)) / 3600 AS age_hours FROM office_task_proposals WHERE id = $1 AND bot_username = $2 AND chat_id = $3',
+    [id, String(ctx.botInfo?.username ?? ''), Number(ctx.chat?.id)]
+  )
+  const p = rows[0]
+  if (!p) {
+    await dropButton()
+    return 'gone'
+  }
+  const presserIsBot = ctx.from?.is_bot === true
+  const taken = p.taken_at !== null && p.taken_at !== undefined
+  const age = Math.floor(Number(p.age_hours))
+  if (!mayTake(age, taken, presserIsBot)) {
+    if (presserIsBot) return 'refused'
+    await dropButton()
+    if (taken) return 'gone'
+    await ctx.reply(
+      say(
+        isRu,
+        `Предложение устарело. Если задача ещё нужна: /todo ${p.text}`,
+        `That proposal is stale. If the task still stands: /todo ${p.text}`
+      )
+    )
+    return 'stale'
+  }
+  const { rows: won } = await d.query(
+    'UPDATE office_task_proposals SET taken_by = $2, taken_at = now() WHERE id = $1 AND taken_at IS NULL RETURNING id',
+    [id, Number(ctx.from.id)]
+  )
+  if (!taskFromAnswer(won.length > 0)) {
+    await dropButton()
+    return 'gone'
+  }
+  const { rows: made } = await d.query(
+    'INSERT INTO office_tasks (bot_username, chat_id, text, owner_id, owner_name, author_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+    [
+      String(ctx.botInfo?.username ?? ''),
+      Number(ctx.chat.id),
+      p.text,
+      null,
+      p.owner_name,
+      Number(ctx.from.id),
+    ]
+  )
+  await dropButton()
+  const by = speakerName(ctx.from)
+  await ctx.reply(
+    say(
+      isRu,
+      `Задача #${made[0].id} — ${p.owner_name}: ${p.text} (записал(а) ${by})`,
+      `Task #${made[0].id} — ${p.owner_name}: ${p.text} (by ${by})`
+    )
+  )
+  return 'taken'
+}
+
 /** /todo, /todos, /done. Each answers; a failure is said, never silence. */
 export function registerOfficeTasks(bot: Telegraf<any>): void {
   const guard =
@@ -339,4 +578,5 @@ export function registerOfficeTasks(bot: Telegraf<any>): void {
   bot.command('todo', guard('todo', addTask))
   bot.command('todos', guard('todos', listTasks))
   bot.command('done', guard('done', closeTask))
+  bot.action(/^otp:\d+$/, guard('take', takeProposal))
 }

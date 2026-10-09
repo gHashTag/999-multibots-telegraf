@@ -40,9 +40,14 @@ import {
 import { setTopicTabsDbForTests } from '@/navigation/topics/tabs'
 import {
   mayClose,
+  mayPropose,
+  mayTake,
   mayTrack,
   ownerSource,
+  proposalOk,
+  proposalsKept,
   taskChars,
+  taskFromAnswer,
 } from '@/navigation/topics/officeTasks'
 
 describe('spec bot-neuro-office.t27', () => {
@@ -159,8 +164,43 @@ describe('spec bot-neuro-office.t27', () => {
     expect(catchupListsTasks(0)).toBe(false)
   })
 
+  it("the agent proposes a task, and only a person's press makes it one", () => {
+    expect(SPEC.AGENT_TASK_NEEDS_PRESS).toBe(true)
+    expect(taskFromAnswer(false)).toBe(false)
+    expect(taskFromAnswer(true)).toBe(true)
+    expect(mayPropose(true)).toBe(true)
+    expect(mayPropose(false)).toBe(false)
+  })
+
+  it('a proposal names a person and the work, within the bounds, never a team member', () => {
+    expect(proposalOk(4, 20, false)).toBe(true)
+    expect(proposalOk(64, 300, false)).toBe(true)
+    expect(proposalOk(65, 20, false)).toBe(false)
+    expect(proposalOk(4, 301, false)).toBe(false)
+    expect(proposalOk(0, 20, false)).toBe(false)
+    expect(proposalOk(4, 0, false)).toBe(false)
+    expect(proposalOk(4, 20, true)).toBe(false)
+  })
+
+  it('at most three proposals under one answer', () => {
+    expect(SPEC.PROPOSALS_PER_ANSWER_MAX).toBe(3)
+    expect(proposalsKept(2)).toBe(2)
+    expect(proposalsKept(3)).toBe(3)
+    expect(proposalsKept(4)).toBe(3)
+    expect(proposalsKept(0)).toBe(0)
+  })
+
+  it("a press takes a proposal once, within the day, never a bot's press", () => {
+    expect(SPEC.PROPOSAL_TTL_HOURS).toBe(24)
+    expect(mayTake(0, false, false)).toBe(true)
+    expect(mayTake(23, false, false)).toBe(true)
+    expect(mayTake(24, false, false)).toBe(false)
+    expect(mayTake(1, true, false)).toBe(false)
+    expect(mayTake(1, false, true)).toBe(false)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(6)
+    expect(SPEC.VERSION).toBe(7)
     expect(TAB_KEYS).toHaveLength(SPEC.OFFICE_TEAM_SIZE)
   })
 })

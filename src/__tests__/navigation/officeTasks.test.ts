@@ -273,6 +273,7 @@ describe('the office keeps its tasks', () => {
     const handlers: Record<string, any> = {}
     registerOfficeTasks({
       command: (name: string, h: any) => (handlers[name] = h),
+      action: () => undefined,
     } as any)
     expect(Object.keys(handlers).sort()).toEqual(['done', 'todo', 'todos'])
     setOfficeTasksDbForTests({
