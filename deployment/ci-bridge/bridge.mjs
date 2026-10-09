@@ -35,6 +35,11 @@
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
  *   POLL_S, STALE_MIN  120 and 60 by default
+ *   SINCE              ISO time; a PR last updated before it is left alone.
+ *                      Default: when this process started. 2026-10-09 the
+ *                      repository had 34 open PRs, most of them stale: a
+ *                      backfill would hold the shared runner for hours and
+ *                      post a comment on each red one nobody is working on.
  * Every line this service logs or posts is scrubbed of both secret values.
  */
 import { spawn } from 'node:child_process'
@@ -67,6 +72,7 @@ export function config(env = process.env) {
     pollMs: Number(env.POLL_S || 120) * 1000,
     staleMs: Number(env.STALE_MIN || 60) * 60_000,
     work: env.WORK_DIR || '/tmp/ci-bridge',
+    since: Date.parse(env.SINCE || '') || Date.now(),
   }
 }
 
@@ -88,6 +94,11 @@ export function needsRun(status, now, staleMs) {
   if (!status) return true
   if (status.state !== 'pending') return false
   return now - Date.parse(status.updated_at) > staleMs
+}
+
+/* A PR nobody has touched since the bridge began is not backfilled. */
+export function recent(pr, since) {
+  return Date.parse(pr?.updated_at) >= since
 }
 
 /* Only a head that lives in this repository: a fork's code never runs here. */
@@ -321,7 +332,7 @@ export async function tick(cfg, deps) {
   )
   const done = []
   for (const pr of prs) {
-    if (!ownHead(pr, cfg.repo)) continue
+    if (!ownHead(pr, cfg.repo) || !recent(pr, cfg.since)) continue
     const combined = await ghJson(
       cfg,
       deps,
