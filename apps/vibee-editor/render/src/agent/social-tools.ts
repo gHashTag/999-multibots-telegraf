@@ -29,6 +29,7 @@ import { connectStates } from './connect-card'
 import { linkedInCommentary, xPost } from './social-api'
 import { isNotConnected } from './rounds'
 import type { NetworkLogin } from '../browser/logins'
+import { COURSE_URL, hasHashRoute, shareLinkOk } from './course-outreach'
 
 /** Opens the app on Profile, where MetaConnectCard connects each network. */
 export const CONNECT_LINK = 'https://t.me/t27ai_bot?start=app_profile'
@@ -75,6 +76,15 @@ export function draftOf(args: Record<string, any>): Draft {
   if (summary.length > SUMMARY_MAX)
     throw new Error(`summary is longer than ${SUMMARY_MAX} characters`)
   const link = httpsUrl(args?.link, 'link')
+  /*
+   * A #/ route previews as the HOME page in X, Telegram and LinkedIn: the
+   * crawler never sees what follows '#' (skill link-previews). Refused with
+   * the static page to use instead (spec course-outreach share_link_ok).
+   */
+  if (!shareLinkOk(hasHashRoute(link)))
+    throw new Error(
+      `link is a #/ route, which previews as the home page; give its static page (the course: ${COURSE_URL})`
+    )
   const cardUrl = args?.image_url ? httpsUrl(args.image_url, 'image_url') : ''
   let networks: Network[] = [...SOCIAL_NETWORKS]
   if (args?.networks !== undefined) {

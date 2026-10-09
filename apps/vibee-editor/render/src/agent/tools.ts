@@ -33,6 +33,7 @@ import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { SPEC_BANK_TOOLS } from './spec-bank-tools'
 import { JOB_TOOLS } from './job-tools'
+import { COURSE_OUTREACH_TOOLS } from './course-outreach-tool'
 import { MAIL_TOOLS } from './mail-tools'
 import { SOCIAL_TOOLS } from './social-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
@@ -4326,6 +4327,12 @@ TOOLS.push(...SPEC_BANK_TOOLS)
  * writing to one of them is a send like any other and waits for the press.
  */
 TOOLS.push(...JOB_TOOLS)
+/*
+ * The course for the programmers among the owner's contacts
+ * (course-outreach-tool.ts, spec course-outreach.t27): found by their own
+ * words, tagged in the CRM, one draft each, sent only on the owner's press.
+ */
+TOOLS.push(...COURSE_OUTREACH_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
 TOOLS.push(...SOCIAL_TOOLS)
 /*
