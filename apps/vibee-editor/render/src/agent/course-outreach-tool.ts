@@ -58,6 +58,7 @@ import {
   BATCH_MAX,
   BIO_SOURCE,
   CAMPAIGN,
+  CAP_WEEK_DAYS,
   COURSE_URL,
   HISTORY_ROWS,
   NETS,
@@ -74,7 +75,10 @@ import {
   maySend,
   netOf,
   networkChannel,
+  networkDayCap,
+  networkMaySend,
   networkVerdict,
+  networkWeekCap,
   pitchStateOf,
   roundGo,
   type Classified,
@@ -695,11 +699,20 @@ async function networks(ctx: ToolContext) {
         })
       }
     const after = await factsOf(pool, owner)
+    const sent = await sentOnNetwork(pool, owner, network).catch(() => null)
     out[network] = {
       login,
       opened: true,
       read: people.length,
       verdict,
+      /* spec v3: what the network takes; step "draft" refuses past it. */
+      cap: {
+        day: networkDayCap(network),
+        week: networkWeekCap(network),
+        week_days: CAP_WEEK_DAYS,
+        sent_today: sent?.day ?? 'unknown',
+        sent_week: sent?.week ?? 'unknown',
+      },
       ...(got.ok ? {} : { why: got.why ?? 'the page did not read' }),
       programmers: filed.map(f => ({
         ...(f as Record<string, unknown>),
@@ -770,6 +783,86 @@ export function oneLine(text: string): string {
     .trim()
 }
 
+// ---- the send cap per network (spec v3) ---------------------------------------------
+
+/** What crm_outreach recorded on one network: today (UTC day) and this week. */
+export interface NetSentCount {
+  day: number
+  week: number
+}
+
+/**
+ * How many messages went out on this network for this owner: since the
+ * start of the UTC day, and in the last CAP_WEEK_DAYS days. A network
+ * person's lead id carries the network (`linkedin:` / `x:`), so the count is
+ * by that prefix, over every campaign: what the network tolerates is the
+ * account's, not one campaign's. A table never created counts 0; any other
+ * failure throws, and the caller sends nothing.
+ */
+export async function sentOnNetwork(
+  pool: Pool,
+  owner: string,
+  network: Net
+): Promise<NetSentCount> {
+  const [r] = await rowsOr(
+    pool,
+    `SELECT count(*) FILTER (
+              WHERE sent_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+            )::int AS day,
+            count(*) FILTER (
+              WHERE sent_at > now() - make_interval(days => $3)
+            )::int AS week
+       FROM crm_outreach WHERE owner_id = $1 AND lead_id LIKE $2`,
+    [owner, `${network}:%`, CAP_WEEK_DAYS]
+  )
+  return { day: Number(r?.day ?? 0), week: Number(r?.week ?? 0) }
+}
+
+/** The PENDING cards of this owner on this network, not yet expired. */
+function waitingCards(owner: string, channel: Net): number {
+  let n = 0
+  for (const p of PENDING.values())
+    if (
+      p.owner === owner &&
+      p.channel === channel &&
+      Date.now() - p.at <= PENDING_TTL_MS
+    )
+      n += 1
+  return n
+}
+
+/**
+ * spec network_may_send over what this host counted, plus the cards already
+ * waiting for his press (a draft offers no more than what is left once they
+ * go). null when one more may go; otherwise the refusal, naming the caps.
+ * An unread count is a refusal too: nothing is typed on a guess.
+ */
+async function capRefusal(
+  pool: Pool,
+  owner: string,
+  network: Net,
+  waiting: number
+): Promise<string | null> {
+  let sent: NetSentCount
+  try {
+    sent = await sentOnNetwork(pool, owner, network)
+  } catch (e) {
+    return `how many went out on ${NET_LABEL[network]} could not be read (${String((e as Error)?.message ?? e).slice(0, 80)}); nothing typed`
+  }
+  // t27-plumbing: fits the counts to network_may_send's u16; the compiled body decides
+  const u16 = (n: number) => Math.min(n, 0xffff)
+  if (
+    networkMaySend(network, u16(sent.day + waiting), u16(sent.week + waiting))
+  )
+    return null
+  return (
+    `send cap on ${NET_LABEL[network]}: ${networkDayCap(network)} a day (UTC) and ` +
+    `${networkWeekCap(network)} in ${CAP_WEEK_DAYS} days. Sent today ${sent.day}, ` +
+    `in ${CAP_WEEK_DAYS} days ${sent.week}, waiting on cards ${waiting}. Nothing typed; ` +
+    'the next message goes when the count falls below the cap.'
+  )
+}
+
 async function draft(args: Record<string, any>, ctx: ToolContext) {
   const list = Array.isArray(args?.drafts) ? args.drafts : []
   const asked = String(args?.network ?? 'telegram')
@@ -788,6 +881,17 @@ async function draft(args: Record<string, any>, ctx: ToolContext) {
     }
   }
   const owner = String(ctx.telegramId)
+  /* spec network_may_send: no card past what the network takes today and this week. */
+  if (channel !== 'telegram') {
+    await ensure(ctx.pool as Pool)
+    const cap = await capRefusal(
+      ctx.pool as Pool,
+      owner,
+      channel,
+      waitingCards(owner, channel)
+    )
+    if (cap) return { sent: false, asked: false, refused: cap }
+  }
   const f = await factsOf(ctx.pool as Pool, owner)
   const ok: Ready[] = []
   const refused: Record<string, string> = {}
@@ -862,6 +966,14 @@ async function sendOnNet(
   network: Net,
   d: Ready
 ): Promise<string> {
+  /* spec network_may_send, counted NOW: the cards of one evening do not add up past it. */
+  const cap = await capRefusal(
+    ctx.pool as Pool,
+    String(ctx.telegramId),
+    network,
+    0
+  )
+  if (cap) return `not sent: ${cap}`
   const logins = await deps.logins(ctx).catch(() => null)
   const login = logins?.find(l => l.id === network)?.state ?? 'unknown'
   if (!roundGo(login))

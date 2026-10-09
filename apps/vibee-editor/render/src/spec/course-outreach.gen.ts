@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "course-outreach" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const COURSE_URL = "https://t27.ai/learn/course/" satisfies string;
 export const COURSE_LESSONS = 27 satisfies number;
 export const WIDGETS_PER_LESSON = 1 satisfies number;
@@ -37,6 +37,12 @@ export const NETWORK_SCROLLS = 8 satisfies number;
 export const NETWORK_CARD_MAX = 1 satisfies number;
 export const NETWORK_REPLIES_READ = false satisfies boolean;
 export const TYPES_PASSWORDS = false satisfies boolean;
+export const LINKEDIN_DAY_CAP = 20 satisfies number;
+export const LINKEDIN_WEEK_CAP = 90 satisfies number;
+export const X_DAY_CAP = 25 satisfies number;
+export const X_WEEK_CAP = 100 satisfies number;
+export const CAP_WEEK_DAYS = 7 satisfies number;
+export const UNKNOWN_NETWORK_SENDS = false satisfies boolean;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn verdict was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn channel was not emitted -- this backend lowers declarations, not bodies.
@@ -54,6 +60,14 @@ export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn network_channel was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn card_max was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn card_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_day_cap was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_week_cap was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_may_send was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -77,7 +91,7 @@ export const RUN_LIVE = false satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COURSE_URL", "COURSE_LESSONS", "WIDGETS_PER_LESSON", "LAB_LESSONS", "CAMPAIGN", "TAG", "SIGN_GROUPS", "PROGRAMMER_BAR", "HISTORY_ROWS", "EVIDENCE_QUOTES", "EVIDENCE_CHARS", "DRAFT_MIN_CHARS", "DRAFT_MAX_CHARS", "BATCH_MAX", "PENDING_TTL_MS", "SEND_WAIT_MS", "SENDS_WITHOUT_PRESS", "OPT_OUT_UNKNOWN_BLOCKS", "REFUSAL_BLOCKS_FOREVER", "BIO_SOURCE", "BIOS_PER_RUN", "BIO_GAP_MS", "BIO_REFRESH_DAYS", "BIO_MAX_CHARS", "BIO_KEEPS_ONLY_TEXT", "NETWORK_READ_MAX", "NETWORK_SCROLLS", "NETWORK_CARD_MAX", "NETWORK_REPLIES_READ", "TYPES_PASSWORDS", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "COURSE_URL", "COURSE_LESSONS", "WIDGETS_PER_LESSON", "LAB_LESSONS", "CAMPAIGN", "TAG", "SIGN_GROUPS", "PROGRAMMER_BAR", "HISTORY_ROWS", "EVIDENCE_QUOTES", "EVIDENCE_CHARS", "DRAFT_MIN_CHARS", "DRAFT_MAX_CHARS", "BATCH_MAX", "PENDING_TTL_MS", "SEND_WAIT_MS", "SENDS_WITHOUT_PRESS", "OPT_OUT_UNKNOWN_BLOCKS", "REFUSAL_BLOCKS_FOREVER", "BIO_SOURCE", "BIOS_PER_RUN", "BIO_GAP_MS", "BIO_REFRESH_DAYS", "BIO_MAX_CHARS", "BIO_KEEPS_ONLY_TEXT", "NETWORK_READ_MAX", "NETWORK_SCROLLS", "NETWORK_CARD_MAX", "NETWORK_REPLIES_READ", "TYPES_PASSWORDS", "LINKEDIN_DAY_CAP", "LINKEDIN_WEEK_CAP", "X_DAY_CAP", "X_WEEK_CAP", "CAP_WEEK_DAYS", "UNKNOWN_NETWORK_SENDS", "RUN_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

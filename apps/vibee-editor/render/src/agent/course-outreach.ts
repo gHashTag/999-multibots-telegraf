@@ -33,12 +33,18 @@ import * as L from '../spec/course-outreach.logic'
  * DMs, a shared group, his own bio, his own headline (the owner's words about
  * him, his name and his username are not evidence). round_go: only a network
  * browser_logins calls signed in is opened. card_max / card_ok: a Telegram
- * card holds a batch; a network card holds one message.
+ * card holds a batch; a network card holds one message. (v3)
+ * network_day_cap / network_week_cap / network_may_send: how many messages a
+ * network takes in a UTC day and in the last CAP_WEEK_DAYS days; a network
+ * with no known caps has cap 0 and never sends.
  */
 export {
   cardMax,
   cardOk,
   maySend,
+  networkDayCap,
+  networkMaySend,
+  networkWeekCap,
   ownWords,
   roundGo,
 } from '../spec/course-outreach.logic'
@@ -63,6 +69,7 @@ export const {
   NETWORK_READ_MAX,
   NETWORK_SCROLLS,
   NETWORK_CARD_MAX,
+  CAP_WEEK_DAYS,
 } = SPEC
 
 /** Where a piece of a person's text came from. */

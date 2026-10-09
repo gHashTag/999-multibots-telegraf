@@ -287,5 +287,71 @@
     "from": "        if (!report.stopped)\n          bios = await readBios(",
     "to": "        if (false)\n          bios = await readBios(",
     "tests": ["crm-memory-tools.test.ts"]
+  },
+  {
+    "name": "v3: the press ignores the send cap",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (cap) return `not sent: ${cap}`",
+    "to": "  if (false) return `not sent: ${cap}`"
+  },
+  {
+    "name": "v3: the draft ignores the send cap",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if (cap) return { sent: false, asked: false, refused: cap }",
+    "to": "    if (false) return { sent: false, asked: false, refused: cap }"
+  },
+  {
+    "name": "v3: cards waiting are not counted",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "      waitingCards(owner, channel)\n",
+    "to": "      0\n"
+  },
+  {
+    "name": "v3: a Telegram card counts as a network card",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "      p.channel === channel &&\n",
+    "to": ""
+  },
+  {
+    "name": "v3: an expired card still waits",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "      Date.now() - p.at <= PENDING_TTL_MS",
+    "to": "      true"
+  },
+  {
+    "name": "v3: the count is not by network",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    [owner, `${network}:%`, CAP_WEEK_DAYS]",
+    "to": "    [owner, '%', CAP_WEEK_DAYS]"
+  },
+  {
+    "name": "v3: the day is counted as the week",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "networkMaySend(network, u16(sent.day + waiting), u16(sent.week + waiting))",
+    "to": "networkMaySend(network, u16(sent.week + waiting), u16(sent.week + waiting))"
+  },
+  {
+    "name": "v3: the week is counted as the day",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "networkMaySend(network, u16(sent.day + waiting), u16(sent.week + waiting))",
+    "to": "networkMaySend(network, u16(sent.day + waiting), u16(sent.day + waiting))"
+  },
+  {
+    "name": "v3: an unread count sends",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  } catch (e) {\n    return `how many went out",
+    "to": "  } catch (e) {\n    return null\n    return `how many went out"
+  },
+  {
+    "name": "v3: the day is the server's, not UTC",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
+    "to": "date_trunc('day', now())"
+  },
+  {
+    "name": "v3: the round does not tell the count",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "        sent_today: sent?.day ?? 'unknown',",
+    "to": "        sent_today: 'unknown',"
   }
 ]

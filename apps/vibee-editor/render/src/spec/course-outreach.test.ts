@@ -20,8 +20,12 @@ import {
   draftProblemOf,
   hasHashRoute,
   maySend,
+  NETS,
   networkChannel,
+  networkDayCap,
+  networkMaySend,
   networkVerdict,
+  networkWeekCap,
   ownWords,
   pitchStateOf,
   roundGo,
@@ -351,10 +355,60 @@ describe('specs/automation/course-outreach.t27 against the host', () => {
     // The tool-level proof: '... and no second message there' below.
   })
 
+  it('each network has its own day and week cap', () => {
+    expect(networkDayCap('linkedin')).toBe(20)
+    expect(networkWeekCap('linkedin')).toBe(90)
+    expect(networkDayCap('x')).toBe(25)
+    expect(networkWeekCap('x')).toBe(100)
+    expect(networkDayCap('linkedin')).toBeLessThan(networkWeekCap('linkedin'))
+    expect(networkDayCap('x')).toBeLessThan(networkWeekCap('x'))
+    expect(SPEC.CAP_WEEK_DAYS).toBe(7)
+    // The host's networks are the ones the spec caps.
+    expect(NETS.map(n => networkDayCap(n) > 0)).toEqual([true, true])
+    // The tool-level proof: 'networks: the send cap per network' below.
+  })
+
+  it('an unknown network has cap 0 and never sends', () => {
+    expect(networkDayCap('telegram')).toBe(0)
+    expect(networkWeekCap('telegram')).toBe(0)
+    expect(networkDayCap('')).toBe(0)
+    expect(networkWeekCap('facebook')).toBe(0)
+    expect(networkMaySend('telegram', 0, 0)).toBe(false)
+    expect(networkMaySend('', 0, 0)).toBe(false)
+    expect(networkMaySend('facebook', 0, 0)).toBe(false)
+    expect(SPEC.UNKNOWN_NETWORK_SENDS).toBe(false)
+  })
+
+  it('the day cap stops the send at the cap', () => {
+    expect(networkMaySend('linkedin', 0, 0)).toBe(true)
+    expect(networkMaySend('linkedin', 19, 19)).toBe(true)
+    expect(networkMaySend('linkedin', 20, 20)).toBe(false)
+    expect(networkMaySend('linkedin', 21, 21)).toBe(false)
+    expect(networkMaySend('x', 24, 24)).toBe(true)
+    expect(networkMaySend('x', 25, 25)).toBe(false)
+    expect(networkMaySend('x', 26, 26)).toBe(false)
+  })
+
+  it('the week cap stops the send at the cap', () => {
+    expect(networkMaySend('linkedin', 0, 89)).toBe(true)
+    expect(networkMaySend('linkedin', 0, 90)).toBe(false)
+    expect(networkMaySend('linkedin', 0, 91)).toBe(false)
+    expect(networkMaySend('x', 0, 99)).toBe(true)
+    expect(networkMaySend('x', 0, 100)).toBe(false)
+    expect(networkMaySend('x', 0, 101)).toBe(false)
+  })
+
+  it('the X caps are not the LinkedIn caps', () => {
+    expect(networkMaySend('x', 20, 20)).toBe(true)
+    expect(networkMaySend('linkedin', 20, 20)).toBe(false)
+    expect(networkMaySend('x', 0, 90)).toBe(true)
+    expect(networkMaySend('linkedin', 0, 90)).toBe(false)
+  })
+
   it('nobody has been written to through it yet', () => {
     expect(SPEC.RUN_LIVE).toBe(false)
     expect(maySend('pending')).toBe(false)
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
     expect(SPEC.HISTORY_ROWS).toBe(5000)
     expect(SPEC.EVIDENCE_QUOTES).toBe(3)
     expect(SPEC.EVIDENCE_CHARS).toBe(80)
@@ -375,12 +429,16 @@ describe('the compiled logic', () => {
     expect(networkChannel).toBe(LOGIC.networkChannel)
     expect(cardMax).toBe(LOGIC.cardMax)
     expect(cardOk).toBe(LOGIC.cardOk)
+    expect(networkDayCap).toBe(LOGIC.networkDayCap)
+    expect(networkWeekCap).toBe(LOGIC.networkWeekCap)
+    expect(networkMaySend).toBe(LOGIC.networkMaySend)
     expect(bioNext).toBe(LOGIC.bioNext)
     // The compiled body refuses what its type cannot hold; the host clamps
     // before it calls (draftCounts, readBios).
     expect(() => numberOk(1.5)).toThrow(RangeError)
     expect(() => bioDue(-1, false)).toThrow(RangeError)
     expect(() => batchOk(256)).toThrow(RangeError)
+    expect(() => networkMaySend('x', 65536, 0)).toThrow(RangeError)
   })
 
   it('a str crosses as UTF-8 bytes, both ways', () => {
@@ -524,6 +582,8 @@ function fakeDb() {
       channel: string
     }>,
     clock: 1_800_000_000,
+    /** The send count cannot be read. */
+    countDown: false,
     sql: [] as string[],
   }
   const pool = {
@@ -595,6 +655,32 @@ function fakeDb() {
             .filter(r => r.owner === p[0] && r.campaign === p[1])
             .map(r => ({ lead_id: r.lead, sent: r.sent })),
         }
+      if (s.startsWith('SELECT count(*) FILTER (')) {
+        // Only the windows the statement names: the UTC day, and N days back.
+        if (
+          !s.includes(
+            "WHERE sent_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
+          ) ||
+          !s.includes('WHERE sent_at > now() - make_interval(days => $3)') ||
+          !s.endsWith(
+            'FROM crm_outreach WHERE owner_id = $1 AND lead_id LIKE $2'
+          )
+        )
+          throw new Error(`fake db: unknown count: ${s.slice(0, 120)}`)
+        if (db.countDown) throw new Error('db down')
+        const mine = db.outreach.filter(
+          r => r.owner === p[0] && ilike(r.lead, p[1])
+        )
+        const dayStart = Math.floor(db.clock / 86_400) * 86_400
+        return {
+          rows: [
+            {
+              day: mine.filter(r => r.sent >= dayStart).length,
+              week: mine.filter(r => r.sent > db.clock - p[2] * 86_400).length,
+            },
+          ],
+        }
+      }
       if (s.startsWith('SELECT lead_id, evidence FROM crm_tags'))
         return {
           rows: db.tags
@@ -1865,5 +1951,175 @@ describe('networks: one message, one card, one press', () => {
     expect(card).toContain('https://x.com/gleb_codes')
     expect(card).toContain('hello')
     expect(card.length).toBeLessThanOrEqual(CARD_MAX)
+  })
+})
+
+describe('networks: the send cap per network', () => {
+  const ready = async () => {
+    const w = world()
+    browser({ reads: goodReads })
+    await tool.handler({ step: 'networks' }, ctxOf(w.pool))
+    return w
+  }
+  const DAY = 86_400
+  /** n messages already sent on a network, `ago` seconds before the clock. */
+  const sentBefore = (
+    w: ReturnType<typeof world>,
+    network: 'linkedin' | 'x',
+    n: number,
+    ago: number
+  ) => {
+    for (let i = 0; i < n; i++)
+      w.db.outreach.push({
+        owner: OWNER,
+        lead: `${network}:earlier-${ago}-${i}`,
+        campaign: SPEC.CAMPAIGN,
+        sent: w.db.clock - ago,
+      })
+  }
+  /** Seconds since the start of the UTC day at the fake clock (8 hours). */
+  const today = (w: ReturnType<typeof world>) => w.db.clock % DAY
+  const draftOn = async (
+    w: ReturnType<typeof world>,
+    network: 'linkedin' | 'x'
+  ) => {
+    const lead = network === 'x' ? X_GLEB : LI_ANNA
+    const why = network === 'x' ? 'Rust' : 'Python'
+    return (await tool.handler(
+      {
+        step: 'draft',
+        network,
+        drafts: [{ lead, text: netDraft(lead, why) }],
+      },
+      ctxOf(w.pool)
+    )) as any
+  }
+
+  it('a send at the day cap is refused, and nothing is typed in his browser', async () => {
+    const w = await ready()
+    const rec = browser()
+    // 19 today: one more may go, so the card is made ...
+    sentBefore(w, 'linkedin', 19, 60)
+    const { approval } = await draftOn(w, 'linkedin')
+    expect(approval).toBeTruthy()
+    // ... and by the press the 20th went out from another card.
+    sentBefore(w, 'linkedin', 1, 30)
+    const before = w.db.outreach.length
+    const r: any = await tool.handler({ step: 'send', approval }, ctxOf(w.pool))
+    expect(r.sent).toBe(false)
+    expect(r.results[LI_ANNA]).toMatch(
+      /^not sent: send cap on LinkedIn: 20 a day/
+    )
+    expect(r.results[LI_ANNA]).toContain('Sent today 20')
+    expect(r.results[LI_ANNA]).toContain('Nothing typed')
+    expect(rec.typed).toEqual([])
+    expect(w.db.outreach).toHaveLength(before)
+  })
+
+  it('a send one below the day cap goes', async () => {
+    const w = await ready()
+    const rec = browser()
+    sentBefore(w, 'x', 24, 60)
+    const { approval } = await draftOn(w, 'x')
+    const r: any = await tool.handler({ step: 'send', approval }, ctxOf(w.pool))
+    expect(r.results).toEqual({ [X_GLEB]: 'sent' })
+    expect(rec.typed).toHaveLength(1)
+  })
+
+  it('at the week cap no card is made', async () => {
+    const w = await ready()
+    const rec = browser()
+    // 90 on LinkedIn over the last days, none of them today.
+    sentBefore(w, 'linkedin', 90, today(w) + DAY)
+    const r = await draftOn(w, 'linkedin')
+    expect(r.approval).toBeUndefined()
+    expect(r.refused).toMatch(
+      /send cap on LinkedIn: 20 a day \(UTC\) and 90 in 7 days/
+    )
+    expect(r.refused).toContain('Sent today 0, in 7 days 90')
+    expect(rec.asked).toEqual([])
+    // X has its own count: LinkedIn's 90 are not X's.
+    expect((await draftOn(w, 'x')).approval).toBeTruthy()
+  })
+
+  it('yesterday counts for the week, not for today', async () => {
+    const w = await ready()
+    browser()
+    sentBefore(w, 'linkedin', 20, today(w) + 1)
+    expect((await draftOn(w, 'linkedin')).approval).toBeTruthy()
+  })
+
+  it('a message older than the week counts for nothing', async () => {
+    const w = await ready()
+    browser()
+    sentBefore(w, 'linkedin', 200, SPEC.CAP_WEEK_DAYS * DAY + 1)
+    expect((await draftOn(w, 'linkedin')).approval).toBeTruthy()
+  })
+
+  it('cards waiting for his press count against what is left', async () => {
+    const w = await ready()
+    const rec = browser()
+    sentBefore(w, 'x', 24, 60)
+    // A Telegram card waiting is not an X message.
+    await tool.handler({ step: 'find' }, ctxOf(w.pool))
+    await tool.handler(
+      {
+        step: 'draft',
+        drafts: [{ lead: ANNA, text: draftFor(ANNA, 'Verilog') }],
+      },
+      ctxOf(w.pool)
+    )
+    expect((await draftOn(w, 'x')).approval).toBeTruthy()
+    expect(rec.asked).toHaveLength(2)
+    // The 25th is on a card already: no second card past the cap.
+    const r = await draftOn(w, 'x')
+    expect(r.refused).toMatch(/send cap on X: 25 a day/)
+    expect(r.refused).toContain('waiting on cards 1')
+    expect(rec.asked).toHaveLength(2)
+    // An expired card waits for nobody.
+    const now = Date.now()
+    const clock = vi
+      .spyOn(Date, 'now')
+      .mockReturnValue(now + SPEC.PENDING_TTL_MS + 1)
+    try {
+      expect((await draftOn(w, 'x')).approval).toBeTruthy()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('a count that cannot be read sends nothing and makes no card', async () => {
+    const w = await ready()
+    const rec = browser()
+    const { approval } = await draftOn(w, 'x')
+    w.db.countDown = true
+    const r: any = await tool.handler({ step: 'send', approval }, ctxOf(w.pool))
+    expect(r.results[X_GLEB]).toMatch(
+      /^not sent: how many went out on X could not be read/
+    )
+    expect(rec.typed).toEqual([])
+    expect(w.db.outreach).toEqual([])
+    const again = await draftOn(w, 'linkedin')
+    expect(again.refused).toMatch(/could not be read/)
+    expect(rec.asked).toHaveLength(1)
+  })
+
+  it('the round tells the caps and the counts', async () => {
+    const w = world()
+    sentBefore(w, 'x', 3, 60)
+    browser({ reads: goodReads })
+    const r: any = await tool.handler({ step: 'networks' }, ctxOf(w.pool))
+    expect(r.networks.x.cap).toEqual({
+      day: 25,
+      week: 100,
+      week_days: 7,
+      sent_today: 3,
+      sent_week: 3,
+    })
+    expect(r.networks.linkedin.cap).toMatchObject({
+      day: 20,
+      week: 90,
+      sent_today: 0,
+    })
   })
 })
