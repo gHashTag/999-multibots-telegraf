@@ -1,5 +1,8 @@
 import { inngest } from '@/inngest_app/client'
-import { broadcastService } from '@/services/plan_b/broadcast.service'
+import {
+  broadcastService,
+  splitIntoBatches,
+} from '@/services/plan_b/broadcast.service'
 import { logger } from '@/utils/logger'
 import { NonRetriableError } from 'inngest'
 import { createInngestFailureHandler } from '@/inngest_app/client'
@@ -27,6 +30,9 @@ export const broadcastMessage = inngest.createFunction(
     id: 'broadcast-message-send',
     name: '📢 Broadcast Message', // Optional display name for v3
     retries: 3,
+    // One broadcast at a time per bot: two overlapping fan-outs from the same
+    // bot token share Telegram's ~30 msg/s budget and trip 429 for both.
+    concurrency: [{ key: 'event.data.bot_name', limit: 1 }],
     // Messages many users → admin visibility on failure.
     onFailure: createInngestFailureHandler('broadcast-message-send'),
   },
@@ -108,20 +114,40 @@ export const broadcastMessage = inngest.createFunction(
         return { success: false, ...skipped, users: users.length }
       }
 
-      // Шаг 4: Отправка сообщений
-      const result = await step.run('send-messages', async () => {
-        const botName = params.bot_name ? toBotName(params.bot_name) : undefined
-        const broadcastResult = await broadcastService.sendToAllUsers(
-          params.imageUrl,
-          params.textRu,
-          {
-            ...params,
-            bot_name: botName,
-            textEn: params.textEn,
+      // Step 4: send in batches of 25, one step.run per batch, a pause between
+      // them. One step for the whole audience (the shape until 2026-09-17)
+      // meant a retry after a mid-way crash re-sent to everyone already served,
+      // and one slow Telegram answer could push the step past the HTTP budget.
+      // A batch step that fails is retried on its own; a batch that finished
+      // is memoised by Inngest and never runs again.
+      const botName = params.bot_name ? toBotName(params.bot_name) : undefined
+      const batches = splitIntoBatches(users)
+      const result = { successCount: 0, errorCount: 0 }
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i]
+        const firstId = String(batch[0]?.telegram_id ?? i)
+        const batchResult = await step.run(
+          `send-batch-${firstId}`,
+          async () => {
+            const r = await broadcastService.sendToAllUsers(
+              params.imageUrl,
+              params.textRu,
+              {
+                ...params,
+                bot_name: botName,
+                textEn: params.textEn,
+                recipients: batch,
+              }
+            )
+            return r || { successCount: 0, errorCount: 0 }
           }
         )
-        return broadcastResult || { successCount: 0, errorCount: 0 }
-      })
+        result.successCount += batchResult.successCount
+        result.errorCount += batchResult.errorCount
+        if (i < batches.length - 1) {
+          await step.sleep(`pause-after-${firstId}`, '1s')
+        }
+      }
 
       // Шаг 5: Анализ результатов
       const summary = await step.run('analyze-results', async () => {
