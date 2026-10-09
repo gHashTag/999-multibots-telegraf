@@ -1,5 +1,5 @@
 /**
- * Spec agent-hive-group.t27 (gHashTag/t27#6430, v2 #6558, v3 #6564), every test block run against
+ * Spec agent-hive-group.t27 (gHashTag/t27#6430, v2 #6558, v3 #6564, v4 #8136), every test block run against
  * the bot's code: the rules in core/bot/agentHive/rules.ts, and the two places
  * that live by them -- the chain depth and the creation claim.
  */
@@ -12,6 +12,11 @@ import {
   chainOpen,
   claimFresh,
   cooled,
+  dmCarries,
+  dmHandoffsSent,
+  dmHeard,
+  dmRunsTurn,
+  dmTagOk,
   mayAnswer,
   briefFits,
   briefSource,
@@ -209,7 +214,50 @@ describe('agent-hive-group.t27', () => {
     expect(summaryCount(201)).toBe(200)
   })
 
+  it('in private a colleague is heard only with the hand-off tag', () => {
+    expect(dmHeard(false, false, false)).toBe(true)
+    expect(dmHeard(true, true, true)).toBe(true)
+    expect(dmHeard(true, false, true)).toBe(false)
+    expect(dmHeard(true, true, false)).toBe(false)
+  })
+
+  it('an ask runs a turn, an answer is only carried', () => {
+    expect(SPEC.DM_ASK).toBe(1)
+    expect(SPEC.DM_ANSWER).toBe(2)
+    expect(dmRunsTurn(SPEC.DM_ASK)).toBe(true)
+    expect(dmRunsTurn(SPEC.DM_ANSWER)).toBe(false)
+    expect(dmRunsTurn(0)).toBe(false)
+    expect(dmCarries(SPEC.DM_ANSWER)).toBe(true)
+    expect(dmCarries(SPEC.DM_ASK)).toBe(false)
+    expect(dmCarries(0)).toBe(false)
+  })
+
+  it('an answer is carried only while its ask is fresh', () => {
+    expect(SPEC.DM_ANSWER_WINDOW_MS).toBe(1800000)
+    expect(dmTagOk(SPEC.DM_ASK, 4000000000)).toBe(true)
+    expect(dmTagOk(SPEC.DM_ANSWER, 0)).toBe(true)
+    expect(dmTagOk(SPEC.DM_ANSWER, 1799999)).toBe(true)
+    expect(dmTagOk(SPEC.DM_ANSWER, 1800000)).toBe(false)
+    expect(dmTagOk(SPEC.DM_ANSWER, 4000000000)).toBe(false)
+    // "never asked" is Infinity in the host; it is the largest u32.
+    expect(dmTagOk(SPEC.DM_ANSWER, Infinity)).toBe(false)
+    expect(dmTagOk(0, 0)).toBe(false)
+    expect(dmTagOk(3, 0)).toBe(false)
+  })
+
+  it('an answer hands off to at most two colleagues', () => {
+    expect(SPEC.MAX_DM_HANDOFFS).toBe(2)
+    for (const [asked, sent] of [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [3, 2],
+      [100, 2],
+    ])
+      expect(dmHandoffsSent(asked), String(asked)).toBe(sent)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 })

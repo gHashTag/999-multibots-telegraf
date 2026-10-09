@@ -30,12 +30,31 @@ src/__tests__/core/agentHive/*      spec vectors, install, edges, relay -- lines
 1. **A bot turn runs in the PERSON's name** (`origin` in chain.ts), never the bot owner's. A bot
    message whose origin is unknown is not answered. Otherwise "@A ask @B to do X" spends the
    owner's wallet.
-2. **Bots outside the hive are never answered** (`isHiveBot`), and no bot is answered in private.
+2. **Bots outside the hive are never answered** (`isHiveBot`). In private, a bot is heard only
+   as a COLLEAGUE (an agent bot of the same owner) with the `#a2a` hand-off tag (spec v4 `dm_heard`).
 3. **Depth ≤ 3, 5 s cooldown per bot** -- numbers live in the spec, not in TS.
 4. Callback handlers call `answerCbQuery()` first; every button is admin-only (`isAdmin`) and acts
    only on bots in this manager's agent list.
 5. A second tap on Create must not request a second bot (#3645). Two taps BEFORE confirming still
    show two request keyboards; Telegram creates only what the person confirms.
+
+## A2A in private, bot to bot (spec v4, #3929)
+
+Telegram lets a bot message another bot by `@username` (`sendMessage`) when Bot-to-Bot
+Communication Mode is on for BOTH bots. In a private turn the agent is told its colleagues;
+a line `@colleague_bot: the task` in its answer hands the task off (at most `MAX_DM_HANDOFFS`
+= 2 per answer). Wire format (`handoff.ts`): `#a2a <kind> <person id>` then the words.
+
+- **ask (1)** runs the colleague's turn in the PERSON's name; the answer goes back tagged.
+- **answer (2)** is carried to the person (`↪ @colleague:`) and starts no turn -- so a private
+  chain is two messages and cannot loop; carried only within `DM_ANSWER_WINDOW_MS` (30 min) of
+  the ask (`dm_tag_ok`), so a colleague never writes to a person nobody asked it about.
+- A refused hand-off (the mode is off) is told to the person with the fix.
+- The asks are remembered in memory: a redeploy between the ask and the answer drops the
+  answer (it is then "unasked").
+
+The hive rules in `rules.ts` run from the spec's compiled logic (`agent-hive-group.logic.ts`)
+since v4; `rules.ts` keeps only the u32 clamp and the text matchers.
 
 ## Owner steps the API cannot do
 

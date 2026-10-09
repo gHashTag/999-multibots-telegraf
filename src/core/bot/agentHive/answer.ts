@@ -26,6 +26,11 @@ import { HIVE_AGENTS, hiveAgent } from './catalogue'
 import {
   addressed,
   callsAll,
+  dmCarries,
+  dmHandoffsSent,
+  dmHeard,
+  dmRunsTurn,
+  dmTagOk,
   followsUp,
   heardWhileMuted,
   keepsSeenMark,
@@ -42,6 +47,7 @@ import {
   noteSent,
   sinceLastBotAnswer,
 } from './chain'
+import { handoffsIn, noteAsk, readTagged, sinceAsk, tagged } from './handoff'
 import {
   briefFor,
   logLine,
@@ -57,10 +63,14 @@ export const AGENT_COPY = {
   ru: {
     textOnly: 'Пока я читаю только текст. Напишите, пожалуйста, словами 🙏',
     busy: 'Не получилось ответить прямо сейчас. Попробуйте ещё раз через минуту.',
+    handoffFailed: (bot: string, why: string) =>
+      `Не смог передать задачу @${bot}: ${why}. Включите Bot-to-Bot Communication Mode в @BotFather у обоих ботов.`,
   },
   en: {
     textOnly: 'For now I read text only. Please write it in words 🙏',
     busy: "I couldn't answer right now. Please try again in a minute.",
+    handoffFailed: (bot: string, why: string) =>
+      `I couldn't hand the task to @${bot}: ${why}. Turn on Bot-to-Bot Communication Mode in @BotFather for both bots.`,
   },
 } as const
 
@@ -122,6 +132,23 @@ export function rosterLine(chatId: number, selfId: number): string {
   return mates.length
     ? `[Hive group. Other agents here: ${mates.join('; ')}. Tag one by its @username to ask it; answer only what is asked of you.]`
     : '[Hive group.]'
+}
+
+/** The other agent bots of the same owner: the colleagues one may hand a task to. */
+export const colleaguesOf = (row: ManagedBotRow) =>
+  [...agentBots.values()].filter(
+    b => b.ownerId === row.ownerId && b.botId !== row.botId
+  )
+
+/** What a private turn is told about its colleagues (spec v4 hand-off). */
+export function dmRosterLine(mates: readonly ManagedBotRow[]): string {
+  const list = mates
+    .map(b => {
+      const a = hiveAgent(b.agentId ?? '')
+      return `@${b.botUsername}${a ? ` (${a.name.en}: ${a.role.en})` : ''}`
+    })
+    .join('; ')
+  return `[Your colleagues, the other agents of this owner: ${list}. To hand a task to one, write a line "@username: the task" in your answer; its answer will be brought to the person.]`
 }
 
 /**
@@ -211,7 +238,8 @@ export interface AgentCtx {
   botInfo?: { id: number; username: string }
   telegram: {
     sendMessage: (
-      chatId: number,
+      /** A chat id, or a bot's @username for a private bot-to-bot message. */
+      chatId: number | string,
       text: string,
       extra?: Record<string, unknown>
     ) => Promise<{ message_id: number }>
@@ -262,7 +290,9 @@ export async function answerAsAgent(
   if (!isPrivate && !isGroup) return false
   const fromBot = m.from.is_bot === true
   const inHive = isGroup && row.hiveChatId === chat.id
-  if (fromBot && (!inHive || !isHiveBot(m.from.id))) return false
+  // In a group only the hive's bots are heard; in private, only a colleague
+  // with the hand-off tag (answerColleague, spec v4).
+  if (fromBot && isGroup && (!inHive || !isHiveBot(m.from.id))) return false
 
   const text = (m.text ?? m.caption ?? '').trim()
   const copy = (m.from.language_code ?? 'ru').startsWith('ru')
@@ -336,13 +366,14 @@ export async function answerAsAgent(
     if (origin === null) return false
     if (!mayAnswer(fromBot, depth, sinceLastBotAnswer(me.id, now))) return false
     if (fromBot) noteBotAnswer(me.id, now)
-  } else if (fromBot) return false
+  } else if (fromBot) return answerColleague(ctx, row, m, deps, now)
 
   if (!text) {
     if (isPrivate) await ctx.telegram.sendMessage(chat.id, copy.textOnly)
     return false
   }
 
+  const mates = isPrivate ? colleaguesOf(row) : []
   const author = fromBot
     ? `@${m.from.username ?? m.from.id} (an agent of this hive)`
     : m.from.first_name ||
@@ -357,7 +388,9 @@ export async function answerAsAgent(
           : []),
         `${author} wrote:\n${text}`,
       ].join('\n')
-    : text
+    : mates.length
+      ? `${dmRosterLine(mates)}\n${text}`
+      : text
   // Never the bot owner's name: a bot hop must not turn a guest's request
   // into the owner's (wallet, tools, keeper rights).
   const identity = String(origin)
@@ -430,6 +463,8 @@ export async function answerAsAgent(
       logLine(chat.id, thread, sent.message_id, `@${me.username}`, part)
   }
   const done = answered && parts.length > 0
+  if (done && isPrivate && origin !== null)
+    await handOff(ctx, row, reply, mates, origin, copy, now)
   // spec keeps_seen_mark: a failed turn takes the mark away.
   if (marked && !keepsSeenMark(done))
     await react(ctx, chat.id, m.message_id, null)
@@ -477,4 +512,103 @@ async function remakeTopic(
     })
     return undefined
   }
+}
+
+/**
+ * Hand the tasks an answer names to colleagues, bot to bot (spec v4): at most
+ * dm_handoffs_sent of them, each a private message to the colleague's
+ * @username. A refusal (the mode is off) is told to the person, with the fix.
+ */
+async function handOff(
+  ctx: AgentCtx,
+  row: ManagedBotRow,
+  reply: string,
+  mates: readonly ManagedBotRow[],
+  origin: number,
+  copy: (typeof AGENT_COPY)[keyof typeof AGENT_COPY],
+  now: number
+): Promise<void> {
+  const me = ctx.botInfo
+  if (!me || !mates.length) return
+  const asks = handoffsIn(
+    reply,
+    mates.map(b => b.botUsername)
+  )
+  for (const h of asks.slice(0, dmHandoffsSent(asks.length))) {
+    const mate = mates.find(b => b.botUsername === h.username)
+    if (!mate) continue
+    noteAsk(me.id, mate.botId, origin, now)
+    try {
+      await ctx.telegram.sendMessage(
+        `@${h.username}`,
+        tagged(SPEC.DM_ASK, origin, h.task)
+      )
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error)
+      logger.warn('[agent-hive] a hand-off was refused', {
+        from: row.botUsername,
+        to: h.username,
+        error: why,
+      })
+      await ctx.telegram.sendMessage(
+        origin,
+        copy.handoffFailed(h.username, why.slice(0, 200))
+      )
+    }
+  }
+}
+
+/**
+ * A colleague writes in private (spec v4). An ask runs this agent's turn in
+ * the person's name and the answer goes back to the colleague, tagged; an
+ * answer to this agent's own ask is carried to the person and starts no turn.
+ */
+async function answerColleague(
+  ctx: AgentCtx,
+  row: ManagedBotRow,
+  m: Msg,
+  deps: AgentTurnDeps,
+  now: number
+): Promise<boolean> {
+  const me = ctx.botInfo
+  const chat = ctx.chat
+  if (!me || !chat || !m.from || !row.agentId) return false
+  const sender = agentBots.get(m.from.id)
+  const colleague =
+    !!sender && sender.ownerId === row.ownerId && sender.botId !== me.id
+  const tag = readTagged((m.text ?? '').trim())
+  const tagOk =
+    !!tag && dmTagOk(tag.kind, sinceAsk(me.id, m.from.id, tag.origin, now))
+  if (!tag || !dmHeard(true, colleague, tagOk)) return false
+  const from = `@${m.from.username ?? m.from.id}`
+  if (dmCarries(tag.kind)) {
+    for (const part of chunks(`↪ ${from}:\n${tag.body}`))
+      await ctx.telegram.sendMessage(tag.origin, part)
+    return true
+  }
+  if (!dmRunsTurn(tag.kind)) return false
+  if (!mayAnswer(true, 1, sinceLastBotAnswer(me.id, now))) return false
+  noteBotAnswer(me.id, now)
+  let reply: string
+  try {
+    reply = await deps.ask(
+      String(tag.origin),
+      `[${from}, a colleague agent of yours, hands you this task from the person you both serve. Do it; your answer is carried to that person.]\n${tag.body}`,
+      { agent: row.agentId }
+    )
+  } catch (error) {
+    logger.error("[agent-hive] a colleague's task was not answered", {
+      bot: row.botUsername,
+      from,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    reply = AGENT_COPY.en.busy
+  }
+  // The tag line takes room from Telegram's limit.
+  for (const part of chunks(reply, CHUNK - 40))
+    await ctx.telegram.sendMessage(
+      chat.id,
+      tagged(SPEC.DM_ANSWER, tag.origin, part)
+    )
+  return true
 }
