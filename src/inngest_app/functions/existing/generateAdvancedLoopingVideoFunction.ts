@@ -10,6 +10,7 @@ import fetch from 'node-fetch'
 import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
 import { telegramClientOptionsFor } from '@/services/telegramApi'
+import { getBotByName } from '@/core/bot'
 
 const replicateApi = {
   createPrediction: async (version: string, input: object) => {
@@ -71,6 +72,37 @@ const replicateApi = {
   },
 }
 
+// Spec: t27 specs/functions/reels-loop-generate.t27 (NOTE 2026-10-09).
+// The bot is resolved from bot_name, so the token lives in env and never in
+// an event payload (stored with the event, shown in the Inngest UI and traces).
+// bot_token is still honoured for senders not yet migrated, with a warning;
+// a payload carrying neither cannot deliver and will not heal on retry.
+export function resolveBotForDelivery(
+  bot_name: string | undefined,
+  bot_token: string | undefined
+): Telegraf {
+  if (bot_name) {
+    const { bot, error } = getBotByName(bot_name)
+    if (!bot) {
+      throw new NonRetriableError(
+        `Unknown bot_name for delivery: ${bot_name}${error ? ` (${error})` : ''}`
+      )
+    }
+    return bot as unknown as Telegraf
+  }
+  if (bot_token) {
+    logger.warn(
+      '[reels-loop-generate] bot_token in event payload is deprecated; send bot_name'
+    )
+    return new Telegraf(bot_token, {
+      telegram: telegramClientOptionsFor(bot_token),
+    })
+  }
+  throw new NonRetriableError(
+    'reels-loop-generate needs bot_name (preferred) or bot_token to deliver'
+  )
+}
+
 export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
   {
     // Canonical id (spec-first manifest). Legacy id was
@@ -92,6 +124,7 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       telegram_id,
       image_urls = [],
       music_url,
+      bot_name,
       bot_token,
       model_version, // 'kwaivgi/kling-v1.6-pro' version
       prompt,
@@ -111,7 +144,10 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       logger.info('🎬 [KLING MORPH v7] Function started', {
         telegram_id,
         images_count: image_urls.length,
-        has_bot_token: !!bot_token,
+        bot_name,
+        // Legacy senders put the token itself in the payload; counted, never
+        // printed. New senders send bot_name and the token stays in env.
+        legacy_bot_token_in_payload: !!bot_token,
         model_version,
       })
     } catch (error) {
@@ -230,9 +266,7 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
     })
 
     await step.run('send-to-telegram', async () => {
-      const bot = new Telegraf(bot_token!, {
-        telegram: telegramClientOptionsFor(bot_token),
-      })
+      const bot = resolveBotForDelivery(bot_name, bot_token)
       await bot.telegram.sendVideo(
         telegram_id,
         { source: finalVideoPath },

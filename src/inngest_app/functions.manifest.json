@@ -141,7 +141,8 @@
       "control": "spec+code",
       "export": "generateAdvancedLoopingVideoFunction",
       "notes": [
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "2026-10-09: the delivery bot is resolved from event.data.bot_name (getBotByName; token stays in env); bot_token in the payload is honoured only as a deprecated fallback with a warning. Spec: t27 specs/functions/reels-loop-generate.t27"
       ]
     },
     {
@@ -634,7 +635,8 @@
       "control": "spec+code",
       "export": "generateContentScripts",
       "notes": [
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "2026-10-09: openai_api_key removed from the event schema (zod strips it); the key comes from OPENAI_API_KEY inside transcribe-audio and generate-scripts. Spec: t27 specs/functions/content-scripts-generate.t27"
       ]
     },
     {
