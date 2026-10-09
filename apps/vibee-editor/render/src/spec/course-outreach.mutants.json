@@ -1,0 +1,110 @@
+[
+  {
+    "name": "the gate removed: a denied card sends",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!maySend(state))",
+    "to": "  if (false)"
+  },
+  {
+    "name": "an expired card counts as Allow",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  return answer === 'allowed'",
+    "to": "  return answer !== 'denied'"
+  },
+  {
+    "name": "a card answered by someone else is honoured",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if (a && a.telegramId !== p.owner)",
+    "to": "    if (false)"
+  },
+  {
+    "name": "a used card is not spent",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  PENDING.delete(id)\n  if (!maySend(state))",
+    "to": "  if (!maySend(state))"
+  },
+  {
+    "name": "the press does not ask the stop list again",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if (now !== 'ok') {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "an unreadable stop list counts as empty",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    optedOut: f.optedOut === null || f.optedOut.has(lead),",
+    "to": "    optedOut: f.optedOut !== null && f.optedOut.has(lead),"
+  },
+  {
+    "name": "any message counts as a reply",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    replied: sent !== undefined && (f.dm.get(lead)?.lastIn ?? 0) > sent,",
+    "to": "    replied: sent !== undefined,"
+  },
+  {
+    "name": "the owner's own messages count as her reply",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "max(EXTRACT(EPOCH FROM at)) FILTER (WHERE NOT \"out\") AS last_in",
+    "to": "max(EXTRACT(EPOCH FROM at)) AS last_in"
+  },
+  {
+    "name": "the owner's own words are evidence",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "          WHERE owner_id = $1 AND NOT \"out\" AND text ILIKE ANY($2::text[])",
+    "to": "          WHERE owner_id = $1 AND text ILIKE ANY($2::text[])"
+  },
+  {
+    "name": "a removed person is tagged again",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "      if (f.dropped.has(p.id)) continue\n",
+    "to": ""
+  },
+  {
+    "name": "an old tag is counted as new",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "      if (!f.tagged.has(p.id)) fresh.push(p.id)",
+    "to": "      fresh.push(p.id)"
+  },
+  {
+    "name": "one sign makes a programmer",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (groups >= SPEC.PROGRAMMER_BAR) return 'programmer'",
+    "to": "  if (groups >= 1) return 'programmer'"
+  },
+  {
+    "name": "signs outrank his own no",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (negated) return 'not'",
+    "to": "  if (negated && groups === 0) return 'not'"
+  },
+  {
+    "name": "a Latin word matches inside another",
+    "file": "src/agent/course-outreach.ts",
+    "from": "'(?:s|es|ed|ing)?(?![\\\\p{L}\\\\p{N}_])'",
+    "to": "'(?:s|es|ed|ing)?'"
+  },
+  {
+    "name": "a broadcast passes as personal",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (!f.namesWhy) return 'not-personal'\n",
+    "to": ""
+  },
+  {
+    "name": "any number passes",
+    "file": "src/agent/course-outreach.ts",
+    "from": "    n === SPEC.LAB_LESSONS",
+    "to": "    n > 0"
+  },
+  {
+    "name": "six drafts on one card",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  return n >= 1 && n <= SPEC.BATCH_MAX",
+    "to": "  return n >= 1 && n <= SPEC.BATCH_MAX + 1"
+  },
+  {
+    "name": "social_post shares a #/ route",
+    "file": "src/agent/social-tools.ts",
+    "from": "  if (!shareLinkOk(hasHashRoute(link)))",
+    "to": "  if (false)"
+  }
+]
