@@ -14,13 +14,16 @@
 // v2 (2026-10-09): the bridge heals a stale deploy (Railway skipped the deploys of #3945,
 // #3946, #3947, #3949 and #3957: the service kept running old code); a trusted `/recheck`
 // comment newer than the mark runs the head again.
+// v3 (2026-10-09): the live app may write neither statuses nor checks but may comment
+// (logged: checks=read issues=write pull_requests=write); the mark is then one comment per
+// head, edited from pending to the verdict, and only the app's own comment counts as one.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ci_bridge {
     pub const KIND : str = "automation";
     pub const ID : str = "ci-bridge";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // The name of the mark on GitHub, a commit status context or a check run name.
     pub const CONTEXT : str = "railway/checks";
@@ -57,11 +60,19 @@ module automation::ci_bridge {
     pub const MARK_NONE : u8 = 0;
     pub const MARK_STATUS : u8 = 1;
     pub const MARK_CHECK : u8 = 2;
-    fn mark_mode(has_perm_map: bool, statuses_write: bool, checks_write: bool) -> u8 {
+    pub const MARK_COMMENT : u8 = 3;
+    fn mark_mode(has_perm_map: bool, statuses_write: bool, checks_write: bool, comments_write: bool) -> u8 {
         if !has_perm_map { return MARK_STATUS; }
         if statuses_write { return MARK_STATUS; }
         if checks_write { return MARK_CHECK; }
+        if comments_write { return MARK_COMMENT; }
         return MARK_NONE;
+    }
+
+    // A comment carries a mark only when the app itself wrote it: a person who pastes the
+    // marker cannot make a head look checked.
+    fn comment_is_mark(has_marker: bool, by_this_app: bool) -> bool {
+        return has_marker && by_this_app;
     }
 
     // The verdict of one run. A runner that answered nothing, ran nothing or failed itself
@@ -138,12 +149,19 @@ module automation::ci_bridge {
         assert(!needs_run(true, true, 1800));
     }
 
-    test "a status when allowed, else a check run, else nothing runs" {
-        assert(mark_mode(false, false, false) == MARK_STATUS);
-        assert(mark_mode(true, true, true) == MARK_STATUS);
-        assert(mark_mode(true, true, false) == MARK_STATUS);
-        assert(mark_mode(true, false, true) == MARK_CHECK);
-        assert(mark_mode(true, false, false) == MARK_NONE);
+    test "a status when allowed, else a check run, else a comment, else nothing runs" {
+        assert(mark_mode(false, false, false, false) == MARK_STATUS);
+        assert(mark_mode(true, true, true, true) == MARK_STATUS);
+        assert(mark_mode(true, true, false, false) == MARK_STATUS);
+        assert(mark_mode(true, false, true, true) == MARK_CHECK);
+        assert(mark_mode(true, false, false, true) == MARK_COMMENT);
+        assert(mark_mode(true, false, false, false) == MARK_NONE);
+    }
+
+    test "only the app's own comment is a mark" {
+        assert(comment_is_mark(true, true));
+        assert(!comment_is_mark(true, false));
+        assert(!comment_is_mark(false, true));
     }
 
     test "an error is never green and any failed suite is red" {
@@ -165,7 +183,7 @@ module automation::ci_bridge {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 2);
+        assert(VERSION == 3);
     }
 }
 

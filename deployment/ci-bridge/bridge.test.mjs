@@ -25,6 +25,8 @@ import {
   appJwt,
   config,
   heal,
+  marker,
+  commentMark,
   recheckAsked,
   missing,
   serve,
@@ -419,7 +421,12 @@ describe('a check run when statuses are not ours to write', () => {
     assert.equal(markMode(undefined), 'statuses')
     assert.equal(markMode({ statuses: 'write', checks: 'write' }), 'statuses')
     assert.equal(markMode({ statuses: 'read', checks: 'write' }), 'checks')
-    assert.equal(markMode({ pull_requests: 'write' }), null)
+    assert.equal(markMode({ pull_requests: 'read' }), null)
+    assert.equal(markMode({ issues: 'write' }), 'comment')
+    assert.equal(
+      markMode({ pull_requests: 'write', checks: 'read' }),
+      'comment'
+    )
   })
 
   it('a run in progress reads as pending, a finished one as its conclusion', () => {
@@ -822,5 +829,106 @@ describe('a bridge left on old code heals itself', () => {
       'refused'
     )
     assert.match(logs.join(' '), /redeploy ci-bridge by hand/)
+  })
+})
+
+describe("the verdict as the app's own PR comment (spec v3)", () => {
+  const APP = 4242
+  const appCfg = {
+    ...cfg,
+    token: '',
+    appId: String(APP),
+    appKey: 'unused: the minted token is fresh',
+    minted: {
+      token: 'inst-token-value-4', // secret-guard-ok: test fake, not a credential
+      until: Date.parse('2026-10-10T00:00:00Z'),
+      perms: { checks: 'read', issues: 'write', pull_requests: 'write' },
+    },
+  }
+  const byApp = (body, at = '2026-10-09T11:30:00Z', id = 1) => ({
+    id,
+    body,
+    updated_at: at,
+    created_at: at,
+    performed_via_github_app: { id: APP },
+  })
+
+  it("reads only the app's own marker for this head", async () => {
+    const read = async comments => {
+      const w = world({ prs: [], issueComments: { 7: comments } })
+      return commentMark(appCfg, w.deps, pr(7, 'aaa111'))
+    }
+    assert.deepEqual(await read([byApp(marker('aaa111', 'failure') + '\nx')]), {
+      state: 'failure',
+      updated_at: '2026-10-09T11:30:00Z',
+      id: 1,
+    })
+    assert.equal(
+      await read([
+        {
+          ...byApp(marker('aaa111', 'success')),
+          performed_via_github_app: null,
+        },
+      ]),
+      null,
+      'a person pasting the marker makes no mark'
+    )
+    assert.equal(
+      await read([byApp(marker('bbb222', 'success'))]),
+      null,
+      'another head'
+    )
+    assert.equal(await read([byApp('no marker')]), null)
+  })
+
+  it('opens one pending comment and edits it to the verdict with the tail', async () => {
+    const w = world({
+      prs: [pr(7, 'aaa111')],
+      runnerSays: 'FAIL y.test.ts\n::result {"types":0,"guard":1}\n',
+    })
+    const inner = w.deps.fetch
+    w.deps.fetch = async (url, init = {}) => {
+      const u = new URL(url)
+      const own = {
+        url: u.pathname + u.search,
+        method: init.method || 'GET',
+        init,
+      }
+      if (u.pathname.endsWith('/comments') && init.method === 'POST') {
+        w.calls.push(own)
+        return new Response(JSON.stringify({ id: 77 }), { status: 201 })
+      }
+      if (u.pathname.endsWith('/issues/comments/77')) {
+        w.calls.push(own)
+        return new Response('{}')
+      }
+      return inner(url, init)
+    }
+    const [d] = await tick({ ...appCfg }, w.deps)
+    assert.equal(d.state, 'failure')
+    const posts = w.calls.filter(
+      c => c.method === 'POST' && c.url.endsWith('/comments')
+    )
+    assert.equal(posts.length, 1, 'one comment, no second failure comment')
+    assert.ok(
+      JSON.parse(posts[0].init.body).body.startsWith(
+        marker('aaa111', 'pending')
+      )
+    )
+    const edit = w.calls.find(c => c.method === 'PATCH')
+    const body = JSON.parse(edit.init.body).body
+    assert.ok(body.startsWith(marker('aaa111', 'failure')))
+    assert.match(body, /FAIL y\.test\.ts/)
+    assert.equal(w.calls.filter(c => c.url.includes('/statuses/')).length, 0)
+  })
+
+  it('a head whose comment mark is finished is not run again', async () => {
+    const w = world({
+      prs: [pr(7, 'aaa111')],
+      issueComments: { 7: [byApp(marker('aaa111', 'success'))] },
+      runnerSays: '',
+    })
+    assert.deepEqual(await tick({ ...appCfg }, w.deps), [])
+    assert.ok(!w.calls.some(c => c.url.startsWith('/run')))
   })
 })

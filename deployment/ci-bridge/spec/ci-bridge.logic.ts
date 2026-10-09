@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 045ed2383f4da2733d13398641d89e8096724fc41498183a74468143553582ce
+// spec-sha256: 61e4f0923086bffdbb04b486977bbafecf60bed2433ad59df785f11309e60af0
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABFQNgA39/fwF/YAF/AX9gBH9/f38BfwMJCAAAAQECAAAABAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsHjgEJBm1lbW9yeQIAD3QyN19yZWNoZWNrX2R1ZQAADHQyN19oZWFsX2R1ZQABDXQyN19yZW5ld19kdWUAAgx0MjdfY29tbWVudHMAAxF0MjdfdmVyZGljdF9zdGF0ZQAEDXQyN19tYXJrX21vZGUABQ10MjdfbmVlZHNfcnVuAAYNdDI3X3J1bnNfaGVyZQAHCpUBCAoAIAAgAXEgAnELEQAgACACckF/cyABQdcES3ELCAAgAEGtAkkLBwAgAEEARwscAEECIANBAEdBAiACGyABQQFxG0ECIABBAXEbCxwAQQFBAkEAIAJBAXEbIAFBAXEbQQEgAEEBcRsLIAEBf0EBIQMCQCAAQQFxRQ0AIAEgAkGQHEtxIQMLIAMLCgAgACABIAJPcQs='
+  'AGFzbQEAAAABGwRgA39/fwF/YAF/AX9gBH9/f38Bf2ACf38BfwMKCQAAAQECAwIAAAQFAXABAQEFAwEAEAYJAX8BQYCAwAALB6QBCgZtZW1vcnkCAA90MjdfcmVjaGVja19kdWUAAAx0MjdfaGVhbF9kdWUAAQ10MjdfcmVuZXdfZHVlAAIMdDI3X2NvbW1lbnRzAAMRdDI3X3ZlcmRpY3Rfc3RhdGUABBN0MjdfY29tbWVudF9pc19tYXJrAAUNdDI3X21hcmtfbW9kZQAGDXQyN19uZWVkc19ydW4ABw10MjdfcnVuc19oZXJlAAgKpQEJCgAgACABcSACcQsRACAAIAJyQX9zIAFB1wRLcQsIACAAQa0CSQsHACAAQQBHCxwAQQIgA0EAR0ECIAIbIAFBAXEbQQIgAEEBcRsLBwAgACABcQskAEEBQQJBA0EAIANBAXEbIAJBAXEbIAFBAXEbQQEgAEEBcRsLIAEBf0EBIQMCQCAAQQFxRQ0AIAEgAkGQHEtxIQMLIAMLCgAgACABIAJPcQs='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -54,14 +54,26 @@ export function needsRun(
 export function markMode(
   hasPermMap: boolean,
   statusesWrite: boolean,
-  checksWrite: boolean
+  checksWrite: boolean,
+  commentsWrite: boolean
 ): number {
   return (
     (W.t27_mark_mode as (...a: number[]) => number)(
       hasPermMap ? 1 : 0,
       statusesWrite ? 1 : 0,
-      checksWrite ? 1 : 0
+      checksWrite ? 1 : 0,
+      commentsWrite ? 1 : 0
     ) >>> 0
+  )
+}
+
+/** spec fn comment_is_mark */
+export function commentIsMark(hasMarker: boolean, byThisApp: boolean): boolean {
+  return (
+    (W.t27_comment_is_mark as (...a: number[]) => number)(
+      hasMarker ? 1 : 0,
+      byThisApp ? 1 : 0
+    ) !== 0
   )
 }
 

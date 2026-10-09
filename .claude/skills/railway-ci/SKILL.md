@@ -38,6 +38,11 @@ tri ci 3951               # one PR
 tri ci --recheck 3951     # run a finished head again (a /recheck comment)
 ```
 
+- **The live app may only comment** (logged 2026-10-09 20:10: `checks=read issues=write
+pull_requests=write`). Spec v3 `MARK_COMMENT`: the mark is ONE PR comment per head,
+  first line `<!-- railway/checks sha=<sha> state=<state> -->`, opened pending and edited
+  to the verdict (with the output tail when red). Only a comment the app wrote
+  (`performed_via_github_app.id`) counts. `tri ci` reads it too.
 - `/recheck` alone in a PR comment, from OWNER/MEMBER/COLLABORATOR, newer than the
   mark, runs that head on the next pass (spec v2 `recheck_due`).
 - **Self-healing deploy** (spec v2 `heal_due`): with `RAILWAY_API_TOKEN` set, a bridge

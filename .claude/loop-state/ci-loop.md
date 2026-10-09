@@ -34,3 +34,8 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 - 09.10.2026 19:43: live after #3953 -- the Node 22 host runs the spec logic; the app may
   not mark; the fallback token (TRIOS_QUEEN_RELEASE_TOKEN) is refused on this private repo
   too. Only the owner's permission grant unblocks marks. The fallback now lasts one pass.
+
+- 09.10.2026 20:10: self-heal worked live (stale 9e36392d4 -> asked Railway -> 82409df40
+  deployed). Perms logged: checks=read issues=write pull_requests=write. Spec v3
+  (t27#8330) marks by the app's own PR comment. Next: seal-based skip of t27c test-report
+  for vendored specs whose sha256 equals the t27 seal (35 of 48 match; full --run 25 s).

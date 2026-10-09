@@ -13,7 +13,7 @@ import {
   runsHere,
   verdict,
 } from '../bridge.mjs'
-import { appJwt, heal, recheckAsked } from '../bridge.mjs'
+import { appJwt, commentMark, heal, marker, recheckAsked } from '../bridge.mjs'
 import { generateKeyPairSync } from 'node:crypto'
 
 const REPO = 'gHashTag/999-multibots-telegraf'
@@ -55,12 +55,44 @@ describe('spec automation/ci-bridge', () => {
     expect(needsRun(pending(1800), T0)).toBe(false)
   })
 
-  it('a status when allowed, else a check run, else nothing runs', () => {
+  it('a status when allowed, else a check run, else a comment, else nothing runs', () => {
     expect(markMode(undefined)).toBe('statuses')
-    expect(markMode({ statuses: 'write', checks: 'write' })).toBe('statuses')
+    expect(
+      markMode({ statuses: 'write', checks: 'write', issues: 'write' })
+    ).toBe('statuses')
     expect(markMode({ statuses: 'write' })).toBe('statuses')
-    expect(markMode({ checks: 'write' })).toBe('checks')
+    expect(markMode({ checks: 'write', issues: 'write' })).toBe('checks')
+    expect(markMode({ issues: 'write' })).toBe('comment')
     expect(markMode({ pull_requests: 'read' })).toBe(null)
+  })
+
+  it("only the app's own comment is a mark", async () => {
+    const at = '2026-10-09T11:30:00Z'
+    const read = (viaApp: number | null, body: string) =>
+      commentMark(
+        { repo: REPO, token: 't', appId: '9' },
+        {
+          fetch: async () =>
+            new Response(
+              JSON.stringify([
+                {
+                  id: 1,
+                  body,
+                  updated_at: at,
+                  performed_via_github_app: viaApp ? { id: viaApp } : null,
+                },
+              ])
+            ),
+        },
+        { number: 7, head: { sha: 'abc1' } }
+      )
+    expect(await read(9, marker('abc1', 'success'))).toEqual({
+      state: 'success',
+      updated_at: at,
+      id: 1,
+    })
+    expect(await read(null, marker('abc1', 'success'))).toBe(null)
+    expect(await read(9, 'no marker')).toBe(null)
   })
 
   it('an error is never green and any failed suite is red', () => {
@@ -151,6 +183,6 @@ describe('spec automation/ci-bridge', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
   })
 })
