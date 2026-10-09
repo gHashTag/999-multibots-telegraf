@@ -20,13 +20,16 @@
 // v1 (2026-10-09): four chains, one message, the key never from the request, the 15 min
 // window and the 60 s skew moved here from the host, the wallet-browser road proposes and the
 // person confirms, payouts on TON only until the bridge.
+// v2 (2026-10-09): the two doors without a person (/message, /propose) hold each caller to a
+// budget per minute, and /propose looks the nonce up before it checks a signature, so a call on
+// a nonce nobody was issued costs one key lookup and no curve arithmetic (review on 999#3952).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::tri_wallet_chains {
     pub const KIND : str = "automation";
     pub const ID : str = "tri-wallet-chains";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- the chains ----
 
@@ -198,6 +201,28 @@ module automation::tri_wallet_chains {
         return confirmed || !PROPOSAL_NEEDS_CONFIRM;
     }
 
+    // ---- the two doors without a person ----
+
+    // /message and /propose answer anybody. Each caller's address may call them this many times
+    // in a window, counted in memory only and never stored; past it the answer is 429 and
+    // nothing is parsed, checked or written. The count forgets the oldest callers past
+    // PUBLIC_CALLERS_TRACKED, so the counter itself cannot grow without bound. The caller's
+    // address comes from a proxy header and can be forged: the budget slows a spray, the
+    // order below is what makes each refused call cheap.
+    pub const PUBLIC_CALLS_PER_WINDOW : u32 = 30;
+    pub const PUBLIC_WINDOW_MS : u32 = 60000;
+    pub const PUBLIC_CALLERS_TRACKED : u32 = 10000;
+    pub const NONCE_BEFORE_SIGNATURE : bool = true;
+
+    fn may_call_public(calls_in_window: u32) -> bool {
+        return calls_in_window <= PUBLIC_CALLS_PER_WINDOW;
+    }
+
+    // A proposal's signature is checked only on an open nonce nobody has proposed on yet.
+    fn checks_signature(nonce_open: bool, proposed_before: bool) -> bool {
+        return !NONCE_BEFORE_SIGNATURE || (nonce_open && !proposed_before);
+    }
+
     // ---- where TRI is paid ----
 
     // One minter until the bridge exists (mint_on_acceptance.t27 CROSS_CHAIN_DOUBLE_MINT): two
@@ -321,6 +346,19 @@ module automation::tri_wallet_chains {
         assert(proposal_binds(true));
     }
 
+    test "a caller without a person gets thirty calls a minute, and a dead nonce costs no curve" {
+        assert(PUBLIC_CALLS_PER_WINDOW == 30);
+        assert(PUBLIC_WINDOW_MS == 60000);
+        assert(PUBLIC_CALLERS_TRACKED == 10000);
+        assert(may_call_public(1));
+        assert(may_call_public(30));
+        assert(!may_call_public(31));
+        assert(NONCE_BEFORE_SIGNATURE);
+        assert(checks_signature(true, false));
+        assert(!checks_signature(false, false));
+        assert(!checks_signature(true, true));
+    }
+
     test "TRI is paid on TON only until the bridge is live" {
         assert(PAYOUT_CHAIN == CHAIN_TON);
         assert(!BRIDGE_LIVE);
@@ -332,7 +370,7 @@ module automation::tri_wallet_chains {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 

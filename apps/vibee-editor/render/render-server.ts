@@ -9314,6 +9314,12 @@ const server = createServer(async (req, res) => {
       getPool,
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      // The public doors' budget is per caller; the same address the traffic
+      // counter uses (forgeable, so it slows a spray and nothing more).
+      callerOf: r =>
+        String(r.headers['x-forwarded-for'] || '')
+          .split(',')[0]
+          .trim() || String(r.socket?.remoteAddress || ''),
       proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
     })
   )

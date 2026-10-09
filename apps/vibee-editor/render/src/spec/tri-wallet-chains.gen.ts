@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "tri-wallet-chains" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const CHAIN_TON = 1 satisfies number;
 export const CHAIN_SOLANA = 2 satisfies number;
 export const CHAIN_EVM = 3 satisfies number;
@@ -58,6 +58,12 @@ export const PROPOSAL_NEEDS_CONFIRM = true satisfies boolean;
 // t27c gen-ts: fn may_propose was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_confirm was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn proposal_binds was not emitted -- this backend lowers declarations, not bodies.
+export const PUBLIC_CALLS_PER_WINDOW = 30 satisfies number;
+export const PUBLIC_WINDOW_MS = 60000 satisfies number;
+export const PUBLIC_CALLERS_TRACKED = 10000 satisfies number;
+export const NONCE_BEFORE_SIGNATURE = true satisfies boolean;
+// t27c gen-ts: fn may_call_public was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn checks_signature was not emitted -- this backend lowers declarations, not bodies.
 export const PAYOUT_CHAIN = 1 satisfies number;
 export const BRIDGE_LIVE = false satisfies boolean;
 // t27c gen-ts: fn paid_on was not emitted -- this backend lowers declarations, not bodies.
@@ -73,10 +79,11 @@ export const BRIDGE_LIVE = false satisfies boolean;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CHAIN_TON", "CHAIN_SOLANA", "CHAIN_EVM", "CHAIN_TRON", "CHAINS_BOUND", "CHAIN_TON_NAME", "CHAIN_SOLANA_NAME", "CHAIN_EVM_NAME", "CHAIN_TRON_NAME", "TON_MAINNET", "TON_TESTNET", "EVM_NETWORK", "SOLANA_NETWORK", "TRON_NETWORK", "EVM_ONE_ADDRESS_ALL_CHAINS", "KEY_FROM_REQUEST", "KEY_NONE", "KEY_STATE_INIT", "KEY_RECOVERED", "KEY_IS_ADDRESS", "EVM_CONTRACT_WALLETS", "MESSAGE_INTENT", "MESSAGE_NO_SPEND", "LABEL_CHAIN", "LABEL_ADDRESS", "LABEL_NONCE", "LABEL_ISSUED", "MESSAGE_LINES", "NONCE_HEX_CHARS", "PROOF_TTL_MS", "CLOCK_SKEW_MS", "MAX_OPEN_CHALLENGES", "BIND_NEEDS_PERSON", "ONE_PERSON_PER_ADDRESS", "HANDOFF_PATH", "NONCE_IN_FRAGMENT", "PROPOSAL_NEEDS_CONFIRM", "PAYOUT_CHAIN", "BRIDGE_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CHAIN_TON", "CHAIN_SOLANA", "CHAIN_EVM", "CHAIN_TRON", "CHAINS_BOUND", "CHAIN_TON_NAME", "CHAIN_SOLANA_NAME", "CHAIN_EVM_NAME", "CHAIN_TRON_NAME", "TON_MAINNET", "TON_TESTNET", "EVM_NETWORK", "SOLANA_NETWORK", "TRON_NETWORK", "EVM_ONE_ADDRESS_ALL_CHAINS", "KEY_FROM_REQUEST", "KEY_NONE", "KEY_STATE_INIT", "KEY_RECOVERED", "KEY_IS_ADDRESS", "EVM_CONTRACT_WALLETS", "MESSAGE_INTENT", "MESSAGE_NO_SPEND", "LABEL_CHAIN", "LABEL_ADDRESS", "LABEL_NONCE", "LABEL_ISSUED", "MESSAGE_LINES", "NONCE_HEX_CHARS", "PROOF_TTL_MS", "CLOCK_SKEW_MS", "MAX_OPEN_CHALLENGES", "BIND_NEEDS_PERSON", "ONE_PERSON_PER_ADDRESS", "HANDOFF_PATH", "NONCE_IN_FRAGMENT", "PROPOSAL_NEEDS_CONFIRM", "PUBLIC_CALLS_PER_WINDOW", "PUBLIC_WINDOW_MS", "PUBLIC_CALLERS_TRACKED", "NONCE_BEFORE_SIGNATURE", "PAYOUT_CHAIN", "BRIDGE_LIVE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

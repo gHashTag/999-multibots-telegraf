@@ -6,6 +6,7 @@ import { Address, beginCell, contractAddress, storeStateInit } from '@ton/core'
 import {
   checkTonProof,
   handleTriWallet,
+  resetPublicCallsForTests,
   resetTriWalletEnsureForTests,
   tonProofMessage,
   PROOF_TTL_MS,
@@ -398,7 +399,10 @@ function depsFor(
 }
 
 describe('the TRI wallet routes', () => {
-  beforeEach(() => resetTriWalletEnsureForTests())
+  beforeEach(() => {
+    resetTriWalletEnsureForTests()
+    resetPublicCallsForTests()
+  })
 
   it('leaves every other URL alone', async () => {
     expect(await call(depsFor(fakePool(), '1'), 'GET', '/api/other')).toBeNull()
@@ -838,7 +842,10 @@ describe('checkChainProof', () => {
 })
 
 describe('the TRI wallet routes on every chain', () => {
-  beforeEach(() => resetTriWalletEnsureForTests())
+  beforeEach(() => {
+    resetTriWalletEnsureForTests()
+    resetPublicCallsForTests()
+  })
 
   const bindWith = async (
     pool: ReturnType<typeof fakePool>,
@@ -1089,6 +1096,86 @@ describe('the TRI wallet routes on every chain', () => {
         status: 401,
         body: { error: 'person_required' },
       })
+  })
+})
+
+describe('the public doors hold each caller to a budget', () => {
+  beforeEach(() => {
+    resetTriWalletEnsureForTests()
+    resetPublicCallsForTests()
+  })
+
+  const from = (pool: ReturnType<typeof fakePool>, caller: string) => ({
+    ...depsFor(pool, null),
+    callerOf: () => caller,
+  })
+  const ask = (deps: TriWalletDeps) =>
+    call(deps, 'POST', '/api/tri/wallet/message', {
+      chain: 'evm',
+      address: secpWallet().evm,
+      nonce: PAYLOAD,
+    })
+
+  it('answers thirty calls a minute per caller, then 429 until the next minute', async () => {
+    const pool = fakePool()
+    const a = from(pool, '203.0.113.7')
+    for (let i = 0; i < 30; i++) expect((await ask(a))?.status).toBe(200)
+    expect(await ask(a)).toEqual({
+      status: 429,
+      body: { error: 'too_many_requests' },
+    })
+    // Another caller has its own budget.
+    expect((await ask(from(pool, '198.51.100.9')))?.status).toBe(200)
+    // The next window starts over.
+    const later = { ...a, now: () => NOW + 60_000 }
+    expect((await ask(later))?.status).toBe(200)
+  })
+
+  it('counts /propose against the same budget and reads nothing past it', async () => {
+    const pool = fakePool()
+    const a = from(pool, '203.0.113.8')
+    for (let i = 0; i < 30; i++) await ask(a)
+    const lines: Record<string, unknown>[] = []
+    const r = await call(
+      { ...a, log: l => lines.push(l) },
+      'POST',
+      '/api/tri/wallet/propose',
+      evmProof(secpWallet())
+    )
+    expect(r).toEqual({ status: 429, body: { error: 'too_many_requests' } })
+    expect(lines[0]).toMatchObject({ outcome: 'too_many_requests' })
+  })
+
+  it('looks the nonce up before the signature: a dead nonce never reaches the curve', async () => {
+    const pool = fakePool()
+    const r = await call(
+      depsFor(pool, null),
+      'POST',
+      '/api/tri/wallet/propose',
+      {
+        chain: 'evm',
+        address: secpWallet().evm,
+        nonce: PAYLOAD,
+        issuedAt: new Date(NOW).toISOString(),
+        // Not even a signature: had it been parsed, the answer would be
+        // signature_malformed.
+        signature: 'nonsense',
+      }
+    )
+    expect(r).toEqual({ status: 400, body: { error: 'payload_unknown' } })
+  })
+
+  it('accepts a Solana signature in base64 and a TRON one without 0x', async () => {
+    const s = solWallet()
+    const b64 = textProof('solana', s.address, t =>
+      sign(null, Buffer.from(t, 'utf8'), s.priv).toString('base64')
+    )
+    expect(checkChainProof(b64, DOMAIN, NOW).ok).toBe(true)
+    const w = secpWallet()
+    const p = tronProof(w)
+    expect(
+      checkChainProof({ ...p, signature: p.signature.slice(2) }, DOMAIN, NOW).ok
+    ).toBe(true)
   })
 })
 
