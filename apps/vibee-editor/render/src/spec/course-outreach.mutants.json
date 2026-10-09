@@ -38,8 +38,8 @@
   {
     "name": "any message counts as a reply",
     "file": "src/agent/course-outreach-tool.ts",
-    "from": "    replied: sent !== undefined && (f.dm.get(lead)?.lastIn ?? 0) > sent,",
-    "to": "    replied: sent !== undefined,"
+    "from": "      sent !== undefined &&\n      (f.dm.get(lead)?.lastIn ?? 0) > sent,",
+    "to": "      sent !== undefined,"
   },
   {
     "name": "the owner's own messages count as her reply",
@@ -106,5 +106,174 @@
     "file": "src/agent/social-tools.ts",
     "from": "  if (!shareLinkOk(hasHashRoute(link)))",
     "to": "  if (false)"
+  },
+  {
+    "name": "a bio is treated as the owner's words",
+    "file": "src/agent/course-outreach.ts",
+    "from": "    source === SPEC.BIO_SOURCE ||\n",
+    "to": "    false ||\n"
+  },
+  {
+    "name": "a headline is not his own words",
+    "file": "src/agent/course-outreach.ts",
+    "from": "    source === 'headline'\n",
+    "to": "    false\n"
+  },
+  {
+    "name": "bios never reach find",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    ...(bioRows ?? []).map(r => ({",
+    "to": "    ...([] as any[]).map(r => ({"
+  },
+  {
+    "name": "a batch card on LinkedIn and X",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  return channel === 'telegram' ? SPEC.BATCH_MAX : SPEC.NETWORK_CARD_MAX",
+    "to": "  return SPEC.BATCH_MAX"
+  },
+  {
+    "name": "the tool skips the card count on a network",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!cardOk(channel, list.length)) {",
+    "to": "  if (channel === 'telegram' && !cardOk(channel, list.length)) {"
+  },
+  {
+    "name": "a network card types without Allow",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!maySend(state))",
+    "to": "  if (!maySend(state) && p.channel === 'telegram')"
+  },
+  {
+    "name": "not signed in, the round proceeds",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  return login === 'signed_in'",
+    "to": "  return login !== 'signed_out'"
+  },
+  {
+    "name": "the round ignores browser_logins",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if (!roundGo(login)) {\n      out[network] = {",
+    "to": "    if (false) {\n      out[network] = {"
+  },
+  {
+    "name": "no answer from browser_logins proceeds",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (logins === null)\n    return {",
+    "to": "  if (false)\n    return {"
+  },
+  {
+    "name": "the press does not ask browser_logins again",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!roundGo(login))\n    return `not sent",
+    "to": "  if (false)\n    return `not sent"
+  },
+  {
+    "name": "the round opens pages under his hands",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (await deps.driving(ctx))",
+    "to": "  if (false)"
+  },
+  {
+    "name": "an unread page says no programmers",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (!readOk || people === 0) return 'unknown'",
+    "to": "  if (people === 0) return 'unknown'"
+  },
+  {
+    "name": "an empty list says no programmers",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (!readOk || people === 0) return 'unknown'",
+    "to": "  if (!readOk) return 'unknown'"
+  },
+  {
+    "name": "an X account he only follows can be written to",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  if (network === 'x' && followsOwner) return 'x'",
+    "to": "  if (network === 'x') return 'x'"
+  },
+  {
+    "name": "a reply is assumed on LinkedIn and X",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    replied:\n      repliesKnown &&",
+    "to": "    replied:\n      !repliesKnown ||"
+  },
+  {
+    "name": "everybody a network shows is filed",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    const programmers = classified.filter(c => c.verdict === 'programmer')\n    const verdict = networkVerdict(",
+    "to": "    const programmers = classified.filter(c => c.verdict !== 'not')\n    const verdict = networkVerdict("
+  },
+  {
+    "name": "a removed person is filed again from a network",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "        if (before.dropped.has(c.id)) continue\n",
+    "to": ""
+  },
+  {
+    "name": "the card shows one text and another is typed",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "        : oneLine(String(d?.text ?? ''))",
+    "to": "        : String(d?.text ?? '').trim()"
+  },
+  {
+    "name": "a person of another network passes",
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if ((netOf(lead) ?? 'telegram') !== channel) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "a stored FLOOD_WAIT is not honoured",
+    "file": "src/agent/crm-bios.ts",
+    "from": "  const left = Math.max(0, Math.ceil(until - nowS))",
+    "to": "  const left = 0"
+  },
+  {
+    "name": "a FLOOD_WAIT is not written down",
+    "file": "src/agent/crm-bios.ts",
+    "from": "      if (s > 0) {\n        flood = s",
+    "to": "      if (false) {\n        flood = s"
+  },
+  {
+    "name": "no cap per run",
+    "file": "src/agent/crm-bios.ts",
+    "from": "  if (readThisRun >= SPEC.BIOS_PER_RUN) return 'cap'",
+    "to": "  if (readThisRun > SPEC.BIOS_PER_RUN + 1000) return 'cap'"
+  },
+  {
+    "name": "no gap between calls",
+    "file": "src/agent/crm-bios.ts",
+    "from": "    if (report.bios_read > 0) await io.sleep(SPEC.BIO_GAP_MS)\n",
+    "to": ""
+  },
+  {
+    "name": "the whole full user is stored",
+    "file": "src/agent/crm-bios.ts",
+    "from": "  const about = (full as { fullUser?: { about?: unknown } })?.fullUser?.about",
+    "to": "  const about = JSON.stringify(full)"
+  },
+  {
+    "name": "a failed refresh wipes the old bio",
+    "file": "src/agent/crm-bios.ts",
+    "from": "    if (!answered) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "a fresh bio is read again",
+    "file": "src/agent/crm-bios.ts",
+    "from": "  return neverRead || ageDays >= SPEC.BIO_REFRESH_DAYS",
+    "to": "  return true"
+  },
+  {
+    "name": "the oldest read come first",
+    "file": "src/agent/crm-bios.ts",
+    "from": "        (at.has(a.lead) ? at.get(a.lead)! : -1) -\n        (at.has(b.lead) ? at.get(b.lead)! : -1)",
+    "to": "        (at.has(b.lead) ? at.get(b.lead)! : -1) -\n        (at.has(a.lead) ? at.get(a.lead)! : -1)"
+  },
+  {
+    "name": "the contacts ingest reads no bios",
+    "file": "src/agent/crm-memory-tools.ts",
+    "from": "        if (!report.stopped)\n          bios = await readBios(",
+    "to": "        if (false)\n          bios = await readBios(",
+    "tests": ["crm-memory-tools.test.ts"]
   }
 ]

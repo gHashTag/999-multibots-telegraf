@@ -13,13 +13,14 @@
  * without anybody's real messages: the sign words, the verdict, the checks
  * on a draft. The tool (course-outreach-tool.ts) reads and writes.
  *
- * EVIDENCE, NOT NAMES -- the same stance as job-hunters.ts. A name, a
- * username or a bio is a claim a person made about themselves, and the
- * ingest stores no bio at all (reading one is a Telegram call per person).
- * What a person WROTE is evidence: a language, a repository, a compiler, a
- * board. Two different groups of signs are the bar; one is "unknown", and
- * unknown is never filed as "not a programmer". "Not" is reserved for the
- * person's own words that they are not one.
+ * EVIDENCE, NOT NAMES -- the same stance as job-hunters.ts. A name or a
+ * username is not evidence. What a person WROTE is: in a DM, in a shared
+ * group, and (spec v2) in his own profile bio (crm-bios.ts reads it) or his
+ * own LinkedIn headline / X bio (course-outreach-networks.ts). A language, a
+ * repository, a compiler, a board. Two different groups of signs are the bar,
+ * whatever the source; one is "unknown", and unknown is never filed as "not a
+ * programmer". "Not" is reserved for the person's own words that they are
+ * not one.
  */
 import * as SPEC from '../spec/course-outreach.gen'
 
@@ -39,7 +40,86 @@ export const {
   BATCH_MAX,
   PENDING_TTL_MS,
   SEND_WAIT_MS,
+  BIO_SOURCE,
+  NETWORK_READ_MAX,
+  NETWORK_SCROLLS,
+  NETWORK_CARD_MAX,
 } = SPEC
+
+/** Where a piece of a person's text came from. */
+export type Source = 'dm' | 'group' | 'bio' | 'headline' | 'owner' | 'name'
+
+/**
+ * spec own_words: his DMs, a shared group, his own bio, his own headline.
+ * The owner's words about him, his name and his username are not evidence.
+ */
+export function ownWords(source: unknown): boolean {
+  return (
+    source === 'dm' ||
+    source === 'group' ||
+    source === SPEC.BIO_SOURCE ||
+    source === 'headline'
+  )
+}
+
+/** The networks the browser round reads, beside Telegram. */
+export type Net = 'linkedin' | 'x'
+export const NETS: readonly Net[] = ['linkedin', 'x']
+
+/**
+ * A lead id: a Telegram user id, or a network person as `linkedin:<slug>` /
+ * `x:<handle>` (they are kept out of crm_people, whose ids are Telegram's).
+ */
+export function leadOk(id: string): boolean {
+  return /^(?:\d{3,20}|linkedin:[A-Za-z0-9%_-]{1,100}|x:[A-Za-z0-9_]{1,15})$/.test(
+    id
+  )
+}
+
+/** The network of a lead id, or null for a Telegram one. Pure. */
+export function netOf(lead: string): Net | null {
+  const m = /^(linkedin|x):/.exec(String(lead ?? ''))
+  return m ? (m[1] as Net) : null
+}
+
+/** spec round_go: only a network browser_logins calls signed in is opened. */
+export function roundGo(login: unknown): boolean {
+  return login === 'signed_in'
+}
+
+/** spec network_verdict: a page that did not read, or read nobody, is unknown. */
+export type NetVerdict = 'unknown' | 'none' | 'found'
+export function networkVerdict(
+  readOk: boolean,
+  people: number,
+  programmers: number
+): NetVerdict {
+  if (!readOk || people === 0) return 'unknown'
+  if (programmers === 0) return 'none'
+  return 'found'
+}
+
+/** spec network_channel: a LinkedIn connection, or an X person who follows him. */
+export type NetChannel = Net | 'none'
+export function networkChannel(
+  network: string,
+  connection: boolean,
+  followsOwner: boolean
+): NetChannel {
+  if (network === 'linkedin' && connection) return 'linkedin'
+  if (network === 'x' && followsOwner) return 'x'
+  return 'none'
+}
+
+/** spec card_max: a Telegram card holds a batch; a network card holds one. */
+export function cardMax(channel: string): number {
+  return channel === 'telegram' ? SPEC.BATCH_MAX : SPEC.NETWORK_CARD_MAX
+}
+
+/** spec card_ok. */
+export function cardOk(channel: string, n: number): boolean {
+  return n >= 1 && n <= cardMax(channel)
+}
 
 export type SignGroup =
   | 'role'
@@ -404,9 +484,17 @@ export function draftCounts(
   }
 }
 
-/** One message as classification needs it: who wrote it and the words. */
+/** One piece of text as classification needs it: who, where, the words. */
 export interface WrittenBy {
   lead: string
+  text: string
+  /** Where it was written; a DM when not said. Not own words: skipped. */
+  source?: Source
+}
+
+/** A short quote of a person's own words, and where he wrote it. */
+export interface Quote {
+  source: Source
   text: string
 }
 
@@ -418,7 +506,7 @@ export interface Classified {
   /** The words that carried them -- what a draft must name to be personal. */
   words: string[]
   /** Short quotes of their own words, data written by another person. */
-  quotes: string[]
+  quotes: Quote[]
 }
 
 /** A short window of the text around the first sign word. Pure. */
@@ -439,19 +527,23 @@ function quoteOf(text: string, word: string): string {
 /**
  * Every person whose own words were read, with a verdict. Pure.
  *
- * Only the other side's words come in (the SQL takes NOT "out"): the
- * owner's "you are a developer, right?" is a question, not evidence.
+ * Only the other side's words count (spec own_words): the SQL takes NOT
+ * "out", and a piece marked as the owner's, or as a name, is skipped here
+ * too -- the owner's "you are a developer, right?" is a question, not
+ * evidence. His own bio and headline count like his messages.
  */
 export function classify(messages: readonly WrittenBy[]): Classified[] {
   type Row = {
     signs: Map<SignGroup, string>
-    quotes: string[]
+    quotes: Quote[]
     negated: boolean
   }
   const by = new Map<string, Row>()
   for (const m of messages) {
     const id = String(m?.lead ?? '').trim()
-    if (!/^\d{3,20}$/.test(id)) continue
+    if (!leadOk(id)) continue
+    const source: Source = m.source ?? 'dm'
+    if (!ownWords(source)) continue
     const row: Row = by.get(id) ?? {
       signs: new Map<SignGroup, string>(),
       quotes: [],
@@ -462,7 +554,7 @@ export function classify(messages: readonly WrittenBy[]): Classified[] {
       if (!row.signs.has(s.group)) {
         row.signs.set(s.group, s.word)
         if (row.quotes.length < SPEC.EVIDENCE_QUOTES)
-          row.quotes.push(quoteOf(m.text, s.word))
+          row.quotes.push({ source, text: quoteOf(m.text, s.word) })
       }
     }
     by.set(id, row)

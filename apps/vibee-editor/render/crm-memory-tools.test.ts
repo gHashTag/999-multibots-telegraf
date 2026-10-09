@@ -810,6 +810,56 @@ describe('crm_ingest_contacts', () => {
     expect(f.calls.at(-1)).toBe('disconnect')
   })
 
+  it('reads the bios of the people it filed, and of nobody else', async () => {
+    const f = fakeClient()
+    const asked: unknown[] = []
+    const client = {
+      ...f.client,
+      async invoke(req: { className?: string; id?: unknown }) {
+        f.calls.push(`invoke:${req?.className}`)
+        if (req?.className === 'users.GetFullUser') {
+          asked.push(req.id)
+          return {
+            fullUser: { about: 'Go developer, github.com/c', phone: '+1' },
+          }
+        }
+        return {
+          users: [
+            user('900000010', { firstName: 'Contact', accessHash: 7 }),
+            user('900000011', { firstName: 'Bot', bot: true }),
+            user('900000014', { firstName: 'No', lastName: 'Dialog' }),
+          ],
+        }
+      },
+    }
+    // The tool first: book() mocks the session, then the module is shared.
+    const tool = await book(client)
+    const { setBioSleepForTests } = await import('./src/agent/crm-memory-tools')
+    setBioSleepForTests(async () => {})
+    try {
+      const pool = fakePool()
+      const r: any = await tool.handler({}, ctxFor(OWNER, pool))
+      expect(r.people).toBe(2)
+      expect(r.bios_read).toBe(2)
+      expect(r.bios_with_text).toBe(2)
+      expect(
+        f.calls.filter(c => c === 'invoke:users.GetFullUser')
+      ).toHaveLength(2)
+      const bios = pool.queries.filter(q =>
+        q.sql.startsWith('UPDATE crm_people SET about = $3')
+      )
+      expect(bios.map(q => q.params)).toEqual([
+        [OWNER, '900000010', 'Go developer, github.com/c'],
+        [OWNER, '900000014', 'Go developer, github.com/c'],
+      ])
+      // The bot was never described.
+      expect(String((asked[0] as any)?.userId)).toBe('900000010')
+      expect(f.calls.at(-1)).toBe('disconnect')
+    } finally {
+      setBioSleepForTests(null)
+    }
+  })
+
   it('a FLOOD_WAIT files nothing, says where it stopped, and hangs up', async () => {
     const { f, client } = bookClient({ flood: true })
     const pool = fakePool()
