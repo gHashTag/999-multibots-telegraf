@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 6c2bdc5475377b3d974e452c126763223d5d16968d96c430d5dc03b7a2f54850
+// spec-sha256: 1468164046d2cba9ea0e6b3e04aa7bbb0ba72ebb5896193c444c85a7d6caf827
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMGBQABAQEBBAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsHcgYGbWVtb3J5AgAPdDI3X3ZpZGVvX3JvdXRlAAAXdDI3X211c2ljX2tlZXBzX3dhaXRpbmcAARN0MjdfZWRpdF91c2VzX2dwdDI1AAINdDI3X3NvdXJjZV9vawADE3QyN19tYXlfb3JkZXJfaW1hZ2UABAo2BQcAIABBAXELDgAgAUF/cyAAQfgASXELCgAgACABQQFzcgsKACAAQQFzIAFyCwcAIAAgAXEL'
+  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMIBwAAAAEBAQEEBQFwAQEBBQMBABAGCQF/AUGAgMAACwewAQkGbWVtb3J5AgAPdDI3X3ZpZGVvX3JvdXRlAAAQdDI3X3NwZWVjaF91bml0cwABFXQyN190dHNfbW9kZWxfYXBwbGllcwACEHQyN190dHNfbmFtZWRfb2sABRd0MjdfbXVzaWNfa2VlcHNfd2FpdGluZwADE3QyN19lZGl0X3VzZXNfZ3B0MjUABA10Mjdfc291cmNlX29rAAUTdDI3X21heV9vcmRlcl9pbWFnZQAGCm4HBwAgAEEBcQsvAQF/QQEhAQJAIABB6QdJDQAgAEF/akHoB24iAEGPHCAAQY8cSRtBAWohAQsgAQsHACAAQQFzCw4AIAFBf3MgAEH4AElxCwoAIAAgAUEBc3ILCgAgAEEBcyABcgsHACAAIAFxCw=='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -63,6 +63,34 @@ export function musicKeepsWaiting(
       int(waitedSeconds, 0, 4294967295, 'music_keeps_waiting.waited_seconds'),
       ready ? 1 : 0
     ) !== 0
+  )
+}
+
+/** spec fn tts_named_ok */
+export function ttsNamedOk(named: boolean, listed: boolean): boolean {
+  return (
+    (W.t27_tts_named_ok as (...a: number[]) => number)(
+      named ? 1 : 0,
+      listed ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn tts_model_applies */
+export function ttsModelApplies(cloneSpeaks: boolean): boolean {
+  return (
+    (W.t27_tts_model_applies as (...a: number[]) => number)(
+      cloneSpeaks ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn speech_units */
+export function speechUnits(chars: number): number {
+  return (
+    (W.t27_speech_units as (...a: number[]) => number)(
+      int(chars, 0, 4294967295, 'speech_units.chars')
+    ) >>> 0
   )
 }
 

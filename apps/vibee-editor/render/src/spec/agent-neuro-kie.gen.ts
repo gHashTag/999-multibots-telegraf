@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "agent-neuro-kie" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const SOURCE_TOOL_NAMES = ["image_upscale", "image_remove_background"] as const satisfies readonly [string, string];
 export const SOURCE_TOOL_MODELS = ["kie/topaz/image-upscale", "kie/recraft/remove-background"] as const satisfies readonly [string, string];
 export const SOURCE_TOOL_HELP = ["Upscale a picture and make it sharper (Kie topaz). Needs image_url; the price is named before the press.", "Remove the background of a picture, leaving it transparent (Kie recraft). Needs image_url."] as const satisfies readonly [string, string];
@@ -24,6 +24,15 @@ export const SUNO_MODEL = "V4_5PLUS" satisfies string;
 export const MUSIC_COST_MICRO_USD = 60000 satisfies number;
 export const MUSIC_WAIT_SECONDS = 120 satisfies number;
 // t27c gen-ts: fn music_keeps_waiting was not emitted -- this backend lowers declarations, not bodies.
+export const TTS_MODELS = ["kie/elevenlabs/text-to-speech-turbo-2-5", "kie/elevenlabs/text-to-speech-multilingual-v2"] as const satisfies readonly [string, string];
+export const TTS_DEFAULT_MODEL = "kie/elevenlabs/text-to-speech-turbo-2-5" satisfies string;
+export const TTS_MODEL_HELP = "Kie voice model for a preset voice: kie/elevenlabs/text-to-speech-turbo-2-5 (default, cheaper) or kie/elevenlabs/text-to-speech-multilingual-v2 (richer). Priced per 1000 characters. A clone ignores it." satisfies string;
+// t27c gen-ts: fn tts_named_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn tts_model_applies was not emitted -- this backend lowers declarations, not bodies.
+export const SPEECH_UNIT_CHARS = 1000 satisfies number;
+export const SPEECH_MAX_UNITS = 3600 satisfies number;
+// t27c gen-ts: fn speech_units was not emitted -- this backend lowers declarations, not bodies.
+export const NOT_ON_KIE_NOTE = "Kie has no face swap and no LoRA (own-model) training: say so in one sentence, never pretend it was done, never name another provider." satisfies string;
 export const VIDEO_FROM_WORDS = 0 satisfies number;
 export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: fn video_route was not emitted -- this backend lowers declarations, not bodies.
@@ -33,10 +42,12 @@ export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "EDIT_DEFAULT_IS_GPT25", "EDIT_DEFAULT_ASPECT", "MUSIC_TOOL_NAME", "MUSIC_STATUS_TOOL_NAME", "MUSIC_HELP", "MUSIC_STATUS_HELP", "SUNO_MODEL", "MUSIC_COST_MICRO_USD", "MUSIC_WAIT_SECONDS", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "EDIT_DEFAULT_IS_GPT25", "EDIT_DEFAULT_ASPECT", "MUSIC_TOOL_NAME", "MUSIC_STATUS_TOOL_NAME", "MUSIC_HELP", "MUSIC_STATUS_HELP", "SUNO_MODEL", "MUSIC_COST_MICRO_USD", "MUSIC_WAIT_SECONDS", "TTS_MODELS", "TTS_DEFAULT_MODEL", "TTS_MODEL_HELP", "SPEECH_UNIT_CHARS", "SPEECH_MAX_UNITS", "NOT_ON_KIE_NOTE", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
