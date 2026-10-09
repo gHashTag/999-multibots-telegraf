@@ -16,7 +16,7 @@ permissions:
 jobs:
   claude-reminder:
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.body, 'Claude Code') || contains(github.event.pull_request.title, 'claude') || contains(github.event.issue.body, 'Claude') || contains(github.actor, 'claude')
+    if: vars.CI_ENABLED == 'true' && (contains(github.event.pull_request.body, 'Claude Code') || contains(github.event.pull_request.title, 'claude') || contains(github.event.issue.body, 'Claude') || contains(github.actor, 'claude'))
     
     steps:
       - name: 🤖 Check for AI Assistant and Send Reminder

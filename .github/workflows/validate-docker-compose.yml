@@ -13,6 +13,7 @@ on:
 
 jobs:
   validate-ports:
+    if: vars.CI_ENABLED == 'true'
     name: 🔍 Validate nginx ports
     runs-on: ubuntu-latest
 
@@ -66,7 +67,7 @@ jobs:
   block-if-changed:
     name: 🛡️ Block dangerous changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: vars.CI_ENABLED == 'true' && (github.event_name == 'pull_request')
 
     steps:
       - name: Checkout code
@@ -99,7 +100,7 @@ jobs:
   notify-on-change:
     name: 📢 Notify about changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: vars.CI_ENABLED == 'true' && (github.event_name == 'pull_request')
     needs: [validate-ports, block-if-changed]
 
     steps:

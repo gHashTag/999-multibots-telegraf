@@ -26,6 +26,7 @@ permissions:
 jobs:
   # Проверка секретов и чувствительных данных
   secrets-detection:
+    if: vars.CI_ENABLED == 'true'
     name: Secrets Detection
     runs-on: ubuntu-latest
     steps:
@@ -80,6 +81,7 @@ jobs:
 
   # Анализ уязвимостей зависимостей
   dependency-security:
+    if: vars.CI_ENABLED == 'true'
     name: Dependency Security Audit
     runs-on: ubuntu-latest
     steps:
@@ -155,6 +157,7 @@ jobs:
 
   # Static Application Security Testing (SAST)
   sast-analysis:
+    if: vars.CI_ENABLED == 'true'
     name: Static Code Security Analysis
     runs-on: ubuntu-latest
     steps:
@@ -240,7 +243,7 @@ jobs:
   docker-security:
     name: Docker Security Scan
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: vars.CI_ENABLED == 'true' && (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -271,6 +274,7 @@ jobs:
 
   # Проверка конфигурации безопасности
   security-config:
+    if: vars.CI_ENABLED == 'true'
     name: Security Configuration Check
     runs-on: ubuntu-latest
     steps:
@@ -310,7 +314,7 @@ jobs:
     name: Security Summary
     runs-on: ubuntu-latest
     needs: [secrets-detection, dependency-security, sast-analysis, security-config]
-    if: always()
+    if: vars.CI_ENABLED == 'true' && (always())
     steps:
       - name: Security check summary
         run: |

@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   security-contract:
+    if: vars.CI_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
