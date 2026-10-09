@@ -14,6 +14,18 @@ import {
   type TonProofInput,
   type TriWalletDeps,
 } from './src/tri-wallet'
+import { secp256k1 } from '@noble/curves/secp256k1.js'
+import { sha256 } from '@noble/hashes/sha2.js'
+import { keccak_256 } from '@noble/hashes/sha3.js'
+import { base58, createBase58check } from '@scure/base'
+import {
+  bindMessage,
+  checkChainProof,
+  eip55,
+  parseAddress,
+  signerOf,
+  type TextChain,
+} from './src/tri-wallet-chains'
 
 /*
  * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
@@ -209,7 +221,8 @@ function fakePool() {
     events,
     async query(text: string, p: any[] = []) {
       const t = text.replace(/\s+/g, ' ').trim()
-      if (t.startsWith('CREATE ')) return { rows: [] }
+      if (t.startsWith('CREATE ') || t.startsWith('ALTER TABLE'))
+        return { rows: [] }
       if (t.startsWith('DELETE FROM tri_wallet_challenges')) {
         for (let i = challenges.length - 1; i >= 0; i--) {
           const c = challenges[i]
@@ -226,6 +239,42 @@ function fakePool() {
         challenges.push({ payload: p[0], telegram_id: p[1], expires_at: p[2] })
         return { rows: [] }
       }
+      if (t.startsWith('SELECT telegram_id, proposed_chain')) {
+        const c = challenges.find(x => x.payload === p[0])
+        return { rows: c ? [{ ...c }] : [] }
+      }
+      if (t.startsWith('SELECT payload, proposed_chain'))
+        return {
+          rows: challenges
+            .filter(
+              c =>
+                c.telegram_id === p[0] &&
+                c.proposed_at &&
+                !c.used_at &&
+                c.expires_at > p[1]
+            )
+            .map(c => ({ ...c })),
+        }
+      if (t.startsWith('UPDATE tri_wallet_challenges SET proposed_chain')) {
+        // Only the conditions the statement names: a race between two
+        // proposals is decided by the SQL, so the fake must not decide it.
+        const c = challenges.find(
+          x =>
+            x.payload === p[0] &&
+            !x.used_at &&
+            x.expires_at > p[5] &&
+            (!t.includes('AND proposed_at IS NULL') || !x.proposed_at)
+        )
+        if (!c) return { rows: [], rowCount: 0 }
+        Object.assign(c, {
+          proposed_chain: p[1],
+          proposed_network: p[2],
+          proposed_address: p[3],
+          proposed_key: p[4],
+          proposed_at: p[5],
+        })
+        return { rows: [{ payload: c.payload }], rowCount: 1 }
+      }
       if (t.startsWith('UPDATE tri_wallet_challenges SET used_at')) {
         const c = challenges.find(
           x =>
@@ -240,35 +289,52 @@ function fakePool() {
       }
       if (t.startsWith('SELECT telegram_id FROM tri_wallets'))
         return {
-          rows: wallets.filter(w => w.network === p[0] && w.address === p[1]),
+          rows: wallets
+            .filter(
+              w => w.chain === p[0] && w.network === p[1] && w.address === p[2]
+            )
+            .map(w => ({ ...w })),
         }
       if (t.startsWith('INSERT INTO tri_wallets')) {
         const existing = wallets.find(
-          w => w.telegram_id === p[0] && w.network === p[1]
+          w => w.telegram_id === p[0] && w.chain === p[1] && w.network === p[2]
         )
-        const row = existing ?? { telegram_id: p[0], network: p[1] }
+        const row = existing ?? {
+          telegram_id: p[0],
+          chain: p[1],
+          network: p[2],
+        }
         Object.assign(row, {
-          address: p[2],
-          public_key: p[3],
+          address: p[3],
+          public_key: p[4],
           bound_at: new Date(NOW),
         })
         if (!existing) wallets.push(row)
-        return { rows: [row] }
+        return { rows: [{ ...row }] }
       }
       if (t.startsWith('INSERT INTO tri_wallet_events')) {
         events.push({
           telegram_id: p[0],
-          network: p[1],
-          address: p[2],
+          chain: p[1],
+          network: p[2],
+          address: p[3],
           action: t.includes("'bind'") ? 'bind' : 'unbind',
         })
         return { rows: [] }
       }
-      if (t.startsWith('SELECT network, address, bound_at FROM tri_wallets'))
-        return { rows: wallets.filter(w => w.telegram_id === p[0]) }
+      if (
+        t.startsWith(
+          'SELECT chain, network, address, bound_at FROM tri_wallets'
+        )
+      )
+        return {
+          rows: wallets
+            .filter(w => w.telegram_id === p[0])
+            .map(w => ({ ...w })),
+        }
       if (t.startsWith('DELETE FROM tri_wallets')) {
         const i = wallets.findIndex(
-          w => w.telegram_id === p[0] && w.network === p[1]
+          w => w.telegram_id === p[0] && w.chain === p[1] && w.network === p[2]
         )
         if (i < 0) return { rows: [] }
         const [gone] = wallets.splice(i, 1)
@@ -369,7 +435,13 @@ describe('the TRI wallet routes', () => {
     })
     expect(bound!.body.wallet.friendly).toMatch(/^UQ/)
     expect(pool.events).toEqual([
-      { telegram_id: '111', network: '-239', address: w.raw, action: 'bind' },
+      {
+        telegram_id: '111',
+        chain: 'ton',
+        network: '-239',
+        address: w.raw,
+        action: 'bind',
+      },
     ])
 
     // The same proof again: the payload is spent.
@@ -525,4 +597,541 @@ describe('personIdentity -- who may bind a payout address', () => {
     },
     SLOW_IMPORT_TIMEOUT_MS
   )
+})
+
+// ---------------------------------------------------------------------------
+// EVM, Solana and TRON (spec automation/tri-wallet-chains.t27)
+// ---------------------------------------------------------------------------
+
+/*
+ * Every signature below is real: a secp256k1 or ed25519 key made in the test,
+ * the text the server would print, and the wallet's own prefix. The prefix is
+ * computed here, independently of the host, and the EVM recovery is also held
+ * to a signature made by another implementation (web3.js), so a wrong byte in
+ * the host's digest fails rather than agreeing with itself.
+ */
+
+const tron = createBase58check(sha256)
+
+interface SecpWallet {
+  priv: Uint8Array
+  key: Uint8Array
+  evm: string
+  tron: string
+}
+
+function secpWallet(): SecpWallet {
+  const priv = secp256k1.utils.randomSecretKey()
+  const key = keccak_256(
+    secp256k1.getPublicKey(priv, false).subarray(1)
+  ).subarray(12)
+  return {
+    priv,
+    key,
+    evm: eip55(key),
+    tron: tron.encode(Uint8Array.of(0x41, ...key)),
+  }
+}
+
+function secpSign(
+  prefix: 'Ethereum' | 'TRON',
+  priv: Uint8Array,
+  text: string,
+  vBase = 27
+): string {
+  const body = Buffer.from(text, 'utf8')
+  const head = Buffer.from(`\x19${prefix} Signed Message:\n${body.length}`)
+  const digest = keccak_256(Buffer.concat([head, body]))
+  const rec = secp256k1.sign(digest, priv, {
+    prehash: false,
+    format: 'recovered',
+  })
+  return (
+    '0x' +
+    Buffer.concat([
+      Buffer.from(rec.subarray(1)),
+      Buffer.from([vBase + rec[0]]),
+    ]).toString('hex')
+  )
+}
+
+interface SolWallet {
+  priv: KeyObject
+  address: string
+}
+
+function solWallet(): SolWallet {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+  const pub = publicKey.export({ format: 'der', type: 'spki' }).subarray(12)
+  return { priv: privateKey, address: base58.encode(pub) }
+}
+
+const ISSUED = new Date(NOW).toISOString()
+
+function textProof(
+  chain: TextChain,
+  address: string,
+  sign: (text: string) => string,
+  over: Partial<{ nonce: string; issuedAt: string; signedAddress: string }> = {}
+) {
+  const nonce = over.nonce ?? PAYLOAD
+  const issuedAt = over.issuedAt ?? ISSUED
+  const text = bindMessage({
+    domain: DOMAIN,
+    chain,
+    address: over.signedAddress ?? parseAddress(chain, address)!.canonical,
+    nonce,
+    issuedAt,
+  })
+  return { chain, address, nonce, issuedAt, signature: sign(text) }
+}
+
+const evmProof = (w: SecpWallet, over = {}) =>
+  textProof('evm', w.evm, t => secpSign('Ethereum', w.priv, t), over)
+const tronProof = (w: SecpWallet, over = {}) =>
+  textProof('tron', w.tron, t => secpSign('TRON', w.priv, t), over)
+const solProof = (w: SolWallet, over = {}) =>
+  textProof(
+    'solana',
+    w.address,
+    t => base58.encode(sign(null, Buffer.from(t, 'utf8'), w.priv)),
+    over
+  )
+
+describe('signatures made elsewhere', () => {
+  it('recovers the address web3.js signs "Some data" with', () => {
+    // web3.js docs, accounts.sign('Some data', 0x4c08...2318).
+    expect(
+      signerOf(
+        'evm',
+        'Some data',
+        '0xb91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c'
+      )
+    ).toBe('0x2c7536E3605D9C16a7a3D7b1898e529396a65c23')
+  })
+
+  it('reads a TRON address as 0x41 and the EVM-style key hash', () => {
+    // USDT on TRON: TR7NHq... is 41a614f8...d13c.
+    const p = parseAddress('tron', 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')
+    expect(Buffer.from(p!.key).toString('hex')).toBe(
+      'a614f803b6fd780986a42c78ec9c7f77e6ded13c'
+    )
+    expect(
+      parseAddress('tron', 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u')
+    ).toBeNull()
+  })
+})
+
+describe('checkChainProof', () => {
+  it('accepts an EVM signature and stores the checksummed address', () => {
+    const w = secpWallet()
+    const r = checkChainProof(
+      { ...evmProof(w), address: w.evm.toLowerCase() },
+      DOMAIN,
+      NOW
+    )
+    expect(r).toMatchObject({
+      ok: true,
+      chain: 'evm',
+      network: 'eip155',
+      address: w.evm,
+    })
+  })
+
+  it('accepts v as 0 or 1 too', () => {
+    const w = secpWallet()
+    const proof = textProof('evm', w.evm, t =>
+      secpSign('Ethereum', w.priv, t, 0)
+    )
+    expect(checkChainProof(proof, DOMAIN, NOW).ok).toBe(true)
+  })
+
+  it('refuses a signature from another key over the same text', () => {
+    const w = secpWallet()
+    const thief = secpWallet()
+    const proof = textProof('evm', w.evm, t =>
+      secpSign('Ethereum', thief.priv, t)
+    )
+    expect(checkChainProof(proof, DOMAIN, NOW)).toEqual({
+      ok: false,
+      code: 'signature_invalid',
+    })
+  })
+
+  it('refuses text signed for another nonce, domain or time', () => {
+    const w = secpWallet()
+    const sig = evmProof(w, { nonce: 'b'.repeat(64) }).signature
+    expect(
+      checkChainProof({ ...evmProof(w), signature: sig }, DOMAIN, NOW)
+    ).toEqual({ ok: false, code: 'signature_invalid' })
+    expect(checkChainProof(evmProof(w), 'evil.example', NOW)).toEqual({
+      ok: false,
+      code: 'signature_invalid',
+    })
+  })
+
+  it('refuses a wrong EIP-55 checksum as a typo', () => {
+    const w = secpWallet()
+    const flipped = w.evm.replace(/[a-f]/, c => c.toUpperCase())
+    expect(parseAddress('evm', flipped)).toBeNull()
+  })
+
+  it('times a text proof by the spec: 15 minutes old, a minute ahead', () => {
+    const w = secpWallet()
+    const at = (ms: number) =>
+      evmProof(w, { issuedAt: new Date(ms).toISOString() })
+    expect(checkChainProof(at(NOW - PROOF_TTL_MS), DOMAIN, NOW).ok).toBe(true)
+    expect(checkChainProof(at(NOW - PROOF_TTL_MS - 1), DOMAIN, NOW)).toEqual({
+      ok: false,
+      code: 'proof_expired',
+    })
+    expect(checkChainProof(at(NOW + 60_000), DOMAIN, NOW).ok).toBe(true)
+    expect(checkChainProof(at(NOW + 60_001), DOMAIN, NOW)).toEqual({
+      ok: false,
+      code: 'proof_from_future',
+    })
+  })
+
+  it('accepts a Solana signature under the address itself', () => {
+    const w = solWallet()
+    expect(checkChainProof(solProof(w), DOMAIN, NOW)).toMatchObject({
+      ok: true,
+      chain: 'solana',
+      network: 'solana',
+      address: w.address,
+    })
+    const thief = solWallet()
+    const forged = textProof('solana', w.address, t =>
+      base58.encode(sign(null, Buffer.from(t, 'utf8'), thief.priv))
+    )
+    expect(checkChainProof(forged, DOMAIN, NOW)).toEqual({
+      ok: false,
+      code: 'signature_invalid',
+    })
+  })
+
+  it("accepts a TRON signature with TRON's prefix and not with Ethereum's", () => {
+    const w = secpWallet()
+    expect(checkChainProof(tronProof(w), DOMAIN, NOW)).toMatchObject({
+      ok: true,
+      chain: 'tron',
+      network: 'tron',
+      address: w.tron,
+    })
+    const wrongPrefix = textProof('tron', w.tron, t =>
+      secpSign('Ethereum', w.priv, t)
+    )
+    expect(checkChainProof(wrongPrefix, DOMAIN, NOW)).toEqual({
+      ok: false,
+      code: 'signature_invalid',
+    })
+  })
+
+  it('does not sign TON as text, nor a chain it does not know', () => {
+    const w = secpWallet()
+    for (const chain of ['ton', 'bitcoin', '', 3])
+      expect(checkChainProof({ ...evmProof(w), chain }, DOMAIN, NOW)).toEqual({
+        ok: false,
+        code: 'chain_unknown',
+      })
+  })
+})
+
+describe('the TRI wallet routes on every chain', () => {
+  beforeEach(() => resetTriWalletEnsureForTests())
+
+  const bindWith = async (
+    pool: ReturnType<typeof fakePool>,
+    who: string,
+    proof: (nonce: string) => Record<string, unknown>
+  ) => {
+    const deps = depsFor(pool, who)
+    const ch = await call(deps, 'POST', '/api/tri/wallet/challenge')
+    return call(deps, 'POST', '/api/tri/wallet', proof(ch!.body.payload))
+  }
+
+  it('binds an EVM, a Solana and a TRON wallet beside TON, unpaid until the bridge', async () => {
+    const pool = fakePool()
+    const e = secpWallet()
+    const s = solWallet()
+    const t = secpWallet()
+    const ton = makeWallet()
+    expect(
+      (await bindWith(pool, '111', n => evmProof(e, { nonce: n })))?.status
+    ).toBe(200)
+    expect(
+      (await bindWith(pool, '111', n => solProof(s, { nonce: n })))?.status
+    ).toBe(200)
+    expect(
+      (await bindWith(pool, '111', n => tronProof(t, { nonce: n })))?.status
+    ).toBe(200)
+    expect(
+      (await bindWith(pool, '111', n => proofFor(ton, { payload: n }) as any))
+        ?.status
+    ).toBe(200)
+    const listed = await call(depsFor(pool, '111'), 'GET', '/api/tri/wallet')
+    const rows = listed!.body.wallets.map((w: any) => [
+      w.chain,
+      w.address,
+      w.paid,
+    ])
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        ['evm', e.evm, false],
+        ['solana', s.address, false],
+        ['tron', t.tron, false],
+        ['ton', ton.raw, true],
+      ])
+    )
+    expect(listed!.body.wallets).toHaveLength(4)
+    expect(pool.events.map(x => x.chain).sort()).toEqual([
+      'evm',
+      'solana',
+      'ton',
+      'tron',
+    ])
+  })
+
+  it('refuses an EVM address another person holds, and a spent nonce', async () => {
+    const pool = fakePool()
+    const w = secpWallet()
+    expect(
+      (await bindWith(pool, '111', n => evmProof(w, { nonce: n })))?.status
+    ).toBe(200)
+    expect(await bindWith(pool, '222', n => evmProof(w, { nonce: n }))).toEqual(
+      {
+        status: 409,
+        body: { error: 'wallet_bound_elsewhere' },
+      }
+    )
+    const deps = depsFor(pool, '111')
+    const ch = await call(deps, 'POST', '/api/tri/wallet/challenge')
+    const proof = evmProof(w, { nonce: ch!.body.payload })
+    expect((await call(deps, 'POST', '/api/tri/wallet', proof))?.status).toBe(
+      200
+    )
+    expect(await call(deps, 'POST', '/api/tri/wallet', proof)).toEqual({
+      status: 400,
+      body: { error: 'payload_unknown' },
+    })
+  })
+
+  it('unbinds an EVM wallet by chain, and leaves TON alone', async () => {
+    const pool = fakePool()
+    const w = secpWallet()
+    await bindWith(pool, '111', n => evmProof(w, { nonce: n }))
+    await bindWith(
+      pool,
+      '111',
+      n => proofFor(makeWallet(), { payload: n }) as any
+    )
+    const deps = depsFor(pool, '111')
+    expect(await call(deps, 'DELETE', '/api/tri/wallet?chain=evm')).toEqual({
+      status: 200,
+      body: { unbound: true },
+    })
+    expect(pool.wallets.map(x => x.chain)).toEqual(['ton'])
+    expect(await call(deps, 'DELETE', '/api/tri/wallet?chain=bitcoin')).toEqual(
+      {
+        status: 400,
+        body: { error: 'network_unknown' },
+      }
+    )
+  })
+
+  it('prints the text to sign without a person, and only for a parsed address', async () => {
+    const w = secpWallet()
+    const deps = depsFor(fakePool(), null)
+    const r = await call(deps, 'POST', '/api/tri/wallet/message', {
+      chain: 'evm',
+      address: w.evm.toLowerCase(),
+      nonce: PAYLOAD,
+    })
+    expect(r?.status).toBe(200)
+    expect(r!.body.address).toBe(w.evm)
+    expect(r!.body.message).toBe(
+      bindMessage({
+        domain: DOMAIN,
+        chain: 'evm',
+        address: w.evm,
+        nonce: PAYLOAD,
+        issuedAt: ISSUED,
+      })
+    )
+    expect(r!.body.message.split('\n')).toHaveLength(8)
+    expect(
+      await call(deps, 'POST', '/api/tri/wallet/message', {
+        chain: 'evm',
+        address: '0x1234',
+        nonce: PAYLOAD,
+      })
+    ).toEqual({ status: 400, body: { error: 'address_malformed' } })
+  })
+
+  it('a wallet browser proposes once, binds nothing, and the person confirms', async () => {
+    const pool = fakePool()
+    const person = depsFor(pool, '111')
+    const browser = depsFor(pool, null)
+    const ch = await call(person, 'POST', '/api/tri/wallet/challenge')
+    const nonce = ch!.body.payload
+    const w = solWallet()
+
+    const proposed = await call(
+      browser,
+      'POST',
+      '/api/tri/wallet/propose',
+      solProof(w, { nonce })
+    )
+    expect(proposed).toEqual({
+      status: 200,
+      body: { proposed: true, chain: 'solana', address: w.address },
+    })
+    expect(pool.wallets).toEqual([])
+
+    // A second signer on the same nonce is refused: first one stands.
+    const other = await call(
+      browser,
+      'POST',
+      '/api/tri/wallet/propose',
+      solProof(solWallet(), { nonce })
+    )
+    expect(other).toEqual({ status: 400, body: { error: 'already_proposed' } })
+
+    const listed = await call(person, 'GET', '/api/tri/wallet')
+    expect(listed!.body.proposals).toMatchObject([
+      { nonce, chain: 'solana', network: 'solana', address: w.address },
+    ])
+
+    // Not somebody else's yes.
+    expect(
+      await call(depsFor(pool, '222'), 'POST', '/api/tri/wallet', {
+        confirm: nonce,
+      })
+    ).toEqual({ status: 400, body: { error: 'proposal_unknown' } })
+
+    const bound = await call(person, 'POST', '/api/tri/wallet', {
+      confirm: nonce,
+    })
+    expect(bound?.status).toBe(200)
+    expect(bound!.body.wallet).toMatchObject({
+      chain: 'solana',
+      address: w.address,
+      paid: false,
+    })
+    expect(
+      await call(person, 'POST', '/api/tri/wallet', { confirm: nonce })
+    ).toEqual({ status: 400, body: { error: 'proposal_unknown' } })
+  })
+
+  it('two wallets racing on one nonce: the database keeps the first', async () => {
+    const pool = fakePool()
+    const ch = await call(
+      depsFor(pool, '111'),
+      'POST',
+      '/api/tri/wallet/challenge'
+    )
+    const nonce = ch!.body.payload
+    const browser = depsFor(pool, null)
+    const [a, b] = await Promise.all(
+      [secpWallet(), secpWallet()].map(w =>
+        call(browser, 'POST', '/api/tri/wallet/propose', evmProof(w, { nonce }))
+      )
+    )
+    expect([a?.status, b?.status].sort()).toEqual([200, 400])
+    const loser = a?.status === 400 ? a : b
+    expect(loser!.body).toEqual({ error: 'already_proposed' })
+    const winner = a?.status === 200 ? a : b
+    expect(pool.challenges[0].proposed_address).toBe(winner!.body.address)
+  })
+
+  it('refuses a proposal on a nonce nobody was issued, or with a bad signature', async () => {
+    const pool = fakePool()
+    const browser = depsFor(pool, null)
+    const w = secpWallet()
+    expect(
+      await call(browser, 'POST', '/api/tri/wallet/propose', evmProof(w))
+    ).toEqual({ status: 400, body: { error: 'payload_unknown' } })
+    const ch = await call(
+      depsFor(pool, '111'),
+      'POST',
+      '/api/tri/wallet/challenge'
+    )
+    const forged = textProof(
+      'evm',
+      w.evm,
+      t => secpSign('Ethereum', secpWallet().priv, t),
+      { nonce: ch!.body.payload }
+    )
+    expect(
+      await call(browser, 'POST', '/api/tri/wallet/propose', forged)
+    ).toEqual({ status: 400, body: { error: 'signature_invalid' } })
+  })
+
+  it('confirms nothing that was never proposed', async () => {
+    const pool = fakePool()
+    const person = depsFor(pool, '111')
+    const ch = await call(person, 'POST', '/api/tri/wallet/challenge')
+    expect(
+      await call(person, 'POST', '/api/tri/wallet', {
+        confirm: ch!.body.payload,
+      })
+    ).toEqual({ status: 400, body: { error: 'proposal_unknown' } })
+  })
+
+  it('keeps the bind, challenge and list routes behind the person', async () => {
+    const deps = depsFor(fakePool(), null)
+    for (const [m, u] of [
+      ['GET', '/api/tri/wallet'],
+      ['POST', '/api/tri/wallet/challenge'],
+      ['DELETE', '/api/tri/wallet?chain=evm'],
+    ])
+      expect(await call(deps, m, u)).toEqual({
+        status: 401,
+        body: { error: 'person_required' },
+      })
+  })
+})
+
+describe('the guard and the table', () => {
+  it(
+    'lets exactly the message and propose routes past the guard',
+    async () => {
+      const { isPublic } = await import('./auth')
+      const { TRI_WALLET_PUBLIC_PATHS } = await import('./src/tri-wallet')
+      for (const p of TRI_WALLET_PUBLIC_PATHS)
+        expect(isPublic({ url: p, method: 'POST' } as any), p).toBe(true)
+      for (const p of ['/api/tri/wallet', '/api/tri/wallet/challenge'])
+        for (const method of ['GET', 'POST', 'DELETE'])
+          expect(isPublic({ url: p, method } as any), `${method} ${p}`).toBe(
+            false
+          )
+    },
+    SLOW_IMPORT_TIMEOUT_MS
+  )
+
+  it("swaps a TON-only table's checks for one that names every chain", async () => {
+    const seen: string[] = []
+    const { ensureTriWalletTables } = await import('./src/tri-wallet')
+    await ensureTriWalletTables({
+      async query(text: string) {
+        seen.push(text.replace(/\s+/g, ' '))
+        return { rows: [] }
+      },
+    })
+    const swap = seen.find(t => t.includes('ALTER TABLE tri_wallets '))!
+    expect(swap).toContain('DROP CONSTRAINT IF EXISTS tri_wallets_chain_check')
+    expect(swap).toContain(
+      'DROP CONSTRAINT IF EXISTS tri_wallets_network_check'
+    )
+    for (const pair of [
+      "chain = 'ton' AND network IN ('-239', '-3')",
+      "chain = 'evm' AND network = 'eip155'",
+      "chain = 'solana' AND network = 'solana'",
+      "chain = 'tron' AND network = 'tron'",
+    ])
+      expect(swap).toContain(pair)
+    expect(
+      seen.some(t => t.includes('ADD COLUMN IF NOT EXISTS proposed_address'))
+    ).toBe(true)
+  })
 })

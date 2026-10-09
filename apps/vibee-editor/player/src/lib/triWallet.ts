@@ -27,11 +27,23 @@ export const TON_MANIFEST_PATH = '/tonconnect-manifest.json'
 export type TonNetwork = '-239' | '-3'
 
 export interface BoundTriWallet {
-  chain: 'ton'
-  network: TonNetwork
+  chain: 'ton' | 'evm' | 'solana' | 'tron'
+  /** A TON network id, or the one network of an EVM/Solana/TRON binding. */
+  network: string
   address: string
   friendly: string
   boundAt: string
+  /** TRI is paid here today: TON, until the bridge is live. */
+  paid: boolean
+}
+
+/** An address a wallet's own browser signed for, waiting for the person. */
+export interface TriProposal {
+  nonce: string
+  chain: 'evm' | 'solana' | 'tron'
+  network: string
+  address: string
+  proposedAt: string
 }
 
 /** The parts of a TON Connect wallet this flow reads. */
@@ -76,8 +88,19 @@ export function proofBody(wallet: ProvedWallet) {
 }
 
 export async function listTriWallets(): Promise<BoundTriWallet[]> {
-  const r = await apiFetch<{ wallets: BoundTriWallet[] }>(TRI_WALLET_URL)
-  return r.wallets ?? []
+  return (await readTriWallets()).wallets
+}
+
+/** The bound wallets and the proposals waiting for this person's yes. */
+export async function readTriWallets(): Promise<{
+  wallets: BoundTriWallet[]
+  proposals: TriProposal[]
+}> {
+  const r = await apiFetch<{
+    wallets?: BoundTriWallet[]
+    proposals?: TriProposal[]
+  }>(TRI_WALLET_URL)
+  return { wallets: r.wallets ?? [], proposals: r.proposals ?? [] }
 }
 
 export async function issueTriChallenge(): Promise<string> {
@@ -98,10 +121,12 @@ export async function bindTriWallet(
   return r.wallet
 }
 
-export async function unbindTriWallet(network: TonNetwork): Promise<void> {
-  await apiFetch(`${TRI_WALLET_URL}?network=${encodeURIComponent(network)}`, {
-    method: 'DELETE',
-  })
+export async function unbindTriWallet(
+  network: string,
+  chain: BoundTriWallet['chain'] = 'ton'
+): Promise<void> {
+  const q = new URLSearchParams({ chain, network })
+  await apiFetch(`${TRI_WALLET_URL}?${q}`, { method: 'DELETE' })
 }
 
 /** The server's refusal codes a person can act on, as i18n keys. */
@@ -121,6 +146,13 @@ export function triWalletErrorKey(code: string | undefined): string {
       return 'tri.wallet.err.signin'
     case 'too_many_challenges':
       return 'tri.wallet.err.busy'
+    case 'signature_invalid':
+    case 'signature_malformed':
+    case 'address_malformed':
+      return 'tri.wallet.err.signature'
+    case 'proposal_unknown':
+    case 'already_proposed':
+      return 'tri.wallet.err.proposal'
     default:
       return 'tri.wallet.err.generic'
   }

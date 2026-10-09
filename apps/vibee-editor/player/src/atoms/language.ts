@@ -1016,7 +1016,7 @@ const en: Translations = {
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
-    "The TON address your TRI is paid to, proved by your wallet's own signature. TRI exists on TON testnet only; there is no mainnet TRI yet.",
+    "Where your TRI is paid, on every chain you hold: TON, EVM (Ethereum, Base, BNB Chain, Polygon, Arbitrum and the rest), Solana and TRON, each proved by the wallet's own signature. TRI is paid on TON testnet only today; on the other chains it arrives once the bridge is live.",
   'tri.wallet.bind': 'Bind a TON wallet',
   'tri.wallet.rebind': 'Bind another TON wallet',
   'tri.wallet.unbind': 'Unbind',
@@ -1033,6 +1033,36 @@ const en: Translations = {
   'tri.wallet.err.noproof':
     'The wallet connected without signing the proof, so nothing was bound.',
   'tri.wallet.err.generic': 'The wallet could not be bound. Try again.',
+  'tri.wallet.err.signature':
+    'The signature did not match this address. Sign again in the same wallet.',
+  'tri.wallet.err.proposal':
+    'There is nothing to confirm any more. Start again.',
+  'tri.wallet.chain.evm': 'EVM, every EVM chain',
+  'tri.wallet.bind.evm': 'Bind an EVM wallet',
+  'tri.wallet.bind.solana': 'Bind a Solana wallet',
+  'tri.wallet.bind.tron': 'Bind a TRON wallet',
+  'tri.wallet.paid': 'TRI is paid here',
+  'tri.wallet.bridge': 'TRI arrives here once the bridge is live',
+  'tri.wallet.open.note':
+    'Telegram has no {chain} wallet inside it. Open the page in your wallet app, sign there, then come back here and confirm.',
+  'tri.wallet.open.copy': 'Copy link',
+  'tri.wallet.open.copied': 'Copied',
+  'tri.wallet.open.waiting':
+    "Waiting for the wallet's signature -- this updates by itself",
+  'tri.wallet.proposal': 'A {chain} wallet signed: {address}',
+  'tri.wallet.proposal.confirm': 'Yes, this is my wallet',
+  'tri.wallet.proposal.note':
+    'Not yours? Do not confirm it; the request expires by itself.',
+  // The wallet app's own browser (pages/TriBind.tsx)
+  'tri.bind.title': 'Bind your {chain} wallet to TRI',
+  'tri.bind.note':
+    'Signing moves no coins and grants no spending rights. Your wallet shows the exact text before you sign.',
+  'tri.bind.sign': 'Connect and sign',
+  'tri.bind.done':
+    'Signed. Go back to Telegram and press "Yes, this is my wallet".',
+  'tri.bind.nowallet':
+    "No {chain} wallet in this browser. Open this page in your wallet app's browser.",
+  'tri.bind.broken': 'This link is incomplete. Start again from your profile.',
   // Claiming TRI for accepted specs, own profile only (components/Profile/TriClaimCard.tsx)
   'tri.claim.title': '🪙 TRI for accepted specs',
   'tri.claim.status':
@@ -4090,7 +4120,7 @@ const ru: Translations = {
   'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
-    'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
+    'Куда приходят ваши TRI, во всех сетях, где у вас есть кошелёк: TON, EVM (Ethereum, Base, BNB Chain, Polygon, Arbitrum и остальные), Solana и TRON. Каждый адрес подтверждён подписью самого кошелька. Сейчас TRI выплачиваются только в тестовой сети TON; в остальные сети они придут, когда заработает мост.',
   'tri.wallet.bind': 'Привязать TON-кошелёк',
   'tri.wallet.rebind': 'Привязать другой TON-кошелёк',
   'tri.wallet.unbind': 'Отвязать',
@@ -4108,6 +4138,32 @@ const ru: Translations = {
   'tri.wallet.err.noproof':
     'Кошелёк подключился, но не подписал подтверждение, поэтому ничего не привязано.',
   'tri.wallet.err.generic': 'Не удалось привязать кошелёк. Попробуйте ещё раз.',
+  'tri.wallet.err.signature':
+    'Подпись не совпала с адресом. Подпишите ещё раз в том же кошельке.',
+  'tri.wallet.err.proposal': 'Подтверждать уже нечего. Начните заново.',
+  'tri.wallet.chain.evm': 'EVM, все EVM-сети',
+  'tri.wallet.bind.evm': 'Привязать EVM-кошелёк',
+  'tri.wallet.bind.solana': 'Привязать Solana-кошелёк',
+  'tri.wallet.bind.tron': 'Привязать TRON-кошелёк',
+  'tri.wallet.paid': 'Сюда приходят TRI',
+  'tri.wallet.bridge': 'TRI придут сюда, когда заработает мост',
+  'tri.wallet.open.note':
+    'Внутри Telegram нет {chain}-кошелька. Откройте страницу в приложении кошелька, подпишите там, затем вернитесь сюда и подтвердите.',
+  'tri.wallet.open.copy': 'Скопировать ссылку',
+  'tri.wallet.open.copied': 'Скопировано',
+  'tri.wallet.open.waiting': 'Ждём подпись кошелька — строка обновится сама',
+  'tri.wallet.proposal': '{chain}-кошелёк подписал: {address}',
+  'tri.wallet.proposal.confirm': 'Да, это мой кошелёк',
+  'tri.wallet.proposal.note': 'Не ваш? Не подтверждайте: запрос истечёт сам.',
+  'tri.bind.title': 'Привязать {chain}-кошелёк к TRI',
+  'tri.bind.note':
+    'Подпись не двигает монеты и не даёт права тратить. Кошелёк покажет точный текст до подписи.',
+  'tri.bind.sign': 'Подключить и подписать',
+  'tri.bind.done':
+    'Подписано. Вернитесь в Telegram и нажмите «Да, это мой кошелёк».',
+  'tri.bind.nowallet':
+    'В этом браузере нет {chain}-кошелька. Откройте эту страницу в браузере приложения кошелька.',
+  'tri.bind.broken': 'Ссылка неполная. Начните заново из профиля.',
   'tri.claim.title': '🪙 TRI за принятые спеки',
   'tri.claim.status':
     'Только тестовая сеть TON. V1, кворум подписантов, НЕ trustless: независимые аттесторы проверяют каждую спеку и подписывают выпуск; отправляет его ваш кошелёк и платит газ.',
