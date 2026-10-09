@@ -40,12 +40,13 @@ tri ci 3951               # one PR
 Railway logs of `ci-bridge` (MCP `get-logs`, service id `899acae4-…`) say why a pass
 failed, with GitHub's own words:
 
-| log line                                               | meaning / fix                                                                                      |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `403 Resource not accessible by personal access token` | the token does not reach this private repo                                                         |
-| `the app may write neither commit statuses nor checks` | owner: give the trios bees app `Checks: write` (or `Commit statuses: write`) and accept on install |
-| `the app may not mark; falling back to GITHUB_TOKEN`   | the token marks instead (needs `Commit statuses: write`)                                           |
-| `runner: …` in the mark                                | check-runner refused or died; `tri remote-check types` from a checkout reproduces it               |
+| log line                                               | meaning / fix                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `403 Resource not accessible by personal access token` | the token does not reach this private repo                                                             |
+| `the app may write neither commit statuses nor checks` | owner: give the trios bees app `Checks: write` (or `Commit statuses: write`) and accept on install     |
+| `the app may not mark; falling back to GITHUB_TOKEN`   | the token marks instead (needs `Commit statuses: write`)                                               |
+| `…"Checks: write"; GITHUB_TOKEN: … 403 …`              | neither can mark; the fallback lasts one pass, so a permission granted later is used without a restart |
+| `runner: …` in the mark                                | check-runner refused or died; `tri remote-check types` from a checkout reproduces it                   |
 
 ## Common Issues
 

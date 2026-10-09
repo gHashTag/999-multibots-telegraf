@@ -495,24 +495,35 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
 }
 
 /* One pass over the open pull requests; runs them one at a time. */
-export async function tick(cfg, deps) {
+const APP_MAY_NOT_MARK =
+  'the app may write neither commit statuses nor checks: give it ' +
+  '"Commit statuses: write" or "Checks: write"'
+
+/*
+ * One pass over the open pull requests; runs them one at a time. Each pass
+ * starts from the app again: a token fallback lasts one pass, so a
+ * permission the owner grants later is picked up without a restart.
+ */
+export async function tick(cfg, deps, fallback = false) {
+  cfg.preferToken = fallback
   const prs = await ghJson(
     cfg,
     deps,
     `/repos/${cfg.repo}/pulls?state=open&per_page=50`
   )
-  let mode = markMode(cfg.preferToken ? undefined : cfg.minted?.perms)
-  if (!mode && cfg.token) {
+  const mode = markMode(fallback ? undefined : cfg.minted?.perms)
+  if (!mode && cfg.token && !fallback) {
     /* the app reads but may not mark: a configured token marks instead */
     deps.log('the app may not mark; falling back to GITHUB_TOKEN')
-    cfg.preferToken = true
-    return tick(cfg, deps)
+    try {
+      return await tick(cfg, deps, true)
+    } catch (e) {
+      throw new Error(`${APP_MAY_NOT_MARK}; GITHUB_TOKEN: ${e?.message || e}`)
+    } finally {
+      cfg.preferToken = false
+    }
   }
-  if (!mode)
-    throw new Error(
-      'the app may write neither commit statuses nor checks: give it ' +
-        '"Commit statuses: write" or "Checks: write"'
-    )
+  if (!mode) throw new Error(APP_MAY_NOT_MARK)
   const done = []
   for (const pr of prs) {
     if (!runsHere(pr, cfg.repo, cfg.since)) continue
