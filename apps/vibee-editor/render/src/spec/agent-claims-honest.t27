@@ -12,13 +12,20 @@
 // claim is backed is this spec.
 // v1 (2026-10-09): media backed only by a succeeded call; a send only by a send tool or a
 // delivery card; a promised link only by a URL in the answer; the prompt carries today.
+// v2 (2026-10-09): every file a tool made reaches the person, whatever the model typed. The
+// owner's chat that day: image_edit drew real posters, and the answers read "Link:" with
+// nothing, or "(link removed: no such file)". The model's own copy of the URL was the only
+// way to the file -- a URL wrapped in ** or followed by a dash was not the URL any more, and the
+// link gate cut it; a picture that finished after the answer was told to nobody. The host now
+// appends each file a tool made this turn that the answer does not already carry, cuts a link
+// to our file at its extension, and posts a late picture into the thread the turn ran in.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_claims_honest {
     pub const KIND : str = "automation";
     pub const ID : str = "agent-claims-honest";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // "I made the picture" is true only when the tool that makes it was called AND answered
     // with the thing: a result that says "still drawing" or "not done" is no picture.
@@ -42,6 +49,40 @@ module automation::agent_claims_honest {
     pub const PROMPT_CARRIES_TODAY : bool = true;
     fn prompt_dated(surface_answers_people: bool) -> bool {
         return PROMPT_CARRIES_TODAY && surface_answers_people;
+    }
+
+    // v2: a file a tool made this turn that the answer does not carry is appended by the host.
+    pub const FILES_APPENDED_BY_HOST : bool = true;
+    // The tools that MAKE a file (their answer's top-level url is the new file). A tool that lists
+    // files already there is not one: its list is not appended.
+    pub const FILE_MAKERS : str = "image_edit,image_generate,image_upscale,image_remove_background,video_generate,lipsync_generate,audio_generate";
+    fn file_owed(made: bool, in_answer: bool) -> bool {
+        return made && !in_answer;
+    }
+
+    // v2: a picture that finishes after the answer goes into the thread the turn ran in -- not
+    // into a turn nobody keeps (ephemeral), and nowhere when the turn had no thread.
+    fn late_file_posted(ready: bool, has_thread: bool, ephemeral: bool) -> bool {
+        return ready && has_thread && !ephemeral;
+    }
+
+    // v2: a link to our own storage ends at the file's extension: `**url**`, `url-` or a word
+    // glued after it is still that file.
+    pub const OUR_LINK_ENDS_AT_EXTENSION : bool = true;
+
+    test "every file a tool made reaches the person, once" {
+        assert(FILES_APPENDED_BY_HOST);
+        assert(file_owed(true, false));
+        assert(!file_owed(true, true));
+        assert(!file_owed(false, false));
+        assert(OUR_LINK_ENDS_AT_EXTENSION);
+    }
+
+    test "a late picture goes into its own thread and nowhere else" {
+        assert(late_file_posted(true, true, false));
+        assert(!late_file_posted(false, true, false));
+        assert(!late_file_posted(true, false, false));
+        assert(!late_file_posted(true, true, true));
     }
 
     test "a picture claimed is a picture made: called and answered with it" {
@@ -70,7 +111,7 @@ module automation::agent_claims_honest {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 

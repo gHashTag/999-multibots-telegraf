@@ -6,12 +6,19 @@
 export const KIND = "automation" satisfies string;
 export const ID = "agent-claims-honest" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 // t27c gen-ts: fn media_claim_backed was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn send_claim_backed was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn link_claim_backed was not emitted -- this backend lowers declarations, not bodies.
 export const PROMPT_CARRIES_TODAY = true satisfies boolean;
 // t27c gen-ts: fn prompt_dated was not emitted -- this backend lowers declarations, not bodies.
+export const FILES_APPENDED_BY_HOST = true satisfies boolean;
+export const FILE_MAKERS = "image_edit,image_generate,image_upscale,image_remove_background,video_generate,lipsync_generate,audio_generate" satisfies string;
+// t27c gen-ts: fn file_owed was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn late_file_posted was not emitted -- this backend lowers declarations, not bodies.
+export const OUR_LINK_ENDS_AT_EXTENSION = true satisfies boolean;
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -20,7 +27,7 @@ export const PROMPT_CARRIES_TODAY = true satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROMPT_CARRIES_TODAY"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "PROMPT_CARRIES_TODAY", "FILES_APPENDED_BY_HOST", "FILE_MAKERS", "OUR_LINK_ENDS_AT_EXTENSION"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
