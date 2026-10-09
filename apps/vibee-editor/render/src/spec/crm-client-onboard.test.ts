@@ -144,10 +144,16 @@ describe('spec crm-client-onboard.t27 against the host', () => {
     expect(none.done).toBe(false)
     // CONTEXT_NAMES_LEAD_ID: the thread's header carries the id (chat.ts).
     expect(SPEC.CONTEXT_NAMES_LEAD_ID).toBe(true)
-    const { readFileSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const chat = readFileSync(join(__dirname, '..', 'agent', 'chat.ts'), 'utf8')
-    expect(chat).toContain('Разговор о клиенте ${name} (telegram_id ${lead})')
+    const { clientContextBlock } = await import('../agent/chat')
+    const block = await clientContextBlock(
+      {
+        telegramId: SELLER,
+        pool: { query: async () => ({ rows: [] }) },
+      } as never,
+      CLIENT
+    )
+    expect(block).toContain(`(telegram_id ${CLIENT})`)
+    expect(block).toContain(SPEC.TOOL)
   })
 
   it('the next step is the first one missing', async () => {
