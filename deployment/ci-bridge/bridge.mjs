@@ -209,9 +209,36 @@ export async function tokenOf(cfg, deps) {
     headers: as,
   })
   if (!res.ok) throw new Error(`installation token -> ${await why(res)}`)
-  const { token, expires_at } = await res.json()
-  cfg.minted = { token, until: Date.parse(expires_at) }
+  const { token, expires_at, permissions } = await res.json()
+  cfg.minted = {
+    token,
+    until: Date.parse(expires_at),
+    perms: permissions || {},
+  }
   return token
+}
+
+/*
+ * How the verdict is written: a commit status, or a check run when the
+ * token may write checks but not statuses. 2026-10-09 the trios bees app
+ * read pull requests here but answered "Resource not accessible by
+ * integration" on commit statuses. A personal token carries no permission
+ * map and is taken to write statuses. null: neither can be written.
+ */
+export function markMode(perms) {
+  if (!perms) return 'statuses'
+  if (perms.statuses === 'write') return 'statuses'
+  if (perms.checks === 'write') return 'checks'
+  return null
+}
+
+/* A check run read as a status: the shape needsRun() takes. */
+export function runAsStatus(run) {
+  if (!run) return null
+  return {
+    state: run.status === 'completed' ? run.conclusion : 'pending',
+    updated_at: run.completed_at || run.started_at,
+  }
 }
 
 /* A refusal's status and GitHub's own words for it (never a header). */
@@ -238,6 +265,67 @@ async function ghJson(cfg, deps, path) {
   const res = await gh(cfg, deps, path)
   if (!res.ok) throw new Error(`GET ${path.split('?')[0]} -> ${await why(res)}`)
   return res.json()
+}
+
+/* Our mark on a commit, whichever way it is written. */
+async function readMark(cfg, deps, mode, sha) {
+  if (mode === 'checks') {
+    const r = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(CONTEXT)}&per_page=1`
+    )
+    return runAsStatus(r.check_runs?.[0])
+  }
+  return ourStatus(
+    await ghJson(cfg, deps, `/repos/${cfg.repo}/commits/${sha}/status`)
+  )
+}
+
+/* Pending first; the verdict later writes onto the same mark. */
+async function startMark(cfg, deps, mode, sha) {
+  if (mode !== 'checks') {
+    await setStatus(
+      cfg,
+      deps,
+      sha,
+      'pending',
+      'running on Railway check-runner'
+    )
+    return null
+  }
+  const res = await gh(cfg, deps, `/repos/${cfg.repo}/check-runs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: CONTEXT,
+      head_sha: sha,
+      status: 'in_progress',
+    }),
+  })
+  if (!res.ok) throw new Error(`check run -> ${await why(res)}`)
+  return (await res.json()).id
+}
+
+async function endMark(cfg, deps, mode, sha, id, v, tail) {
+  if (mode !== 'checks')
+    return setStatus(cfg, deps, sha, v.state, v.description)
+  const title = redact(v.description, secretsOf(cfg)).slice(0, 140)
+  const res = await gh(cfg, deps, `/repos/${cfg.repo}/check-runs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: 'completed',
+      conclusion: v.state === 'success' ? 'success' : 'failure',
+      output: {
+        title,
+        summary: title,
+        text: redact(
+          '```\n' + tail.replace(/```/g, "'''") + '\n```',
+          secretsOf(cfg)
+        ),
+      },
+    }),
+  })
+  if (!res.ok) throw new Error(`check run end -> ${await why(res)}`)
 }
 
 async function setStatus(cfg, deps, sha, state, description) {
@@ -350,10 +438,10 @@ async function runChecks(cfg, deps, body) {
 }
 
 /* One head commit, start to verdict. */
-export async function checkPr(cfg, deps, pr) {
+export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const sha = pr.head.sha
   const log = deps.log
-  await setStatus(cfg, deps, sha, 'pending', 'running on Railway check-runner')
+  const id = await startMark(cfg, deps, mode, sha)
   const dir = join(cfg.work, sha)
   let text
   try {
@@ -369,14 +457,18 @@ export async function checkPr(cfg, deps, pr) {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
   const v = verdict(resultOf(text))
-  await setStatus(cfg, deps, sha, v.state, v.description)
+  await endMark(cfg, deps, mode, sha, id, v, tailOf(text))
   log(`#${pr.number} ${sha.slice(0, 9)}: ${v.state} ${v.description}`)
   if (v.state !== 'success') {
     const comment = redact(commentBody(sha, v, tailOf(text)), secretsOf(cfg))
-    await gh(cfg, deps, `/repos/${cfg.repo}/issues/${pr.number}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body: comment }),
-    })
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments`,
+      { method: 'POST', body: JSON.stringify({ body: comment }) }
+    )
+    /* the mark already carries the verdict; a refused comment is only logged */
+    if (!res.ok) log(`#${pr.number} comment -> ${await why(res)}`)
   }
   return v
 }
@@ -388,16 +480,18 @@ export async function tick(cfg, deps) {
     deps,
     `/repos/${cfg.repo}/pulls?state=open&per_page=50`
   )
+  const mode = markMode(cfg.minted?.perms)
+  if (!mode)
+    throw new Error(
+      'the app may write neither commit statuses nor checks: give it ' +
+        '"Commit statuses: write" or "Checks: write"'
+    )
   const done = []
   for (const pr of prs) {
     if (!ownHead(pr, cfg.repo) || !recent(pr, cfg.since)) continue
-    const combined = await ghJson(
-      cfg,
-      deps,
-      `/repos/${cfg.repo}/commits/${pr.head.sha}/status`
-    )
-    if (!needsRun(ourStatus(combined), deps.now(), cfg.staleMs)) continue
-    done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr)) })
+    const mark = await readMark(cfg, deps, mode, pr.head.sha)
+    if (!needsRun(mark, deps.now(), cfg.staleMs)) continue
+    done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr, mode)) })
   }
   return done
 }

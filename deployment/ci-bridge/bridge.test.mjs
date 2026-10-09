@@ -16,7 +16,9 @@ import { join } from 'node:path'
 import {
   CONTEXT,
   SUITES,
+  markMode,
   needsRun,
+  runAsStatus,
   ownHead,
   recent,
   redact,
@@ -81,7 +83,7 @@ const ok = (data, status = 200) =>
   })
 
 /* A fake GitHub + runner; records every call. */
-function world({ prs, statuses = {}, runnerSays }) {
+function world({ prs, statuses = {}, checkRuns = {}, runnerSays }) {
   const calls = []
   const fetch = async (url, init = {}) => {
     const u = new URL(url)
@@ -100,6 +102,10 @@ function world({ prs, statuses = {}, runnerSays }) {
       ])
     if (u.pathname.includes('/tarball/')) return new Response(tarball())
     if (u.pathname.includes('/statuses/')) return ok({}, 201)
+    const runs = u.pathname.match(/\/commits\/([a-z0-9]+)\/check-runs$/)
+    if (runs) return ok({ check_runs: checkRuns[runs[1]] || [] })
+    if (u.pathname.endsWith('/check-runs')) return ok({ id: 5 }, 201)
+    if (u.pathname.endsWith('/check-runs/5')) return ok({ id: 5 })
     if (u.pathname.endsWith('/comments')) return ok({}, 201)
     if (u.pathname === '/run') return new Response(runnerSays)
     throw new Error(`unexpected ${url}`)
@@ -375,5 +381,89 @@ describe('a GitHub App instead of a token', () => {
     const fetch = async () => ok({ message: 'Not Found' }, 404)
     const c = { ...cfg, token: '', appId: '42', appKey: key, minted: null }
     await assert.rejects(tokenOf(c, { fetch, now: Date.now }), /404 Not Found/)
+  })
+})
+
+describe('a check run when statuses are not ours to write', () => {
+  it('statuses first, checks when only checks may be written, null when neither', () => {
+    assert.equal(markMode(undefined), 'statuses')
+    assert.equal(markMode({ statuses: 'write', checks: 'write' }), 'statuses')
+    assert.equal(markMode({ statuses: 'read', checks: 'write' }), 'checks')
+    assert.equal(markMode({ pull_requests: 'write' }), null)
+  })
+
+  it('a run in progress reads as pending, a finished one as its conclusion', () => {
+    assert.equal(runAsStatus(null), null)
+    assert.deepEqual(
+      runAsStatus({
+        status: 'in_progress',
+        started_at: '2026-10-09T11:00:00Z',
+      }),
+      { state: 'pending', updated_at: '2026-10-09T11:00:00Z' }
+    )
+    assert.deepEqual(
+      runAsStatus({
+        status: 'completed',
+        conclusion: 'failure',
+        started_at: '2026-10-09T11:00:00Z',
+        completed_at: '2026-10-09T11:05:00Z',
+      }),
+      { state: 'failure', updated_at: '2026-10-09T11:05:00Z' }
+    )
+  })
+
+  const appCfg = {
+    ...cfg,
+    token: '',
+    appId: '42',
+    appKey: 'unused: the token below is still fresh',
+    minted: {
+      token: 'inst-token',
+      until: Date.parse('2026-10-10T00:00:00Z'),
+      perms: { checks: 'write', pull_requests: 'read' },
+    },
+  }
+
+  it('opens a run, then completes it with the verdict and the tail', async () => {
+    const w = world({
+      prs: [pr(7, 'aaa111'), pr(9, 'ccc333')],
+      checkRuns: {
+        ccc333: [
+          {
+            status: 'completed',
+            conclusion: 'success',
+            completed_at: '2026-10-09T11:00:00Z',
+          },
+        ],
+      },
+      runnerSays: 'FAIL x.test.ts\n::result {"types":0,"guard":1}\n',
+    })
+    const [d, more] = await tick({ ...appCfg }, w.deps)
+    assert.equal(more, undefined, 'a commit with a finished run is done')
+    assert.equal(d.state, 'failure')
+    assert.equal(w.calls.filter(c => c.url.includes('/statuses/')).length, 0)
+    const open = w.calls.find(
+      c => c.method === 'POST' && c.url.endsWith('/check-runs')
+    )
+    assert.deepEqual(JSON.parse(open.init.body), {
+      name: CONTEXT,
+      head_sha: 'aaa111',
+      status: 'in_progress',
+    })
+    const end = w.calls.find(c => c.method === 'PATCH')
+    const body = JSON.parse(end.init.body)
+    assert.equal(end.url, `/repos/${REPO}/check-runs/5`)
+    assert.equal(body.conclusion, 'failure')
+    assert.match(body.output.text, /FAIL x\.test\.ts/)
+  })
+
+  it('an app that may write neither says so and runs nothing', async () => {
+    const w = world({ prs: [pr(7, 'aaa111')], runnerSays: '' })
+    const c = {
+      ...appCfg,
+      minted: { ...appCfg.minted, perms: { pull_requests: 'read' } },
+    }
+    await assert.rejects(tick(c, w.deps), /neither commit statuses nor checks/)
+    assert.ok(!w.calls.some(c => c.url.startsWith('/run')))
   })
 })
