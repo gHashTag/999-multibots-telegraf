@@ -7,7 +7,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as SPEC from './agent-neuro-kie.gen'
-import { mayOrderImage, sourceOk, videoRoute } from './agent-neuro-kie.logic'
+import {
+  editUsesGpt25,
+  mayOrderImage,
+  sourceOk,
+  videoRoute,
+} from './agent-neuro-kie.logic'
 import { priceForModel } from '../agent/billing-shared'
 import { SOURCE_TOOLS, kieImageOrder } from '../agent/agent-neuro'
 
@@ -30,6 +35,14 @@ describe('spec agent-neuro-kie.t27', () => {
     expect(SPEC.VIDEO_FROM_IMAGE).toBe(1)
     expect(videoRoute(true)).toBe(SPEC.VIDEO_FROM_IMAGE)
     expect(videoRoute(false)).toBe(SPEC.VIDEO_FROM_WORDS)
+  })
+
+  it('a picture from a photo is GPT Image 2.5 unless another model is named', () => {
+    expect(SPEC.EDIT_DEFAULT_IS_GPT25).toBe(true)
+    expect(editUsesGpt25(false, false)).toBe(true)
+    expect(editUsesGpt25(true, false)).toBe(true)
+    expect(editUsesGpt25(false, true)).toBe(false)
+    expect(SPEC.EDIT_DEFAULT_ASPECT).toBe('9:16')
   })
 
   it("VERSION says what the header's last note says", () => {

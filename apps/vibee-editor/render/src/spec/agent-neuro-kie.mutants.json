@@ -78,5 +78,25 @@
       "src/spec/agent-neuro-kie.test.ts",
       "a-flat-price-buys-only-what-it-covers.test.ts"
     ]
+  },
+  {
+    "name": "the owner gets nano-banana by default",
+    "file": "src/agent/tools.ts",
+    "from": "        editUsesGpt25(\n          isGptImage25Edit(named),\n          !!named && !isGptImage25Edit(named)\n        )",
+    "to": "        false",
+    "tests": [
+      "the-client-face-is-mandatory.test.ts",
+      "src/spec/agent-neuro-kie.test.ts"
+    ]
+  },
+  {
+    "name": "the photo frame is not the spec's",
+    "file": "src/agent/tools.ts",
+    "from": ": NEURO.EDIT_DEFAULT_ASPECT",
+    "to": ": '1:1'",
+    "tests": [
+      "the-client-face-is-mandatory.test.ts",
+      "src/spec/agent-neuro-kie.test.ts"
+    ]
   }
 ]

@@ -13,10 +13,14 @@
  */
 import * as SPEC from '../spec/agent-neuro-kie.gen'
 import {
+  editUsesGpt25,
   mayOrderImage,
   sourceOk,
   videoRoute,
 } from '../spec/agent-neuro-kie.logic'
+
+// The spec's rule for image_edit's default model, compiled (never retyped).
+export { editUsesGpt25 }
 import { priceForModel } from './billing-shared'
 
 /**
