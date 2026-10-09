@@ -433,10 +433,19 @@ describe('crm_clients', () => {
       has_profile: false,
       duets: 0,
     })
-    for (const q of seen.filter(s => /WHERE owner_id = \$1/.test(s.sql)))
+    for (const q of seen.filter(s => /WHERE (p\.)?owner_id = \$1/.test(s.sql)))
       expect(q.params[0]).toBe(OWNER)
-    expect(seen.some(s => /FROM crm_people WHERE owner_id/.test(s.sql))).toBe(
-      true
+    expect(
+      seen.some(s => /FROM crm_people p .*WHERE p\.owner_id = \$1/.test(s.sql))
+    ).toBe(true)
+    // The order is the conversation's: the last message first, then names
+    // nobody has talked to yet (owner, 2026-10-09).
+    const list = seen.find(s => /FROM crm_people p /.test(s.sql))!
+    expect(list.sql).toMatch(
+      /max\(c\.at\) AS last_at FROM crm_messages c WHERE c\.owner_id = p\.owner_id AND c\.lead_id = p\.lead_id/
+    )
+    expect(list.sql).toMatch(
+      /ORDER BY m\.last_at DESC NULLS LAST, p\.seen_at DESC/
     )
     expect(
       seen.some(s => /FROM crm_duet_runs WHERE owner_id/.test(s.sql))

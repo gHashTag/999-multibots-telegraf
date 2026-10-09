@@ -1,0 +1,65 @@
+[
+  {
+    "name": "the list never starts the sync",
+    "file": "src/agent/crm-client-workspace-tools.ts",
+    "from": "      if (!query && offset === 0) syncPeopleOnce(ctx!)",
+    "to": "",
+    "tests": ["crm-clients-reach-everyone.test.ts"]
+  },
+  {
+    "name": "a search never asks the account",
+    "file": "src/agent/crm-client-workspace-tools.ts",
+    "from": "      if (query && people.length === 0 && offset === 0) {",
+    "to": "      if (false) {",
+    "tests": ["crm-clients-reach-everyone.test.ts"]
+  },
+  {
+    "name": "found people are not read again",
+    "file": "src/agent/crm-client-workspace-tools.ts",
+    "from": "        if (found.length) people = await readPeople()",
+    "to": "",
+    "tests": ["crm-clients-reach-everyone.test.ts"]
+  },
+  {
+    "name": "strangers from the global search are filed",
+    "file": "src/agent/crm-people-sync.ts",
+    "from": "      if (!mine.has(id) && !exact) continue",
+    "to": "",
+    "tests": ["src/agent/crm-people-sync.test.ts"]
+  },
+  {
+    "name": "dialog people are skipped",
+    "file": "src/agent/crm-people-sync.ts",
+    "from": "        if (await filePerson(pool, owner, d.entity)) report.dialogs += 1",
+    "to": "",
+    "tests": ["src/agent/crm-people-sync.test.ts"]
+  },
+  {
+    "name": "a failed sync never retries",
+    "file": "src/agent/crm-people-sync.ts",
+    "from": "      synced.delete(owner)\n",
+    "to": "\n",
+    "tests": ["src/agent/crm-people-sync.test.ts"]
+  },
+  {
+    "name": "a refused book stops the dialog walk",
+    "file": "src/agent/crm-people-sync.ts",
+    "from": "      report.stopped = `contacts: ${String(e).slice(0, 100)}`",
+    "to": "      throw e",
+    "tests": ["src/agent/crm-people-sync.test.ts"]
+  },
+  {
+    "name": "the list is ordered by when people were filed",
+    "file": "src/agent/crm-client-workspace-tools.ts",
+    "from": "const PEOPLE_ORDER = `ORDER BY m.last_at DESC NULLS LAST, p.seen_at DESC, p.lead_id",
+    "to": "const PEOPLE_ORDER = `ORDER BY p.seen_at DESC, p.lead_id",
+    "tests": ["crm-client-workspace-tools.test.ts"]
+  },
+  {
+    "name": "the names sync moves seen_at",
+    "file": "src/agent/crm-people-sync.ts",
+    "from": "    { touch: false }",
+    "to": "    {}",
+    "tests": ["src/agent/crm-people-sync.test.ts"]
+  }
+]
