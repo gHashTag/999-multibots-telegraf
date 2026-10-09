@@ -234,6 +234,7 @@ describe('officeTasks.ts edges', () => {
     const h: Record<string, any> = {}
     registerOfficeTasks({
       command: (name: string, f: any) => (h[name] = f),
+      action: () => undefined,
     } as any)
     setOfficeTasksDbForTests({
       query: async () => {
@@ -280,6 +281,7 @@ describe('the office speaks Russian too, and survives a throw that is no Error',
     const h: Record<string, any> = {}
     registerOfficeCommand({
       command: (name: string, f: any) => (h[name] = f),
+      action: () => undefined,
     } as any)
     const priv = ctxIn({
       from: ru,
@@ -320,6 +322,7 @@ describe('the office speaks Russian too, and survives a throw that is no Error',
     const h: Record<string, any> = {}
     registerOfficeTasks({
       command: (name: string, f: any) => (h[name] = f),
+      action: () => undefined,
     } as any)
     setOfficeTasksDbForTests({
       query: async () => {

@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-office-crm.t27 -- the neuro-office's render half: the agent proposes tasks, the client's card shows them.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/chat.ts (the prompt of an
+// office turn, the client's brief) and routes.ts (a room turn carries no client).
+// Trace: owner 2026-10-09 "the agent sets tasks itself" and "is the office linked to the
+// clients' CRM? if not, link it". Measured that day: not linked. The CRM knew a client's group
+// (crm_client_groups), the office in that group kept its tasks (office_tasks, the same
+// Postgres), and nothing read one from the other.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: render contract. The bot side -- the buttons, the press, the task -- is
+// bot-neuro-office.t27 v7; this spec is what the render says and shows.
+// v1 (2026-10-09): an office turn is taught the task marker and nothing else is; the owner's
+// client card lists the open tasks of the client's office, oldest first, at most 5; a room
+// turn never carries a client's card, because the client may sit in that very room.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_office_crm {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-office-crm";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- the agent proposes tasks ----
+
+    // The task marker is taught in an office turn of the bot, and nowhere else: in a private
+    // chat there is nobody to give work to, and other surfaces cannot draw the button.
+    fn teaches_task_marker(office: bool, surface_bot: bool, tools_only: bool) -> bool {
+        return office && surface_bot && !tools_only;
+    }
+
+    // ---- the office in the client's card ----
+
+    pub const CLIENT_CARD_SHOWS_OFFICE_TASKS : bool = true;
+
+    // The card lists the office's tasks when the owner bound the client's group and the
+    // office there has open tasks; an unbound client or an empty list adds no line.
+    fn client_card_lists_tasks(group_bound: bool, open_tasks: u32) -> bool {
+        return CLIENT_CARD_SHOWS_OFFICE_TASKS && group_bound && open_tasks > 0;
+    }
+
+    // At most this many, oldest first: the card is a brief, /todos is the list.
+    pub const CLIENT_CARD_TASKS_MAX : u32 = 5;
+    fn card_tasks_shown(open_tasks: u32) -> u32 {
+        if open_tasks > CLIENT_CARD_TASKS_MAX { return CLIENT_CARD_TASKS_MAX; }
+        return open_tasks;
+    }
+
+    // ---- the room does not read the card ----
+
+    // The link runs one way. The client's card holds the owner's notes, stage and debts; the
+    // client may be in the office, and every word there is read by everybody in the room.
+    pub const ROOM_SEES_CLIENT_CARD : bool = false;
+    fn room_gets_client_card(room: bool) -> bool {
+        return !room || ROOM_SEES_CLIENT_CARD;
+    }
+
+    // ---- tests ----
+
+    test "the task marker is taught in an office turn of the bot only" {
+        assert(teaches_task_marker(true, true, false));
+        assert(!teaches_task_marker(false, true, false));
+        assert(!teaches_task_marker(true, false, false));
+        assert(!teaches_task_marker(true, true, true));
+    }
+
+    test "the client's card lists the office's open tasks when the group is bound" {
+        assert(CLIENT_CARD_SHOWS_OFFICE_TASKS);
+        assert(client_card_lists_tasks(true, 1));
+        assert(!client_card_lists_tasks(false, 3));
+        assert(!client_card_lists_tasks(true, 0));
+    }
+
+    test "the card shows at most five tasks" {
+        assert(CLIENT_CARD_TASKS_MAX == 5);
+        assert(card_tasks_shown(4) == 4);
+        assert(card_tasks_shown(5) == 5);
+        assert(card_tasks_shown(6) == 5);
+        assert(card_tasks_shown(0) == 0);
+    }
+
+    test "a room turn never carries a client's card" {
+        assert(!ROOM_SEES_CLIENT_CARD);
+        assert(!room_gets_client_card(true));
+        assert(room_gets_client_card(false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

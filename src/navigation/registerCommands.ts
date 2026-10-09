@@ -264,7 +264,11 @@ import {
   speakerName,
   registerOfficeCommand,
 } from './topics/office'
-import { registerOfficeTasks } from './topics/officeTasks'
+import {
+  officeProposals,
+  proposeTasks,
+  registerOfficeTasks,
+} from './topics/officeTasks'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -1648,8 +1652,13 @@ If not, continue on your own and click the "I myself" button`
           // and the next (helpers/appLinks.ts); this bot's own client, so its
           // own Bot API host. Cached for minutes, never throws.
           void refreshMainWebApp(ctx.telegram, ctx.botInfo?.username)
+          // Task markers are not words: stripped everywhere, offered as
+          // buttons in an office only (bot-neuro-office.t27 v7).
+          const offered = officeProposals(
+            ответ.текст // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
+          )
           const { text: ochishcheno, markup } = buttonsForAnswer(
-            ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
+            offered.text,
             isRuOtvet,
             // The seller's hub under every owner answer, one tap away.
             {
@@ -1678,6 +1687,8 @@ If not, continue on your own and click the "I myself" button`
             // A colleague named first on a line of the answer takes the task,
             // once (bot-neuro-office.t27 v4 hands_off).
             if (turnWhere.room) {
+              // The agent's proposed tasks, a button each; a press makes one.
+              await proposeTasks(ctx, offered.items)
               const agent = await import('@/services/trinityAgent')
               const askColleague = agent.спроситьАгента // cyrillic-ok: pre-existing export
               await handOffInOffice(ctx, text, ochishcheno, (id, t, o) =>
