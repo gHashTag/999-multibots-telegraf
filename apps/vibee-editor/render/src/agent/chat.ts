@@ -81,6 +81,7 @@ import { SOCIAL_PROMPT_LINE } from './social-tools'
 import { professionSection } from './profession'
 import { todayLine } from './agent-today'
 import * as MEDIA_SPEC from '../spec/agent-media-kie.gen'
+import * as NEURO from '../spec/agent-neuro-kie.gen'
 import {
   OFFICE_TASK_MARKERS,
   officeTasksFor,
@@ -943,7 +944,7 @@ function tokenLine(): string {
   const p = TOKEN_PRICES
   return (
     `картинка ${p.image_generate}, фото-подарок GPT ${p.gpt_image_edit}, рилс ${p.reel_render}, ` +
-    `озвучка ${p.audio_generate}, липсинк ${p.lipsync_generate}/с, песня ${p.music_generate}, ` + // cyrillic-ok: prompt copy
+    `озвучка ${p.audio_generate}/1000 знаков, липсинк ${p.lipsync_generate}/с, песня ${p.music_generate}, ` + // cyrillic-ok: prompt copy
     // The clip the agent orders is Kie's (agent-media-kie.t27), priced by
     // the same priceForModel as the app -- not the old Replicate table.
     `видео ${priceForModel('video_generate', MEDIA_SPEC.AGENT_VIDEO_MODEL)} за ролик` // cyrillic-ok: prompt copy
@@ -1044,7 +1045,9 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
   image_generate/audio_generate → reel_render (готовый mp4) → feed_publish.
   Ещё на Kie: music_generate (песня, Suno; не готова — music_status), ${'' /* cyrillic-ok: prompt copy */}
   image_upscale и image_remove_background (по картинке), video_generate с ${'' /* cyrillic-ok: prompt copy */}
-  image_url (ролик из картинки). ${'' /* cyrillic-ok: prompt copy */}
+  image_url (ролик из картинки). audio_generate берёт model: Kie turbo 2.5 ${'' /* cyrillic-ok: prompt copy */}
+  по умолчанию или multilingual v2 (богаче, дороже), цена за 1000 знаков. ${'' /* cyrillic-ok: prompt copy */}
+  ${NEURO.NOT_ON_KIE_NOTE}
   Публикация по-прежнему требует текст поста с хештегами — это канон.
 - Готовые шаблоны рилсов смотри через templates_list: собрать по шаблону быстрее и дешевле, чем выдумывать сборку с нуля. ${'' /* cyrillic-ok: prompt copy */}
 - РИЛС-ИСТОРИЯ (формат владельца, постоянный шаблон) — ОДНИМ вызовом story_reel {image_url, scenes: [{setting, line}], style, cta, for_lead}: ${'' /* cyrillic-ok: prompt copy */}

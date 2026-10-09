@@ -12,6 +12,9 @@ import {
   musicKeepsWaiting,
   mayOrderImage,
   sourceOk,
+  speechUnits,
+  ttsModelApplies,
+  ttsNamedOk,
   videoRoute,
 } from './agent-neuro-kie.logic'
 import { priceForModel, TOKEN_PRICES } from '../agent/billing-shared'
@@ -55,8 +58,34 @@ describe('spec agent-neuro-kie.t27', () => {
     expect(musicKeepsWaiting(10, true)).toBe(false)
   })
 
+  it('a Kie voice model is a row, and a clone takes none', () => {
+    expect(ttsNamedOk(false, false)).toBe(true)
+    expect(ttsNamedOk(true, true)).toBe(true)
+    expect(ttsNamedOk(true, false)).toBe(false)
+    expect(ttsModelApplies(false)).toBe(true)
+    expect(ttsModelApplies(true)).toBe(false)
+    expect(SPEC.TTS_MODELS[0]).toBe(SPEC.TTS_DEFAULT_MODEL)
+  })
+
+  it('speech is charged per started thousand characters', () => {
+    expect(SPEC.SPEECH_UNIT_CHARS).toBe(1000)
+    expect(SPEC.SPEECH_MAX_UNITS).toBe(3600)
+    for (const [chars, units] of [
+      [0, 1],
+      [1, 1],
+      [1000, 1],
+      [1001, 2],
+      [2000, 2],
+      [20000, 20],
+      [3600000, 3600],
+      [3600001, 3600],
+      [4000000000, 3600],
+    ])
+      expect(speechUnits(chars), String(chars)).toBe(units)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 
@@ -461,5 +490,100 @@ describe('music on Kie Suno (#3924)', () => {
     } as never)
     expect(first(r)).toBe(false)
     expect(st.tasks.get('t4').state).toBe('writing')
+  })
+})
+
+describe('the voice on Kie (#3928)', () => {
+  let calls: { url: string; body: any }[]
+  beforeEach(() => {
+    calls = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown, init?: { body?: unknown }) => {
+        calls.push({
+          url: String(url),
+          body: JSON.parse(String(init?.body ?? 'null')),
+        })
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ url: 'https://s3.example/line.mp3' }),
+          text: async () => '',
+        }
+      })
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  const speak = async (args: Record<string, unknown>, pool: unknown) => {
+    const { TOOLS } = await import('../agent/tools')
+    return (await TOOLS.find(x => x.name === 'audio_generate')!.handler(args, {
+      telegramId: BUYER,
+      pool,
+    } as never)) as any
+  }
+  const asked = () =>
+    calls.find(c => c.url.endsWith('/api/generate/audio'))?.body
+
+  it('a preset voice speaks on the default Kie model, per started thousand characters', async () => {
+    const w = wallet(500)
+    const r = await speak(
+      { text: 'a'.repeat(2500), voice_id: 'Rachel' },
+      w.pool
+    )
+    expect(r.url).toBe('https://s3.example/line.mp3')
+    expect(asked()).toMatchObject({ model: SPEC.TTS_DEFAULT_MODEL })
+    const per = priceForModel('audio_generate', SPEC.TTS_DEFAULT_MODEL)!
+    expect(per).toBe(TOKEN_PRICES.audio_generate)
+    expect(w.debits).toEqual([per * 3])
+  })
+
+  it('the richer voice by name, at its own price', async () => {
+    const rich = SPEC.TTS_MODELS[1]
+    const w = wallet(500)
+    await speak(
+      { text: 'hello', voice_id: 'Rachel', model: ` ${rich} ` },
+      w.pool
+    )
+    expect(asked()).toMatchObject({ model: rich })
+    expect(w.debits).toEqual([priceForModel('audio_generate', rich)])
+    expect(w.debits[0]).toBeGreaterThan(TOKEN_PRICES.audio_generate)
+  })
+
+  it('a voice model that is not a row is refused before anything is spent', async () => {
+    const w = wallet(500)
+    // A Kie model WITH a price, so only the row rule can refuse it.
+    const notAVoice = SPEC.SOURCE_TOOL_MODELS[0]
+    expect(priceForModel('audio_generate', notAVoice)).toBeGreaterThan(0)
+    const r = await speak(
+      { text: 'hello', voice_id: 'Rachel', model: notAVoice },
+      w.pool
+    )
+    expect(r[Object.keys(r)[0]]).toBe(false)
+    expect(w.debits).toEqual([])
+    expect(calls).toEqual([])
+  })
+
+  it('a clone takes no Kie model, and is charged per thousand characters too', async () => {
+    const w = wallet(500)
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) =>
+        /SELECT voice_id, seconds FROM lead_voices/.test(sql)
+          ? { rows: [{ voice_id: 'minimax-own-voice', seconds: 30 }] }
+          : w.pool.query(sql, params),
+    }
+    await speak(
+      { text: 'b'.repeat(1500), for_lead: BUYER, model: SPEC.TTS_MODELS[1] },
+      pool
+    )
+    const body = asked()
+    expect(body.clone_voice).toBe('minimax-own-voice')
+    expect(body.model).toBeUndefined()
+    expect(w.debits).toEqual([TOKEN_PRICES.audio_generate * 2])
+  })
+
+  it('the prompt says what Kie does not sell', async () => {
+    const { systemPrompt } = await import('../agent/chat')
+    expect(systemPrompt('bot')).toContain(SPEC.NOT_ON_KIE_NOTE)
   })
 })

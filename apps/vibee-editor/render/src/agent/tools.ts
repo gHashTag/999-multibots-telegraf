@@ -57,7 +57,11 @@ import * as MEDIA from '../spec/agent-media-kie.gen'
 import * as NEURO from '../spec/agent-neuro-kie.gen'
 import { realPrompt, videoOrder } from './agent-media'
 import { createSong, songState } from '../kie-music'
-import { musicKeepsWaiting } from '../spec/agent-neuro-kie.logic'
+import {
+  musicKeepsWaiting,
+  ttsModelApplies,
+  ttsNamedOk,
+} from '../spec/agent-neuro-kie.logic'
 import {
   editUsesGpt25,
   kieImageOrder,
@@ -641,6 +645,7 @@ import {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
   priceForModel,
+  тысячиЗнаковКОплате, // cyrillic-ok: existing export
 } from './billing-shared'
 
 // The start gift: specs/automation/token-wallet.t27 START_TOKENS.
@@ -2507,6 +2512,7 @@ export const TOOLS: AgentTool[] = [
           description:
             'id или @username клиента, чей клон сделан crm_voice_clone: говорить ЕГО голосом',
         },
+        model: { type: 'string', description: NEURO.TTS_MODEL_HELP },
       },
       required: ['text'],
       additionalProperties: false,
@@ -2629,15 +2635,27 @@ export const TOOLS: AgentTool[] = [
           'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'
         return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
-      const charge = await spendTokens(ctx, 'audio_generate')
-      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
-      const base = selfBase()
+      /*
+       * A KIE VOICE MODEL BY NAME (agent-neuro-kie v2): a name that is not
+       * one of the spec's rows is refused before the charge.
+       */
+      const namedTts = typeof args.model === 'string' ? args.model.trim() : ''
+      if (
+        !ttsNamedOk(
+          namedTts !== '',
+          (NEURO.TTS_MODELS as readonly string[]).includes(namedTts)
+        )
+      ) {
+        const why = `модель голоса ${namedTts.slice(0, 80)} не из списка: ${NEURO.TTS_MODELS.join(', ')}. Ничего не списано.` // cyrillic-ok: the tool's answer
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
       /*
        * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
        * down (its env var holds the key's identifier, not the key): the
        * MiniMax clone on Replicate, the one the content factory uses. Only
        * for the house -- the owner's own voice is not a library voice to
-       * lend -- and only when no clone of the owner came back above.
+       * lend -- and only when no clone of the owner came back above. Decided
+       * before the charge: whether a clone speaks decides what is charged.
        */
       if (
         !args.voice_id &&
@@ -2649,6 +2667,23 @@ export const TOOLS: AgentTool[] = [
         cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
       }
+      /*
+       * A preset voice speaks on the named Kie model, else the spec's
+       * default; a clone takes no Kie model (Kie has no cloning) and is
+       * charged the tool's own price. Either way per started 1000
+       * characters, as the app's route charges (speech_units).
+       */
+      const ttsModel = ttsModelApplies(!!cloneVoice)
+        ? namedTts || NEURO.TTS_DEFAULT_MODEL
+        : undefined
+      const charge = await spendTokens(
+        ctx,
+        'audio_generate',
+        ttsModel,
+        тысячиЗнаковКОплате(args.text) // cyrillic-ok: existing export
+      )
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
+      const base = selfBase()
       /*
        * THE OWNER'S REEL SPEAKS IN THE OWNER'S VOICE (owner, 2026-10-03:
        * "why doesn't the reel the bot sends me use my voice?"). The clone
@@ -2728,6 +2763,7 @@ export const TOOLS: AgentTool[] = [
           // The bot is spoken as one word, "Trinity" (minimax-voices.ts).
           text: spokenBrand(String(args.text)),
           voice_id: voiceId,
+          ...(ttsModel ? { model: ttsModel } : {}),
           ...(cloneVoice ? { clone_voice: cloneVoice } : {}),
         }),
       })

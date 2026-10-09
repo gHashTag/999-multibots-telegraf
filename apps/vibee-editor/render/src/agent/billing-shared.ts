@@ -1,5 +1,6 @@
 import * as MEDIA from '../spec/agent-media-kie.gen'
 import * as NEURO from '../spec/agent-neuro-kie.gen'
+import { speechUnits } from '../spec/agent-neuro-kie.logic'
 import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
 import { DEAREST_VARIANT_USD } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
@@ -387,7 +388,8 @@ export function познаковыеМодели(): string[] {
  */
 export function тысячиЗнаковКОплате(text: unknown): number {
   const длина = typeof text === 'string' ? text.length : 0
-  return Math.min(Math.max(1, Math.ceil(длина / 1000)), 3600)
+  // The rule is the spec's compiled body (agent-neuro-kie.t27 speech_units).
+  return speechUnits(длина) // cyrillic-ok: existing local
 }
 
 /**
