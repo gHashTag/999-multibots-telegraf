@@ -18,6 +18,9 @@ import {
   profileUrlFor,
   QUEUE_SKILL,
   redditPressLine,
+  releaseOf,
+  RELEASES_URL,
+  releaseTitleOfSlug,
   RSS_URL,
   SEEN_ON_PROFILE,
   seenOn,
@@ -27,6 +30,7 @@ import {
   summaryWithEvidence,
   type Article,
   type Answer,
+  type GhRelease,
 } from './blog-share'
 import {
   AFTER_CLICK_SETTLE_MS,
@@ -70,7 +74,38 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
         (rows[0] as { content?: unknown } | undefined)?.content ?? ''
       )
     },
+    /* Releases of ours (spec v5): GitHub's list, newest first. */
+    releases: {
+      list: async () => {
+        const r = await fetch(RELEASES_URL, {
+          headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' },
+          signal: AbortSignal.timeout(20_000),
+        })
+        if (!r.ok) throw new Error(`releases answered ${r.status}`)
+        return (await r.json()) as GhRelease[]
+      },
+      done: releaseFinished,
+    },
   })
+}
+
+/* crates.io refuses a request that does not say who is asking. */
+const UA = 'vibee-blog-share (https://t27.ai)'
+
+/**
+ * Did the release's pipeline finish? t27c's ends on crates.io: the swarm's
+ * job makes the GitHub release before the crate exists. t27b ships no crate;
+ * its binaries are the release's assets.
+ */
+export async function releaseFinished(r: GhRelease): Promise<boolean> {
+  const rel = releaseOf(r.tag_name)
+  if (!rel) return false
+  if (rel.tool === 't27b') return (r.assets ?? []).length > 0
+  const res = await fetch(
+    `https://crates.io/api/v1/crates/${rel.tool}/${rel.version}`,
+    { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) }
+  )
+  return res.ok
 }
 
 /*
@@ -400,6 +435,9 @@ function cardPost(a: Article) {
  */
 let feedCache: { at: number; articles: Article[] } | null = null
 export async function blogTitleOf(slug: string): Promise<string | null> {
+  /* A release's card: its title is spelled by its slug (spec v5). */
+  const release = releaseTitleOfSlug(slug)
+  if (release) return release
   if (!feedCache || Date.now() - feedCache.at > 600_000) {
     const r = await fetch(RSS_URL, { signal: AbortSignal.timeout(20_000) })
     if (!r.ok) return null

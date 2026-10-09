@@ -8,9 +8,11 @@
  *
  * When the bot has topics turned on in BotFather (getMe answers
  * `has_topics_enabled`), /start makes a small set of tabs in the person's
- * chat, each with one job. Every tab is a conversation with the same agent
- * under its own memory (threads.ts agentConversationFor), so a reel being
- * discussed in one tab does not spill into the balance question in another.
+ * chat, each with one job. The Agent tab speaks in the person's base
+ * conversation, the one the mini-app shows; every other tab keeps its own
+ * memory under its kind (memory.ts, spec bot-agent-memory.t27), so a reel
+ * being discussed in one tab does not spill into the balance question in
+ * another.
  *
  * The claim protocol, the probe and the naming of a person's own topics live
  * in ./engine.ts, which the render server keeps a byte-identical copy of
@@ -37,8 +39,13 @@ export type TabKind = (typeof SPEC.TAB_KEYS)[number]
 
 export interface TabSpec {
   kind: TabKind
+  /** The member's label on buttons and in text: emoji and name. */
   ru: string
   en: string
+  /** The topic's own name, words only (spec v5): the emoji is its icon. */
+  topicRu: string
+  topicEn: string
+  emoji: string
   /** One of the colours Telegram accepts for a topic icon (SPEC.ICON_COLORS). */
   color: number
   /** The mini-app screen the tab's first message opens. */
@@ -93,6 +100,10 @@ export const {
   maySetUp,
   readsDb,
   evicts,
+  retitle,
+  clearsOld,
+  nameOk,
+  setsIcon,
   tabsOf,
   knownTabs,
   tabCacheSize,

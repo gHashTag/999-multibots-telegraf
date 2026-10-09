@@ -1,6 +1,7 @@
 // ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
+import { configureEventTabs } from './src/topic-event-tabs'
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
 import {
@@ -78,6 +79,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentTeam,
   handleAgentConversations,
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
@@ -148,6 +150,9 @@ function browserBrokerDeps(): BrowserDeps {
   }
 }
 configureAgentStart(browserBrokerDeps)
+// Events land in their agent's tab of the private chat (bot-event-tabs.t27):
+// the tabs live in this same Postgres, in the bot's bot_topic_tabs.
+configureEventTabs(() => getPool() as any)
 import { identityWithSource, personIdentity } from './src/agent/routes'
 import { handleCardStatus } from './src/agent/card-status'
 import { handleCardWork } from './src/agent/card-work'
@@ -9479,6 +9484,21 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
+   * /api/agent/team -- the person's team of agents in the mini-app
+   * (bot-agent-team.t27): the members, and a hire that makes the bot tab.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/team') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleAgentTeam(req, res, String(who), getPool)
     return
   }
 

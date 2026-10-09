@@ -70,26 +70,29 @@ No new PR may add or modify hand-written non-t27 code. Hive improvements go into
 The open queue (epic #3641, issues #3646-#3654) is parked on that decision. Ledger of the
 improvement loop: `~/.local/state/agent-hive/ledger.md`.
 
-### Laws already in the spec, waiting for the host
+### The v2/v3 laws, wired (2026-10-08)
 
-The 999 copy in `src/spec/` is still v1. In gHashTag/t27 the spec is v3, and each version
-only adds laws:
+All of them run now. The rules are in `rules.ts`, the state between turns in
+`room.ts`, the turn in `answer.ts`, and the commands in `installRoomCommands` (`index.ts`):
 
-| Issue                     | Spec law (t27)                                          | Version       |
-| ------------------------- | ------------------------------------------------------- | ------------- |
-| #3646 typing refresh      | `typing_due`, `TYPING_REFRESH_MS` 4 s                   | v2 (t27#6558) |
-| #3649 one speaker on @all | `speaks_on_all`, `ALL_FIRST_SPEAKERS` 1                 | v2            |
-| #3651 follow-ups          | `follows_up`, `FOLLOW_UP_WINDOW_MS` 2 min               | v2            |
-| #3648 /stop, /mute        | `may_answer_after_stop` 10 min, `heard_while_muted` 1 h | v2            |
-| #3647 reactions           | `turn_ok`, `keeps_seen_mark`                            | v3 (t27#6564) |
-| #3650 /brief              | `brief_source`, `brief_fits` 1000, `may_set_brief`      | v3            |
-| #3652 deleted topic       | `recreate_topic`, 10 min cooldown                       | v3            |
-| #3653 /summary            | `summary_count` 50 by default, log 200                  | v3            |
+| Law (spec)                                  | Where it bites                                                                                              |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `typing_due` `TYPING_REFRESH_MS`            | `keepTyping(..., SPEC.TYPING_REFRESH_MS)` in the turn                                                       |
+| `speaks_on_all`                             | `allRank`: topic owner, then a named agent, then catalogue order. Only rank 0 answers a bare @all           |
+| `follows_up`                                | `noteAnswered` / `sinceMyAnswer`: same person, same topic, 2 min, no tag                                    |
+| `may_answer_after_stop`                     | `/stop` (manager) to `noteStop`; cuts bot-to-bot only                                                       |
+| `heard_while_muted`                         | `/mute [@bot]` in a topic to `noteMute`; the agent needs its tag for an hour                                |
+| `keeps_seen_mark`                           | 👀 on the message while the agent works (✅ is not a Bot API reaction); removed if the turn fails           |
+| `brief_source` `brief_fits` `may_set_brief` | `/brief text` (group admins), `/brief -` clears, a bare `/brief` shows; table `agent_hive_briefs`           |
+| `recreate_topic`                            | a send into the agent's own topic fails with "thread not found": `createForumTopic`, `setHiveTopic`, resend |
+| `summary_count`                             | `/summary [n]`: the topic log (200 lines, in memory) is summed up in the asker's name                       |
 
-When the label arrives, vendor the v3 `.t27` into `src/spec/`, regenerate `.gen.ts` with
-`t27c gen-ts`, and mirror every new `test` block in `agent-hive-group.test.ts`. Expect
-`check-t27-specs` to demand that. gen-ts emits constants only, not fn bodies (t27#6559), so
-each law is written once in TS and pinned by the spec vectors.
+Agent bots never answer a `/command` in a group: the manager does, once. Replies meant
+for one person (a refusal, the brief in force, "nothing to sum up") are ephemeral
+(`replyToOne`, spec `bot-agent-stream.t27`), with an ordinary reply as fallback.
+A redeploy forgets stops, mutes, follow-ups and the summary log. Each of them lasts
+minutes, and losing one falls back to the v1 rules. Briefs live in Postgres.
+Tests: `src/__tests__/core/agentHive/roomLaws.test.ts` (12 host mutants, all killed).
 
 ### Spec work in a t27 worktree
 

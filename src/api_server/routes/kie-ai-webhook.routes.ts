@@ -1,3 +1,4 @@
+import { botInTab } from '@/navigation/topics/eventTabs'
 import express from 'express'
 import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
@@ -275,7 +276,7 @@ async function sendVideoDirectly(
     })
 
     // Получаем bot instance (используем default bot или находим подходящий)
-    const botInstance = defaultBotInstance || getBotInstance()
+    let botInstance = defaultBotInstance || getBotInstance()
 
     if (!botInstance) {
       logger.error('❌ [SEND VIDEO DIRECTLY] No bot instance available', {
@@ -306,6 +307,10 @@ async function sendVideoDirectly(
     // the downstream charge. Keys on the immutable jobId, same key as the charge
     // guard (chargedVideoJobs).
     if (metadata.jobId && !claimVideoJobDelivery(metadata.jobId)) return
+
+    // A finished video is the Director's news (bot-event-tabs.t27). After the
+    // claim above: the claim must come before any await.
+    botInstance = await botInTab(botInstance, chatId, 'reel')
 
     // SSRF guard: videoUrl comes from the untrusted webhook payload and is fetched
     // server-side (HEAD below). Reject private/local/cloud-metadata hosts and abort
@@ -1235,7 +1240,7 @@ async function handleSoraSuccess(
     // ✅ Task found - normal mode (update original message)
 
     // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
-    const botInstance = getBotInstance(taskContext.botName)
+    let botInstance = getBotInstance(taskContext.botName)
     if (!botInstance) {
       logger.error('❌ [SORA WEBHOOK] Bot instance not found', {
         taskId,
@@ -1254,6 +1259,10 @@ async function handleSoraSuccess(
     // webhook for this job skips the re-send (video + status keyboard). Keys on
     // the immutable taskId — the same key as the chargedVideoJobs charge guard.
     if (!claimVideoJobDelivery(taskId)) return
+
+    // The finished video is the Director's news (bot-event-tabs.t27), after
+    // the claim: the claim must come before any await.
+    botInstance = await botInTab(botInstance, taskContext.chatId, 'reel')
 
     try {
       // Обновляем сообщение о статусе
@@ -2098,7 +2107,7 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
 
     if (taskContext) {
       // ✅ MULTI-BOT FIX: Получаем правильный bot instance для этой задачи
-      const botInstance = getBotInstance(taskContext.botName)
+      let botInstance = getBotInstance(taskContext.botName)
 
       if (!botInstance) {
         logger.error('❌ [KIE.AI WEBHOOK] Bot instance not found', {
@@ -2127,6 +2136,10 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
       // webhook skips the re-send AND the public Pulse repost (sendMediaToPulse).
       // Keys on the immutable taskId — the same key as the charge guard.
       if (!claimVideoJobDelivery(taskId)) return
+
+      // The finished video is the Director's news (bot-event-tabs.t27), after
+      // the claim: the claim must come before any await.
+      botInstance = await botInTab(botInstance, taskContext.chatId, 'reel')
       try {
         if (result.success && result.output) {
           logger.info('🎬 [KIE.AI WEBHOOK] Sending video URL to user', {

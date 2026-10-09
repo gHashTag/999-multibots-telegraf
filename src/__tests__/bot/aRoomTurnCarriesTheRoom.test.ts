@@ -27,7 +27,11 @@ describe('a turn in a room carries the room', () => {
     const src = await source()
     const at = src.indexOf('const inRoom =')
     expect(at, 'nothing computes the room').toBeGreaterThan(-1)
-    const body = src.slice(at, at + 600)
+    // To the end of the agent call, not a character count: the comment on
+    // which conversation a private turn joins (bot-agent-memory.t27) sits
+    // between the two.
+    const call = src.indexOf('спроситьАгента(', at) // cyrillic-ok: pre-existing identifier
+    const body = src.slice(at, src.indexOf('})\n', call))
     expect(body).toContain("'supergroup'")
     expect(body).toContain('room: inRoom')
   })
@@ -52,6 +56,35 @@ describe('a turn in a room carries the room', () => {
     // below is guarded by it.
     expect(body).toMatch(/\?\s*String\(ctx\.chat\.id\)\s*:\s*''/)
     expect(body).toContain('...(inRoom ? { room: inRoom } : {})')
+  })
+
+  it('a room turn names who asked (bot-neuro-office.t27 v2 names_speaker)', async () => {
+    const src = await source()
+    const at = src.indexOf('const inRoom =')
+    const call = src.indexOf('спроситьАгента(', at) // cyrillic-ok: pre-existing identifier
+    const body = src.slice(at, src.indexOf('})\n', call))
+    expect(body).toMatch(
+      /\.\.\.\(inRoom && namesSpeaker\(true\)\s*\?\s*\{ speaker: speakerName\(ctx\.from\) \}/
+    )
+  })
+
+  it('a line nobody addressed to the agent is heard in an office, not dropped (v2 hears)', async () => {
+    const src = await source()
+    const gate = src.indexOf(
+      'if (!isAddressedToUs(ctx) && !(await namedInOffice(ctx)))'
+    )
+    expect(gate, 'the room gate moved').toBeGreaterThan(-1)
+    const block = src.slice(gate, src.indexOf('return next()', gate))
+    expect(block).toContain('hearInOffice(ctx, recordTurns)')
+  })
+
+  it('an answer in a room is offered to a colleague named on its line (v4 hands_off)', async () => {
+    const src = await source()
+    const at = src.indexOf('if (chasti.length > 0) {')
+    expect(at, 'the answer send moved').toBeGreaterThan(-1)
+    const block = src.slice(at, src.indexOf('return\n', at))
+    expect(block).toContain('if (turnWhere.room)')
+    expect(block).toMatch(/handOffInOffice\(ctx, text, ochishcheno,/)
   })
 
   it('the wire only accepts a negative id, so a person can never be a room', async () => {

@@ -200,6 +200,39 @@ describe('the net does not talk over anybody', () => {
   })
 
   /**
+   * THE BOT MAKES ITS OWN TOPIC TABS, AND MUST NOT PUZZLE AT THEM.
+   *
+   * Bot API 9.3/9.4 brought forum topics to private chats; the bot creates a
+   * person's tabs with createForumTopic (src/navigation/topics), and each one
+   * lands a `forum_topic_created` service message back in the same private
+   * chat. Owner screenshots, 2026-10-08: every fresh tab carried the puzzled
+   * "I could not tell what to do with it" right under its intro -- the net
+   * answering the bot's own housekeeping. These are service messages, so the
+   * net stays silent, exactly as for a payment or a pin.
+   */
+  it('stays quiet for every forum-topic service message the bot makes', async () => {
+    const { bot, sent } = botWith()
+    const topicFields = [
+      { forum_topic_created: { name: 'Агент', icon_color: 7322096 } }, // cyrillic-ok: a tab title
+      { forum_topic_edited: { name: 'Рилсы' } }, // cyrillic-ok: a tab title
+      { forum_topic_closed: {} },
+      { forum_topic_reopened: {} },
+      { general_forum_topic_hidden: {} },
+      { general_forum_topic_unhidden: {} },
+    ]
+    for (const field of topicFields) {
+      await bot.handleUpdate(
+        update({
+          is_topic_message: true,
+          message_thread_id: 99,
+          ...field,
+        }) as any
+      )
+    }
+    expect(sent.filter(s => s.method === 'sendMessage')).toHaveLength(0)
+  })
+
+  /**
    * THE REGRESSION THIS POSITION FIXES.
    *
    * The net used to decide BEFORE calling next(), and `setupStatsCommand` is

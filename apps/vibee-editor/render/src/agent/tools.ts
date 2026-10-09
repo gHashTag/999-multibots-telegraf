@@ -31,6 +31,7 @@ import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
+import { SPEC_BANK_TOOLS } from './spec-bank-tools'
 import { JOB_TOOLS } from './job-tools'
 import { MAIL_TOOLS } from './mail-tools'
 import { SOCIAL_TOOLS } from './social-tools'
@@ -4317,6 +4318,8 @@ TOOLS.push(...INNGEST_TOOLS)
  * only tools whose RESULT is text a stranger wrote.
  */
 TOOLS.push(...WEB_TOOLS)
+// Every agent reads the whole bank of .t27 specs (agent-spec-bank.t27).
+TOOLS.push(...SPEC_BANK_TOOLS)
 /*
  * The job desk (job-tools.ts): who among the person's own contacts is
  * hiring, decided by what they WROTE and never by a name. Reading only --

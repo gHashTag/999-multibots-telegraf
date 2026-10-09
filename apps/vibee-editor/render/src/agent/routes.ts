@@ -21,6 +21,8 @@
  *    одной существующей композиции.
  */
 import { randomUUID } from 'node:crypto'
+import { TAB_CONVERSATION_PREFIX } from './profession'
+import { TAB_KEYS } from '../spec/bot-topic-tabs.gen'
 import {
   liveMarketplaceAgentById,
   marketplaceAgentById,
@@ -44,6 +46,7 @@ import { widgetsOfTurn } from './client-widgets'
 import { ownerWordsOf } from './assistant-opt-out'
 import { heardFrom } from './printed-facts'
 import { resolveProvider } from './provider'
+import { roomGetsClientCard } from './office-crm'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
   editorialAccess,
@@ -1184,7 +1187,11 @@ export async function handleAgentChat(
         telegramId,
         {
           role: 'user',
-          content: String(последняя.content ?? ''),
+          content: roomLine(
+            body.speaker,
+            String(последняя.content ?? ''),
+            gate.room
+          ),
           surface: поверхность,
         },
         thread
@@ -1286,7 +1293,10 @@ export async function handleAgentChat(
             /^\d{5,15}$/.test(body.seller_id)
               ? body.seller_id
               : undefined,
-          client: gate.client ?? undefined,
+          // A room turn never carries a client's card (bot-office-crm.t27).
+          client: roomGetsClientCard(!!gate.room)
+            ? (gate.client ?? undefined)
+            : undefined,
           /*
            * The widgets beside the client's chat (client-widgets.ts): what
            * the owner is looking at when he writes. Only in a client's
@@ -1297,6 +1307,15 @@ export async function handleAgentChat(
             Boolean(gate.client) && gate.supervisor !== true
           ),
           marketplaceAgent: gate.agent,
+          // A fixed tab's conversation is that team member's (profession.ts).
+          ...(gate.conversation
+            ? { profession: gate.conversation }
+            : officeMember(body.member, gate.room)
+              ? // An office channel's member (bot-neuro-office.t27): the room
+                // keeps its memory, the turn takes that member's trade.
+                { profession: `${TAB_CONVERSATION_PREFIX}${body.member}` }
+              : {}),
+          office: officeMember(body.member, gate.room),
           supervisor: gate.supervisor === true,
           // What the agent has been doing with this client, for the Queen.
           agentLog:
@@ -1686,6 +1705,11 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
+  /*
+   * `room`, the same as the chat route takes: the bot's fallback line for a
+   * GROUP turn belongs to the room's memory, not to the asker's private one
+   * (bot-agent-memory.t27; it used to land in the asker's base thread).
+   */
   const gate = await withTask(
     withConversation(
       await threadFor(
@@ -1693,7 +1717,7 @@ export async function handleAgentHistoryAppend(
         telegramId,
         getPool,
         body.agent,
-        undefined,
+        body.room,
         body.role
       ),
       body.conversation
@@ -2018,4 +2042,75 @@ export async function handleAgentConversations(
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
+}
+
+/**
+ * /api/agent/team -- the person's team of agents in the mini-app
+ * (bot-agent-team.t27): GET the members (?lang=ru), POST {kind, lang} to hire
+ * one, which makes its tab in the bot too. The same identity as the history.
+ */
+export async function handleAgentTeam(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const { teamView, hireFromApp } = await import('./topic-tabs-tools')
+  try {
+    if (req.method === 'GET') {
+      const isRu =
+        new URL(req.url || '', 'http://x').searchParams.get('lang') === 'ru'
+      const view = await teamView(await getPool(), telegramId, isRu)
+      return json(res, 200, { ok: true, ...view })
+    }
+    if (req.method !== 'POST')
+      return json(res, 405, { ok: false, error: 'GET or POST' })
+    let body: any = {}
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      return json(res, 400, { ok: false, error: 'bad json' })
+    }
+    const kind = String(body?.kind ?? '')
+    if (!/^[a-z]{2,16}$/.test(kind))
+      return json(res, 400, { ok: false, error: 'bad kind' })
+    const r = await hireFromApp(
+      await getPool(),
+      telegramId,
+      kind,
+      body?.lang === 'ru'
+    )
+    return json(res, r.ok ? 200 : 400, r)
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+  }
+}
+
+/**
+ * The question as a room's memory keeps it (bot-neuro-office.t27 v2
+ * names_speaker): "Anna: ..." when the turn is in a room and the bot named
+ * who asked, the text as it came anywhere else. The bot cuts the name to the
+ * spec's bound; here it is only kept on one line. The model is asked the bare
+ * text, so a member named first ("Treasurer, ...") is still found.
+ */
+export function roomLine(
+  speaker: unknown,
+  content: string,
+  room: unknown
+): string {
+  if (!room || typeof speaker !== 'string') return content
+  const name = speaker.replace(/\s+/g, ' ').trim()
+  return name ? `${name}: ${content}` : content
+}
+
+/**
+ * A member an office room turn may name (bot-neuro-office.t27): a team tab
+ * kind, and only with a room. It shapes the prompt and nothing else.
+ */
+export function officeMember(member: unknown, room: unknown): boolean {
+  return (
+    typeof member === 'string' &&
+    !!room &&
+    (TAB_KEYS as readonly string[]).includes(member)
+  )
 }
