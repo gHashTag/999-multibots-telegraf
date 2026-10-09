@@ -224,7 +224,9 @@ function fakePool() {
     wallets,
     async query(text: string, p: any[] = []) {
       const t = text.replace(/\s+/g, ' ').trim()
-      if (t.startsWith('CREATE ')) {
+      // The wallet tables come with their ALTERs (tri-wallet.ts: the
+      // proposal columns, the every-chain check); schema only, no rows.
+      if (t.startsWith('CREATE ') || t.startsWith('ALTER TABLE')) {
         created.push(t)
         return { rows: [] }
       }
