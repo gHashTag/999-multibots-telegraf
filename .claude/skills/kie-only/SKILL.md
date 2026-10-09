@@ -65,6 +65,69 @@ The default face for the owner's reels is **studio-lab**:
 to studio-lab: reel 1 (2026-10-03) was re-rendered from an old noir lipsync
 and sent to him that way.
 
+## The Director makes the clip on Kie (2026-10-09, spec agent-media-kie.t27, #3920)
+
+Owner: "why can the reels agent not make reels? the cow must be real!" Measured:
+`video_generate` called Replicate only (off), and Kie video was refused to the
+agent; `image_generate` put Kie LAST and priced it out ($0.005 ceiling), so
+pollinations drew a watermarked cartoon cow. Now:
+
+| what          | rule (from the spec's compiled logic)                                                                                                                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| video default | `kie/hailuo/02-text-to-video-pro`, per clip, 114 tokens                                                                                                                                                                           |
+| other video   | any `kie/...` whose bill is named before the press (`kieVideoSaleOf(...).sold`): minimax-h3 t2v 26/s, kling v3 turbo 36/s, kling v2.1 pro 100/clip; seedance-2, grok-imagine, wan 3.0 are refused (the provider picks the length) |
+| length        | 6 or 10 s (`clip_seconds`)                                                                                                                                                                                                        |
+| realism       | no `style` -> the prompt asks for live-action footage (`adds_realism`)                                                                                                                                                            |
+| pictures      | chain Kie (`google/nano-banana`, $0.02) first, pollinations only as the rescue; `image_generate` = 8 tokens                                                                                                                       |
+
+The agent's provider outages are a separate thing: on 2026-10-09 07:01-07:15
+zai answered 1305 / timed out, nemotron was exhausted and the reserve key had
+no funds, and `zai-lite` "talked instead of calling" -- a reel asked then got
+words, not a tool call. That is money and keys, not code.
+
+## Every Kie neuro-function the agent has (2026-10-09, spec agent-neuro-kie.t27, #3924)
+
+Owner: "connect ALL the neuro-functions", "Kie is our main one", "all new code
+in .t27". A source tool is a ROW of the spec's table (`SOURCE_TOOL_NAMES`,
+`SOURCE_TOOL_MODELS`, `SOURCE_TOOL_HELP`); one runner in tools.ts builds every
+row. A new Kie function = a new row in the spec, never new host code.
+
+| agent tool                                  | Kie model                                                                  | tokens (priceForModel) |
+| ------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
+| `image_upscale` (needs image_url)           | topaz/image-upscale                                                        | 20                     |
+| `image_remove_background` (needs image_url) | recraft/remove-background                                                  | 2                      |
+| `image_generate` + `model: kie/...`         | any image model with a price: imagen4 16, seedream 5 pro 14, ideogram v3 7 | its own                |
+| `video_generate` + `image_url`              | kling/v2-1-pro (clip from a picture)                                       | 100 a clip             |
+| `image_edit` (no model named)               | GPT Image 2.5 edit, 9:16 (`EDIT_DEFAULT_ASPECT`)                           | 12                     |
+| `music_generate` / `music_status`           | Suno `V4_5PLUS` (`SUNO_MODEL`), two variants per request                   | 24 a request           |
+
+**A picture from a photo is GPT Image 2.5 by default** (owner: "by default,
+keeping the skills, use the gpt 2.5 model and size 9:16"). `edit_uses_gpt25`:
+GPT unless another model is NAMED; a named nano-banana is kept.
+
+**Music is the Suno API, not the jobs API.** Create is `POST
+/api/v1/generate` (`customMode: false`, a `callBackUrl` is required, we poll
+instead), the audio is `GET /api/v1/generate/record-info` ->
+`data.response.sunoData[0].audioUrl` (`render/src/kie-music.ts`). A turn waits
+at most `MUSIC_WAIT_SECONDS` (120, `music_keeps_waiting`); after that the
+answer is "still writing" with a `task_id`, and `music_status` fetches it.
+Each task is a row in `agent_music_tasks` (owner, sum charged, state): a song
+goes only to who ordered it, and a failure is refunded once
+(`UPDATE ... WHERE state = 'writing' RETURNING`). The cost ($0.06 a request)
+is from a third-party price page, NOT measured on our key -- measure it on the
+first live song and correct `MUSIC_COST_MICRO_USD` in the spec.
+
+**The voice (agent-neuro-kie v2, #3928).** `audio_generate` takes `model`:
+`kie/elevenlabs/text-to-speech-turbo-2-5` by default ($0.03 per 1000
+characters, 12 tokens) or `kie/elevenlabs/text-to-speech-multilingual-v2`
+(richer, 24 tokens). Any other name is refused before the charge. A clone
+(the owner's, a client's) takes no Kie model -- Kie has no cloning. The agent
+is charged per STARTED 1000 characters (`speech_units`), the same rule as the
+app's route; before #3928 it charged one flat price for any length.
+
+**Not on Kie, said plainly (`NOT_ON_KIE_NOTE`, in the prompt):** face swap
+and LoRA (own-model) training. Never fake it, never name another provider.
+
 ## The free leg is not a way around Kie (2026-10-03)
 
 `image_generate` falls through to Pollinations ($0, keyless) when fal is above

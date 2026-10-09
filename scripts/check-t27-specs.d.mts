@@ -25,10 +25,15 @@ export function checkSpec(o: {
   test: string | null
   hostFiles?: Array<{ path: string; text: string }>
   ignore?: string
+  /** <id>.logic.ts beside the spec (scripts/t27-logic.mjs), or null. */
+  logic?: string | null
+  /** Named as debt in scripts/t27-specs.json "mirrored". */
+  mirrored?: boolean
 }): Problem[]
 export function readManifest(root?: string): {
   hosts: Array<{ root: string; specDir: string }>
   unbound: string[]
+  mirrored?: string[]
   foreign: string[]
   citedMissing: string[]
 }

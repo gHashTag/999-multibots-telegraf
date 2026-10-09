@@ -59,7 +59,13 @@
  * not a fallback any more -- when every leg the price covers refuses, the
  * picture fails and is refunded rather than drawn at a loss.
  *
- * ON THE FREE LEG'S PLACE IN THE ORDER (added 2026-09-29). pollinations/flux
+ * KIE FIRST (2026-10-09, agent-media-kie.t27, issue #3920). The order below
+ * the next paragraph describes was the cow's: FAL and Replicate refused on
+ * money, the free leg drew a watermarked draft, and Kie -- the one provider
+ * the owner pays for -- was last and priced out. Now Kie draws first, priced
+ * to cover it, and the free leg is the rescue only.
+ *
+ * ON THE FREE LEG'S PLACE IN THE ORDER (added 2026-09-29, superseded above). pollinations/flux
  * sits AFTER both paid legs and BEFORE Kie. After the paid ones because $0 is
  * not a reason to draw worse pictures while a funded provider says yes:
  * quality is paid for first, and the free leg is a rescue, not a default.
@@ -74,6 +80,7 @@
 import { TOKEN_PRICES, costCeilingUsd } from './agent/billing-shared'
 import { СЕБЕСТОИМОСТЬ_USD } from './agent/kie-prices.generated' // cyrillic-ok: generated table name
 import { T2I_MODEL } from './kie-image'
+import * as MEDIA from './spec/agent-media-kie.gen'
 
 /** One provider's refusal, in its own words. */
 export interface ImageRefusal {
@@ -212,12 +219,16 @@ export function imageChainLegs(
   falEndpoint: string,
   run: Readonly<Record<ImageVendor, () => Promise<string>>>
 ): ImageLeg[] {
-  return [
-    falLeg(falEndpoint),
-    REPLICATE_IMAGE_LEG,
-    POLLINATIONS_IMAGE_LEG,
-    KIE_IMAGE_LEG,
-  ].map(name => ({
+  // The order is the spec's (agent-media-kie.t27 IMAGE_VENDOR_ORDER): Kie
+  // first, the free leg only as the rescue. FAL and Replicate are dead
+  // (skill kie-only) and are not in the default chain.
+  const legOf: Record<string, string> = {
+    kie: KIE_IMAGE_LEG,
+    pollinations: POLLINATIONS_IMAGE_LEG,
+    fal: falLeg(falEndpoint),
+    replicate: REPLICATE_IMAGE_LEG,
+  }
+  return MEDIA.IMAGE_VENDOR_ORDER.map(v => legOf[v]).map(name => ({
     name,
     costUsd: imageLegCost(name),
     run: run[vendorOfLeg(name)],

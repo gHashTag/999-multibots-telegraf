@@ -29,6 +29,10 @@
  *   binding-titles every spec `test` title appears in that test, word for word
  *   host-imports   some host file imports the generated module (bound, not just kept)
  *   restated       a host file bound to the spec restates none of its values
+ *   logic-required a spec with fns runs from <id>.logic.ts (its compiled bodies),
+ *                  unless named in "mirrored" (debt that only shrinks)
+ *   logic-hash     <id>.logic.ts was compiled from exactly this spec
+ *   mirror         no host file retypes a fn whose compiled body exists
  *   cited          every spec a code comment cites is bound, or named in the
  *                  manifest (scripts/t27-specs.json) as known debt
  *
@@ -45,6 +49,7 @@
  *   node scripts/check-t27-specs.mjs
  *   node scripts/check-t27-specs.mjs --t27 ../t27 [--run]
  */
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
@@ -157,6 +162,8 @@ export function checkSpec({
   test,
   hostFiles = [],
   ignore = '',
+  logic = null,
+  mirrored = false,
 }) {
   const bad = []
   const say = (law, what) => bad.push({ spec: file, law, what })
@@ -274,7 +281,12 @@ export function checkSpec({
   }
 
   const genName = `spec/${basename(file, '.t27')}.gen'`
-  const bound = hostFiles.filter(f => f.text.includes(genName))
+  // The compiled logic binds the host as surely as the constants do: it IS
+  // the spec's body (scripts/t27-logic.mjs).
+  const logicImport = `spec/${basename(file, '.t27')}.logic'`
+  const bound = hostFiles.filter(
+    f => f.text.includes(genName) || f.text.includes(logicImport)
+  )
   if (!bound.length)
     say('host-imports', 'no host file imports the generated module')
   // A file of this vertical: it imports the module or cites the spec.
@@ -296,6 +308,38 @@ export function checkSpec({
       }
     }
   }
+  // THE LOGIC IS THE SPEC'S (owner, 2026-10-09: "logic in .t27 and in no
+  // other way"). A spec with fns runs from its compiled bodies
+  // (<id>.logic.ts, scripts/t27-logic.mjs); a hand-written mirror is debt
+  // named in scripts/t27-specs.json "mirrored", and that list only shrinks.
+  const fns = [...spec.matchAll(/^\s*(?:pub\s+)?fn (\w+)\(/gm)].map(m => m[1])
+  if (logic !== null) {
+    const recorded = /^\/\/ spec-sha256: ([0-9a-f]{64})$/m.exec(logic)?.[1]
+    const actual = createHash('sha256').update(spec).digest('hex')
+    if (recorded !== actual)
+      say(
+        'logic-hash',
+        `${basename(file, '.t27')}.logic.ts was compiled from another spec; regenerate: node scripts/t27-logic.mjs <t27> <kind/id> --out=<dir>`
+      )
+    if (mirrored)
+      say('ratchet', 'it runs from its logic now: remove it from "mirrored"')
+    const logicName = `spec/${basename(file, '.t27')}.logic'`
+    for (const f of hostFiles) {
+      if (!f.text.includes(genName) && !f.text.includes(logicName)) continue
+      for (const fn of fns) {
+        const camel = fn.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
+        if (new RegExp(`\\bfunction ${camel}\\s*\\(`).test(f.text))
+          say(
+            'mirror',
+            `${f.path}: function ${camel} retypes spec fn ${fn}; import it from ${basename(file, '.t27')}.logic`
+          )
+      }
+    }
+  } else if (fns.length && !mirrored)
+    say(
+      'logic-required',
+      `${fns.length} fn(s) and no ${basename(file, '.t27')}.logic.ts: the rules run from the spec (node scripts/t27-logic.mjs), never from a hand-written copy`
+    )
   return bad
 }
 
@@ -395,6 +439,8 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
           test: at(file.replace(/\.t27$/, '.test.ts')),
           hostFiles,
           ignore,
+          logic: at(file.replace(/\.t27$/, '.logic.ts')),
+          mirrored: (manifest.mirrored ?? []).includes(file),
         })
       )
       const path = /^\/\/ specs\/([a-z0-9_/-]+)\.t27\b/.exec(
