@@ -25,7 +25,11 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 ## План
 
 - [ ] Owner gives the bees app `Checks: write` -> first live mark on a fresh PR.
-- [ ] t27#8300 merged; vendored copy equals master (`check-t27-specs --t27`).
-- [ ] Verify Railway auto-deploys ci-bridge on merge (watch paths).
+- [x] t27#8300 merged.
+- [x] Railway auto-deploys ci-bridge on merge (the deploy of #3953 built itself).
 - [ ] Mark main's head too (base red vs PR red).
 - [ ] Re-run on request: a PR comment `/recheck` resets the mark.
+
+- 09.10.2026 19:43: live after #3953 -- the Node 22 host runs the spec logic; the app may
+  not mark; the fallback token (TRIOS_QUEEN_RELEASE_TOKEN) is refused on this private repo
+  too. Only the owner's permission grant unblocks marks. The fallback now lasts one pass.
