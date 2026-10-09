@@ -6,9 +6,9 @@
 export const KIND = "automation" satisfies string;
 export const ID = "agent-provider-chain" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
-export const ORDER_DEFAULT = "zai,zai-lite,nemotron,reserve,ollama" satisfies string;
-export const PROVIDERS = 5 satisfies number;
+export const VERSION = 3 satisfies number;
+export const ORDER_DEFAULT = "zai,kie,zai-lite,nemotron,reserve,ollama" satisfies string;
+export const PROVIDERS = 6 satisfies number;
 export const OWNER_PICK_GOES_FIRST = true satisfies boolean;
 export const DEPLOY_HEAD_NEEDS_TOOLS = true satisfies boolean;
 export const BOT_PICK_KEEPS_HEAD_WITHOUT_TOOLS = true satisfies boolean;
@@ -18,6 +18,24 @@ export const NOTE_BOT_PICK = "owner pick: no tools" satisfies string;
 export const NOTE_NO_TOOLS = "no provider in the chain calls tools" satisfies string;
 export const NOTE_NONE = "" satisfies string;
 export const EVERY_CONFIGURED_PROVIDER_IS_TRIED = true satisfies boolean;
+export const KIE_ID = "kie" satisfies string;
+export const KIE_ENV_KEY = "KIE_AI_API_KEY" satisfies string;
+export const KIE_ENV_MODEL = "KIE_CHAT_MODEL" satisfies string;
+export const KIE_MODEL_DEFAULT = "gemini-2.5-flash" satisfies string;
+export const KIE_BASE_ROOT = "https://api.kie.ai" satisfies string;
+export const KIE_AFTER = "zai" satisfies string;
+export const KIE_BEFORE = "zai-lite" satisfies string;
+export const KIE_TOOLS = true satisfies boolean;
+export const KIE_VISION = false satisfies boolean;
+export const KIE_AUDIO = false satisfies boolean;
+export const KIE_THINKING = false satisfies boolean;
+export const KIE_TAKES_AGENT_MODEL = false satisfies boolean;
+export const KIE_SENDS_MAX_TOKENS = true satisfies boolean;
+export const KIE_MAX_TOKENS = 8192 satisfies number;
+export const KIE_CAPABILITIES_DECLARED_NOT_MEASURED = true satisfies boolean;
+export const KIE_ANSWERED_LIVE = false satisfies boolean;
+export const KIE_IN_BOT_PICKER = true satisfies boolean;
+// t27c gen-ts: fn kie_available was not emitted -- this backend lowers declarations, not bodies.
 export const RESERVE_ID = "reserve" satisfies string;
 export const RESERVE_ENV_BASE = "RESERVE_BASE_URL" satisfies string;
 export const RESERVE_ENV_KEY = "RESERVE_API_KEY" satisfies string;
@@ -52,6 +70,10 @@ export const RESERVE_PROBE_3_REQUESTED_TOKENS = 16000 satisfies number;
 // t27c gen-ts: fn default_position was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: fn ceiling_for was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: fn fits_budget was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -64,7 +86,7 @@ export const RESERVE_PROBE_3_REQUESTED_TOKENS = 16000 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "ORDER_DEFAULT", "PROVIDERS", "OWNER_PICK_GOES_FIRST", "DEPLOY_HEAD_NEEDS_TOOLS", "BOT_PICK_KEEPS_HEAD_WITHOUT_TOOLS", "NO_TOOLS_CHAIN_KEEPS_ORDER", "NOTE_DEMOTED", "NOTE_BOT_PICK", "NOTE_NO_TOOLS", "NOTE_NONE", "EVERY_CONFIGURED_PROVIDER_IS_TRIED", "RESERVE_ID", "RESERVE_ENV_BASE", "RESERVE_ENV_KEY", "RESERVE_ENV_MODEL", "RESERVE_NEEDS_ALL_THREE", "RESERVE_ENV_TOOLS", "RESERVE_ENV_VISION", "RESERVE_THINKING", "RESERVE_AFTER", "RESERVE_BEFORE", "RESERVE_CAPABILITIES_DECLARED_NOT_MEASURED", "RESERVE_IN_BOT_PICKER", "SKIPPED_PROVIDER_IS_LOGGED", "SKIP_LOG_PREFIX", "RESERVE_SENDS_MAX_TOKENS", "RESERVE_ENV_MAX_TOKENS", "RESERVE_MAX_TOKENS_DEFAULT", "PAYMENT_REQUIRED_IS_DIAGNOSED", "RESERVE_CONFIGURED_LIVE", "RESERVE_CONFIGURED_LIVE_EVIDENCE", "RESERVE_ANSWERED_LIVE", "RESERVE_PROBES", "RESERVE_PROBE_4_STATUS", "RESERVE_PROBE_4_MAX_TOKENS_SENT", "RESERVE_BLOCKER_IS_KEY_BALANCE", "RESERVE_PROBE_ANSWERED_BY", "RESERVE_PROBE_2_STATUS", "RESERVE_PROBE_3_STATUS", "RESERVE_PROBE_3_AFFORDABLE_TOKENS", "RESERVE_PROBE_3_REQUESTED_TOKENS"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "ORDER_DEFAULT", "PROVIDERS", "OWNER_PICK_GOES_FIRST", "DEPLOY_HEAD_NEEDS_TOOLS", "BOT_PICK_KEEPS_HEAD_WITHOUT_TOOLS", "NO_TOOLS_CHAIN_KEEPS_ORDER", "NOTE_DEMOTED", "NOTE_BOT_PICK", "NOTE_NO_TOOLS", "NOTE_NONE", "EVERY_CONFIGURED_PROVIDER_IS_TRIED", "KIE_ID", "KIE_ENV_KEY", "KIE_ENV_MODEL", "KIE_MODEL_DEFAULT", "KIE_BASE_ROOT", "KIE_AFTER", "KIE_BEFORE", "KIE_TOOLS", "KIE_VISION", "KIE_AUDIO", "KIE_THINKING", "KIE_TAKES_AGENT_MODEL", "KIE_SENDS_MAX_TOKENS", "KIE_MAX_TOKENS", "KIE_CAPABILITIES_DECLARED_NOT_MEASURED", "KIE_ANSWERED_LIVE", "KIE_IN_BOT_PICKER", "RESERVE_ID", "RESERVE_ENV_BASE", "RESERVE_ENV_KEY", "RESERVE_ENV_MODEL", "RESERVE_NEEDS_ALL_THREE", "RESERVE_ENV_TOOLS", "RESERVE_ENV_VISION", "RESERVE_THINKING", "RESERVE_AFTER", "RESERVE_BEFORE", "RESERVE_CAPABILITIES_DECLARED_NOT_MEASURED", "RESERVE_IN_BOT_PICKER", "SKIPPED_PROVIDER_IS_LOGGED", "SKIP_LOG_PREFIX", "RESERVE_SENDS_MAX_TOKENS", "RESERVE_ENV_MAX_TOKENS", "RESERVE_MAX_TOKENS_DEFAULT", "PAYMENT_REQUIRED_IS_DIAGNOSED", "RESERVE_CONFIGURED_LIVE", "RESERVE_CONFIGURED_LIVE_EVIDENCE", "RESERVE_ANSWERED_LIVE", "RESERVE_PROBES", "RESERVE_PROBE_4_STATUS", "RESERVE_PROBE_4_MAX_TOKENS_SENT", "RESERVE_BLOCKER_IS_KEY_BALANCE", "RESERVE_PROBE_ANSWERED_BY", "RESERVE_PROBE_2_STATUS", "RESERVE_PROBE_3_STATUS", "RESERVE_PROBE_3_AFFORDABLE_TOKENS", "RESERVE_PROBE_3_REQUESTED_TOKENS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

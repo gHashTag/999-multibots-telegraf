@@ -207,8 +207,10 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(src).toMatch(/bot\.command\('lead', requireAdmin\(\)/)
     expect(src).toMatch(/bot\.command\('sweep', requireAdmin\(\)/)
     const action = src.indexOf(
-      'bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/'
+      'bot.action(/^mdl:(zai|kie|zai-lite|nemotron|ollama)$/'
     )
+    // Spec agent-provider-chain v3 KIE_IN_BOT_PICKER: the Kie route has its button.
+    expect(src).toMatch(/'Kie',\s*'mdl:kie'/)
     expect(action).toBeGreaterThan(-1)
     const block = src.slice(action, action + 900)
     expect(block.indexOf('if (!ownerOnly(ctx)) return')).toBeGreaterThan(-1)

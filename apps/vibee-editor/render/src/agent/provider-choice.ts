@@ -1,5 +1,6 @@
 import type { ProviderId } from './provider'
 import { resetBreaker } from './provider-breaker'
+import * as SPEC from '../spec/agent-provider-chain.gen'
 
 /**
  * WHICH MODEL, CHOSEN FROM THE BOT.
@@ -11,13 +12,8 @@ import { resetBreaker } from './provider-breaker'
  * else about the chain changes: the chosen provider goes first, the rest
  * stay behind it as fallbacks.
  */
-export const KNOWN_PROVIDERS: ProviderId[] = [
-  'zai',
-  'zai-lite',
-  'nemotron',
-  'reserve',
-  'ollama',
-]
+// The spec's order, so a new route (kie, v3) is in the picker the day it is in the chain.
+export const KNOWN_PROVIDERS = SPEC.ORDER_DEFAULT.split(',') as ProviderId[]
 const KEY = 'agent_provider'
 
 type Pool = {

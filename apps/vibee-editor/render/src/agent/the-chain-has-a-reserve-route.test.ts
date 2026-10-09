@@ -26,8 +26,10 @@ const three = () => {
 
 describe('the reserve route', () => {
   it('sits after nemotron and before ollama in the default order', () => {
+    // v3: kie stands second (agent-provider-chain.t27).
     expect(providerOrder()).toEqual([
       'zai',
+      'kie',
       'zai-lite',
       'nemotron',
       'reserve',
@@ -82,6 +84,7 @@ describe('the reserve route', () => {
     expect(providerOrder()).toEqual([
       'reserve',
       'zai',
+      'kie',
       'zai-lite',
       'nemotron',
       'ollama',

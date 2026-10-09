@@ -7,10 +7,11 @@ import { RenderDidNotAnswer, RenderRefusedTheKey } from './renderTimeout'
 const BASE = 'https://vibee-render-production.up.railway.app'
 const apiKey = () => process.env.RENDER_API_KEY || ''
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
+export type ProviderId = 'zai' | 'kie' | 'zai-lite' | 'nemotron' | 'ollama'
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   ollama: 'наша (queen-ollama)',
   zai: 'платная (z.ai GLM)',
+  kie: 'Kie (Gemini 2.5 Flash)',
   'zai-lite': 'платная лёгкая (GLM 4.5)',
   nemotron: 'NVIDIA Nemotron',
 }
