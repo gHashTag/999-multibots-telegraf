@@ -137,7 +137,6 @@
     "apps/vibee-editor/render/src/spec/reddit-desk.t27",
     "apps/vibee-editor/render/src/spec/social-api.t27",
     "apps/vibee-editor/render/src/spec/split-reel.t27",
-    "src/spec/agent-hive-group.t27",
     "src/spec/bot-agent-memory.t27",
     "src/spec/bot-agent-stream.t27",
     "src/spec/bot-agent-team.t27",
