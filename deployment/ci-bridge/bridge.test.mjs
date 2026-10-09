@@ -380,6 +380,9 @@ describe('a GitHub App instead of a token', () => {
         minted++
         return ok({
           token: `inst-${minted}`,
+          ...(minted === 2
+            ? { permissions: { pull_requests: 'write', checks: 'read' } }
+            : {}),
           expires_at: new Date(now + 60 * 60_000).toISOString(),
         })
       }
@@ -393,12 +396,15 @@ describe('a GitHub App instead of a token', () => {
       appKey: key,
       minted: null,
     }
-    const deps = { fetch, now: () => now }
+    const logs = []
+    const deps = { fetch, now: () => now, log: m => logs.push(m) }
     assert.equal(await tokenOf(c, deps), 'inst-1')
+    assert.deepEqual(logs, ['app token: no permissions'])
     now += 50 * 60_000
     assert.equal(await tokenOf(c, deps), 'inst-1')
     now += 6 * 60_000
     assert.equal(await tokenOf(c, deps), 'inst-2')
+    assert.equal(logs[1], 'app token: checks=read pull_requests=write')
   })
 
   it('an app not installed on the repository says why', async () => {
