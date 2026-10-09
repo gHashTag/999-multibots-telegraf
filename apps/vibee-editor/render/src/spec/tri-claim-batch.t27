@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/tri-claim-batch.t27 -- withdraw every accepted spec in a few wallet transactions instead of one press per spec.
+// Issue: gHashTag/t27#8348.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/tri-claim.ts (POST /api/tri/claim/batch:
+// the mint messages for a list of earnings, each with its own signer quorum) and the mini app's
+// player/src/components/Profile/TriClaimCard.tsx ("Withdraw all": the messages in as few wallet
+// transactions as the wallet allows).
+// Trace: owner 2026-10-09 "withdraw everything". Measured that day: Queen credits GitHub
+// dmitrii-f-t27 with 874 accepted specs (69 more revoked), 27 TRI each, on TON testnet
+// (/queen/public-earnings/by/dmitrii-f-t27); the claim card built ONE mint message per press,
+// so 874 presses and 874 wallet signatures.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/; the rules run from
+// tri-claim-batch.logic.ts (scripts/t27-logic.mjs).
+// Claim status: the minter contract is unchanged. Every message is the same op::mint_on_att
+// ("TRI1") with its own attestation, its own quorum and its own value; a batch only puts many of
+// them in one wallet transaction. TESTNET ONLY, V1, signer quorum, NOT trustless -- as the
+// single claim. Nothing mints while the claim side is not configured (signers and minter).
+// v1 (2026-10-09): at most 16 messages per request, signers asked for 4 earnings at a time, the
+// wallet's own message limit (4 when it says nothing, never above 255), only earnings neither
+// revoked nor sent, oldest first, a cancelled prompt stops the run, 0.1 TON per message.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::tri_claim_batch {
+    pub const KIND : str = "automation";
+    pub const ID : str = "tri-claim-batch";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- what one request builds ----
+
+    // Every message needs its own quorum: each signer re-reads Queen, the merge on GitHub,
+    // the payee and the minter. 16 earnings is 48 signer calls, done 4 earnings at a time so a
+    // request ends well inside a minute and no signer is flooded.
+    pub const BATCH_MAX : u32 = 16;
+    pub const SIGN_CONCURRENCY : u32 = 4;
+
+    fn batch_size(asked: u32) -> u32 {
+        if asked > BATCH_MAX { return BATCH_MAX; }
+        return asked;
+    }
+
+    // An earning is picked only if Queen has not revoked it and this person has not already
+    // sent its message; the minter refuses a second mint of one nonce anyway (already_minted).
+    fn selectable(revoked: bool, sent: bool) -> bool {
+        return !revoked && !sent;
+    }
+
+    // Oldest accepted first: a list that is cut off still pays the oldest work.
+    pub const OLDEST_FIRST : bool = true;
+
+    // ---- what one wallet transaction carries ----
+
+    // TON Connect lets a wallet declare how many messages one transaction may carry. A v4
+    // wallet carries 4; a W5 wallet up to 255. A wallet that declares nothing gets 4.
+    pub const WALLET_MESSAGES_DEFAULT : u32 = 4;
+    pub const WALLET_MESSAGES_MAX : u32 = 255;
+
+    fn messages_per_tx(wallet_max: u32) -> u32 {
+        if wallet_max == 0 { return WALLET_MESSAGES_DEFAULT; }
+        if wallet_max > WALLET_MESSAGES_MAX { return WALLET_MESSAGES_MAX; }
+        return wallet_max;
+    }
+
+    // Transactions to send n messages.
+    fn transactions_for(messages: u32, wallet_max: u32) -> u32 {
+        let per : u32 = messages_per_tx(wallet_max);
+        return (messages + per - 1) / per;
+    }
+
+    // ---- value and time ----
+
+    // Each message carries 0.1 TON to the minter, which keeps what the mint costs (about 0.05)
+    // and returns the rest (tri-claim.ts MINT_VALUE_NANO). Values are in millitons here so they
+    // stay in u32: 100 milliton is 0.1 TON.
+    pub const MINT_VALUE_MILLITON : u32 = 100;
+    fn value_milliton(messages: u32) -> u32 {
+        return messages * MINT_VALUE_MILLITON;
+    }
+
+    // A built batch is good for 5 minutes, like a single claim.
+    pub const VALID_FOR_S : u32 = 300;
+
+    // ---- the run ----
+
+    // The person presses once; the card keeps asking and sending until nothing is left. It
+    // stops at the first prompt the person cancels and at the first request that builds nothing.
+    fn continue_after(built: u32, sent: bool, cancelled: bool) -> bool {
+        return built > 0 && sent && !cancelled;
+    }
+
+    // ---- tests ----
+
+    test "a request builds at most sixteen messages" {
+        assert(BATCH_MAX == 16);
+        assert(SIGN_CONCURRENCY == 4);
+        assert(batch_size(0) == 0);
+        assert(batch_size(5) == 5);
+        assert(batch_size(16) == 16);
+        assert(batch_size(17) == 16);
+        assert(batch_size(874) == 16);
+    }
+
+    test "only earnings neither revoked nor sent are picked, oldest first" {
+        assert(OLDEST_FIRST);
+        assert(selectable(false, false));
+        assert(!selectable(true, false));
+        assert(!selectable(false, true));
+        assert(!selectable(true, true));
+    }
+
+    test "a transaction carries what the wallet allows, four when it says nothing" {
+        assert(WALLET_MESSAGES_DEFAULT == 4);
+        assert(WALLET_MESSAGES_MAX == 255);
+        assert(messages_per_tx(0) == 4);
+        assert(messages_per_tx(1) == 1);
+        assert(messages_per_tx(4) == 4);
+        assert(messages_per_tx(255) == 255);
+        assert(messages_per_tx(256) == 255);
+        assert(transactions_for(16, 4) == 4);
+        assert(transactions_for(17, 4) == 5);
+        assert(transactions_for(16, 255) == 1);
+        assert(transactions_for(874, 255) == 4);
+        assert(transactions_for(0, 4) == 0);
+    }
+
+    test "each message carries a tenth of a TON and a batch lives five minutes" {
+        assert(MINT_VALUE_MILLITON == 100);
+        assert(value_milliton(1) == 100);
+        assert(value_milliton(16) == 1600);
+        assert(VALID_FOR_S == 300);
+    }
+
+    test "the run stops at a cancelled prompt or an empty batch" {
+        assert(continue_after(16, true, false));
+        assert(!continue_after(16, false, false));
+        assert(!continue_after(16, true, true));
+        assert(!continue_after(0, true, false));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
