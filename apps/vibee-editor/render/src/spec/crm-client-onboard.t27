@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/crm-client-onboard.t27 -- one call puts a client on board: the seller's
+// dossier (profile, SOUL, skills) for the client the thread is about, then the next step.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/crm-client-onboard.ts (tool
+//       crm_client_onboard), crm-client-setup-tool.ts (crm_client_setup refusal text) and chat.ts
+//       (clientContextBlock names the client's telegram_id).
+// Trace: owner 2026-10-09, a client thread in the mini app ("fill the client's SOUL in her
+//       profile"). crm_client_setup is gated to the platform owner and refused a seller in 1 ms
+//       with the Telegram-reader gate's text ("the Telegram account belongs to the owner"), so the
+//       agent told the seller the CLIENT was the platform owner. The thread's header named the
+//       client by name only, so the agent asked the seller for the client's telegram_id. It fell
+//       back to skills_create, which writes the CALLER's own skills: four "client" skills landed
+//       in the seller's account. The same five steps are repeated for every client by hand.
+// WHY the dossier goes into the seller's profile row: SOUL and skills under the client's own
+//       telegram_id belong to the client's account; only the platform owner writes there, and
+//       only for a client who connected. A seller's notes about a person they talk to need
+//       nothing from that person (crm_client_profiles, keyed by owner and client).
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled logic
+//       in the host's src/spec/.
+// Claim status: render contract, unit-tested with doubles; a live onboarding is shown by the host.
+// v1 (2026-10-09): seller gate with the lead owned, the thread's client by default, the dossier
+//       in the seller's profile, the next missing step named, the refusal names the right tool.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::crm_client_onboard {
+    pub const KIND : str = "automation";
+    pub const ID : str = "crm-client-onboard";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const TOOL : str = "crm_client_onboard";
+    pub const STEPS : str = "profile,soul,skills,face";
+    pub const STEP_COUNT : u8 = 4;
+    pub const SOUL_MAX_CHARS : u32 = 32000;
+    pub const SKILLS_MAX : u8 = 24;
+    pub const SKILL_MAX_CHARS : u32 = 8000;
+    // The thread's header names the client's telegram_id, not only the name.
+    pub const CONTEXT_NAMES_LEAD_ID : bool = true;
+    // skills_create writes the caller's own skills; the prompt says a client's go here.
+    pub const SKILLS_CREATE_IS_CALLERS_OWN : bool = true;
+    // crm_client_setup refused for a non-owner says which tool a seller uses.
+    pub const SETUP_REFUSAL_NAMES_ONBOARD : bool = true;
+
+    // Who may put a client on board: the platform owner, or a seller whose lead it is.
+    fn may_onboard(is_platform_owner: bool, is_seller: bool, owns_lead: bool) -> bool {
+        return is_platform_owner || (is_seller && owns_lead);
+    }
+
+    // SOUL and skills go into the client's OWN account only from the platform owner and only for
+    // a client who connected; everybody else's dossier stays in the seller's profile row.
+    fn into_client_account(is_platform_owner: bool, client_connected: bool) -> bool {
+        return is_platform_owner && client_connected;
+    }
+
+    // Which client: 1 = named in the call, 2 = the thread's client, 0 = nobody (refuse).
+    fn lead_from(named: bool, thread: bool) -> u8 {
+        if named { return 1; }
+        if thread { return 2; }
+        return 0;
+    }
+
+    // The first step still missing, 0-based in STEPS; STEP_COUNT means all done.
+    fn next_step(profile: bool, soul: bool, skills: bool, face: bool) -> u8 {
+        if !profile { return 0; }
+        if !soul { return 1; }
+        if !skills { return 2; }
+        if !face { return 3; }
+        return 4;
+    }
+
+    // A dossier fits when the SOUL and every skill fit their bounds and there are not too many.
+    fn dossier_fits(soul_chars: u32, skills: u8, longest_skill: u32) -> bool {
+        return soul_chars <= SOUL_MAX_CHARS && skills <= SKILLS_MAX && longest_skill <= SKILL_MAX_CHARS;
+    }
+
+    test "a seller onboards her own lead; a stranger and a seller of another lead do not" {
+        assert(may_onboard(false, true, true));
+        assert(!may_onboard(false, true, false));
+        assert(!may_onboard(false, false, true));
+        assert(may_onboard(true, false, false));
+    }
+
+    test "the client's own account is written only by the platform owner for a connected client" {
+        assert(into_client_account(true, true));
+        assert(!into_client_account(true, false));
+        assert(!into_client_account(false, true));
+        assert(!into_client_account(false, false));
+    }
+
+    test "the client is the one named, else the thread's, else nobody" {
+        assert(lead_from(true, true) == 1);
+        assert(lead_from(true, false) == 1);
+        assert(lead_from(false, true) == 2);
+        assert(lead_from(false, false) == 0);
+        assert(CONTEXT_NAMES_LEAD_ID);
+    }
+
+    test "the next step is the first one missing" {
+        assert(next_step(false, true, true, true) == 0);
+        assert(next_step(true, false, true, true) == 1);
+        assert(next_step(true, true, false, true) == 2);
+        assert(next_step(true, true, true, false) == 3);
+        assert(next_step(true, true, true, true) == STEP_COUNT);
+    }
+
+    test "a dossier fits its bounds" {
+        assert(dossier_fits(32000, 24, 8000));
+        assert(!dossier_fits(32001, 1, 10));
+        assert(!dossier_fits(10, 25, 10));
+        assert(!dossier_fits(10, 1, 8001));
+        assert(SKILLS_CREATE_IS_CALLERS_OWN);
+        assert(SETUP_REFUSAL_NAMES_ONBOARD);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

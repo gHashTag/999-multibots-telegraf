@@ -224,6 +224,14 @@ export interface ToolContext {
    */
   imageWaitMs?: number
   /**
+   * The conversation thread this turn writes its answer to, and whether the
+   * turn is kept at all. Set only by the chat route. A picture that finishes
+   * after the answer is posted there (agent-claims-honest.t27 v2,
+   * late_file_posted) -- never into a turn nobody keeps.
+   */
+  thread?: string
+  ephemeral?: boolean
+  /**
    * THE CLIENT THIS TURN MAKES PICTURES FOR (a duet's buyer, a client
    * thread's client). Set only by code. While it is set, a picture of a
    * person is drawn from THAT person's face (client-face.ts) -- never from
@@ -1287,6 +1295,7 @@ import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { registerChargingTools } from './tool-charges'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
+import { CRM_ONBOARD_TOOLS } from './crm-client-onboard'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
@@ -1335,6 +1344,7 @@ import {
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
+import { onLateOutcome } from './late-file'
 import { confirmFirst, factsIn, unconfirmedFacts } from './printed-facts'
 import {
   backgroundPrompt,
@@ -2130,20 +2140,21 @@ export const TOOLS: AgentTool[] = [
             return kept.ok ? kept.url : ''
           },
         })
-          .then(async out => {
-            if (out.state === 'ready') return
-            // Keyed by the task: a story job that notices the same picture
-            // never came, after a redeploy, gives nothing back a second time.
-            await refundTokens(
-              ctx,
-              op,
-              out.state === 'failed'
-                ? 'провайдер отказал после хода'
-                : 'провайдер не закончил за время наблюдения',
-              charge['потрачено'],
-              lateRefundRef(taskId)
-            )
-          })
+          .then(out =>
+            onLateOutcome(ctx, out, async () => {
+              // Keyed by the task: a story job that notices the same picture
+              // never came, after a redeploy, gives nothing back a second time.
+              await refundTokens(
+                ctx,
+                op,
+                out.state === 'failed'
+                  ? 'провайдер отказал после хода'
+                  : 'провайдер не закончил за время наблюдения',
+                charge['потрачено'],
+                lateRefundRef(taskId)
+              )
+            })
+          )
           .catch(() => undefined)
         return {
           done: false,
@@ -4350,6 +4361,7 @@ TOOLS.push(...CRM_AGENT_LINK_TOOLS)
 TOOLS.push(...CRM_DUET_TOOLS)
 // The client package: owner installs SOUL draft / skills / profile / plan, the seller reads the profile (crm-client-setup-tool.ts).
 TOOLS.push(...CRM_CLIENT_TOOLS)
+TOOLS.push(...CRM_ONBOARD_TOOLS)
 // The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...CRM_AVATAR_TOOLS)
@@ -4829,9 +4841,10 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * background job now (story-template.ts), which needs no other tool in the kit, but the three schemas are ~930
  * tokens (crm_story_reel alone ~550; measured 2026-09-27) against a kit at 7214 of its 7240 (provider.test.ts). A DM seller on a 16k model gives the portrait;
  * the reel is asked of the owner's full-size agent. Moving that line is the owner's call, not a refactor's.
+ * `crm_client_onboard` (2026-10-09, ~250 tokens) is the seller's onboarding in the mini app's full-size agent.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_office_task|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_office_task|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue|crm_client_onboard)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
