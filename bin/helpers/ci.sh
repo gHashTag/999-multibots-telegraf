@@ -9,12 +9,23 @@
 #
 #   tri ci            every open PR: number, head, mark, description
 #   tri ci 3950 3951  only these
+#   tri ci --recheck 3951   ask the bridge to run that head again
 # Exit 0 when every PR shown is green, 1 when one is red or errored,
 # 2 when GitHub could not be read. "no mark" is neither: the bridge has not
 # reached that head yet (or it predates SINCE).
 set -uo pipefail
 REPO="${CI_REPO:-gHashTag/999-multibots-telegraf}"
 CONTEXT="railway/checks"
+if [ "${1:-}" = "--recheck" ]; then
+  # A finished head runs again on the bridge's next pass (spec recheck_due:
+  # the comment must be newer than the mark, from someone who may write).
+  shift; [ $# -gt 0 ] || { echo "tri ci --recheck <PR>..."; exit 2; }
+  for n in "$@"; do
+    gh api -X POST "repos/$REPO/issues/$n/comments" -f body=/recheck --jq '.html_url' ||
+      { echo "tri ci: could not comment on #$n"; exit 2; }
+  done
+  exit 0
+fi
 if [ $# -gt 0 ]; then PRS="$*"; else
   PRS=$(gh api "repos/$REPO/pulls?state=open&per_page=50" --jq '.[].number' 2>/dev/null) ||
     { echo "tri ci: GitHub could not be read (gh auth?)"; exit 2; }

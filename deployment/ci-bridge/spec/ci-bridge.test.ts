@@ -13,7 +13,7 @@ import {
   runsHere,
   verdict,
 } from '../bridge.mjs'
-import { appJwt } from '../bridge.mjs'
+import { appJwt, heal, recheckAsked } from '../bridge.mjs'
 import { generateKeyPairSync } from 'node:crypto'
 
 const REPO = 'gHashTag/999-multibots-telegraf'
@@ -89,7 +89,68 @@ describe('spec automation/ci-bridge', () => {
      * the token, renews it before it ends"): 4 min left renews, 10 do not */
   })
 
+  it('a stale bridge heals once, after its grace', async () => {
+    const json = (v: unknown) => new Response(JSON.stringify(v))
+    const fetch = async (url: string) => {
+      const u = new URL(url)
+      if (u.hostname === 'backboard.railway.com')
+        return json({ data: { serviceInstanceDeployV2: 'd' } })
+      if (u.pathname.endsWith('/commits')) return json([{ sha: 'new' }])
+      if (u.pathname.includes('/compare/')) return json({ status: 'behind' })
+      return json({ sha: 'head' })
+    }
+    const cfg = {
+      repo: REPO,
+      token: 't',
+      ownSha: 'old',
+      railwayToken: 'r',
+      serviceId: 's',
+      environmentId: 'e',
+      startedAt: T0,
+      healed: false,
+    }
+    const at = (s: number) => ({ fetch, now: () => T0 + s * 1000, log() {} })
+    expect(await heal({ ...cfg }, at(SPEC.STALE_GRACE_S - 1))).toBe(
+      'stale, waiting'
+    )
+    const once = { ...cfg }
+    expect(await heal(once, at(SPEC.STALE_GRACE_S))).toBe('healing')
+    expect(await heal(once, at(99_999))).toBe('stale, waiting')
+    expect(await heal({ ...cfg, ownSha: 'new' }, at(99_999))).toBe('fresh')
+  })
+
+  it('a trusted /recheck newer than a finished mark runs the head again', async () => {
+    const mark = { state: 'failure', updated_at: '2026-10-09T11:00:00Z' }
+    const ask = (association: string, at: string, m: unknown = mark) =>
+      recheckAsked(
+        { repo: REPO, token: 't' },
+        {
+          fetch: async () =>
+            new Response(
+              JSON.stringify([
+                {
+                  body: SPEC.RECHECK_WORD,
+                  author_association: association,
+                  created_at: at,
+                },
+              ])
+            ),
+        },
+        { number: 7 },
+        m
+      )
+    expect(await ask('OWNER', '2026-10-09T11:30:00Z')).toBe(true)
+    expect(await ask('NONE', '2026-10-09T11:30:00Z')).toBe(false)
+    expect(await ask('OWNER', '2026-10-09T10:30:00Z')).toBe(false)
+    expect(
+      await ask('OWNER', '2026-10-09T11:30:00Z', {
+        state: 'pending',
+        updated_at: mark.updated_at,
+      })
+    ).toBe(false)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })

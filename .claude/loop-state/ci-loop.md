@@ -15,7 +15,7 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 
 ## СЕЙЧАС В РАБОТЕ
 
-- Tick 1 (2026-10-09 evening): spec t27#8300, host binding, token fallback, `tri ci`.
+- Tick 2: spec v2 (t27#8310) heal + /recheck; `tri ci --recheck`.
 
 ## Что уже есть
 
@@ -28,7 +28,8 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 - [x] t27#8300 merged.
 - [x] Railway auto-deploys ci-bridge on merge (the deploy of #3953 built itself).
 - [ ] Mark main's head too (base red vs PR red).
-- [ ] Re-run on request: a PR comment `/recheck` resets the mark.
+- [x] Re-run on request: `/recheck` (spec v2, t27#8310).
+- [x] Self-healing deploy when Railway skips a merge (spec v2 heal_due).
 
 - 09.10.2026 19:43: live after #3953 -- the Node 22 host runs the spec logic; the app may
   not mark; the fallback token (TRIOS_QUEEN_RELEASE_TOKEN) is refused on this private repo
