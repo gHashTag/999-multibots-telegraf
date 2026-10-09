@@ -1442,8 +1442,9 @@ function ownerSideSection(surface?: string): string {
     SOCIAL_PROMPT_LINE +
     /* course-outreach.t27: the course for the programmers in his contacts. */
     'Рассказать программистам из его контактов про курс — course_outreach: find ' + // cyrillic-ok: prompt copy
-    '(кто программист по их словам, тег в CRM), draft (одно личное сообщение каждому, ' + // cyrillic-ok: prompt copy
-    'карточка владельцу), send после его нажатия; пост о курсе — social_post со ' + // cyrillic-ok: prompt copy
+    '(кто программист по их словам и био, тег в CRM), draft (одно личное сообщение каждому, ' + // cyrillic-ok: prompt copy
+    'карточка владельцу), send после его нажатия; LinkedIn и X — networks (только чтение ' + // cyrillic-ok: prompt copy
+    'в его браузере), там одно сообщение — одна карточка; пост о курсе — social_post со ' + // cyrillic-ok: prompt copy
     `ссылкой ${COURSE_URL}. ` + // cyrillic-ok: prompt copy
     /* #2962, #2964: the clone's networks, read without opening a page. */
     'Где его браузер уже вошёл — browser_logins (страницу не открывает). ' + // cyrillic-ok: prompt copy
