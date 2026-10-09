@@ -11,6 +11,13 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as SPEC from './bot-office-crm.gen'
 import {
+  assignedIsTask,
+  assignOk,
+  assignToOffice,
+  mayAssign,
+  OFFICE_CRM_TOOLS,
+  OFFICE_PROPOSALS_TABLE,
+  officeIn,
   cardTasksShown,
   clientCardListsTasks,
   OFFICE_TASK_MARKERS,
@@ -50,8 +57,33 @@ describe('spec bot-office-crm.t27', () => {
     expect(roomGetsClientCard(false)).toBe(true)
   })
 
+  it("the owner assigns into the client's office, never from the client's DM", () => {
+    expect(mayAssign(true, false, true, true)).toBe(true)
+    expect(mayAssign(false, false, true, true)).toBe(false)
+    expect(mayAssign(true, true, true, true)).toBe(false)
+    expect(mayAssign(true, false, false, true)).toBe(false)
+    expect(mayAssign(true, false, true, false)).toBe(false)
+  })
+
+  it('an assignment is a proposal until a person in the office presses', () => {
+    expect(SPEC.ASSIGN_IS_PROPOSAL).toBe(true)
+    expect(assignedIsTask(false)).toBe(false)
+    expect(assignedIsTask(true)).toBe(true)
+  })
+
+  it("an assignment names a person and the work within the office's bounds", () => {
+    expect(SPEC.ASSIGN_NAME_MAX_CHARS).toBe(64)
+    expect(SPEC.ASSIGN_TEXT_MAX_CHARS).toBe(300)
+    expect(assignOk(4, 20)).toBe(true)
+    expect(assignOk(64, 300)).toBe(true)
+    expect(assignOk(65, 20)).toBe(false)
+    expect(assignOk(4, 301)).toBe(false)
+    expect(assignOk(0, 20)).toBe(false)
+    expect(assignOk(4, 0)).toBe(false)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 
@@ -248,5 +280,218 @@ describe("the office in the client's card", () => {
     )
     expect(block).not.toContain('mockup')
     expect(pool.calls.some(c => /FROM office_tasks/.test(c.sql))).toBe(false)
+  })
+})
+
+/**
+ * crm_office_task (v2, #3919): the owner's word in a client's thread becomes
+ * a proposal in the client's office, posted by the office's bot.
+ */
+function assignWorld(opts: {
+  seller?: boolean
+  bound?: string | null
+  office?: { bot_username: string; thread_id: number; kind: string }[]
+  token?: string | null
+  sendOk?: boolean
+}) {
+  const sql: Array<{ q: string; p?: unknown[] }> = []
+  const sent: Array<{ token: string; body: any }> = []
+  const proposals: any[] = []
+  const pool = {
+    async query(q: string, p?: unknown[]) {
+      sql.push({ q, p })
+      if (/FROM bot_topic_tabs/.test(q)) {
+        const rows = (opts.office ?? [])
+          .filter(r => (/thread_id > 0/.test(q) ? r.thread_id > 0 : true))
+          .sort((a, b) =>
+            /ORDER BY \(kind = 'agent'\) DESC/.test(q)
+              ? Number(b.kind === 'agent') - Number(a.kind === 'agent') ||
+                a.thread_id - b.thread_id
+              : 0
+          )
+        return { rows: rows.slice(0, 1) }
+      }
+      if (/^INSERT INTO office_task_proposals/.test(q)) {
+        proposals.push({ id: proposals.length + 41, p })
+        return { rows: [{ id: proposals.length + 40 }] }
+      }
+      if (/^DELETE FROM office_task_proposals/.test(q)) {
+        proposals.splice(0, 1)
+        return { rows: [] }
+      }
+      return { rows: [] }
+    },
+  }
+  const deps = {
+    isSeller: async () => opts.seller ?? true,
+    groupOf: async () =>
+      opts.bound === undefined
+        ? { chat_id: GROUP }
+        : opts.bound
+          ? { chat_id: opts.bound }
+          : null,
+    tokenOf: async () => (opts.token === undefined ? 'T0K' : opts.token),
+    send: async (token: string, body: any) => {
+      sent.push({ token, body })
+      return opts.sendOk === false
+        ? { ok: false, description: 'Bad Request: chat not found' }
+        : { ok: true }
+    },
+  }
+  return { sql, sent, proposals, pool, deps }
+}
+
+const OFFICE_ROWS = [
+  { bot_username: 'office_bot', thread_id: 7, kind: 'wallet' },
+  { bot_username: 'office_bot', thread_id: 11, kind: 'agent' },
+]
+const turn = (pool: any, surface = 'miniapp') =>
+  ({ telegramId: '144022504', pool, surface }) as never
+const ask = { client: '987654321', name: 'Anna', text: 'the mockup by Friday' }
+
+describe("the owner assigns into the client's office (v2)", () => {
+  it("the office's bot posts a proposal in the Agent's channel with the press button", async () => {
+    const w = assignWorld({ office: OFFICE_ROWS })
+    const r = await assignToOffice(ask, turn(w.pool), w.deps)
+    expect(r).toMatchObject({
+      proposed: 41,
+      group: GROUP,
+      office_bot: 'office_bot',
+      is_task: false,
+    })
+    expect(w.sql.map(x => x.q)).toContain(OFFICE_PROPOSALS_TABLE)
+    expect(w.sent).toHaveLength(1)
+    const { token, body } = w.sent[0]
+    expect(token).toBe('T0K')
+    expect(body.chat_id).toBe(GROUP)
+    expect(body.message_thread_id).toBe(11)
+    expect(body.reply_markup.inline_keyboard[0][0]).toEqual({
+      text: '📌 Anna: the mockup by Friday',
+      callback_data: 'otp:41',
+    })
+    const insert = w.sql.find(x => /^INSERT/.test(x.q))!
+    expect(insert.p).toEqual([
+      'office_bot',
+      GROUP,
+      'the mockup by Friday',
+      'Anna',
+    ])
+  })
+
+  it('the post speaks the language asked for, and a long label is cut', async () => {
+    const w = assignWorld({ office: OFFICE_ROWS })
+    await assignToOffice(
+      { ...ask, text: 'x'.repeat(120), lang: 'en' },
+      turn(w.pool),
+      w.deps
+    )
+    expect(w.sent[0].body.text).toMatch(/A task from the owner/)
+    expect([
+      ...w.sent[0].body.reply_markup.inline_keyboard[0][0].text,
+    ]).toHaveLength(60)
+    const ru = assignWorld({ office: OFFICE_ROWS })
+    await assignToOffice(ask, turn(ru.pool), ru.deps)
+    expect(ru.sent[0].body.text).toMatch(/Задача от владельца/) // cyrillic-ok: the copy under test
+  })
+
+  it("from the client's DM, or by somebody who is not the seller: nothing is posted", async () => {
+    const dm = assignWorld({ office: OFFICE_ROWS })
+    await expect(
+      assignToOffice(ask, turn(dm.pool, 'business'), dm.deps)
+    ).rejects.toThrow(/владелец/) // cyrillic-ok: the refusal under test
+    const stranger = assignWorld({ seller: false, office: OFFICE_ROWS })
+    await expect(
+      assignToOffice(ask, turn(stranger.pool), stranger.deps)
+    ).rejects.toThrow(/владелец/) // cyrillic-ok: the refusal under test
+    expect([...dm.sent, ...stranger.sent]).toHaveLength(0)
+    expect(dm.sql.some(x => /bot_topic_tabs/.test(x.q))).toBe(false)
+  })
+
+  it('no bound group, or no office in it: said, nothing posted', async () => {
+    const unbound = assignWorld({ bound: null, office: OFFICE_ROWS })
+    await expect(
+      assignToOffice(ask, turn(unbound.pool), unbound.deps)
+    ).rejects.toThrow(/crm_client_group/)
+    const noOffice = assignWorld({ office: [] })
+    await expect(
+      assignToOffice(ask, turn(noOffice.pool), noOffice.deps)
+    ).rejects.toThrow(/\/office/)
+    expect([...unbound.sent, ...noOffice.sent]).toHaveLength(0)
+  })
+
+  it('an office bot the farm does not know, or a post Telegram refuses: no proposal stays behind', async () => {
+    const lost = assignWorld({ office: OFFICE_ROWS, token: null })
+    await expect(
+      assignToOffice(ask, turn(lost.pool), lost.deps)
+    ).rejects.toThrow(/@office_bot/)
+    expect(lost.proposals).toHaveLength(0)
+    const refused = assignWorld({ office: OFFICE_ROWS, sendOk: false })
+    await expect(
+      assignToOffice(ask, turn(refused.pool), refused.deps)
+    ).rejects.toThrow(/chat not found/)
+    expect(refused.proposals).toHaveLength(0)
+  })
+
+  it('a bad client id or a name and work outside the bounds is refused before anything is read', async () => {
+    const w = assignWorld({ office: OFFICE_ROWS })
+    await expect(
+      assignToOffice({ ...ask, client: 'abc' }, turn(w.pool), w.deps)
+    ).rejects.toThrow(/client/)
+    await expect(
+      assignToOffice({ ...ask, name: '' }, turn(w.pool), w.deps)
+    ).rejects.toThrow(/name/)
+    await expect(
+      assignToOffice({ ...ask, text: 'y'.repeat(301) }, turn(w.pool), w.deps)
+    ).rejects.toThrow(/300/)
+    await expect(
+      assignToOffice({ ...ask, name: 'n'.repeat(65) }, turn(w.pool), w.deps)
+    ).rejects.toThrow(/64/)
+    expect(w.sql).toHaveLength(0)
+  })
+
+  it("an office is found by the group's tabs; a person's id or a failed read is no office", async () => {
+    const w = assignWorld({ office: OFFICE_ROWS })
+    expect(await officeIn(w.pool, GROUP)).toEqual({
+      bot: 'office_bot',
+      thread: 11,
+    })
+    expect(await officeIn(w.pool, '144022504')).toBeNull()
+    expect(
+      await officeIn(
+        {
+          query: async () => {
+            throw new Error('down')
+          },
+        },
+        GROUP
+      )
+    ).toBeNull()
+  })
+
+  it("the tool is in the catalogue, out of the compact kit, with the bot's table byte for byte", async () => {
+    const { TOOLS, COMPACT_TOOLS_EXCLUDED } = await import('../agent/tools')
+    expect(TOOLS.some(t => t.name === 'crm_office_task')).toBe(true)
+    expect(OFFICE_CRM_TOOLS[0].name).toBe('crm_office_task')
+    expect(COMPACT_TOOLS_EXCLUDED.test('crm_office_task')).toBe(true)
+    const bot = readFileSync(
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        '..',
+        'src',
+        'navigation',
+        'topics',
+        'officeTasks.ts'
+      ),
+      'utf8'
+    )
+    expect(bot).toContain(
+      'export const OFFICE_PROPOSALS_TABLE = `' +
+        OFFICE_PROPOSALS_TABLE.slice('CREATE'.length * 0)
+    )
+    expect(bot).toContain("export const PROPOSAL_PREFIX = 'otp:'")
   })
 })
