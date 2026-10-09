@@ -98,9 +98,26 @@ row. A new Kie function = a new row in the spec, never new host code.
 | `image_remove_background` (needs image_url) | recraft/remove-background                                                  | 2                      |
 | `image_generate` + `model: kie/...`         | any image model with a price: imagen4 16, seedream 5 pro 14, ideogram v3 7 | its own                |
 | `video_generate` + `image_url`              | kling/v2-1-pro (clip from a picture)                                       | 100 a clip             |
+| `image_edit` (no model named)               | GPT Image 2.5 edit, 9:16 (`EDIT_DEFAULT_ASPECT`)                           | 12                     |
+| `music_generate` / `music_status`           | Suno `V4_5PLUS` (`SUNO_MODEL`), two variants per request                   | 24 a request           |
 
-Not yet: Suno music (no render route; the bot's KieAiProvider.generateMusic
-has it), the TTS model choice beside the voice clones, face swap and LoRA
+**A picture from a photo is GPT Image 2.5 by default** (owner: "by default,
+keeping the skills, use the gpt 2.5 model and size 9:16"). `edit_uses_gpt25`:
+GPT unless another model is NAMED; a named nano-banana is kept.
+
+**Music is the Suno API, not the jobs API.** Create is `POST
+/api/v1/generate` (`customMode: false`, a `callBackUrl` is required, we poll
+instead), the audio is `GET /api/v1/generate/record-info` ->
+`data.response.sunoData[0].audioUrl` (`render/src/kie-music.ts`). A turn waits
+at most `MUSIC_WAIT_SECONDS` (120, `music_keeps_waiting`); after that the
+answer is "still writing" with a `task_id`, and `music_status` fetches it.
+Each task is a row in `agent_music_tasks` (owner, sum charged, state): a song
+goes only to who ordered it, and a failure is refunded once
+(`UPDATE ... WHERE state = 'writing' RETURNING`). The cost ($0.06 a request)
+is from a third-party price page, NOT measured on our key -- measure it on the
+first live song and correct `MUSIC_COST_MICRO_USD` in the spec.
+
+Not yet: the TTS model choice beside the voice clones, face swap and LoRA
 training (Kie has none -- say so, never fake it).
 
 ## The free leg is not a way around Kie (2026-10-03)

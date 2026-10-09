@@ -16,6 +16,14 @@ export const IMAGE_TO_VIDEO_MODEL = "kie/kling/v2-1-pro" satisfies string;
 export const EDIT_DEFAULT_IS_GPT25 = true satisfies boolean;
 // t27c gen-ts: fn edit_uses_gpt25 was not emitted -- this backend lowers declarations, not bodies.
 export const EDIT_DEFAULT_ASPECT = "9:16" satisfies string;
+export const MUSIC_TOOL_NAME = "music_generate" satisfies string;
+export const MUSIC_STATUS_TOOL_NAME = "music_status" satisfies string;
+export const MUSIC_HELP = "Write a song or an instrumental from a description (Suno on Kie). Takes 1-3 minutes; if it is not ready the answer says still writing with a task id for music_status." satisfies string;
+export const MUSIC_STATUS_HELP = "Check a song music_generate started (task id); returns the song when it is ready. Free." satisfies string;
+export const SUNO_MODEL = "V4_5PLUS" satisfies string;
+export const MUSIC_COST_MICRO_USD = 60000 satisfies number;
+export const MUSIC_WAIT_SECONDS = 120 satisfies number;
+// t27c gen-ts: fn music_keeps_waiting was not emitted -- this backend lowers declarations, not bodies.
 export const VIDEO_FROM_WORDS = 0 satisfies number;
 export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: fn video_route was not emitted -- this backend lowers declarations, not bodies.
@@ -24,10 +32,11 @@ export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "EDIT_DEFAULT_IS_GPT25", "EDIT_DEFAULT_ASPECT", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "EDIT_DEFAULT_IS_GPT25", "EDIT_DEFAULT_ASPECT", "MUSIC_TOOL_NAME", "MUSIC_STATUS_TOOL_NAME", "MUSIC_HELP", "MUSIC_STATUS_HELP", "SUNO_MODEL", "MUSIC_COST_MICRO_USD", "MUSIC_WAIT_SECONDS", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
