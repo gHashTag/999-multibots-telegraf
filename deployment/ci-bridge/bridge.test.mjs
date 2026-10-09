@@ -355,7 +355,14 @@ describe('a GitHub App instead of a token', () => {
       }
       throw new Error(`unexpected ${url}`)
     }
-    const c = { ...cfg, token: '', appId: '42', appKey: key, minted: null }
+    /* a leftover token does not shadow the app */
+    const c = {
+      ...cfg,
+      token: 'leftover',
+      appId: '42',
+      appKey: key,
+      minted: null,
+    }
     const deps = { fetch, now: () => now }
     assert.equal(await tokenOf(c, deps), 'inst-1')
     now += 50 * 60_000
