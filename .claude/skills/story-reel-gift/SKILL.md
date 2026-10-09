@@ -49,7 +49,23 @@ What the code holds (spec `crm-story-reel.t27` v19, `story-reel-tool.ts`,
 6. The house gets its reel through **@t27ai_bot** (`HOUSE_DELIVERY_BOT`), a
    client through their own bot, then the main bot (`buyer-delivery.ts`).
 
-## Когда
+## A photo per scene, picked by a tap (crm-story-reel v31, 2026-10-09)
+
+The owner's storyboard showed the same avatar three times. Now:
+
+- `crm_story_reel` (status, no `start`) reads ALL her profile photos once
+  through the seller's session (`avatarHistory`, `photos.GetUserPhotos`, up to
+  `AVATARS_MAX` = 6), keeps them on our shelf and in `crm_people.avatar_urls`
+  (`[]` when none, so it is not asked again). The panel waits at most 12 s.
+- Scene i takes avatar `i mod n` (`scene_face`). A pick for one scene wins,
+  then the seller's one photo for the whole reel, then the avatars
+  (`scene_source`; host `story-scene-faces.ts`). The job sends `image_urls`
+  and `story_reel` cuts or draws each scene from ITS photo.
+- In the CRM panel a tap on a scene tile opens `ScenePhotoSheet`: her photos,
+  an upload, «↺ Как по умолчанию». The save is `crm_story_reel {scene_faces}`
+  (list by scene, '' = default), kept in `story_faces.scene_faces`. The
+  separate «Заменить фото» button is gone from the seller's panel (the client's
+  own /story page keeps it).
 
 - Портрет уже подарен: `crm_lead_context` → `portrait.first` говорит
   «второй подарок: рилс-история…», `portrait.reelGiven` — был ли рилс.
