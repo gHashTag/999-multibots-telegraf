@@ -83,5 +83,5 @@ export function lateFilePosted(
   )
 }
 
-/** Spec fns this backend could not lower (types outside bool/ints/floats). */
+/** Spec fns this backend could not lower (types outside bool/ints/floats/str). */
 export const __NOT_LOWERED__ = Object.freeze([])

@@ -7,9 +7,9 @@
   },
   {
     "name": "an expired card counts as Allow",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  return answer === 'allowed'",
-    "to": "  return answer !== 'denied'"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!maySend(state))",
+    "to": "  if (state === 'denied')"
   },
   {
     "name": "a card answered by someone else is honoured",
@@ -68,14 +68,14 @@
   {
     "name": "one sign makes a programmer",
     "file": "src/agent/course-outreach.ts",
-    "from": "  if (groups >= SPEC.PROGRAMMER_BAR) return 'programmer'",
-    "to": "  if (groups >= 1) return 'programmer'"
+    "from": "    verdict: verdict(r.signs.size, r.negated),",
+    "to": "    verdict: verdict(r.signs.size * 2, r.negated),"
   },
   {
     "name": "signs outrank his own no",
     "file": "src/agent/course-outreach.ts",
-    "from": "  if (negated) return 'not'",
-    "to": "  if (negated && groups === 0) return 'not'"
+    "from": "    verdict: verdict(r.signs.size, r.negated),",
+    "to": "    verdict: verdict(r.signs.size, r.negated && r.signs.size === 0),"
   },
   {
     "name": "a Latin word matches inside another",
@@ -86,26 +86,26 @@
   {
     "name": "a broadcast passes as personal",
     "file": "src/agent/course-outreach.ts",
-    "from": "  if (!f.namesWhy) return 'not-personal'\n",
-    "to": ""
+    "from": "    c.namesWhy\n",
+    "to": "    true\n"
   },
   {
     "name": "any number passes",
     "file": "src/agent/course-outreach.ts",
-    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && numberOk(n)",
+    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && L.numberOk(n)",
     "to": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && n > 0"
   },
   {
     "name": "a fraction or a huge number reaches the compiled body",
     "file": "src/agent/course-outreach.ts",
-    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && numberOk(n)",
-    "to": "  return numberOk(n)"
+    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && L.numberOk(n)",
+    "to": "  return L.numberOk(n)"
   },
   {
     "name": "six drafts on one card",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  return n >= 1 && n <= cardMax(channel)",
-    "to": "  return n >= 1 && n <= cardMax(channel) + 1"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!cardOk(channel, list.length)) {",
+    "to": "  if (!cardOk(channel, Math.max(1, list.length - 1))) {"
   },
   {
     "name": "social_post shares a #/ route",
@@ -116,14 +116,14 @@
   {
     "name": "a bio is treated as the owner's words",
     "file": "src/agent/course-outreach.ts",
-    "from": "    source === SPEC.BIO_SOURCE ||\n",
-    "to": "    false ||\n"
+    "from": "    if (!L.ownWords(source)) continue",
+    "to": "    if (!L.ownWords(source) || source === 'bio') continue"
   },
   {
     "name": "a headline is not his own words",
     "file": "src/agent/course-outreach.ts",
-    "from": "    source === 'headline'\n",
-    "to": "    false\n"
+    "from": "    if (!L.ownWords(source)) continue",
+    "to": "    if (!L.ownWords(source) || source === 'headline') continue"
   },
   {
     "name": "bios never reach find",
@@ -133,9 +133,9 @@
   },
   {
     "name": "a batch card on LinkedIn and X",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  return channel === 'telegram' ? SPEC.BATCH_MAX : SPEC.NETWORK_CARD_MAX",
-    "to": "  return SPEC.BATCH_MAX"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "  if (!cardOk(channel, list.length)) {",
+    "to": "  if (!cardOk('telegram', list.length)) {"
   },
   {
     "name": "the tool skips the card count on a network",
@@ -151,9 +151,9 @@
   },
   {
     "name": "not signed in, the round proceeds",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  return login === 'signed_in'",
-    "to": "  return login !== 'signed_out'"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    if (!roundGo(login)) {\n      out[network] = {",
+    "to": "    if (login === 'signed_out') {\n      out[network] = {"
   },
   {
     "name": "the round ignores browser_logins",
@@ -181,21 +181,21 @@
   },
   {
     "name": "an unread page says no programmers",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  if (!readOk || people === 0) return 'unknown'",
-    "to": "  if (people === 0) return 'unknown'"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    const verdict = networkVerdict(got.ok, people.length, programmers.length)",
+    "to": "    const verdict = networkVerdict(true, people.length, programmers.length)"
   },
   {
     "name": "an empty list says no programmers",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  if (!readOk || people === 0) return 'unknown'",
-    "to": "  if (!readOk) return 'unknown'"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "    const verdict = networkVerdict(got.ok, people.length, programmers.length)",
+    "to": "    const verdict = networkVerdict(got.ok, Math.max(1, people.length), programmers.length)"
   },
   {
     "name": "an X account he only follows can be written to",
-    "file": "src/agent/course-outreach.ts",
-    "from": "  if (network === 'x' && followsOwner) return 'x'",
-    "to": "  if (network === 'x') return 'x'"
+    "file": "src/agent/course-outreach-tool.ts",
+    "from": "        const channel = networkChannel(network, p.connection, p.followsOwner)",
+    "to": "        const channel = networkChannel(network, p.connection, p.followsOwner || network === 'x')"
   },
   {
     "name": "a reply is assumed on LinkedIn and X",
@@ -242,8 +242,8 @@
   {
     "name": "no cap per run",
     "file": "src/agent/crm-bios.ts",
-    "from": "  if (readThisRun >= SPEC.BIOS_PER_RUN) return 'cap'",
-    "to": "  if (readThisRun > SPEC.BIOS_PER_RUN + 1000) return 'cap'"
+    "from": "      Math.min(report.bios_read, 0xff)\n",
+    "to": "      0\n"
   },
   {
     "name": "no gap between calls",

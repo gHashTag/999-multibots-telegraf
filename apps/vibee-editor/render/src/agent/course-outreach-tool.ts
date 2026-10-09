@@ -70,12 +70,12 @@ import {
   channelOf,
   classify,
   draftCounts,
-  draftProblem,
+  draftProblemOf,
   maySend,
   netOf,
   networkChannel,
   networkVerdict,
-  pitchState,
+  pitchStateOf,
   roundGo,
   type Classified,
   type Net,
@@ -477,7 +477,7 @@ export function stateOf(f: Facts, lead: string): PitchState {
    * false): there, no reply is ever known, so nobody is offered twice.
    */
   const repliesKnown = netOf(lead) === null
-  return pitchState({
+  return pitchStateOf({
     programmer: f.tagged.has(lead),
     hasChannel: channelFor(f, lead) !== 'none',
     // An unreadable list blocks everybody (spec OPT_OUT_UNKNOWN_BLOCKS).
@@ -812,7 +812,7 @@ async function draft(args: Record<string, any>, ctx: ToolContext) {
       refused[lead] = state
       continue
     }
-    const problem = draftProblem(draftCounts(text, f.tagged.get(lead) ?? []))
+    const problem = draftProblemOf(draftCounts(text, f.tagged.get(lead) ?? []))
     if (problem) {
       refused[lead] = problem
       continue

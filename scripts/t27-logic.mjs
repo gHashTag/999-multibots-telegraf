@@ -25,8 +25,19 @@
  * from; scripts/check-t27-specs.mjs (law `logic-hash`) fails when the vendored
  * spec moves on without the logic being regenerated -- offline, no Zig needed.
  *
- * Types: bool, u8/u16/u32, i8/i16/i32, f32/f64. A fn with any other type
- * (str, u64, a struct) is not lowered and is named in `__NOT_LOWERED__`.
+ * Types: bool, u8/u16/u32, i8/i16/i32, f32/f64, and str (`[]const u8`). A
+ * fn with any other type (u64, a struct) is not lowered and is named in
+ * `__NOT_LOWERED__`.
+ *
+ * A str cannot cross the wasm boundary as a value, so it crosses as bytes
+ * (#3941): the module exports an allocator (`t27__alloc` / `t27__free`, on
+ * std.heap.wasm_allocator), the TypeScript door encodes each str argument as
+ * UTF-8 into memory it allocated and passes (ptr, len), and the Zig export
+ * rebuilds the slice. A str result is written as (ptr, len) into a fixed
+ * two-u32 slot (`t27__ret_at`) and decoded with TextDecoder before the
+ * arguments are freed -- every call frees what it allocated, thrown or not,
+ * so repeated calls do not grow the module's memory. These helpers are
+ * emitted only for a spec that has a str fn: the others stay byte-for-byte.
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -35,7 +46,9 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
 const NUM = new Set(['u8', 'u16', 'u32', 'i8', 'i16', 'i32', 'f32', 'f64'])
-const LOWERED = new Set(['bool', ...NUM])
+/** A spec `str`, as t27c gen writes it in Zig. */
+export const STR = '[]const u8'
+const LOWERED = new Set(['bool', STR, ...NUM])
 const RANGE = {
   u8: [0, 255],
   u16: [0, 65535],
@@ -45,7 +58,7 @@ const RANGE = {
   i32: [-2147483648, 2147483647],
 }
 const camel = s => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
-const tsType = t => (t === 'bool' ? 'boolean' : 'number')
+const tsType = t => (t === 'bool' ? 'boolean' : t === STR ? 'string' : 'number')
 
 /**
  * The fns of the generated Zig: name, params [[name, type]], return type.
@@ -72,15 +85,25 @@ export function zigFns(zigSrc) {
 /** The TypeScript door: argument checks, the wasm call, the typed result. */
 export function door(f) {
   const args = f.params.map(([n, t]) => `${camel(n)}: ${tsType(t)}`).join(', ')
+  const strIn = f.params.some(([, t]) => t === STR)
   const pass = f.params
     .map(([n, t]) => {
       const v = camel(n)
       if (t === 'bool') return `${v} ? 1 : 0`
+      if (t === STR) return `...str(${v}, held, '${f.name}.${n}')`
       if (RANGE[t])
         return `int(${v}, ${RANGE[t][0]}, ${RANGE[t][1]}, '${f.name}.${n}')`
       return v
     })
     .join(', ')
+  const head = `/** spec fn ${f.name} */\nexport function ${camel(f.name)}(${args}): ${tsType(f.ret)} {\n`
+  if (f.ret === STR) {
+    // The result is read from the slot before strCall frees the arguments:
+    // a body may return a slice of its own argument.
+    const call = `(W.t27_${f.name} as (...a: number[]) => void)(${pass})`
+    if (!strIn) return `${head}  ${call}\n  return strOut()\n}`
+    return `${head}  return strCall(held => {\n    ${call}\n    return strOut()\n  })\n}`
+  }
   const call = `(W.t27_${f.name} as (...a: number[]) => number)(${pass})`
   const ret =
     f.ret === 'bool'
@@ -88,8 +111,92 @@ export function door(f) {
       : f.ret.startsWith('u')
         ? `${call} >>> 0`
         : call
-  return `/** spec fn ${f.name} */\nexport function ${camel(f.name)}(${args}): ${tsType(f.ret)} {\n  return ${ret}\n}`
+  if (strIn) return `${head}  return strCall(held => ${ret})\n}`
+  return `${head}  return ${ret}\n}`
 }
+
+/** The Zig export that forwards to one spec fn: a str crosses as (ptr, len). */
+export function zigExport(f) {
+  const params = f.params
+    .map(([n, t]) => (t === STR ? `${n}__p: u32, ${n}__n: u32` : `${n}: ${t}`))
+    .join(', ')
+  const args = f.params
+    .map(([n, t]) => (t === STR ? `t27__in(${n}__p, ${n}__n)` : n))
+    .join(', ')
+  if (f.ret === STR)
+    return `export fn t27_${f.name}(${params}) void { t27__out(${f.name}(${args})); }`
+  return `export fn t27_${f.name}(${params}) ${f.ret} { return ${f.name}(${args}); }`
+}
+
+/** The str boundary in Zig: the module's allocator and the result slot. */
+const ZIG_STR = [
+  '// t27-logic str boundary: a str crosses as (ptr, len) in this memory',
+  'var t27__ret: [2]u32 = .{ 0, 0 };',
+  'export fn t27__alloc(n: u32) u32 {',
+  '    const b = @import("std").heap.wasm_allocator.alloc(u8, @max(n, 1)) catch return 0;',
+  '    return @intCast(@intFromPtr(b.ptr));',
+  '}',
+  'export fn t27__free(p: u32, n: u32) void {',
+  '    const b: [*]u8 = @ptrFromInt(p);',
+  '    @import("std").heap.wasm_allocator.free(b[0..@max(n, 1)]);',
+  '}',
+  'export fn t27__ret_at() u32 {',
+  '    return @intCast(@intFromPtr(&t27__ret));',
+  '}',
+  'fn t27__in(p: u32, n: u32) []const u8 {',
+  '    const b: [*]const u8 = @ptrFromInt(p);',
+  '    return b[0..n];',
+  '}',
+  'fn t27__out(s: []const u8) void {',
+  '    t27__ret = .{ @intCast(@intFromPtr(s.ptr)), @intCast(s.len) };',
+  '}',
+].join('\n')
+
+/** The same boundary on the TypeScript side. */
+const TS_STR = [
+  'const MEM = W.memory as WebAssembly.Memory',
+  'const UTF8_IN = new TextEncoder()',
+  'const UTF8_OUT = new TextDecoder()',
+  '',
+  '/**',
+  " * A spec str crosses into wasm as UTF-8 bytes at (ptr, len) in the module's",
+  ' * memory, allocated for one call and freed by strCall after it. Anything',
+  ' * but a string is a thrown error, never a coerced value.',
+  ' */',
+  'function str(v: string, held: number[], at: string): [number, number] {',
+  "  if (typeof v !== 'string')",
+  '    throw new TypeError(`${at}: ${typeof v} is not a str`)',
+  '  const bytes = UTF8_IN.encode(v)',
+  '  const ptr = (W.t27__alloc as (n: number) => number)(bytes.length) >>> 0',
+  '  if (ptr === 0)',
+  '    throw new RangeError(`${at}: no wasm memory for ${bytes.length} bytes`)',
+  '  held.push(ptr, bytes.length)',
+  '  // Read MEM.buffer after the allocation: growing memory replaces it.',
+  '  new Uint8Array(MEM.buffer, ptr, bytes.length).set(bytes)',
+  '  return [ptr, bytes.length]',
+  '}',
+  '',
+  '/** One call; the str arguments it allocated are freed after it, thrown or not. */',
+  'function strCall<T>(call: (held: number[]) => T): T {',
+  '  const held: number[] = []',
+  '  try {',
+  '    return call(held)',
+  '  } finally {',
+  '    for (let i = 0; i < held.length; i += 2)',
+  '      (W.t27__free as (p: number, n: number) => void)(held[i], held[i + 1])',
+  '  }',
+  '}',
+  '',
+  '/** The str a call returned, as (ptr, len) in the slot t27__ret_at points to. */',
+  'function strOut(): string {',
+  '  const at = (W.t27__ret_at as () => number)() >>> 0',
+  '  const slot = new DataView(MEM.buffer)',
+  '  const ptr = slot.getUint32(at, true)',
+  '  const len = slot.getUint32(at + 4, true)',
+  '  return UTF8_OUT.decode(new Uint8Array(MEM.buffer, ptr, len))',
+  '}',
+  '',
+]
 
 function main() {
   const [t27Dir, specId, ...rest] = process.argv.slice(2)
@@ -119,12 +226,13 @@ function main() {
     f => LOWERED.has(f.ret) && f.params.every(([, t]) => LOWERED.has(t))
   )
   const skipped = fns.filter(f => !lowered.includes(f)).map(f => f.name)
-  const exportsZig = lowered
-    .map(
-      f =>
-        `export fn t27_${f.name}(${f.params.map(([n, t]) => `${n}: ${t}`).join(', ')}) ${f.ret} { return ${f.name}(${f.params.map(([n]) => n).join(', ')}); }`
-    )
-    .join('\n')
+  const usesStr = lowered.some(
+    f => f.ret === STR || f.params.some(([, t]) => t === STR)
+  )
+  const exportsZig = [
+    ...(usesStr ? [ZIG_STR] : []),
+    ...lowered.map(zigExport),
+  ].join('\n')
   writeFileSync(
     join(dir, 'spec.zig'),
     `${zigSrc}\n// t27-logic exports\n${exportsZig}\n`
@@ -176,8 +284,9 @@ function main() {
           '',
         ]
       : []),
+    ...(usesStr ? TS_STR : []),
     ...lowered.map(door).flatMap(d => [d, '']),
-    `/** Spec fns this backend could not lower (types outside bool/ints/floats). */`,
+    `/** Spec fns this backend could not lower (types outside bool/ints/floats/str). */`,
     `export const __NOT_LOWERED__ = Object.freeze(${JSON.stringify(skipped)})`,
     '',
   ].join('\n')
