@@ -9,17 +9,23 @@ const { describe, it } = process.env.VITEST
   : await import('node:test')
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { createVerify, generateKeyPairSync } from 'node:crypto'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   CONTEXT,
   SUITES,
+  markMode,
   needsRun,
+  runAsStatus,
   ownHead,
+  recent,
   redact,
   resultOf,
+  appJwt,
   sh,
+  tokenOf,
   tailOf,
   tick,
   verdict,
@@ -36,6 +42,7 @@ const cfg = {
   pollMs: 1000,
   staleMs: 60 * 60_000,
   work: mkdtempSync(join(tmpdir(), 'ci-bridge-')),
+  since: Date.parse('2026-10-09T10:00:00Z'),
 }
 
 /* A commit tarball the way GitHub sends it: one top directory. */
@@ -58,8 +65,14 @@ function tarball() {
   ])
 }
 
-const pr = (number, sha, fullName = REPO) => ({
+const pr = (
   number,
+  sha,
+  fullName = REPO,
+  updated = '2026-10-09T11:00:00Z'
+) => ({
+  number,
+  updated_at: updated,
   head: { sha, repo: { full_name: fullName } },
 })
 
@@ -70,7 +83,7 @@ const ok = (data, status = 200) =>
   })
 
 /* A fake GitHub + runner; records every call. */
-function world({ prs, statuses = {}, runnerSays }) {
+function world({ prs, statuses = {}, checkRuns = {}, runnerSays }) {
   const calls = []
   const fetch = async (url, init = {}) => {
     const u = new URL(url)
@@ -89,6 +102,10 @@ function world({ prs, statuses = {}, runnerSays }) {
       ])
     if (u.pathname.includes('/tarball/')) return new Response(tarball())
     if (u.pathname.includes('/statuses/')) return ok({}, 201)
+    const runs = u.pathname.match(/\/commits\/([a-z0-9]+)\/check-runs$/)
+    if (runs) return ok({ check_runs: checkRuns[runs[1]] || [] })
+    if (u.pathname.endsWith('/check-runs')) return ok({ id: 5 }, 201)
+    if (u.pathname.endsWith('/check-runs/5')) return ok({ id: 5 })
     if (u.pathname.endsWith('/comments')) return ok({}, 201)
     if (u.pathname === '/run') return new Response(runnerSays)
     throw new Error(`unexpected ${url}`)
@@ -151,6 +168,13 @@ describe('which pull requests run', () => {
       true
     )
   })
+
+  it('a PR untouched since the bridge began is not backfilled', () => {
+    const since = Date.parse('2026-10-09T10:00:00Z')
+    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T10:00:00Z'), since), true)
+    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T09:59:59Z'), since), false)
+    assert.equal(recent({}, since), false)
+  })
 })
 
 describe('the verdict', () => {
@@ -192,7 +216,12 @@ describe('the verdict', () => {
 describe('one pass', () => {
   it('runs our own unchecked head and posts pending, then success', async () => {
     const w = world({
-      prs: [pr(7, 'aaa111'), pr(8, 'bbb222', 'stranger/fork'), pr(9, 'ccc333')],
+      prs: [
+        pr(7, 'aaa111'),
+        pr(8, 'bbb222', 'stranger/fork'),
+        pr(9, 'ccc333'),
+        pr(10, 'ddd444', REPO, '2026-10-08T00:00:00Z'),
+      ],
       statuses: {
         ccc333: [
           {
@@ -223,6 +252,10 @@ describe('one pass', () => {
     assert.ok(
       !w.calls.some(c => c.url.includes('bbb222')),
       'the fork is never touched'
+    )
+    assert.ok(
+      !w.calls.some(c => c.url.includes('ddd444')),
+      'a PR untouched since the start is not backfilled'
     )
   })
 
@@ -288,5 +321,149 @@ describe('one pass', () => {
     assert.match(d.description, /ECONNREFUSED/)
     /* the person hears why, as on a red run */
     assert.equal(w.calls.filter(c => c.url.endsWith('/comments')).length, 1)
+  })
+})
+
+describe('a GitHub App instead of a token', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  })
+  const key = privateKey.export({ type: 'pkcs1', format: 'pem' })
+
+  it('the JWT is RS256, signed by the app key, issued by the app', () => {
+    const jwt = appJwt('42', key, Date.parse('2026-10-09T12:00:00Z'))
+    const [h, b, sig] = jwt.split('.')
+    const ok = createVerify('RSA-SHA256')
+      .update(`${h}.${b}`)
+      .verify(publicKey, Buffer.from(sig, 'base64url'))
+    assert.equal(ok, true)
+    const body = JSON.parse(Buffer.from(b, 'base64url').toString())
+    assert.equal(body.iss, '42')
+    assert.ok(
+      body.exp - body.iat <= 600,
+      'GitHub refuses a JWT over ten minutes'
+    )
+  })
+
+  it('mints once, reuses the token, renews it before it ends', async () => {
+    let now = Date.parse('2026-10-09T12:00:00Z')
+    let minted = 0
+    const fetch = async (url, init = {}) => {
+      const u = new URL(url)
+      assert.match(init.headers.Authorization, /^Bearer [^.]+\.[^.]+\.[^.]+$/)
+      if (u.pathname === `/repos/${REPO}/installation`) return ok({ id: 7 })
+      if (u.pathname === '/app/installations/7/access_tokens') {
+        minted++
+        return ok({
+          token: `inst-${minted}`,
+          expires_at: new Date(now + 60 * 60_000).toISOString(),
+        })
+      }
+      throw new Error(`unexpected ${url}`)
+    }
+    /* a leftover token does not shadow the app */
+    const c = {
+      ...cfg,
+      token: 'leftover',
+      appId: '42',
+      appKey: key,
+      minted: null,
+    }
+    const deps = { fetch, now: () => now }
+    assert.equal(await tokenOf(c, deps), 'inst-1')
+    now += 50 * 60_000
+    assert.equal(await tokenOf(c, deps), 'inst-1')
+    now += 6 * 60_000
+    assert.equal(await tokenOf(c, deps), 'inst-2')
+  })
+
+  it('an app not installed on the repository says why', async () => {
+    const fetch = async () => ok({ message: 'Not Found' }, 404)
+    const c = { ...cfg, token: '', appId: '42', appKey: key, minted: null }
+    await assert.rejects(tokenOf(c, { fetch, now: Date.now }), /404 Not Found/)
+  })
+})
+
+describe('a check run when statuses are not ours to write', () => {
+  it('statuses first, checks when only checks may be written, null when neither', () => {
+    assert.equal(markMode(undefined), 'statuses')
+    assert.equal(markMode({ statuses: 'write', checks: 'write' }), 'statuses')
+    assert.equal(markMode({ statuses: 'read', checks: 'write' }), 'checks')
+    assert.equal(markMode({ pull_requests: 'write' }), null)
+  })
+
+  it('a run in progress reads as pending, a finished one as its conclusion', () => {
+    assert.equal(runAsStatus(null), null)
+    assert.deepEqual(
+      runAsStatus({
+        status: 'in_progress',
+        started_at: '2026-10-09T11:00:00Z',
+      }),
+      { state: 'pending', updated_at: '2026-10-09T11:00:00Z' }
+    )
+    assert.deepEqual(
+      runAsStatus({
+        status: 'completed',
+        conclusion: 'failure',
+        started_at: '2026-10-09T11:00:00Z',
+        completed_at: '2026-10-09T11:05:00Z',
+      }),
+      { state: 'failure', updated_at: '2026-10-09T11:05:00Z' }
+    )
+  })
+
+  const appCfg = {
+    ...cfg,
+    token: '',
+    appId: '42',
+    appKey: 'unused: the token below is still fresh',
+    minted: {
+      token: 'inst-token',
+      until: Date.parse('2026-10-10T00:00:00Z'),
+      perms: { checks: 'write', pull_requests: 'read' },
+    },
+  }
+
+  it('opens a run, then completes it with the verdict and the tail', async () => {
+    const w = world({
+      prs: [pr(7, 'aaa111'), pr(9, 'ccc333')],
+      checkRuns: {
+        ccc333: [
+          {
+            status: 'completed',
+            conclusion: 'success',
+            completed_at: '2026-10-09T11:00:00Z',
+          },
+        ],
+      },
+      runnerSays: 'FAIL x.test.ts\n::result {"types":0,"guard":1}\n',
+    })
+    const [d, more] = await tick({ ...appCfg }, w.deps)
+    assert.equal(more, undefined, 'a commit with a finished run is done')
+    assert.equal(d.state, 'failure')
+    assert.equal(w.calls.filter(c => c.url.includes('/statuses/')).length, 0)
+    const open = w.calls.find(
+      c => c.method === 'POST' && c.url.endsWith('/check-runs')
+    )
+    assert.deepEqual(JSON.parse(open.init.body), {
+      name: CONTEXT,
+      head_sha: 'aaa111',
+      status: 'in_progress',
+    })
+    const end = w.calls.find(c => c.method === 'PATCH')
+    const body = JSON.parse(end.init.body)
+    assert.equal(end.url, `/repos/${REPO}/check-runs/5`)
+    assert.equal(body.conclusion, 'failure')
+    assert.match(body.output.text, /FAIL x\.test\.ts/)
+  })
+
+  it('an app that may write neither says so and runs nothing', async () => {
+    const w = world({ prs: [pr(7, 'aaa111')], runnerSays: '' })
+    const c = {
+      ...appCfg,
+      minted: { ...appCfg.minted, perms: { pull_requests: 'read' } },
+    }
+    await assert.rejects(tick(c, w.deps), /neither commit statuses nor checks/)
+    assert.ok(!w.calls.some(c => c.url.startsWith('/run')))
   })
 })

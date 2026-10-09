@@ -28,16 +28,28 @@
  * at most the run in flight, and that one is retried once it goes stale.
  *
  * Variables, all Railway references -- no value is ever copied or printed:
- *   GITHUB_TOKEN       ${{trios-agent-server.TRIOS_GITHUB_API_TOKEN}}
- *                      (needs read on code and pull requests, write on
- *                      commit statuses and issue comments)
+ *   GITHUB_TOKEN       a token that reads code and pull requests and
+ *                      writes commit statuses and issue comments, or
+ *   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY
+ *                      a GitHub App installed on the repository with the
+ *                      same permissions; the bridge mints an installation
+ *                      token (one hour) and renews it before it ends.
+ *                      When both are set, the app is used.
+ *                      2026-10-09: TRIOS_GITHUB_API_TOKEN answered 403 on
+ *                      this private repository's pull requests.
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
  *   POLL_S, STALE_MIN  120 and 60 by default
+ *   SINCE              ISO time; a PR last updated before it is left alone.
+ *                      Default: when this process started. 2026-10-09 the
+ *                      repository had 34 open PRs, most of them stale: a
+ *                      backfill would hold the shared runner for hours and
+ *                      post a comment on each red one nobody is working on.
  * Every line this service logs or posts is scrubbed of both secret values.
  */
 import { spawn } from 'node:child_process'
+import { createSign } from 'node:crypto'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -61,12 +73,16 @@ const TAIL_BYTES = 256 * 1024
 export function config(env = process.env) {
   return {
     token: env.GITHUB_TOKEN || '',
+    appId: env.GITHUB_APP_ID || '',
+    appKey: (env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    minted: null,
     runnerKey: env.CHECK_RUNNER_KEY || '',
     runnerUrl: (env.CHECK_RUNNER_URL || '').replace(/\/+$/, ''),
     repo: env.REPO || 'gHashTag/999-multibots-telegraf',
     pollMs: Number(env.POLL_S || 120) * 1000,
     staleMs: Number(env.STALE_MIN || 60) * 60_000,
     work: env.WORK_DIR || '/tmp/ci-bridge',
+    since: Date.parse(env.SINCE || '') || Date.now(),
   }
 }
 
@@ -88,6 +104,11 @@ export function needsRun(status, now, staleMs) {
   if (!status) return true
   if (status.state !== 'pending') return false
   return now - Date.parse(status.updated_at) > staleMs
+}
+
+/* A PR nobody has touched since the bridge began is not backfilled. */
+export function recent(pr, since) {
+  return Date.parse(pr?.updated_at) >= since
 }
 
 /* Only a head that lives in this repository: a fork's code never runs here. */
@@ -156,11 +177,81 @@ export function commentBody(sha, v, tail) {
   ].join('\n')
 }
 
+/* A GitHub App's own JWT (RS256, ten minutes), for minting a token. */
+export function appJwt(appId, key, nowMs) {
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
+  const iat = Math.floor(nowMs / 1000) - 60
+  const head = b64({ alg: 'RS256', typ: 'JWT' })
+  const body = b64({ iat, exp: iat + 540, iss: String(appId) })
+  const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(key)
+  return `${head}.${body}.${sig.toString('base64url')}`
+}
+
+/* The token to call GitHub with: the given one, or a minted installation token. */
+export async function tokenOf(cfg, deps) {
+  /* An app, when configured, wins: Railway keeps a variable set to "". */
+  if (cfg.token && !(cfg.appId && cfg.appKey)) return cfg.token
+  if (cfg.minted && cfg.minted.until - deps.now() > 5 * 60_000)
+    return cfg.minted.token
+  const jwt = appJwt(cfg.appId, cfg.appKey, deps.now())
+  const as = {
+    Authorization: `Bearer ${jwt}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'ci-bridge',
+  }
+  const inst = await deps.fetch(`${API}/repos/${cfg.repo}/installation`, {
+    headers: as,
+  })
+  if (!inst.ok) throw new Error(`app installation -> ${await why(inst)}`)
+  const { id } = await inst.json()
+  const res = await deps.fetch(`${API}/app/installations/${id}/access_tokens`, {
+    method: 'POST',
+    headers: as,
+  })
+  if (!res.ok) throw new Error(`installation token -> ${await why(res)}`)
+  const { token, expires_at, permissions } = await res.json()
+  cfg.minted = {
+    token,
+    until: Date.parse(expires_at),
+    perms: permissions || {},
+  }
+  return token
+}
+
+/*
+ * How the verdict is written: a commit status, or a check run when the
+ * token may write checks but not statuses. 2026-10-09 the trios bees app
+ * read pull requests here but answered "Resource not accessible by
+ * integration" on commit statuses. A personal token carries no permission
+ * map and is taken to write statuses. null: neither can be written.
+ */
+export function markMode(perms) {
+  if (!perms) return 'statuses'
+  if (perms.statuses === 'write') return 'statuses'
+  if (perms.checks === 'write') return 'checks'
+  return null
+}
+
+/* A check run read as a status: the shape needsRun() takes. */
+export function runAsStatus(run) {
+  if (!run) return null
+  return {
+    state: run.status === 'completed' ? run.conclusion : 'pending',
+    updated_at: run.completed_at || run.started_at,
+  }
+}
+
+/* A refusal's status and GitHub's own words for it (never a header). */
+async function why(res) {
+  const body = await res.json().catch(() => ({}))
+  return `${res.status} ${String(body?.message || '').slice(0, 120)}`.trim()
+}
+
 async function gh(cfg, deps, path, init = {}) {
   const res = await deps.fetch(`${API}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${cfg.token}`,
+      Authorization: `Bearer ${await tokenOf(cfg, deps)}`,
       Accept: 'application/vnd.github+json',
       'User-Agent': 'ci-bridge',
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -172,8 +263,69 @@ async function gh(cfg, deps, path, init = {}) {
 
 async function ghJson(cfg, deps, path) {
   const res = await gh(cfg, deps, path)
-  if (!res.ok) throw new Error(`GET ${path.split('?')[0]} -> ${res.status}`)
+  if (!res.ok) throw new Error(`GET ${path.split('?')[0]} -> ${await why(res)}`)
   return res.json()
+}
+
+/* Our mark on a commit, whichever way it is written. */
+async function readMark(cfg, deps, mode, sha) {
+  if (mode === 'checks') {
+    const r = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(CONTEXT)}&per_page=1`
+    )
+    return runAsStatus(r.check_runs?.[0])
+  }
+  return ourStatus(
+    await ghJson(cfg, deps, `/repos/${cfg.repo}/commits/${sha}/status`)
+  )
+}
+
+/* Pending first; the verdict later writes onto the same mark. */
+async function startMark(cfg, deps, mode, sha) {
+  if (mode !== 'checks') {
+    await setStatus(
+      cfg,
+      deps,
+      sha,
+      'pending',
+      'running on Railway check-runner'
+    )
+    return null
+  }
+  const res = await gh(cfg, deps, `/repos/${cfg.repo}/check-runs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: CONTEXT,
+      head_sha: sha,
+      status: 'in_progress',
+    }),
+  })
+  if (!res.ok) throw new Error(`check run -> ${await why(res)}`)
+  return (await res.json()).id
+}
+
+async function endMark(cfg, deps, mode, sha, id, v, tail) {
+  if (mode !== 'checks')
+    return setStatus(cfg, deps, sha, v.state, v.description)
+  const title = redact(v.description, secretsOf(cfg)).slice(0, 140)
+  const res = await gh(cfg, deps, `/repos/${cfg.repo}/check-runs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: 'completed',
+      conclusion: v.state === 'success' ? 'success' : 'failure',
+      output: {
+        title,
+        summary: title,
+        text: redact(
+          '```\n' + tail.replace(/```/g, "'''") + '\n```',
+          secretsOf(cfg)
+        ),
+      },
+    }),
+  })
+  if (!res.ok) throw new Error(`check run end -> ${await why(res)}`)
 }
 
 async function setStatus(cfg, deps, sha, state, description) {
@@ -185,10 +337,15 @@ async function setStatus(cfg, deps, sha, state, description) {
       description: redact(description, secretsOf(cfg)).slice(0, 140),
     }),
   })
-  if (!res.ok) throw new Error(`status ${state} -> ${res.status}`)
+  if (!res.ok) throw new Error(`status ${state} -> ${await why(res)}`)
 }
 
-const secretsOf = cfg => [cfg.token, cfg.runnerKey]
+const secretsOf = cfg => [
+  cfg.token,
+  cfg.runnerKey,
+  cfg.appKey,
+  cfg.minted?.token,
+]
 
 /* Changed files of a PR, paths from the repository root, removed ones out. */
 async function changedFiles(cfg, deps, number) {
@@ -281,10 +438,10 @@ async function runChecks(cfg, deps, body) {
 }
 
 /* One head commit, start to verdict. */
-export async function checkPr(cfg, deps, pr) {
+export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const sha = pr.head.sha
   const log = deps.log
-  await setStatus(cfg, deps, sha, 'pending', 'running on Railway check-runner')
+  const id = await startMark(cfg, deps, mode, sha)
   const dir = join(cfg.work, sha)
   let text
   try {
@@ -300,14 +457,18 @@ export async function checkPr(cfg, deps, pr) {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
   const v = verdict(resultOf(text))
-  await setStatus(cfg, deps, sha, v.state, v.description)
+  await endMark(cfg, deps, mode, sha, id, v, tailOf(text))
   log(`#${pr.number} ${sha.slice(0, 9)}: ${v.state} ${v.description}`)
   if (v.state !== 'success') {
     const comment = redact(commentBody(sha, v, tailOf(text)), secretsOf(cfg))
-    await gh(cfg, deps, `/repos/${cfg.repo}/issues/${pr.number}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body: comment }),
-    })
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments`,
+      { method: 'POST', body: JSON.stringify({ body: comment }) }
+    )
+    /* the mark already carries the verdict; a refused comment is only logged */
+    if (!res.ok) log(`#${pr.number} comment -> ${await why(res)}`)
   }
   return v
 }
@@ -319,16 +480,18 @@ export async function tick(cfg, deps) {
     deps,
     `/repos/${cfg.repo}/pulls?state=open&per_page=50`
   )
+  const mode = markMode(cfg.minted?.perms)
+  if (!mode)
+    throw new Error(
+      'the app may write neither commit statuses nor checks: give it ' +
+        '"Commit statuses: write" or "Checks: write"'
+    )
   const done = []
   for (const pr of prs) {
-    if (!ownHead(pr, cfg.repo)) continue
-    const combined = await ghJson(
-      cfg,
-      deps,
-      `/repos/${cfg.repo}/commits/${pr.head.sha}/status`
-    )
-    if (!needsRun(ourStatus(combined), deps.now(), cfg.staleMs)) continue
-    done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr)) })
+    if (!ownHead(pr, cfg.repo) || !recent(pr, cfg.since)) continue
+    const mark = await readMark(cfg, deps, mode, pr.head.sha)
+    if (!needsRun(mark, deps.now(), cfg.staleMs)) continue
+    done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr, mode)) })
   }
   return done
 }
@@ -341,7 +504,8 @@ async function main() {
     now: Date.now,
     log: m => console.log(redact(`[ci-bridge] ${m}`, secretsOf(cfg))),
   }
-  const missing = ['token', 'runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  const missing = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  if (!cfg.token && !(cfg.appId && cfg.appKey)) missing.push('token or app')
   if (missing.length) {
     deps.log(
       `not configured: ${missing.join(', ')} -- see the header of bridge.mjs`
