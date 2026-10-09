@@ -23,6 +23,7 @@ permissions:
 jobs:
   # Быстрая проверка изменений
   changes:
+    if: vars.CI_ENABLED == 'true'
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
@@ -81,7 +82,7 @@ jobs:
     name: Security & Code Quality
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    if: vars.CI_ENABLED == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -138,7 +139,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
+    if: vars.CI_ENABLED == 'true' && (needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'))
     strategy:
       matrix:
         node-version: [18, 20, 21]
@@ -222,7 +223,7 @@ jobs:
     name: Build & Package
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    if: vars.CI_ENABLED == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -263,7 +264,7 @@ jobs:
     name: Docker Build Check
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.docker == 'true' || needs.changes.outputs.src == 'true'
+    if: vars.CI_ENABLED == 'true' && (needs.changes.outputs.docker == 'true' || needs.changes.outputs.src == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -285,7 +286,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [changes, build]
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true')
+    if: vars.CI_ENABLED == 'true' && (github.ref == 'refs/heads/main' && needs.changes.outputs.has_tests == 'true' && (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -321,7 +322,7 @@ jobs:
     name: Dependency Analysis
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.deps == 'true'
+    if: vars.CI_ENABLED == 'true' && (needs.changes.outputs.deps == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -352,7 +353,7 @@ jobs:
     name: All Checks Passed
     runs-on: ubuntu-latest
     needs: [changes, security-and-quality, test, build, docker-check]
-    if: always()
+    if: vars.CI_ENABLED == 'true' && (always())
     steps:
       # `skipped` is not `passed`. The old version failed only on the literal
       # word "failure", so a job the change filter never started read as a
@@ -414,7 +415,7 @@ jobs:
     name: Notifications
     runs-on: ubuntu-latest
     needs: [all-checks]
-    if: always() && github.event_name != 'schedule'
+    if: vars.CI_ENABLED == 'true' && (always() && github.event_name != 'schedule')
     steps:
       - name: Report status
         run: |
