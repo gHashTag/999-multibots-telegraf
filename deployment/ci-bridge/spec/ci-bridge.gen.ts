@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "ci-bridge" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const CONTEXT = "railway/checks" satisfies string;
 export const SUITES = "types,render-types,guard,boots" satisfies string;
 export const POLL_S = 120 satisfies number;
@@ -29,6 +29,13 @@ export const JWT_BACKDATE_S = 60 satisfies number;
 export const JWT_LIFE_S = 540 satisfies number;
 export const RENEW_MARGIN_S = 300 satisfies number;
 // t27c gen-ts: fn renew_due was not emitted -- this backend lowers declarations, not bodies.
+export const STALE_GRACE_S = 600 satisfies number;
+// t27c gen-ts: fn heal_due was not emitted -- this backend lowers declarations, not bodies.
+export const RECHECK_WORD = "/recheck" satisfies string;
+export const RECHECK_TRUSTED = "OWNER,MEMBER,COLLABORATOR" satisfies string;
+// t27c gen-ts: fn recheck_due was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -38,7 +45,7 @@ export const RENEW_MARGIN_S = 300 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CONTEXT", "SUITES", "POLL_S", "STALE_S", "TAIL_LINES", "FORK_HEADS_RUN", "MARK_NONE", "MARK_STATUS", "MARK_CHECK", "STATE_SUCCESS", "STATE_FAILURE", "STATE_ERROR", "GITHUB_JWT_MAX_S", "JWT_BACKDATE_S", "JWT_LIFE_S", "RENEW_MARGIN_S"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CONTEXT", "SUITES", "POLL_S", "STALE_S", "TAIL_LINES", "FORK_HEADS_RUN", "MARK_NONE", "MARK_STATUS", "MARK_CHECK", "STATE_SUCCESS", "STATE_FAILURE", "STATE_ERROR", "GITHUB_JWT_MAX_S", "JWT_BACKDATE_S", "JWT_LIFE_S", "RENEW_MARGIN_S", "STALE_GRACE_S", "RECHECK_WORD", "RECHECK_TRUSTED"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
