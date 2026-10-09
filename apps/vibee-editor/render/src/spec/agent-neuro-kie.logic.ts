@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: a66ad5ca9f6993e050343aeab47d94651c3357bb27c4194195aa72ebc8418251
+// spec-sha256: 5d2e030b1c4d9deaf5d1377da36cb4ed3f9b799808f13d48c85d8ee362d8ccf6
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMEAwABAQQFAXABAQEFAwEAEAYJAX8BQYCAwAALB0IEBm1lbW9yeQIAD3QyN192aWRlb19yb3V0ZQAADXQyN19zb3VyY2Vfb2sAARN0MjdfbWF5X29yZGVyX2ltYWdlAAIKHAMHACAAQQFxCwoAIABBAXMgAXILBwAgACABcQs='
+  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMFBAABAQEEBQFwAQEBBQMBABAGCQF/AUGAgMAACwdYBQZtZW1vcnkCAA90MjdfdmlkZW9fcm91dGUAABN0MjdfZWRpdF91c2VzX2dwdDI1AAENdDI3X3NvdXJjZV9vawACE3QyN19tYXlfb3JkZXJfaW1hZ2UAAwonBAcAIABBAXELCgAgACABQQFzcgsKACAAQQFzIAFyCwcAIAAgAXEL'
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -29,6 +29,19 @@ export function sourceOk(takesSource: boolean, sourceGiven: boolean): boolean {
     (W.t27_source_ok as (...a: number[]) => number)(
       takesSource ? 1 : 0,
       sourceGiven ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn edit_uses_gpt25 */
+export function editUsesGpt25(
+  namedGpt25: boolean,
+  namedOther: boolean
+): boolean {
+  return (
+    (W.t27_edit_uses_gpt25 as (...a: number[]) => number)(
+      namedGpt25 ? 1 : 0,
+      namedOther ? 1 : 0
     ) !== 0
   )
 }

@@ -26,6 +26,7 @@
  *
  * Ids are synthetic (9000000xx).
  */
+import { LEAD_MAGNET_MODEL } from './src/kie-image'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { owedDouble } from './crm-owed-double'
 import {
@@ -531,7 +532,8 @@ describe('image_edit for a client draws GPT Image 2.5, 9:16, identity first', ()
     expect(t.book.moves).toEqual([{ tid: OWNER, delta: -12, kind: 'spend' }])
   })
 
-  it('for the owner himself nothing changes: his model, his words', async () => {
+  it('for the owner himself: GPT Image 2.5 by default, his words, a named model kept', async () => {
+    // Owner, 2026-10-09: "by default use gpt 2.5 and 9:16" (agent-neuro-kie.t27).
     const t = await realTools({})
     await t
       .byName('image_edit')
@@ -539,8 +541,17 @@ describe('image_edit for a client draws GPT Image 2.5, 9:16, identity first', ()
         telegramId: OWNER,
         pool: toolPool([]),
       } as never)
-    expect(t.edits[0].model).toBe('google/nano-banana-edit')
+    expect(t.edits[0].model).toBe(LEAD_MAGNET_MODEL)
     expect(t.edits[0].prompt).toBe('me as a captain')
+    await t.byName('image_edit').handler(
+      {
+        prompt: 'me as a captain',
+        image_url: SELFIE,
+        model: 'google/nano-banana-edit',
+      },
+      { telegramId: OWNER, pool: toolPool([]) } as never
+    )
+    expect(t.edits[1].model).toBe('google/nano-banana-edit')
   })
 
   /*

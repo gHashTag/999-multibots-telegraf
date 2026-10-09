@@ -13,6 +13,9 @@ export const SOURCE_TOOL_HELP = ["Upscale a picture and make it sharper (Kie top
 export const IMAGE_TO_VIDEO_MODEL = "kie/kling/v2-1-pro" satisfies string;
 // t27c gen-ts: fn may_order_image was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn source_ok was not emitted -- this backend lowers declarations, not bodies.
+export const EDIT_DEFAULT_IS_GPT25 = true satisfies boolean;
+// t27c gen-ts: fn edit_uses_gpt25 was not emitted -- this backend lowers declarations, not bodies.
+export const EDIT_DEFAULT_ASPECT = "9:16" satisfies string;
 export const VIDEO_FROM_WORDS = 0 satisfies number;
 export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: fn video_route was not emitted -- this backend lowers declarations, not bodies.
@@ -20,10 +23,11 @@ export const VIDEO_FROM_IMAGE = 1 satisfies number;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "SOURCE_TOOL_NAMES", "SOURCE_TOOL_MODELS", "SOURCE_TOOL_HELP", "IMAGE_TO_VIDEO_MODEL", "EDIT_DEFAULT_IS_GPT25", "EDIT_DEFAULT_ASPECT", "VIDEO_FROM_WORDS", "VIDEO_FROM_IMAGE"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

@@ -12,7 +12,8 @@
 // Claim status: render contract; the prices are the route's (priceForModel over the Kie list).
 // v1 (2026-10-09): upscale and background removal from a source -- rows of a tool table the host
 // builds from -- a Kie text-to-image model by name, a clip from a picture; a source tool
-// without a source is refused before any charge.
+// without a source is refused before any charge. A picture redrawn from a photo is GPT Image 2.5
+// unless another model is named (owner 2026-10-09: "by default use gpt 2.5 and 9:16").
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_neuro_kie {
@@ -46,6 +47,16 @@ module automation::agent_neuro_kie {
         return !takes_source || source_given;
     }
 
+    // ---- a picture from a photo ----
+
+    // Owner, 2026-10-09: "by default use model gpt 2.5 and size 9:16". image_edit draws on GPT
+    // Image 2.5 unless the person named another model; its frame stays 9:16.
+    pub const EDIT_DEFAULT_IS_GPT25 : bool = true;
+    fn edit_uses_gpt25(named_gpt25: bool, named_other: bool) -> bool {
+        return named_gpt25 || (EDIT_DEFAULT_IS_GPT25 && !named_other);
+    }
+    pub const EDIT_DEFAULT_ASPECT : str = "9:16";
+
     // ---- the clip ----
 
     // Words make a clip on the agent's video model; a picture given makes it from the picture.
@@ -74,6 +85,13 @@ module automation::agent_neuro_kie {
         assert(VIDEO_FROM_IMAGE == 1);
         assert(video_route(true) == VIDEO_FROM_IMAGE);
         assert(video_route(false) == VIDEO_FROM_WORDS);
+    }
+
+    test "a picture from a photo is GPT Image 2.5 unless another model is named" {
+        assert(EDIT_DEFAULT_IS_GPT25);
+        assert(edit_uses_gpt25(false, false));
+        assert(edit_uses_gpt25(true, false));
+        assert(!edit_uses_gpt25(false, true));
     }
 
     test "VERSION says what the header's last note says" {

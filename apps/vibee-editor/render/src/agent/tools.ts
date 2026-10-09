@@ -54,8 +54,14 @@ import {
 } from '../image-chain'
 import { imageModelRefusal } from './flat-price-model'
 import * as MEDIA from '../spec/agent-media-kie.gen'
+import * as NEURO from '../spec/agent-neuro-kie.gen'
 import { realPrompt, videoOrder } from './agent-media'
-import { kieImageOrder, SOURCE_TOOLS, sourceRefusal } from './agent-neuro'
+import {
+  editUsesGpt25,
+  kieImageOrder,
+  SOURCE_TOOLS,
+  sourceRefusal,
+} from './agent-neuro'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -1942,7 +1948,16 @@ export const TOOLS: AgentTool[] = [
       const named = args.model ? String(args.model) : ''
       // The model decides the tariff, so it is settled BEFORE any charge. An
       // unknown name is refused here rather than paid for and refused by Kie.
-      const model = forClient
+      // For anybody else GPT Image 2.5 too, unless another model was named
+      // (agent-neuro-kie.t27 edit_uses_gpt25; owner, 2026-10-09: "by
+      // default use gpt 2.5 and 9:16").
+      const gpt25 =
+        forClient ||
+        editUsesGpt25(
+          isGptImage25Edit(named),
+          !!named && !isGptImage25Edit(named)
+        )
+      const model = gpt25
         ? isGptImage25Edit(named)
           ? named
           : LEAD_MAGNET_MODEL
@@ -2046,7 +2061,9 @@ export const TOOLS: AgentTool[] = [
         // The charge helper reports its refusal under a Russian key; this is
         // the file's long-standing convention and not worth churning here.
         return { done: false, reason: charge['причина'] } // cyrillic-ok
-      const aspectRatio = args.aspect_ratio ? String(args.aspect_ratio) : '9:16'
+      const aspectRatio = args.aspect_ratio
+        ? String(args.aspect_ratio)
+        : NEURO.EDIT_DEFAULT_ASPECT
       const scene = String(args.prompt)
       const prompt =
         forClient && !scene.startsWith(PORTRAIT_IDENTITY_PREFIX)
