@@ -45,6 +45,8 @@ import {
   allProviders,
   diagnose,
   isKeyWideLimit,
+  notAStream,
+  plainCompletion,
   sharedKeyReason,
   type ProviderId,
 } from './provider'
@@ -2165,18 +2167,32 @@ export async function* streamModel(
           const decoder = new TextDecoder()
           let buf = ''
           const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+          /*
+           * A body that is not a stream at all. Kie answers its own errors
+           * as HTTP 200 with a plain JSON `{"code":402,"msg":...}`; read as
+           * a stream it has no `data:` line, so it looked like an EMPTY
+           * answer -- one follow-up on the same route, then "no answer",
+           * instead of the next provider. A vendor that ignores `stream`
+           * sends one whole completion the same way, and that one IS an
+           * answer. The body is kept until a `data:` line proves a stream.
+           */
+          let sawData = false
+          let whole = ''
 
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
             heard()
             if (!firstByteAt) firstByteAt = Date.now()
-            buf += decoder.decode(value, { stream: true })
+            const chunk = decoder.decode(value, { stream: true })
+            if (!sawData) whole += chunk
+            buf += chunk
             const lines = buf.split('\n')
             buf = lines.pop() ?? ''
             for (const line of lines) {
               const str = line.trim()
               if (!str.startsWith('data:')) continue
+              sawData = true
               const payload = str.slice(5).trim()
               if (payload === '[DONE]') continue
               let j: any
@@ -2220,6 +2236,22 @@ export async function* streamModel(
                       tc.function.arguments
                 }
               }
+            }
+          }
+          if (!sawData && whole.trim()) {
+            const m = plainCompletion(whole)
+            if (!m) {
+              const почему = notAStream(p.id, r.status, whole) // cyrillic-ok: pre-existing identifier
+              skipped(почему) // cyrillic-ok: pre-existing identifier
+              причины.push(почему) // cyrillic-ok: pre-existing identifier
+              fail('error', почему) // cyrillic-ok: pre-existing identifier
+              continue providerLoop
+            }
+            acc.content = m.content
+            acc.tool_calls = m.tool_calls
+            if (m.content) {
+              ужеОтдалиТекст = true // cyrillic-ok: pre-existing identifier
+              yield { kind: 'content', text: m.content }
             }
           }
           if (!acc.tool_calls.length) delete acc.tool_calls
