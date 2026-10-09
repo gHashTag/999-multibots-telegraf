@@ -33,13 +33,19 @@
 // v6 (2026-10-08): /catchup shows the open tasks too. After the agent's summary of the room,
 // the open tasks of /todo follow with their owners, so a person back in the office asks
 // once; an empty list adds nothing.
+// v7 (2026-10-09): the agent proposes tasks, a person confirms. When an answer in an office
+// gives a person work ("Anna takes the mockup"), the agent marks it, and the bot puts a
+// button per proposal under the answer -- at most 3, a person's name only (a team member
+// is handed a task by v4, not given one). An answer alone never makes a task: a person in
+// the room presses, within 24 hours, once; the presser is the task's author (Teams
+// Facilitator proposes action items, people accept them).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_neuro_office {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-neuro-office";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 6;
+    pub const VERSION : u8 = 7;
 
     // ---- opening an office ----
 
@@ -192,6 +198,43 @@ module automation::bot_neuro_office {
         return CATCHUP_SHOWS_TASKS && open_tasks > 0;
     }
 
+    // ---- the agent proposes tasks (v7) ----
+
+    // An answer is words; a task is a promise somebody made. The agent may propose one, a
+    // person makes it a task by pressing.
+    pub const AGENT_TASK_NEEDS_PRESS : bool = true;
+    fn task_from_answer(pressed: bool) -> bool {
+        return pressed || !AGENT_TASK_NEEDS_PRESS;
+    }
+
+    // Proposals are made in an office only, like the tasks they become.
+    fn may_propose(office: bool) -> bool {
+        return office;
+    }
+
+    // A proposal names a person (up to SPEAKER_NAME_MAX_CHARS) and the work (up to
+    // TASK_TEXT_MAX_CHARS). A member of the team is not a person: an agent is handed work
+    // by v4 hands_off, never given a task.
+    fn proposal_ok(name_chars: u32, text_chars: u32, names_member: bool) -> bool {
+        return name_chars > 0 && name_chars <= SPEAKER_NAME_MAX_CHARS
+            && text_chars > 0 && text_chars <= TASK_TEXT_MAX_CHARS
+            && !names_member;
+    }
+
+    // At most this many buttons under one answer; the rest of the proposals are dropped.
+    pub const PROPOSALS_PER_ANSWER_MAX : u32 = 3;
+    fn proposals_kept(proposed: u32) -> u32 {
+        if proposed > PROPOSALS_PER_ANSWER_MAX { return PROPOSALS_PER_ANSWER_MAX; }
+        return proposed;
+    }
+
+    // A press takes a proposal: a person (never a bot), within the day, and only once --
+    // a second press finds it taken.
+    pub const PROPOSAL_TTL_HOURS : u32 = 24;
+    fn may_take(age_hours: u32, taken: bool, presser_is_bot: bool) -> bool {
+        return age_hours < PROPOSAL_TTL_HOURS && !taken && !presser_is_bot;
+    }
+
     // ---- tests ----
 
     test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
@@ -290,8 +333,43 @@ module automation::bot_neuro_office {
         assert(!catchup_lists_tasks(0));
     }
 
+    test "the agent proposes a task, and only a person's press makes it one" {
+        assert(AGENT_TASK_NEEDS_PRESS);
+        assert(!task_from_answer(false));
+        assert(task_from_answer(true));
+        assert(may_propose(true));
+        assert(!may_propose(false));
+    }
+
+    test "a proposal names a person and the work, within the bounds, never a team member" {
+        assert(proposal_ok(4, 20, false));
+        assert(proposal_ok(64, 300, false));
+        assert(!proposal_ok(65, 20, false));
+        assert(!proposal_ok(4, 301, false));
+        assert(!proposal_ok(0, 20, false));
+        assert(!proposal_ok(4, 0, false));
+        assert(!proposal_ok(4, 20, true));
+    }
+
+    test "at most three proposals under one answer" {
+        assert(PROPOSALS_PER_ANSWER_MAX == 3);
+        assert(proposals_kept(2) == 2);
+        assert(proposals_kept(3) == 3);
+        assert(proposals_kept(4) == 3);
+        assert(proposals_kept(0) == 0);
+    }
+
+    test "a press takes a proposal once, within the day, never a bot's press" {
+        assert(PROPOSAL_TTL_HOURS == 24);
+        assert(may_take(0, false, false));
+        assert(may_take(23, false, false));
+        assert(!may_take(24, false, false));
+        assert(!may_take(1, true, false));
+        assert(!may_take(1, false, true));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 6);
+        assert(VERSION == 7);
     }
 }
 

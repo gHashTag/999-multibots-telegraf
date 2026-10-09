@@ -1287,12 +1287,14 @@ PYEOF
     shift
     cd "$ROOT" || exit 2
     node scripts/check-t27-specs.mjs || exit 1
-    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/navigation/officeTasks.test.ts src/__tests__/navigation/officeEdges.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
+    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/navigation/officeTasks.test.ts src/__tests__/navigation/officeProposals.test.ts apps/vibee-editor/render/src/spec/bot-office-crm.test.ts src/__tests__/navigation/officeEdges.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
     # shellcheck disable=SC2086
     npx vitest run $OFFICE_TESTS || exit 1
     if [ "${1:-}" = "--mutants" ]; then
-      # shellcheck disable=SC2086
-      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run $OFFICE_TESTS || exit 1
+      # Every mutant names its own tests ("tests"), so the base command is the
+      # spec's binding alone: the whole suite per mutant took ~2.5 min each
+      # (62 mutants, 2.5 h); this takes ~7 s each (2026-10-09).
+      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run src/spec/bot-neuro-office.test.ts || exit 1
     fi
     ;;
 
