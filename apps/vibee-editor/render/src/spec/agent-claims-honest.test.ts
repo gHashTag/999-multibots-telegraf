@@ -5,9 +5,11 @@
  * still drawing, and "sent the portrait as a gift" after an image_edit that
  * sends nothing. Both now end with the check's note; real work does not.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as SPEC from './agent-claims-honest.gen'
 import {
+  fileOwed,
+  lateFilePosted,
   linkClaimBacked,
   mediaClaimBacked,
   promptDated,
@@ -20,6 +22,12 @@ import {
   MEDIA_HONESTY_NOTE,
 } from '../agent/claimed-but-not-done'
 import { todayLine } from '../agent/agent-today'
+import { assetUrlsIn, madeFileUrl } from '../agent/asset-links'
+import { onLateOutcome, postLateFile } from '../agent/late-file'
+
+const BASE = 'https://bucket-production-8259.up.railway.app/vibee-assets'
+const FILE = `${BASE}/assets/1791547101324-4b3edafccd7463ef-agent-edit-1.png`
+afterEach(() => vi.unstubAllEnvs())
 
 describe('spec agent-claims-honest.t27', () => {
   it('a picture claimed is a picture made: called and answered with it', () => {
@@ -47,8 +55,80 @@ describe('spec agent-claims-honest.t27', () => {
     expect(promptDated(false)).toBe(false)
   })
 
+  it('every file a tool made reaches the person, once', () => {
+    expect(SPEC.FILES_APPENDED_BY_HOST).toBe(true)
+    expect(fileOwed(true, false)).toBe(true)
+    expect(fileOwed(true, true)).toBe(false)
+    expect(fileOwed(false, false)).toBe(false)
+    // FILE_MAKERS: the tools that make a file; a lister is not one.
+    const makers = SPEC.FILE_MAKERS.split(',')
+    expect(makers).toContain('image_edit')
+    expect(makers).not.toContain('crm_lead_media')
+    vi.stubEnv('S3_PUBLIC_URL', BASE)
+    expect(madeFileUrl({ done: true, url: FILE })).toBe(FILE)
+    expect(madeFileUrl({ done: false, url: FILE })).toBeNull()
+    expect(madeFileUrl({ сделано: false, url: FILE })).toBeNull() // cyrillic-ok: the tools' answer field
+    expect(madeFileUrl({ files: [FILE] })).toBeNull()
+    expect(madeFileUrl({ url: 'https://example.com/x.png' })).toBeNull()
+    // OUR_LINK_ENDS_AT_EXTENSION: what is glued after the file is prose.
+    expect(SPEC.OUR_LINK_ENDS_AT_EXTENSION).toBe(true)
+    for (const glued of [`**${FILE}**`, `${FILE}»`, `${FILE}—это`, `${FILE}…`])
+      expect(assetUrlsIn(glued)).toEqual([FILE])
+  })
+
+  it('a late picture goes into its own thread and nowhere else', async () => {
+    expect(lateFilePosted(true, true, false)).toBe(true)
+    expect(lateFilePosted(false, true, false)).toBe(false)
+    expect(lateFilePosted(true, false, false)).toBe(false)
+    expect(lateFilePosted(true, true, true)).toBe(false)
+    const writes: unknown[][] = []
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) => {
+        if (/INSERT INTO agent_messages/.test(sql)) writes.push(params)
+        return { rows: [] }
+      },
+    }
+    const ctx = { telegramId: '900000002', pool, surface: 'miniapp' }
+    expect(await postLateFile({ ...ctx } as never, FILE)).toBe(false)
+    expect(
+      await postLateFile({ ...ctx, thread: 'client:900000003' } as never, FILE)
+    ).toBe(true)
+    expect(writes).toHaveLength(1)
+    expect(writes[0][1]).toBe('assistant')
+    expect(String(writes[0][2])).toContain(FILE)
+    expect(writes[0][4]).toBe('client:900000003')
+    // The watch's verdict: a picture that came is posted, not refunded; an
+    // ephemeral turn posts nothing; one that never came is refunded.
+    const refund = vi.fn(async () => undefined)
+    const kept = { ...ctx, thread: 'client:900000003' }
+    await onLateOutcome(kept as never, { state: 'ready', url: FILE }, refund)
+    expect(writes).toHaveLength(2)
+    expect(refund).not.toHaveBeenCalled()
+    await onLateOutcome(
+      { ...kept, ephemeral: true } as never,
+      { state: 'ready', url: FILE },
+      refund
+    )
+    expect(writes).toHaveLength(2)
+    await onLateOutcome(kept as never, { state: 'failed' }, refund)
+    expect(refund).toHaveBeenCalledTimes(1)
+    expect(writes).toHaveLength(2)
+    // image_edit hands its late verdict to exactly this function (source
+    // level: the paid late path needs the provider to exercise end to end).
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const tools = readFileSync(
+      join(__dirname, '..', 'agent', 'tools.ts'),
+      'utf8'
+    )
+    const edit = tools.slice(tools.indexOf("name: 'image_edit'"))
+    expect(edit.slice(0, edit.indexOf("name: 'image_generate'"))).toMatch(
+      /\.then\(out =>\s*onLateOutcome\(ctx, out, async \(\) => \{/
+    )
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 

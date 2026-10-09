@@ -102,6 +102,17 @@ status` shows the state. Install from a shell where `railway whoami` works: laun
   once found an old railway 4.5.4 that was "Unauthorized", so every run said "not measured".
   `install` now pins the logged-in CLI and refuses an install that could not measure.
 
+## Mini-app: photo actions for the Blogger (2026-10-09)
+
+Spec `photo-actions.t27` (player host): eight one-tap actions right above the
+input of the mini-app chat (poster without people, poster with the face,
+studio, another version, sharper, no background, bring to life, talking video),
+shown when the specialist is the Blogger and a photo is attached or the last
+answer holds a picture (`show_chips`). A press sends the whole ask with that
+photo (`lib/photoActions.ts`, `components/Chat/PhotoActionChips.tsx`); each ask
+names its tool, posters are 9:16. The words of the asks live in the host, the
+labels in `language.ts` (`chat.photo.*`).
+
 ## Railway watch
 
 The same probe runs every hour on Railway as the cron service `queen-watch`, so a

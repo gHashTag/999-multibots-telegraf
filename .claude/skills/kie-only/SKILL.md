@@ -128,6 +128,28 @@ app's route; before #3928 it charged one flat price for any length.
 **Not on Kie, said plainly (`NOT_ON_KIE_NOTE`, in the prompt):** face swap
 and LoRA (own-model) training. Never fake it, never name another provider.
 
+## The agent THINKS on Kie too (2026-10-09, spec agent-provider-chain.t27 v3)
+
+The owner's turn ended in "no model provider answered" -- zai 1305, nemotron
+120 s, zai-lite 60 s, reserve 402 -- and the owner said "turn it on through
+kie". The chain is now `zai,kie,zai-lite,nemotron,reserve,ollama`:
+
+- Kie serves Gemini over an OpenAI-compatible chat at
+  `https://api.kie.ai/<model>/v1/chat/completions`, key `KIE_AI_API_KEY` (the
+  same key as every Kie media call -- set means the leg is present).
+- `gemini-2.5-flash` by default; `KIE_CHAT_MODEL` switches it without a
+  commit. Not Gemini 3 by default: it wants thought signatures sent back on
+  every tool round, and the loop does not carry them.
+- `max_tokens` 8192 (prepaid credits; flash thinks inside the bound). Tools
+  declared, vision and audio NOT -- images still go to nemotron.
+- **Kie answers its errors as HTTP 200 + `{"code":402,"msg":...}`.** The loop
+  reads a 200 with no `data:` line as a refusal (`notAStream`, the code in the
+  body is the status) and asks the next provider; a whole `chat.completion`
+  in such a body is accepted as the answer (`plainCompletion`). Test:
+  `render/src/agent/a-200-that-is-not-a-stream.test.ts`.
+- Bot `/model` has a «Kie» button. `KIE_ANSWERED_LIVE` stays false until a
+  live turn in the logs is answered by `kie` -- flip it in the spec then.
+
 ## The free leg is not a way around Kie (2026-10-03)
 
 `image_generate` falls through to Pollinations ($0, keyless) when fal is above

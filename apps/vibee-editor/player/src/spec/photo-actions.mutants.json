@@ -1,0 +1,38 @@
+[
+  {
+    "name": "another agent sees the row",
+    "file": "src/lib/photoActions.ts",
+    "from": "  return showChips(agent === SPEC.AGENT, imageAttached, last !== null)",
+    "to": "  return showChips(true, imageAttached, last !== null)"
+  },
+  {
+    "name": "the last picture's address is not sent",
+    "file": "src/lib/photoActions.ts",
+    "from": "  return from === 2 ? `${ask}\\nФото: ${last}` : ask",
+    "to": "  return ask"
+  },
+  {
+    "name": "a user's own picture counts as the last one",
+    "file": "src/lib/photoActions.ts",
+    "from": "    if (m.role !== 'assistant') continue\n",
+    "to": ""
+  },
+  {
+    "name": "the oldest picture is taken",
+    "file": "src/lib/photoActions.ts",
+    "from": "    if (found?.length) return found[found.length - 1]",
+    "to": "    if (found?.length) return found[0]"
+  },
+  {
+    "name": "a glued picture link is missed",
+    "file": "src/lib/photoActions.ts",
+    "from": "\\.(?:png|jpe?g|webp|gif)(?=[^A-Za-z0-9]|$)/gi",
+    "to": "\\.(?:png|jpe?g|webp|gif)(?=\\s|$)/gi"
+  },
+  {
+    "name": "the row is not drawn",
+    "file": "src/pages/Chat.tsx",
+    "from": "              <PhotoActionChips\n",
+    "to": "              <PhotoActionChipsGone\n"
+  }
+]

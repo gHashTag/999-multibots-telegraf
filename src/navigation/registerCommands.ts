@@ -4092,6 +4092,12 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
           'mdl:zai-lite'
         ),
       ],
+      [
+        Markup.button.callback(
+          (current === 'kie' ? '✅ ' : '') + 'Kie',
+          'mdl:kie'
+        ),
+      ],
       ...hubRows(),
     ])
 
@@ -4535,10 +4541,15 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     await showModel(ctx)
   })
 
-  bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/, async ctx => {
+  bot.action(/^mdl:(zai|kie|zai-lite|nemotron|ollama)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     if (!ownerOnly(ctx)) return
-    const id = ctx.match[1] as 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
+    const id = ctx.match[1] as
+      | 'zai'
+      | 'kie'
+      | 'zai-lite'
+      | 'nemotron'
+      | 'ollama'
     try {
       const { chooseProvider, describeProvider } = await import(
         '@/services/modelSwitch'
