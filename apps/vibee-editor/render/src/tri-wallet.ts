@@ -54,6 +54,7 @@ import {
 } from '@ton/core'
 import * as SPEC from './spec/tri-wallet-chains.gen'
 import {
+  bindCommits,
   checksSignature,
   mayBind,
   mayCallPublic,
@@ -64,6 +65,7 @@ import {
   proofExpired,
   proofFromFuture,
   proposalBinds,
+  unbindCommits,
 } from './spec/tri-wallet-chains.logic'
 import {
   CHAIN_ID,
@@ -274,6 +276,55 @@ interface Queryable {
   ): Promise<{ rows: any[]; rowCount?: number | null }>
 }
 
+/** A pool that can lend one connection: pg.Pool. A bare Queryable is used as is. */
+export interface TxPool extends Queryable {
+  connect?: () => Promise<Queryable & { release: (err?: Error) => void }>
+}
+
+/** A refusal decided inside a transaction: it rolls back, then answers. */
+export class WalletRefusal extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number
+  ) {
+    super(code)
+  }
+}
+
+/**
+ * ALL OR NOTHING (spec v3 bind_commits, unbind_commits). Every statement of
+ * `work` runs on one connection between BEGIN and COMMIT; a throw -- a refusal
+ * or a failed write -- rolls all of them back. pg.Pool lends the connection;
+ * without `connect` the queryable is already one connection.
+ */
+export async function inTransaction<T>(
+  pool: TxPool,
+  work: (tx: Queryable) => Promise<T>
+): Promise<T> {
+  const client = pool.connect ? await pool.connect() : null
+  const tx: Queryable = client ?? pool
+  let broken: Error | undefined
+  try {
+    await tx.query('BEGIN')
+    const out = await work(tx)
+    await tx.query('COMMIT')
+    return out
+  } catch (e) {
+    try {
+      await tx.query('ROLLBACK')
+    } catch (rollbackFailed) {
+      // A connection that cannot roll back is not lent to the next caller.
+      broken =
+        rollbackFailed instanceof Error
+          ? rollbackFailed
+          : new Error(String(rollbackFailed))
+    }
+    throw e
+  } finally {
+    client?.release(broken)
+  }
+}
+
 export async function ensureTriWalletTables(pool: Queryable): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tri_wallet_challenges (
@@ -351,28 +402,35 @@ export function resetTriWalletEnsureForTests(): void {
 }
 
 export async function issueChallenge(
-  pool: Queryable,
+  pool: TxPool,
   telegramId: string,
   nowMs: number
 ): Promise<{ payload: string; expiresIn: number } | null> {
-  await pool.query(
-    `DELETE FROM tri_wallet_challenges
-      WHERE telegram_id = $1 AND (expires_at <= $2 OR used_at IS NOT NULL)`,
-    [telegramId, new Date(nowMs)]
-  )
-  const open = await pool.query(
-    `SELECT count(*)::int AS n FROM tri_wallet_challenges
-      WHERE telegram_id = $1`,
-    [telegramId]
-  )
-  if (!mayIssue(open.rows[0]?.n ?? 0)) return null
-  const payload = newChallenge()
-  await pool.query(
-    `INSERT INTO tri_wallet_challenges (payload, telegram_id, expires_at)
-     VALUES ($1, $2, $3)`,
-    [payload, telegramId, new Date(nowMs + PROOF_TTL_MS)]
-  )
-  return { payload, expiresIn: PROOF_TTL_MS / 1000 }
+  // Spec ISSUE_UNDER_PERSON_LOCK: one person's count and insert are
+  // serialised by a transaction-scoped lock, in this process and any other.
+  return inTransaction(pool, async tx => {
+    await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+      `tri_wallet_challenge:${telegramId}`,
+    ])
+    await tx.query(
+      `DELETE FROM tri_wallet_challenges
+        WHERE telegram_id = $1 AND (expires_at <= $2 OR used_at IS NOT NULL)`,
+      [telegramId, new Date(nowMs)]
+    )
+    const open = await tx.query(
+      `SELECT count(*)::int AS n FROM tri_wallet_challenges
+        WHERE telegram_id = $1`,
+      [telegramId]
+    )
+    if (!mayIssue(open.rows[0]?.n ?? 0)) return null
+    const payload = newChallenge()
+    await tx.query(
+      `INSERT INTO tri_wallet_challenges (payload, telegram_id, expires_at)
+       VALUES ($1, $2, $3)`,
+      [payload, telegramId, new Date(nowMs + PROOF_TTL_MS)]
+    )
+    return { payload, expiresIn: PROOF_TTL_MS / 1000 }
+  })
 }
 
 /** Spends a payload once, and only for the person it was issued to. */
@@ -513,33 +571,103 @@ export async function bindWallet(
 }
 
 export async function unbindWallet(
-  pool: Queryable,
+  pool: TxPool,
   telegramId: string,
   chain: ChainName,
   network: string
 ): Promise<boolean> {
-  const r = await pool.query(
-    `DELETE FROM tri_wallets
-      WHERE telegram_id = $1 AND chain = $2 AND network = $3
-      RETURNING address`,
-    [telegramId, chain, network]
-  )
-  const address = r.rows[0]?.address
-  if (address == null) return false
-  await pool.query(
-    `INSERT INTO tri_wallet_events (telegram_id, chain, network, address, action)
-     VALUES ($1, $2, $3, $4, 'unbind')`,
-    [telegramId, chain, network, String(address)]
-  )
-  return true
+  return inTransaction(pool, async tx => {
+    const r = await tx.query(
+      `DELETE FROM tri_wallets
+        WHERE telegram_id = $1 AND chain = $2 AND network = $3
+        RETURNING address`,
+      [telegramId, chain, network]
+    )
+    const address = r.rows[0]?.address
+    if (address == null) return false
+    await tx.query(
+      `INSERT INTO tri_wallet_events (telegram_id, chain, network, address, action)
+       VALUES ($1, $2, $3, $4, 'unbind')`,
+      [telegramId, chain, network, String(address)]
+    )
+    // Both writes returned: the row is gone and its event is in.
+    if (!unbindCommits(true, true)) throw new WalletRefusal('internal', 500)
+    return true
+  })
+}
+
+/** Where a nonce binds: given by a proof, or read from the person's proposal. */
+export interface BindTarget {
+  chain: ChainName
+  network: string
+  address: string
+  publicKey: string
+}
+
+/**
+ * Spend the nonce, write the address, log the event: one transaction (spec
+ * bind_commits). A refusal -- the nonce is not this person's or no longer
+ * open, the address is another person's -- rolls back and spends nothing.
+ * `target` null is the confirm road: the nonce must carry this person's
+ * proposal, locked for the transaction.
+ */
+export async function bindWithNonce(
+  pool: TxPool,
+  telegramId: string,
+  nonce: string,
+  nowMs: number,
+  target: BindTarget | null
+): Promise<BoundWallet> {
+  return inTransaction(pool, async tx => {
+    let into = target
+    if (!into) {
+      const row = await nonceRow(tx, nonce, nowMs, true)
+      if (
+        !row ||
+        !mayConfirm(row.telegramId === telegramId, row.open, row.proposed) ||
+        !proposalBinds(true)
+      )
+        throw new WalletRefusal('proposal_unknown', 400)
+      into = {
+        chain: row.chain as TextChain,
+        network: row.network as string,
+        address: row.address as string,
+        publicKey: row.key as string,
+      }
+    }
+    const spent = await consumeChallenge(tx, telegramId, nonce, nowMs)
+    if (!spent)
+      throw new WalletRefusal(
+        target ? 'payload_unknown' : 'proposal_unknown',
+        400
+      )
+    const bound = await bindWallet(
+      tx,
+      telegramId,
+      into.chain,
+      into.network,
+      into.address,
+      into.publicKey
+    )
+    if (!bound.ok) throw new WalletRefusal(bound.code, 409)
+    // bindWallet returned after writing both the address and its event.
+    if (!bindCommits(spent, true, true))
+      throw new WalletRefusal('internal', 500)
+    return bound.wallet
+  })
 }
 
 /** The open nonce a wallet browser signed with: whose, open, proposed yet. */
-async function nonceRow(pool: Queryable, nonce: string, nowMs: number) {
+async function nonceRow(
+  pool: Queryable,
+  nonce: string,
+  nowMs: number,
+  forUpdate = false
+) {
   const r = await pool.query(
     `SELECT telegram_id, proposed_chain, proposed_network, proposed_address,
             proposed_key, proposed_at, used_at, expires_at
-       FROM tri_wallet_challenges WHERE payload = $1`,
+       FROM tri_wallet_challenges WHERE payload = $1${forUpdate ? ' FOR UPDATE' : ''}`,
     [nonce]
   )
   const row = r.rows[0]
@@ -628,7 +756,7 @@ export function resetPublicCallsForTests(): void {
 }
 
 export interface TriWalletDeps {
-  getPool: () => Queryable | Promise<Queryable>
+  getPool: () => TxPool | Promise<TxPool>
   /** The person's own telegram_id, or null for any other credential. */
   personOf: (req: IncomingMessage) => string | null
   readBody: (req: IncomingMessage, maxBytes: number) => Promise<string>
@@ -746,7 +874,7 @@ export async function handleTriWallet(
   if (!isPropose && !mayBind(who !== null, false))
     return answer(401, { error: 'person_required' }, 'person_required')
 
-  let pool: Queryable
+  let pool: TxPool
   try {
     pool = await deps.getPool()
     await ensureOnce(pool)
@@ -856,32 +984,17 @@ export async function handleTriWallet(
 
     // The person says yes to what their wallet browser proposed.
     if ('confirm' in body) {
-      const nonce = body.confirm
-      const row = isNonceShape(nonce)
-        ? await nonceRow(pool, nonce, now())
-        : null
-      if (
-        !row ||
-        !mayConfirm(row.telegramId === person, row.open, row.proposed) ||
-        !proposalBinds(true)
-      )
+      if (!isNonceShape(body.confirm))
         return answer(400, { error: 'proposal_unknown' }, 'proposal_unknown')
-      if (!(await consumeChallenge(pool, person, nonce, now())))
-        return answer(400, { error: 'proposal_unknown' }, 'proposal_unknown')
-      const bound = await bindWallet(
+      const wallet = await bindWithNonce(
         pool,
         person,
-        row.chain as TextChain,
-        row.network as string,
-        row.address as string,
-        row.key as string
+        body.confirm,
+        now(),
+        null
       )
-      if (!bound.ok)
-        return answer(409, { error: bound.code }, bound.code, {
-          chain: row.chain,
-        })
-      return answer(200, { wallet: bound.wallet }, 'bound', {
-        chain: row.chain,
+      return answer(200, { wallet }, 'bound', {
+        chain: wallet.chain,
         via: 'proposal',
       })
     }
@@ -895,46 +1008,35 @@ export async function handleTriWallet(
         now()
       )
       if (!checked.ok) return answer(400, { error: checked.code }, checked.code)
-      if (!(await consumeChallenge(pool, person, body.nonce, now())))
-        return answer(400, { error: 'payload_unknown' }, 'payload_unknown')
-      const bound = await bindWallet(
-        pool,
-        person,
-        checked.chain,
-        checked.network,
-        checked.address,
-        checked.publicKey
-      )
-      if (!bound.ok)
-        return answer(409, { error: bound.code }, bound.code, {
-          chain: checked.chain,
-        })
-      return answer(200, { wallet: bound.wallet }, 'bound', {
+      const wallet = await bindWithNonce(pool, person, body.nonce, now(), {
         chain: checked.chain,
+        network: checked.network,
+        address: checked.address,
+        publicKey: checked.publicKey,
       })
+      return answer(200, { wallet }, 'bound', { chain: checked.chain })
     }
 
     const input = body as TonProofInput
     const checked = checkTonProof(input, deps.proofDomain, now())
     if (!checked.ok) return answer(400, { error: checked.code }, checked.code)
-    if (!(await consumeChallenge(pool, person, input.proof.payload, now())))
-      return answer(400, { error: 'payload_unknown' }, 'payload_unknown')
-    const bound = await bindWallet(
+    const wallet = await bindWithNonce(
       pool,
       person,
-      'ton',
-      checked.network,
-      checked.address.toRawString(),
-      checked.publicKey
-    )
-    if (!bound.ok)
-      return answer(409, { error: bound.code }, bound.code, {
+      input.proof.payload,
+      now(),
+      {
+        chain: 'ton',
         network: checked.network,
-      })
-    return answer(200, { wallet: bound.wallet }, 'bound', {
-      network: checked.network,
-    })
-  } catch {
+        address: checked.address.toRawString(),
+        publicKey: checked.publicKey,
+      }
+    )
+    return answer(200, { wallet }, 'bound', { network: checked.network })
+  } catch (e) {
+    // A refusal decided inside a transaction rolled it back first.
+    if (e instanceof WalletRefusal)
+      return answer(e.status, { error: e.code }, e.code)
     return answer(500, { error: 'internal' }, 'internal')
   }
 }

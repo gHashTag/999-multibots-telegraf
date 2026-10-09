@@ -17,6 +17,8 @@ import { base58 } from '@scure/base'
 import * as SPEC from './tri-wallet-chains.gen'
 import {
   addressBytes,
+  bindCommits,
+  unbindCommits,
   chainKnown,
   checksSignature,
   keySource,
@@ -260,6 +262,7 @@ describe('spec tri-wallet-chains.t27', () => {
 
   it('a person holds at most five open nonces', () => {
     expect(SPEC.MAX_OPEN_CHALLENGES).toBe(5)
+    expect(SPEC.ISSUE_UNDER_PERSON_LOCK).toBe(true)
     expect(mayIssue(0)).toBe(true)
     expect(mayIssue(4)).toBe(true)
     expect(mayIssue(5)).toBe(false)
@@ -347,8 +350,21 @@ describe('spec tri-wallet-chains.t27', () => {
     expect(paidOn(0)).toBe(false)
   })
 
+  it('a binding and an unbinding commit all their writes or none', () => {
+    expect(bindCommits(true, true, true)).toBe(true)
+    expect(bindCommits(false, true, true)).toBe(false)
+    expect(bindCommits(true, false, true)).toBe(false)
+    expect(bindCommits(true, true, false)).toBe(false)
+    expect(bindCommits(false, false, false)).toBe(false)
+    expect(unbindCommits(true, true)).toBe(true)
+    expect(unbindCommits(true, false)).toBe(false)
+    expect(unbindCommits(false, true)).toBe(false)
+    // On a real Postgres, with a failure injected at every write:
+    // tri-wallet.pg.test.ts "rolls back every write when any one fails".
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(2)
+    expect(SPEC.VERSION).toBe(3)
     const spec = readFileSync(join(__dirname, 'tri-wallet-chains.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
     expect(Math.max(...notes)).toBe(SPEC.VERSION)

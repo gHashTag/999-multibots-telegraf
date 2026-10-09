@@ -23,13 +23,18 @@
 // v2 (2026-10-09): the two doors without a person (/message, /propose) hold each caller to a
 // budget per minute, and /propose looks the nonce up before it checks a signature, so a call on
 // a nonce nobody was issued costs one key lookup and no curve arithmetic (review on 999#3952).
+// v3 (2026-10-09): every write is all or nothing (Codex audit, 999 at 0dc5424e). The count of
+// open nonces is read and the new nonce written under one lock per person, so parallel requests
+// -- from one process or several -- never pass five (20 parallel calls had issued 7 on a real
+// Postgres). Spending a nonce, writing the address and the event commit together or not at all;
+// so do removing an address and its event. A refused bind spends nothing and can be retried.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::tri_wallet_chains {
     pub const KIND : str = "automation";
     pub const ID : str = "tri-wallet-chains";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 3;
 
     // ---- the chains ----
 
@@ -158,10 +163,28 @@ module automation::tri_wallet_chains {
         return age_ms < 0 - CLOCK_SKEW_MS;
     }
 
-    // Unspent nonces one person may hold at once.
+    // Unspent nonces one person may hold at once. The count is read under the person's own lock,
+    // inside the transaction that writes the new nonce: a count read without it is stale by the
+    // time the insert lands, and two requests that both saw four would leave six.
     pub const MAX_OPEN_CHALLENGES : u32 = 5;
+    pub const ISSUE_UNDER_PERSON_LOCK : bool = true;
     fn may_issue(open: u32) -> bool {
         return open < MAX_OPEN_CHALLENGES;
+    }
+
+    // ---- all or nothing ----
+
+    // A binding is three writes: the nonce is spent, the address is written, the event is logged.
+    // They commit together or roll back together, on one connection: an address that changed
+    // without its event is the trace a stolen payout would leave, and a nonce spent on a refused
+    // bind is a nonce the person cannot retry with.
+    fn bind_commits(nonce_spent: bool, address_written: bool, event_written: bool) -> bool {
+        return nonce_spent && address_written && event_written;
+    }
+
+    // Removing an address is two writes: the row and its event.
+    fn unbind_commits(address_removed: bool, event_written: bool) -> bool {
+        return address_removed && event_written;
     }
 
     // ---- who binds ----
@@ -316,6 +339,7 @@ module automation::tri_wallet_chains {
 
     test "a person holds at most five open nonces" {
         assert(MAX_OPEN_CHALLENGES == 5);
+        assert(ISSUE_UNDER_PERSON_LOCK);
         assert(may_issue(0));
         assert(may_issue(4));
         assert(!may_issue(5));
@@ -369,8 +393,19 @@ module automation::tri_wallet_chains {
         assert(!paid_on(0));
     }
 
+    test "a binding and an unbinding commit all their writes or none" {
+        assert(bind_commits(true, true, true));
+        assert(!bind_commits(false, true, true));
+        assert(!bind_commits(true, false, true));
+        assert(!bind_commits(true, true, false));
+        assert(!bind_commits(false, false, false));
+        assert(unbind_commits(true, true));
+        assert(!unbind_commits(true, false));
+        assert(!unbind_commits(false, true));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 2);
+        assert(VERSION == 3);
     }
 }
 

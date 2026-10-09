@@ -3,10 +3,10 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 8140409c5b8c375e3f32e4970f909a3abfb314bc49095fb942ae32e298e7bd41
+// spec-sha256: 8650dd8110fa847aa2a6e45a43a209d6ac1aaf66027497c67c7a9388a23a5bff
 /* eslint-disable */
 
-const WASM = 'AGFzbQEAAAABEwNgAX8Bf2ACf38Bf2ADf39/AX8DERAAAQAAAgIAAAAAAAAAAAAABAUBcAEBAQUDAQAQBgkBfwFBgIDAAAsH0AISBm1lbW9yeQIAC3QyN19wYWlkX29uAAAUdDI3X2NoZWNrc19zaWduYXR1cmUAARN0MjdfbWF5X2NhbGxfcHVibGljAAISdDI3X3Byb3Bvc2FsX2JpbmRzAAMPdDI3X21heV9jb25maXJtAAQPdDI3X21heV9wcm9wb3NlAAUMdDI3X21heV9iaW5kAAENdDI3X21heV9pc3N1ZQAGFXQyN19wcm9vZl9mcm9tX2Z1dHVyZQAHEXQyN19wcm9vZl9leHBpcmVkAAgTdDI3X25vbmNlX2xlbmd0aF9vawAJD3QyN19yZWNvdmVyeV9pZAAKE3QyN19zaWduYXR1cmVfYnl0ZXMACxF0MjdfYWRkcmVzc19ieXRlcwAMDnQyN19rZXlfc291cmNlAA0PdDI3X25ldHdvcmtzX29mAA4PdDI3X2NoYWluX2tub3duAA8KoAIQBwAgAEEBRgsKACAAIAFBAXNxCwcAIABBH0kLBAAgAAsKACAAIAFxIAJxCw0AIAAgAXEgAkEBc3ELBwAgAEEFSQsJACAAQaCrfEgLCQAgAEGg9zZKCwgAIABBwABGCy4BAX9BACEBAkACQAJAAkAgAA4CAwEACyAAQWVqDgICAAELQQEPC0F/IQELIAELHQBCgICBipQIIACtQgOGiKdBACAAQQVJG0HBAHELHABCgMCAocECIACtQgOGiKdBACAAQQVJG0E0cQsbAEKAgoyQICAArUIDhoinQQAgAEEFSRtBA3ELKwECf0EBIQFBAiECAkACQAJAIABBf2oOBAIBAQEAC0EAIQELIAEhAgsgAgsOACAAQX9qQf8BcUEESQs='
+const WASM = 'AGFzbQEAAAABEwNgAX8Bf2ACf38Bf2ADf39/AX8DEhEAAQAAAgECAAAAAAAAAAAAAAQFAXABAQEFAwEAEAYJAX8BQYCAwAALB/gCFAZtZW1vcnkCAAt0MjdfcGFpZF9vbgAAFHQyN19jaGVja3Nfc2lnbmF0dXJlAAETdDI3X21heV9jYWxsX3B1YmxpYwACEnQyN19wcm9wb3NhbF9iaW5kcwADD3QyN19tYXlfY29uZmlybQAGD3QyN19tYXlfcHJvcG9zZQAEDHQyN19tYXlfYmluZAABEnQyN191bmJpbmRfY29tbWl0cwAFEHQyN19iaW5kX2NvbW1pdHMABg10MjdfbWF5X2lzc3VlAAcVdDI3X3Byb29mX2Zyb21fZnV0dXJlAAgRdDI3X3Byb29mX2V4cGlyZWQACRN0Mjdfbm9uY2VfbGVuZ3RoX29rAAoPdDI3X3JlY292ZXJ5X2lkAAsTdDI3X3NpZ25hdHVyZV9ieXRlcwAMEXQyN19hZGRyZXNzX2J5dGVzAA0OdDI3X2tleV9zb3VyY2UADg90MjdfbmV0d29ya3Nfb2YADw90MjdfY2hhaW5fa25vd24AEAqoAhEHACAAQQFGCwoAIAAgAUEBc3ELBwAgAEEfSQsEACAACw0AIAAgAXEgAkEBc3ELBwAgACABcQsKACAAIAFxIAJxCwcAIABBBUkLCQAgAEGgq3xICwkAIABBoPc2SgsIACAAQcAARgsuAQF/QQAhAQJAAkACQAJAIAAOAgMBAAsgAEFlag4CAgABC0EBDwtBfyEBCyABCx0AQoCAgYqUCCAArUIDhoinQQAgAEEFSRtBwQBxCxwAQoDAgKHBAiAArUIDhoinQQAgAEEFSRtBNHELGwBCgIKMkCAgAK1CA4aIp0EAIABBBUkbQQNxCysBAn9BASEBQQIhAgJAAkACQCAAQX9qDgQCAQEBAAtBACEBCyABIQILIAILDgAgAEF/akH/AXFBBEkL'
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -67,6 +67,16 @@ export function proofFromFuture(ageMs: number): boolean {
 /** spec fn may_issue */
 export function mayIssue(open: number): boolean {
   return (W.t27_may_issue as (...a: number[]) => number)(int(open, 0, 4294967295, 'may_issue.open')) !== 0
+}
+
+/** spec fn bind_commits */
+export function bindCommits(nonceSpent: boolean, addressWritten: boolean, eventWritten: boolean): boolean {
+  return (W.t27_bind_commits as (...a: number[]) => number)(nonceSpent ? 1 : 0, addressWritten ? 1 : 0, eventWritten ? 1 : 0) !== 0
+}
+
+/** spec fn unbind_commits */
+export function unbindCommits(addressRemoved: boolean, eventWritten: boolean): boolean {
+  return (W.t27_unbind_commits as (...a: number[]) => number)(addressRemoved ? 1 : 0, eventWritten ? 1 : 0) !== 0
 }
 
 /** spec fn may_bind */
