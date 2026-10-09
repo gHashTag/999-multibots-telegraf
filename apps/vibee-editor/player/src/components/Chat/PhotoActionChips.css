@@ -1,0 +1,28 @@
+/* One row that scrolls sideways on a phone; never wraps into a wall. */
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 2px 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.photo-actions::-webkit-scrollbar {
+  display: none;
+}
+.photo-actions__btn {
+  flex: 0 0 auto;
+  min-height: var(--touch-target, 44px);
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent, #19e68c);
+  background: transparent;
+  color: var(--text, #fff);
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.photo-actions__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

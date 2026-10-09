@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: cef9ceb4727308ec95459fe26c6a8842d127ad30af5da4b08b44294c6e061c1b
+// spec-sha256: 46c00ef927f2d1ed06c41e7a8dcb1b45a5831dd46bf59b4112c7895e90daf9f8
 /* eslint-disable */
 
 const WASM =
-  'AGFzbQEAAAABDAJgAX8Bf2ACf38BfwMFBAABAQEEBQFwAQEBBQMBABAGCQF/AUGAgMAACwdmBQZtZW1vcnkCABB0MjdfcHJvbXB0X2RhdGVkAAAVdDI3X2xpbmtfY2xhaW1fYmFja2VkAAEVdDI3X3NlbmRfY2xhaW1fYmFja2VkAAIWdDI3X21lZGlhX2NsYWltX2JhY2tlZAADCiEEBAAgAAsKACAAQQFzIAFyCwcAIAAgAXILBwAgACABcQs='
+  'AGFzbQEAAAABEwNgA39/fwF/YAJ/fwF/YAF/AX8DBwYAAQIBAQEEBQFwAQEBBQMBABAGCQF/AUGAgMAACweNAQcGbWVtb3J5AgAUdDI3X2xhdGVfZmlsZV9wb3N0ZWQAAA10MjdfZmlsZV9vd2VkAAEQdDI3X3Byb21wdF9kYXRlZAACFXQyN19saW5rX2NsYWltX2JhY2tlZAADFXQyN19zZW5kX2NsYWltX2JhY2tlZAAEFnQyN19tZWRpYV9jbGFpbV9iYWNrZWQABQo6Bg0AIAAgAXEgAkEBc3ELCgAgACABQQFzcQsEACAACwoAIABBAXMgAXILBwAgACABcgsHACAAIAFxCw=='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -54,6 +54,31 @@ export function promptDated(surfaceAnswersPeople: boolean): boolean {
   return (
     (W.t27_prompt_dated as (...a: number[]) => number)(
       surfaceAnswersPeople ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn file_owed */
+export function fileOwed(made: boolean, inAnswer: boolean): boolean {
+  return (
+    (W.t27_file_owed as (...a: number[]) => number)(
+      made ? 1 : 0,
+      inAnswer ? 1 : 0
+    ) !== 0
+  )
+}
+
+/** spec fn late_file_posted */
+export function lateFilePosted(
+  ready: boolean,
+  hasThread: boolean,
+  ephemeral: boolean
+): boolean {
+  return (
+    (W.t27_late_file_posted as (...a: number[]) => number)(
+      ready ? 1 : 0,
+      hasThread ? 1 : 0,
+      ephemeral ? 1 : 0
     ) !== 0
   )
 }

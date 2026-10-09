@@ -78,5 +78,75 @@
       "src/spec/agent-claims-honest.test.ts",
       "src/agent/claimed-but-not-done.test.ts"
     ]
+  },
+  {
+    "name": "a made file is never appended",
+    "file": "src/agent/chat.ts",
+    "from": "      logTurnEnd('ok')\n      yield* owedFiles()\n",
+    "to": "      logTurnEnd('ok')\n",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "a file the answer carried is appended again",
+    "file": "src/agent/chat.ts",
+    "from": "madeFiles.filter(u => fileOwed(true, shown.includes(u)))",
+    "to": "madeFiles.filter(u => fileOwed(true, false))",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "a lister's file is appended",
+    "file": "src/agent/chat.ts",
+    "from": "const made = makers.includes(имя) ? madeFileUrl(значение) : null",
+    "to": "const made = madeFileUrl(значение)",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "the step limit drops what was made",
+    "file": "src/agent/chat.ts",
+    "from": "  logTurnEnd('truncated', `step limit ${MAX_STEPS}`)\n  yield* owedFiles()\n",
+    "to": "  logTurnEnd('truncated', `step limit ${MAX_STEPS}`)\n",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "a failed answer counts as made",
+    "file": "src/agent/asset-links.ts",
+    "from": "  if (r.done === false || r['сделано'] === false) return null",
+    "to": "",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "a glued link is not cut at its extension",
+    "file": "src/agent/asset-links.ts",
+    "from": "  return m && isAssetUrl(bare) ? bare.slice(0, m.index + m[0].length) : bare",
+    "to": "  return bare",
+    "tests": ["src/agent/a-made-file-always-arrives.test.ts"]
+  },
+  {
+    "name": "a late picture goes nowhere",
+    "file": "src/agent/late-file.ts",
+    "from": "      await postLateFile(ctx, String(out.url ?? ''))",
+    "to": "      void out",
+    "tests": []
+  },
+  {
+    "name": "a late picture is written without a thread",
+    "file": "src/agent/late-file.ts",
+    "from": "  if (!url || !ctx.thread) return false",
+    "to": "  if (!url) return false",
+    "tests": []
+  },
+  {
+    "name": "a late picture that came is refunded",
+    "file": "src/agent/late-file.ts",
+    "from": "    return\n  }\n  await refund()",
+    "to": "  }\n  await refund()",
+    "tests": []
+  },
+  {
+    "name": "tools.ts no longer hands the verdict over",
+    "file": "src/agent/tools.ts",
+    "from": "            onLateOutcome(ctx, out, async () => {",
+    "to": "            (async (_c: unknown, _o: unknown, f: () => Promise<void>) => f())(ctx, out, async () => {",
+    "tests": []
   }
 ]

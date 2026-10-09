@@ -43,7 +43,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AgentTool, ToolContext } from './tools'
-import { requireOwner, isSeller } from './telegram-tools'
+import { requireOwner, isPlatformOwner, isSeller } from './telegram-tools'
 import { ownsLead } from './crm-reach'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -813,6 +813,9 @@ const PROMPT_PRIORITY = [
   'open_work',
   'incidents',
   'business',
+  // The seller's dossier from crm_client_onboard (crm-client-onboard.t27).
+  'soul',
+  'skills',
 ]
 
 /**
@@ -1029,6 +1032,10 @@ export async function schemaCheck(ctx: ToolContext): Promise<SchemaCheck> {
 export const NO_ID_REASON =
   'Укажите telegram_id клиента: инструмент не выбирает человека сам.'
 
+export const SETUP_IS_THE_OWNERS =
+  'crm_client_setup ставит пакет в аккаунт клиента и доступен только владельцу платформы. ' + // cyrillic-ok: tool result copy
+  'Досье клиента (профиль, SOUL, скиллы) продавец ставит через crm_client_onboard — в разговоре о клиенте без telegram_id.' // cyrillic-ok: tool result copy
+
 export const CRM_CLIENT_TOOLS: AgentTool[] = [
   {
     name: 'crm_client_setup',
@@ -1072,7 +1079,14 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
-      requireOwner(ctx)
+      /*
+       * A seller is not refused with the Telegram reader's text any more
+       * (crm-client-onboard.t27 SETUP_REFUSAL_NAMES_ONBOARD): that text said
+       * "the account belongs to the owner", and the agent told the seller
+       * her CLIENT was the platform owner. The seller's door is named.
+       */
+      if (!isPlatformOwner(String(ctx?.telegramId ?? '')))
+        return { done: false, reason: SETUP_IS_THE_OWNERS }
       if (!ctx) throw new Error('no context')
       const telegramId = String(args.telegram_id ?? '').trim()
       if (!telegramId) return { done: false, reason: NO_ID_REASON }
