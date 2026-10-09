@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "ci-bridge" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 2 satisfies number;
+export const VERSION = 3 satisfies number;
 export const CONTEXT = "railway/checks" satisfies string;
 export const SUITES = "types,render-types,guard,boots" satisfies string;
 export const POLL_S = 120 satisfies number;
@@ -18,7 +18,9 @@ export const FORK_HEADS_RUN = false satisfies boolean;
 export const MARK_NONE = 0 satisfies number;
 export const MARK_STATUS = 1 satisfies number;
 export const MARK_CHECK = 2 satisfies number;
+export const MARK_COMMENT = 3 satisfies number;
 // t27c gen-ts: fn mark_mode was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn comment_is_mark was not emitted -- this backend lowers declarations, not bodies.
 export const STATE_SUCCESS = 0 satisfies number;
 export const STATE_FAILURE = 1 satisfies number;
 export const STATE_ERROR = 2 satisfies number;
@@ -42,10 +44,11 @@ export const RECHECK_TRUSTED = "OWNER,MEMBER,COLLABORATOR" satisfies string;
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CONTEXT", "SUITES", "POLL_S", "STALE_S", "TAIL_LINES", "FORK_HEADS_RUN", "MARK_NONE", "MARK_STATUS", "MARK_CHECK", "STATE_SUCCESS", "STATE_FAILURE", "STATE_ERROR", "GITHUB_JWT_MAX_S", "JWT_BACKDATE_S", "JWT_LIFE_S", "RENEW_MARGIN_S", "STALE_GRACE_S", "RECHECK_WORD", "RECHECK_TRUSTED"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "CONTEXT", "SUITES", "POLL_S", "STALE_S", "TAIL_LINES", "FORK_HEADS_RUN", "MARK_NONE", "MARK_STATUS", "MARK_CHECK", "MARK_COMMENT", "STATE_SUCCESS", "STATE_FAILURE", "STATE_ERROR", "GITHUB_JWT_MAX_S", "JWT_BACKDATE_S", "JWT_LIFE_S", "RENEW_MARGIN_S", "STALE_GRACE_S", "RECHECK_WORD", "RECHECK_TRUSTED"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

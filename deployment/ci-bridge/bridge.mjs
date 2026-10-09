@@ -263,6 +263,7 @@ export async function tokenOf(cfg, deps) {
 const MODES = {
   [SPEC.MARK_STATUS]: 'statuses',
   [SPEC.MARK_CHECK]: 'checks',
+  [SPEC.MARK_COMMENT]: 'comment',
   [SPEC.MARK_NONE]: null,
 }
 export function markMode(perms) {
@@ -270,7 +271,8 @@ export function markMode(perms) {
     LOGIC.markMode(
       Boolean(perms),
       perms?.statuses === 'write',
-      perms?.checks === 'write'
+      perms?.checks === 'write',
+      perms?.issues === 'write' || perms?.pull_requests === 'write'
     )
   ]
 }
@@ -310,8 +312,40 @@ async function ghJson(cfg, deps, path) {
   return res.json()
 }
 
+/*
+ * The comment mark (spec v3): one comment per head, opened pending and
+ * edited to the verdict. Its first line is the marker the bridge reads back;
+ * only a comment the app itself wrote counts (spec comment_is_mark).
+ */
+export const marker = (sha, state) =>
+  `<!-- ${CONTEXT} sha=${sha} state=${state} -->`
+const MARKER = new RegExp(`^<!-- ${CONTEXT} sha=([0-9a-f]+) state=(\\w+) -->`)
+
+export async function commentMark(cfg, deps, pr) {
+  let found = null
+  for (let page = 1; page <= 5; page++) {
+    const batch = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments?per_page=100&page=${page}`
+    )
+    for (const c of batch) {
+      const m = MARKER.exec(String(c.body || ''))
+      const byApp =
+        Boolean(cfg.appId) &&
+        String(c.performed_via_github_app?.id ?? '') === String(cfg.appId)
+      if (LOGIC.commentIsMark(Boolean(m) && m[1] === pr.head.sha, byApp))
+        found = { state: m[2], updated_at: c.updated_at, id: c.id }
+    }
+    if (batch.length < 100) break
+  }
+  return found
+}
+
 /* Our mark on a commit, whichever way it is written. */
-async function readMark(cfg, deps, mode, sha) {
+async function readMark(cfg, deps, mode, pr) {
+  const sha = pr.head.sha
+  if (mode === 'comment') return commentMark(cfg, deps, pr)
   if (mode === 'checks') {
     const r = await ghJson(
       cfg,
@@ -326,7 +360,22 @@ async function readMark(cfg, deps, mode, sha) {
 }
 
 /* Pending first; the verdict later writes onto the same mark. */
-async function startMark(cfg, deps, mode, sha) {
+async function startMark(cfg, deps, mode, sha, pr) {
+  if (mode === 'comment') {
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          body: `${marker(sha, 'pending')}\n⏳ **${CONTEXT}**: running on \`${sha.slice(0, 9)}\` (Railway check-runner)`,
+        }),
+      }
+    )
+    if (!res.ok) throw new Error(`mark comment -> ${await why(res)}`)
+    return (await res.json()).id
+  }
   if (mode !== 'checks') {
     await setStatus(
       cfg,
@@ -350,6 +399,23 @@ async function startMark(cfg, deps, mode, sha) {
 }
 
 async function endMark(cfg, deps, mode, sha, id, v, tail) {
+  if (mode === 'comment') {
+    const body =
+      v.state === 'success'
+        ? `${marker(sha, v.state)}\n✅ **${CONTEXT}: success** on \`${sha.slice(0, 9)}\` -- ${v.description}`
+        : `${marker(sha, v.state)}\n${commentBody(sha, v, tail)}`
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/comments/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ body: redact(body, secretsOf(cfg)) }),
+      }
+    )
+    if (!res.ok) throw new Error(`mark comment end -> ${await why(res)}`)
+    return
+  }
   if (mode !== 'checks')
     return setStatus(cfg, deps, sha, v.state, v.description)
   const title = redact(v.description, secretsOf(cfg)).slice(0, 140)
@@ -485,7 +551,7 @@ async function runChecks(cfg, deps, body) {
 export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const sha = pr.head.sha
   const log = deps.log
-  const id = await startMark(cfg, deps, mode, sha)
+  const id = await startMark(cfg, deps, mode, sha, pr)
   const dir = join(cfg.work, sha)
   let text
   try {
@@ -503,7 +569,8 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const v = verdict(resultOf(text))
   await endMark(cfg, deps, mode, sha, id, v, tailOf(text))
   log(`#${pr.number} ${sha.slice(0, 9)}: ${v.state} ${v.description}`)
-  if (LOGIC.comments(v.code)) {
+  /* the comment mark already carries the tail: no second comment */
+  if (mode !== 'comment' && LOGIC.comments(v.code)) {
     const comment = redact(commentBody(sha, v, tailOf(text)), secretsOf(cfg))
     const res = await gh(
       cfg,
@@ -635,7 +702,7 @@ export async function tick(cfg, deps, fallback = false) {
   const done = []
   for (const pr of prs) {
     if (!runsHere(pr, cfg.repo, cfg.since)) continue
-    const mark = await readMark(cfg, deps, mode, pr.head.sha)
+    const mark = await readMark(cfg, deps, mode, pr)
     if (
       !needsRun(mark, deps.now()) &&
       !(await recheckAsked(cfg, deps, pr, mark))
