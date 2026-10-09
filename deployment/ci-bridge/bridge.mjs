@@ -40,7 +40,15 @@
  *   CHECK_RUNNER_KEY   ${{check-runner.CHECK_RUNNER_KEY}}
  *   CHECK_RUNNER_URL   http://${{check-runner.RAILWAY_PRIVATE_DOMAIN}}:${{check-runner.PORT}}
  *   REPO               gHashTag/999-multibots-telegraf by default
- *   POLL_S, STALE_MIN  120 and 60 by default
+ *   RAILWAY_API_TOKEN  ${{vibee-render.RAILWAY_API_TOKEN}} (project token), optional:
+ *                      with it a bridge left on old code asks Railway to deploy
+ *                      main (Railway skipped five of its auto-deploys on
+ *                      2026-10-09). RAILWAY_GIT_COMMIT_SHA, RAILWAY_SERVICE_ID
+ *                      and RAILWAY_ENVIRONMENT_ID are Railway's own.
+ * Every number and decision -- when a head runs, how the mark is written,
+ * the verdict, the token's renewal -- is spec automation/ci-bridge
+ * (gHashTag/t27), vendored in spec/ with its compiled logic; this file
+ * makes the HTTP calls around it.
  *   SINCE              ISO time; a PR last updated before it is left alone.
  *                      Default: when this process started. 2026-10-09 the
  *                      repository had 34 open PRs, most of them stale: a
@@ -54,9 +62,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
+import * as SPEC from './spec/ci-bridge.gen.ts'
+import * as LOGIC from './spec/ci-bridge.logic.ts'
 
-export const CONTEXT = 'railway/checks'
-export const SUITES = ['types', 'render-types', 'guard', 'boots']
+export const CONTEXT = SPEC.CONTEXT
+export const SUITES = SPEC.SUITES.split(',')
 /* What bin/helpers/remote-check.sh leaves out: no test opens it. */
 export const BALLAST = [
   '*/avatar_brain',
@@ -67,7 +77,7 @@ export const BALLAST = [
   '*.mov',
 ]
 const API = 'https://api.github.com'
-const TAIL_LINES = 80
+const RAILWAY_API = 'https://backboard.railway.com/graphql/v2'
 const TAIL_BYTES = 256 * 1024
 
 export function config(env = process.env) {
@@ -79,10 +89,15 @@ export function config(env = process.env) {
     runnerKey: env.CHECK_RUNNER_KEY || '',
     runnerUrl: (env.CHECK_RUNNER_URL || '').replace(/\/+$/, ''),
     repo: env.REPO || 'gHashTag/999-multibots-telegraf',
-    pollMs: Number(env.POLL_S || 120) * 1000,
-    staleMs: Number(env.STALE_MIN || 60) * 60_000,
+    pollMs: SPEC.POLL_S * 1000,
     work: env.WORK_DIR || '/tmp/ci-bridge',
     since: Date.parse(env.SINCE || '') || Date.now(),
+    ownSha: env.RAILWAY_GIT_COMMIT_SHA || '',
+    railwayToken: env.RAILWAY_API_TOKEN || '',
+    serviceId: env.RAILWAY_SERVICE_ID || '',
+    environmentId: env.RAILWAY_ENVIRONMENT_ID || '',
+    startedAt: Date.now(),
+    healed: false,
   }
 }
 
@@ -99,44 +114,53 @@ export function ourStatus(combined) {
   return (combined?.statuses || []).find(s => s.context === CONTEXT) || null
 }
 
-/* Whether a head commit still needs a run. */
-export function needsRun(status, now, staleMs) {
-  if (!status) return true
-  if (status.state !== 'pending') return false
-  return now - Date.parse(status.updated_at) > staleMs
+const seconds = ms => Math.max(0, Math.floor(ms / 1000))
+
+/* Whether a head commit still needs a run (spec needs_run). */
+export function needsRun(status, now) {
+  return LOGIC.needsRun(
+    Boolean(status),
+    status?.state === 'pending',
+    status ? seconds(now - Date.parse(status.updated_at)) : 0
+  )
 }
 
-/* A PR nobody has touched since the bridge began is not backfilled. */
-export function recent(pr, since) {
-  return Date.parse(pr?.updated_at) >= since
-}
-
-/* Only a head that lives in this repository: a fork's code never runs here. */
-export function ownHead(pr, repo) {
-  return pr?.head?.repo?.full_name?.toLowerCase() === repo.toLowerCase()
+/* Whether a PR's head runs here at all (spec runs_here): our own
+ * repository, touched since the bridge began. */
+export function runsHere(pr, repo, since) {
+  const updated = Date.parse(pr?.updated_at)
+  return LOGIC.runsHere(
+    pr?.head?.repo?.full_name?.toLowerCase() === repo.toLowerCase(),
+    Number.isFinite(updated) ? seconds(updated) : 0,
+    seconds(since)
+  )
 }
 
 /*
  * The runner's verdict as a commit status. The runner's last line is
  * `::result {json}` with each suite's exit code, or {"error": ...}.
  */
+const STATES = {
+  [SPEC.STATE_SUCCESS]: 'success',
+  [SPEC.STATE_FAILURE]: 'failure',
+  [SPEC.STATE_ERROR]: 'error',
+}
 export function verdict(result) {
-  if (!result || typeof result !== 'object')
-    return { state: 'error', description: 'the runner gave no result' }
-  if ('error' in result)
-    return {
-      state: 'error',
-      description: `runner: ${String(result.error)}`.slice(0, 140),
-    }
-  const names = Object.keys(result)
-  if (!names.length)
-    return { state: 'error', description: 'the runner ran nothing' }
+  const has = Boolean(result) && typeof result === 'object'
+  const error = has && 'error' in result
+  const names = has && !error ? Object.keys(result) : []
   const failed = names.filter(k => result[k] !== 0)
-  const description = names
-    .map(k => `${k}:${result[k] === 0 ? 'ok' : `FAIL(${result[k]})`}`)
-    .join(' ')
-    .slice(0, 140)
-  return { state: failed.length ? 'failure' : 'success', description }
+  const code = LOGIC.verdictState(has, error, names.length, failed.length)
+  const description = !has
+    ? 'the runner gave no result'
+    : error
+      ? `runner: ${String(result.error)}`
+      : !names.length
+        ? 'the runner ran nothing'
+        : names
+            .map(k => `${k}:${result[k] === 0 ? 'ok' : `FAIL(${result[k]})`}`)
+            .join(' ')
+  return { state: STATES[code], code, description: description.slice(0, 140) }
 }
 
 /* The last `::result` line of the runner's output, parsed, or null. */
@@ -154,7 +178,7 @@ export function resultOf(text) {
 }
 
 /* The end of the output a person needs to see, heartbeats dropped. */
-export function tailOf(text, n = TAIL_LINES) {
+export function tailOf(text, n = SPEC.TAIL_LINES) {
   return String(text)
     .split('\n')
     .filter(l => l !== ':: still working' && !l.startsWith(':: queued'))
@@ -180,9 +204,9 @@ export function commentBody(sha, v, tail) {
 /* A GitHub App's own JWT (RS256, ten minutes), for minting a token. */
 export function appJwt(appId, key, nowMs) {
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
-  const iat = Math.floor(nowMs / 1000) - 60
+  const iat = Math.floor(nowMs / 1000) - SPEC.JWT_BACKDATE_S
   const head = b64({ alg: 'RS256', typ: 'JWT' })
-  const body = b64({ iat, exp: iat + 540, iss: String(appId) })
+  const body = b64({ iat, exp: iat + SPEC.JWT_LIFE_S, iss: String(appId) })
   const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(key)
   return `${head}.${body}.${sig.toString('base64url')}`
 }
@@ -190,8 +214,9 @@ export function appJwt(appId, key, nowMs) {
 /* The token to call GitHub with: the given one, or a minted installation token. */
 export async function tokenOf(cfg, deps) {
   /* An app, when configured, wins: Railway keeps a variable set to "". */
-  if (cfg.token && !(cfg.appId && cfg.appKey)) return cfg.token
-  if (cfg.minted && cfg.minted.until - deps.now() > 5 * 60_000)
+  if (cfg.token && (cfg.preferToken || !(cfg.appId && cfg.appKey)))
+    return cfg.token
+  if (cfg.minted && !LOGIC.renewDue(seconds(cfg.minted.until - deps.now())))
     return cfg.minted.token
   const jwt = appJwt(cfg.appId, cfg.appKey, deps.now())
   const as = {
@@ -215,6 +240,16 @@ export async function tokenOf(cfg, deps) {
     until: Date.parse(expires_at),
     perms: permissions || {},
   }
+  /* what the installation may do, names only: the first thing to read when
+   * a mark is refused (2026-10-09: statuses and checks were both missing) */
+  deps.log?.(
+    `app token: ${
+      Object.entries(cfg.minted.perms)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join(' ') || 'no permissions'
+    }`
+  )
   return token
 }
 
@@ -225,11 +260,21 @@ export async function tokenOf(cfg, deps) {
  * integration" on commit statuses. A personal token carries no permission
  * map and is taken to write statuses. null: neither can be written.
  */
+const MODES = {
+  [SPEC.MARK_STATUS]: 'statuses',
+  [SPEC.MARK_CHECK]: 'checks',
+  [SPEC.MARK_COMMENT]: 'comment',
+  [SPEC.MARK_NONE]: null,
+}
 export function markMode(perms) {
-  if (!perms) return 'statuses'
-  if (perms.statuses === 'write') return 'statuses'
-  if (perms.checks === 'write') return 'checks'
-  return null
+  return MODES[
+    LOGIC.markMode(
+      Boolean(perms),
+      perms?.statuses === 'write',
+      perms?.checks === 'write',
+      perms?.issues === 'write' || perms?.pull_requests === 'write'
+    )
+  ]
 }
 
 /* A check run read as a status: the shape needsRun() takes. */
@@ -267,8 +312,40 @@ async function ghJson(cfg, deps, path) {
   return res.json()
 }
 
+/*
+ * The comment mark (spec v3): one comment per head, opened pending and
+ * edited to the verdict. Its first line is the marker the bridge reads back;
+ * only a comment the app itself wrote counts (spec comment_is_mark).
+ */
+export const marker = (sha, state) =>
+  `<!-- ${CONTEXT} sha=${sha} state=${state} -->`
+const MARKER = new RegExp(`^<!-- ${CONTEXT} sha=([0-9a-f]+) state=(\\w+) -->`)
+
+export async function commentMark(cfg, deps, pr) {
+  let found = null
+  for (let page = 1; page <= 5; page++) {
+    const batch = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments?per_page=100&page=${page}`
+    )
+    for (const c of batch) {
+      const m = MARKER.exec(String(c.body || ''))
+      const byApp =
+        Boolean(cfg.appId) &&
+        String(c.performed_via_github_app?.id ?? '') === String(cfg.appId)
+      if (LOGIC.commentIsMark(Boolean(m) && m[1] === pr.head.sha, byApp))
+        found = { state: m[2], updated_at: c.updated_at, id: c.id }
+    }
+    if (batch.length < 100) break
+  }
+  return found
+}
+
 /* Our mark on a commit, whichever way it is written. */
-async function readMark(cfg, deps, mode, sha) {
+async function readMark(cfg, deps, mode, pr) {
+  const sha = pr.head.sha
+  if (mode === 'comment') return commentMark(cfg, deps, pr)
   if (mode === 'checks') {
     const r = await ghJson(
       cfg,
@@ -283,7 +360,22 @@ async function readMark(cfg, deps, mode, sha) {
 }
 
 /* Pending first; the verdict later writes onto the same mark. */
-async function startMark(cfg, deps, mode, sha) {
+async function startMark(cfg, deps, mode, sha, pr) {
+  if (mode === 'comment') {
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/${pr.number}/comments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          body: `${marker(sha, 'pending')}\n⏳ **${CONTEXT}**: running on \`${sha.slice(0, 9)}\` (Railway check-runner)`,
+        }),
+      }
+    )
+    if (!res.ok) throw new Error(`mark comment -> ${await why(res)}`)
+    return (await res.json()).id
+  }
   if (mode !== 'checks') {
     await setStatus(
       cfg,
@@ -307,6 +399,23 @@ async function startMark(cfg, deps, mode, sha) {
 }
 
 async function endMark(cfg, deps, mode, sha, id, v, tail) {
+  if (mode === 'comment') {
+    const body =
+      v.state === 'success'
+        ? `${marker(sha, v.state)}\n✅ **${CONTEXT}: success** on \`${sha.slice(0, 9)}\` -- ${v.description}`
+        : `${marker(sha, v.state)}\n${commentBody(sha, v, tail)}`
+    const res = await gh(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/issues/comments/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ body: redact(body, secretsOf(cfg)) }),
+      }
+    )
+    if (!res.ok) throw new Error(`mark comment end -> ${await why(res)}`)
+    return
+  }
   if (mode !== 'checks')
     return setStatus(cfg, deps, sha, v.state, v.description)
   const title = redact(v.description, secretsOf(cfg)).slice(0, 140)
@@ -341,6 +450,7 @@ async function setStatus(cfg, deps, sha, state, description) {
 }
 
 const secretsOf = cfg => [
+  cfg.railwayToken,
   cfg.token,
   cfg.runnerKey,
   cfg.appKey,
@@ -441,7 +551,7 @@ async function runChecks(cfg, deps, body) {
 export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const sha = pr.head.sha
   const log = deps.log
-  const id = await startMark(cfg, deps, mode, sha)
+  const id = await startMark(cfg, deps, mode, sha, pr)
   const dir = join(cfg.work, sha)
   let text
   try {
@@ -459,7 +569,8 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   const v = verdict(resultOf(text))
   await endMark(cfg, deps, mode, sha, id, v, tailOf(text))
   log(`#${pr.number} ${sha.slice(0, 9)}: ${v.state} ${v.description}`)
-  if (v.state !== 'success') {
+  /* the comment mark already carries the tail: no second comment */
+  if (mode !== 'comment' && LOGIC.comments(v.code)) {
     const comment = redact(commentBody(sha, v, tailOf(text)), secretsOf(cfg))
     const res = await gh(
       cfg,
@@ -473,27 +584,160 @@ export async function checkPr(cfg, deps, pr, mode = 'statuses') {
   return v
 }
 
-/* One pass over the open pull requests; runs them one at a time. */
-export async function tick(cfg, deps) {
+/*
+ * Whether a person who may write here asked `/recheck` after a finished
+ * mark (spec recheck_due). The bridge's own comments never ask: they are
+ * not the word alone.
+ */
+export async function recheckAsked(cfg, deps, pr, mark) {
+  const finished = Boolean(mark) && mark.state !== 'pending'
+  if (!finished) return false
+  const at = Date.parse(mark.updated_at)
+  const trusted = SPEC.RECHECK_TRUSTED.split(',')
+  const comments = await ghJson(
+    cfg,
+    deps,
+    `/repos/${cfg.repo}/issues/${pr.number}/comments?since=${encodeURIComponent(mark.updated_at)}&per_page=100`
+  )
+  return comments.some(c =>
+    LOGIC.recheckDue(
+      finished,
+      Date.parse(c.created_at) > at &&
+        String(c.body || '')
+          .trim()
+          .toLowerCase() === SPEC.RECHECK_WORD,
+      trusted.includes(c.author_association)
+    )
+  )
+}
+
+/*
+ * A bridge Railway did not redeploy (spec heal_due): it does not contain
+ * the latest commit touching its own directory. It asks Railway to deploy
+ * main's head, once per process, after the grace. Returns what it did.
+ */
+const DEPLOY = `mutation($s: String!, $e: String!, $c: String) {
+  serviceInstanceDeployV2(serviceId: $s, environmentId: $e, commitSha: $c)
+}`
+export async function heal(cfg, deps) {
+  if (!cfg.ownSha || !cfg.railwayToken || !cfg.serviceId || !cfg.environmentId)
+    return 'off'
+  const [latest] = await ghJson(
+    cfg,
+    deps,
+    `/repos/${cfg.repo}/commits?sha=main&path=deployment/ci-bridge&per_page=1`
+  )
+  let contains = !latest || latest.sha === cfg.ownSha
+  if (!contains) {
+    const cmp = await ghJson(
+      cfg,
+      deps,
+      `/repos/${cfg.repo}/compare/${latest.sha}...${cfg.ownSha}`
+    )
+    contains = cmp.status === 'ahead' || cmp.status === 'identical'
+  }
+  const uptime = seconds(deps.now() - cfg.startedAt)
+  if (!LOGIC.healDue(contains, uptime, cfg.healed))
+    return contains ? 'fresh' : 'stale, waiting'
+  cfg.healed = true
+  const head = await ghJson(cfg, deps, `/repos/${cfg.repo}/commits/main`)
+  for (const auth of [
+    { authorization: `Bearer ${cfg.railwayToken}` },
+    { 'project-access-token': cfg.railwayToken },
+  ]) {
+    const res = await deps.fetch(RAILWAY_API, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'ci-bridge',
+        ...auth,
+      },
+      body: JSON.stringify({
+        query: DEPLOY,
+        variables: { s: cfg.serviceId, e: cfg.environmentId, c: head.sha },
+      }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (res.ok && !body.errors) {
+      deps.log(
+        `stale: running ${cfg.ownSha.slice(0, 9)}, asked Railway to deploy ${head.sha.slice(0, 9)}`
+      )
+      return 'healing'
+    }
+  }
+  deps.log('stale, and Railway refused the deploy: redeploy ci-bridge by hand')
+  return 'refused'
+}
+
+const APP_MAY_NOT_MARK =
+  'the app may write neither commit statuses nor checks: give it ' +
+  '"Commit statuses: write" or "Checks: write"'
+
+/*
+ * One pass over the open pull requests; runs them one at a time. Each pass
+ * starts from the app again: a token fallback lasts one pass, so a
+ * permission the owner grants later is picked up without a restart.
+ */
+export async function tick(cfg, deps, fallback = false) {
+  cfg.preferToken = fallback
   const prs = await ghJson(
     cfg,
     deps,
     `/repos/${cfg.repo}/pulls?state=open&per_page=50`
   )
-  const mode = markMode(cfg.minted?.perms)
-  if (!mode)
-    throw new Error(
-      'the app may write neither commit statuses nor checks: give it ' +
-        '"Commit statuses: write" or "Checks: write"'
-    )
+  const mode = markMode(fallback ? undefined : cfg.minted?.perms)
+  if (!mode && cfg.token && !fallback) {
+    /* the app reads but may not mark: a configured token marks instead */
+    deps.log('the app may not mark; falling back to GITHUB_TOKEN')
+    try {
+      return await tick(cfg, deps, true)
+    } catch (e) {
+      throw new Error(`${APP_MAY_NOT_MARK}; GITHUB_TOKEN: ${e?.message || e}`)
+    } finally {
+      cfg.preferToken = false
+    }
+  }
+  if (!mode) throw new Error(APP_MAY_NOT_MARK)
   const done = []
   for (const pr of prs) {
-    if (!ownHead(pr, cfg.repo) || !recent(pr, cfg.since)) continue
-    const mark = await readMark(cfg, deps, mode, pr.head.sha)
-    if (!needsRun(mark, deps.now(), cfg.staleMs)) continue
+    if (!runsHere(pr, cfg.repo, cfg.since)) continue
+    const mark = await readMark(cfg, deps, mode, pr)
+    if (
+      !needsRun(mark, deps.now()) &&
+      !(await recheckAsked(cfg, deps, pr, mark))
+    )
+      continue
     done.push({ number: pr.number, ...(await checkPr(cfg, deps, pr, mode)) })
   }
   return done
+}
+
+/* What a start lacks, by name; empty when the bridge can run. */
+export function missing(cfg) {
+  const out = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
+  if (!cfg.token && !(cfg.appId && cfg.appKey)) out.push('token or app')
+  return out
+}
+
+/* The service: one pass, a pause, again; a failed pass is one log line. */
+export async function serve(cfg, deps, rounds = Infinity) {
+  deps.log(
+    `watching ${cfg.repo} every ${cfg.pollMs / 1000} s, suites ${SUITES.join(',')}`
+  )
+  for (let i = 0; i < rounds; i++) {
+    try {
+      await heal(cfg, deps)
+    } catch (e) {
+      deps.log(`heal failed: ${e?.message || e}`)
+    }
+    try {
+      await tick(cfg, deps)
+    } catch (e) {
+      deps.log(`tick failed: ${e?.message || e}`)
+    }
+    await deps.sleep(cfg.pollMs)
+  }
 }
 
 async function main() {
@@ -502,27 +746,17 @@ async function main() {
     fetch,
     sh,
     now: Date.now,
+    sleep: ms => new Promise(r => setTimeout(r, ms)),
     log: m => console.log(redact(`[ci-bridge] ${m}`, secretsOf(cfg))),
   }
-  const missing = ['runnerKey', 'runnerUrl'].filter(k => !cfg[k])
-  if (!cfg.token && !(cfg.appId && cfg.appKey)) missing.push('token or app')
-  if (missing.length) {
+  const lacks = missing(cfg)
+  if (lacks.length) {
     deps.log(
-      `not configured: ${missing.join(', ')} -- see the header of bridge.mjs`
+      `not configured: ${lacks.join(', ')} -- see the header of bridge.mjs`
     )
     process.exit(1)
   }
-  deps.log(
-    `watching ${cfg.repo} every ${cfg.pollMs / 1000} s, suites ${SUITES.join(',')}`
-  )
-  for (;;) {
-    try {
-      await tick(cfg, deps)
-    } catch (e) {
-      deps.log(`tick failed: ${e?.message || e}`)
-    }
-    await new Promise(r => setTimeout(r, cfg.pollMs))
-  }
+  await serve(cfg, deps)
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main()

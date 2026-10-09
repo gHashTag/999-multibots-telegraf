@@ -4,11 +4,13 @@ import { useLanguage } from '@/hooks/useLanguage'
 import type { ApiError } from '@/lib/apiFetch'
 import {
   buildTriClaim,
+  buildTriClaimBatch,
   listTriClaims,
   pollGithubLink,
   startGithubLink,
   triClaimErrorKey,
   unlinkGithub,
+  walletMaxMessages,
   type GithubCode,
   type TriClaims,
   type TriEarning,
@@ -25,6 +27,12 @@ import { tonConnect } from '@/lib/tonConnect'
  *
  * Says what it is on its face: testnet only, V1, signer quorum, NOT
  * trustless.
+ *
+ * WITHDRAW ALL (spec automation/tri-claim-batch.t27). One press: the card
+ * picks every earning that is neither revoked nor sent, oldest first, asks
+ * the server for batchMax of them at a time, and sends the messages perTx in
+ * one wallet transaction (the wallet's own limit). A cancelled prompt ends
+ * the run; already-minted earnings count as done.
  */
 
 /** Connects a wallet for one send, without a proof: the payee is already bound. */
@@ -70,6 +78,10 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
   const [code, setCode] = useState<GithubCode | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [sent, setSent] = useState<Set<string>>(() => new Set())
+  const [progress, setProgress] = useState<{
+    done: number
+    total: number
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -166,8 +178,75 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
     [lang, reload, t]
   )
 
+  const withdrawAll = useCallback(async () => {
+    if (!claims) return
+    setError(null)
+    setBusy('all')
+    // Spec selectable: neither revoked nor sent; oldest first.
+    const queue = claims.earnings
+      .filter(e => !e.revokedAt && !sent.has(e.workId))
+      .sort((a, b) => a.acceptedAt.localeCompare(b.acceptedAt))
+      .map(e => e.workId)
+    const total = queue.length
+    let done = 0
+    setProgress({ done, total })
+    let ui: TonConnectUI | null = null
+    try {
+      ui = await tonConnect(lang)
+      await walletConnected(ui)
+      const walletMax = walletMaxMessages(ui.wallet)
+      while (queue.length) {
+        const b = await buildTriClaimBatch(
+          queue.slice(0, claims.batchMax ?? queue.length),
+          walletMax
+        )
+        const touched = new Set([
+          ...b.messages.map(m => m.workId),
+          ...b.refused.map(r => r.workId),
+        ])
+        // Spec continue_after: a batch that built and refused nothing ends it.
+        if (!touched.size) break
+        for (let i = queue.length - 1; i >= 0; i--)
+          if (touched.has(queue[i])) queue.splice(i, 1)
+        const minted = b.refused
+          .filter(r => r.code === 'already_minted')
+          .map(r => r.workId)
+        done += minted.length
+        setSent(s => new Set([...s, ...minted]))
+        for (let i = 0; i < b.messages.length; i += b.perTx) {
+          const chunk = b.messages.slice(i, i + b.perTx)
+          await ui.sendTransaction({
+            validUntil: b.validUntil,
+            network: b.network,
+            messages: chunk.map(({ address, amount, payload }) => ({
+              address,
+              amount,
+              payload,
+            })),
+          })
+          done += chunk.length
+          setSent(s => new Set([...s, ...chunk.map(m => m.workId)]))
+          setProgress({ done, total })
+        }
+      }
+    } catch (err) {
+      const c = (err as ApiError).code
+      // Closing the wallet is the person's answer and ends the run.
+      if (c || !/cancel|reject/i.test(String((err as Error).message)))
+        setError(t(triClaimErrorKey(c)))
+    } finally {
+      if (ui?.connected) await ui.disconnect().catch(() => undefined)
+      setBusy(null)
+      setProgress({ done, total })
+      await reload()
+    }
+  }, [claims, lang, reload, sent, t])
+
   if (!isOwn || claims === undefined) return null
   const tri = claims.triPerSpec ?? 0
+  const pendingCount = claims.earnings.filter(
+    e => !e.revokedAt && !sent.has(e.workId)
+  ).length
   return (
     <section className="profile-topup" data-testid="profile-tri-claim">
       <h3 className="profile-topup__title">{t('tri.claim.title')}</h3>
@@ -220,6 +299,35 @@ export function TriClaimCard({ isOwn }: TriClaimCardProps) {
       )}
       {claims.github && claims.earnings.length === 0 && (
         <p className="profile-topup__note">{t('tri.claim.empty')}</p>
+      )}
+      {claims.github && claims.wallet && pendingCount > 0 && (
+        <div className="profile-topup__others" data-testid="tri-claim-all">
+          <button
+            type="button"
+            className="profile-topup__pack"
+            disabled={busy !== null}
+            onClick={() => void withdrawAll()}
+          >
+            {busy === 'all'
+              ? t('tri.claim.working')
+              : t('tri.claim.all', { n: pendingCount })}
+          </button>
+          <p className="profile-topup__note">
+            {t('tri.claim.all.note', {
+              ton: String(
+                (pendingCount * (claims.mintValueMilliton ?? 0)) / 1000
+              ),
+            })}
+          </p>
+        </div>
+      )}
+      {progress && (
+        <p className="profile-topup__note" role="status">
+          {t('tri.claim.all.progress', {
+            done: progress.done,
+            total: progress.total,
+          })}
+        </p>
       )}
       {claims.earnings.length > 0 && (
         <ul className="profile-bots__list">

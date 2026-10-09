@@ -363,6 +363,16 @@ const PUBLIC_EXACT = new Set([
    * and bounded the same way: a closed list of steps, no person.
    */
   '/api/traffic/welcome',
+  /*
+   * The TRI wallet from a wallet's OWN browser (src/tri-wallet.ts, spec
+   * automation/tri-wallet-chains.t27). On a phone an EVM, Solana or TRON
+   * wallet lives outside Telegram, so the page it opens carries no person.
+   * /message only prints the text to sign (no database). /propose records an
+   * address the wallet signed for against a one-time nonce and binds nothing:
+   * the person confirms it in the mini app, behind the guard.
+   */
+  '/api/tri/wallet/message',
+  '/api/tri/wallet/propose',
 ])
 
 /*

@@ -286,15 +286,25 @@ export function checkSpec({
   // The compiled logic binds the host as surely as the constants do: it IS
   // the spec's body (scripts/t27-logic.mjs).
   const logicImport = `spec/${basename(file, '.t27')}.logic'`
-  const bound = hostFiles.filter(
-    f => f.text.includes(genName) || f.text.includes(logicImport)
+  // A host that runs on Node itself (deployment/ci-bridge, types stripped)
+  // names the module with its extension: spec/<id>.gen.ts'.
+  const withExt = name => name.replace(/'$/, ".ts'")
+  const bound = hostFiles.filter(f =>
+    [genName, logicImport, withExt(genName), withExt(logicImport)].some(n =>
+      f.text.includes(n)
+    )
   )
   if (!bound.length)
     say('host-imports', 'no host file imports the generated module')
   // A file of this vertical: it imports the module or cites the spec.
   const cite = `${pathLine?.[1] ?? basename(file, '.t27')}.t27`
   for (const f of hostFiles) {
-    if (!f.text.includes(genName) && !f.text.includes(cite)) continue
+    if (
+      !f.text.includes(genName) &&
+      !f.text.includes(withExt(genName)) &&
+      !f.text.includes(cite)
+    )
+      continue
     for (const [, name, raw] of f.text.matchAll(
       /^export const (\w+)(?:\s*:\s*[^=]+)?\s*=\s*(.+)$/gm
     )) {
@@ -399,6 +409,8 @@ function namingCode(root) {
         '.t27',
         '-e',
         ".gen'",
+        '-e',
+        ".gen.ts'",
         '--',
         '*.ts',
         '*.tsx',
