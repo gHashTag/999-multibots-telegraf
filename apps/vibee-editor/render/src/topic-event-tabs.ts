@@ -24,6 +24,18 @@ export type EventKey = (typeof SPEC.EVENT_KEYS)[number]
 export const routesToTab = (tabKnown: boolean, namedThread: boolean): boolean =>
   tabKnown && !namedThread
 
+/** spec via_house_bot (v2): a message for the house leaves from the house's bot. */
+export const viaHouseBot = (
+  forHouse: boolean,
+  houseTokenKnown: boolean
+): boolean => forHouse && houseTokenKnown
+
+/** spec tries_service_bot (v2): the service's bot only as the fallback. */
+export const triesServiceBot = (
+  viaHouse: boolean,
+  houseDelivered: boolean
+): boolean => !viaHouse || !houseDelivered
+
 /** The tab kind (bot-topic-tabs TAB_KEYS) an event lands in. */
 export function tabOfEvent(event: EventKey): string {
   return SPEC.EVENT_TABS[SPEC.EVENT_KEYS.indexOf(event)]
