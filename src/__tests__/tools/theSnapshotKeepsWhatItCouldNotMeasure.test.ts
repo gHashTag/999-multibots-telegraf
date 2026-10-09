@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest'
 const {
   unloadableFiles,
   splitUnmeasured,
+  skippedSet,
   nextBaseline,
 } = require('../../../scripts/test-gate.cjs')
 
@@ -119,5 +120,54 @@ describe('the snapshot keeps what it could not measure', () => {
     )
     expect(carried).toEqual([])
     expect(lines).toEqual(['c.test.ts :: the new name'])
+  })
+
+  // A skipIf(!has('ffmpeg')) test on a machine without ffmpeg is a question
+  // unasked, like a file that cannot load. On 2026-10-09 a save in a container
+  // without ffmpeg/pdftotext/bsdtar/deno would have dropped 16 such names.
+  it('reads the skipped names of a run, and only those', () => {
+    const set = skippedSet({
+      testResults: [
+        {
+          name: `${process.cwd()}/a.test.ts`,
+          assertionResults: [
+            { status: 'skipped', fullName: 'needs ffmpeg' },
+            { status: 'pending', fullName: 'needs deno' },
+            { status: 'passed', fullName: 'plain' },
+            { status: 'failed', fullName: 'broken' },
+          ],
+        },
+      ],
+    })
+    expect([...set].sort()).toEqual([
+      'a.test.ts :: needs deno',
+      'a.test.ts :: needs ffmpeg',
+    ])
+  })
+
+  it('carries a skipped name forward instead of dropping it', () => {
+    const { lines, carried } = nextBaseline(
+      ['a.test.ts :: needs ffmpeg', 'a.test.ts :: renamed away'],
+      new Set(['a.test.ts :: the new name']),
+      new Map(),
+      new Set(['a.test.ts :: needs ffmpeg'])
+    )
+    // Only the skipped one: a name of the same file that simply vanished is
+    // still dropped, so a skip in one test cannot shield its neighbours.
+    expect(carried).toEqual(['a.test.ts :: needs ffmpeg'])
+    expect(lines).toEqual([
+      'a.test.ts :: needs ffmpeg',
+      'a.test.ts :: the new name',
+    ])
+  })
+
+  it('routes a skipped name out of the verdict, and nothing else of its file', () => {
+    const { unmeasured, measured } = splitUnmeasured(
+      ['a.test.ts :: needs ffmpeg', 'a.test.ts :: broke'],
+      new Map(),
+      new Set(['a.test.ts :: needs ffmpeg'])
+    )
+    expect(unmeasured).toEqual(['a.test.ts :: needs ffmpeg'])
+    expect(measured).toEqual(['a.test.ts :: broke'])
   })
 })
