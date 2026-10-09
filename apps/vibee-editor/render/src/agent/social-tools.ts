@@ -29,7 +29,8 @@ import { connectStates } from './connect-card'
 import { linkedInCommentary, xPost } from './social-api'
 import { isNotConnected } from './rounds'
 import type { NetworkLogin } from '../browser/logins'
-import { COURSE_URL, hasHashRoute, shareLinkOk } from './course-outreach'
+import { COURSE_URL, hasHashRoute } from './course-outreach'
+import { shareLinkOk } from '../spec/course-outreach.logic'
 
 /** Opens the app on Profile, where MetaConnectCard connects each network. */
 export const CONNECT_LINK = 'https://t.me/t27ai_bot?start=app_profile'

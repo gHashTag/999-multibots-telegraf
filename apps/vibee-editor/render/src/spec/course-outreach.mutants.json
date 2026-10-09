@@ -92,14 +92,20 @@
   {
     "name": "any number passes",
     "file": "src/agent/course-outreach.ts",
-    "from": "    n === SPEC.LAB_LESSONS",
-    "to": "    n > 0"
+    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && numberOk(n)",
+    "to": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && n > 0"
+  },
+  {
+    "name": "a fraction or a huge number reaches the compiled body",
+    "file": "src/agent/course-outreach.ts",
+    "from": "  return Number.isInteger(n) && n >= 0 && n <= 0xffffffff && numberOk(n)",
+    "to": "  return numberOk(n)"
   },
   {
     "name": "six drafts on one card",
     "file": "src/agent/course-outreach.ts",
-    "from": "  return n >= 1 && n <= SPEC.BATCH_MAX",
-    "to": "  return n >= 1 && n <= SPEC.BATCH_MAX + 1"
+    "from": "  return n >= 1 && n <= cardMax(channel)",
+    "to": "  return n >= 1 && n <= cardMax(channel) + 1"
   },
   {
     "name": "social_post shares a #/ route",
@@ -260,8 +266,14 @@
   {
     "name": "a fresh bio is read again",
     "file": "src/agent/crm-bios.ts",
-    "from": "  return neverRead || ageDays >= SPEC.BIO_REFRESH_DAYS",
-    "to": "  return true"
+    "from": "          : 0,\n        !at.has(u.lead)\n      )",
+    "to": "          : 0,\n        true\n      )"
+  },
+  {
+    "name": "a read stamped ahead of the clock reaches the compiled body",
+    "file": "src/agent/crm-bios.ts",
+    "from": "          ? Math.max(0, Math.floor((nowS - at.get(u.lead)!) / DAY_S))",
+    "to": "          ? Math.floor((nowS - at.get(u.lead)!) / DAY_S)"
   },
   {
     "name": "the oldest read come first",

@@ -28,7 +28,10 @@ T27_ZIG_DIR=/home/user/zig016/ziglang \
 - `check-t27-specs.mjs`: `logic-required` (у спеки с `fn` нет `.logic.ts` и
   её нет в долге `mirrored`), `logic-hash` (логика собрана из другой версии
   спеки — в файле `// spec-sha256:`), `mirror` (хост сам пишет функцию с
-  именем `fn` спеки). Долг `mirrored` в `scripts/t27-specs.json` — 38 спек на
+  именем `fn` спеки; кроме названных в `__NOT_LOWERED__` — у `fn` со `str`,
+  `u64` или структурой в сигнатуре тела в WASM нет, копия хоста остаётся, и её
+  держат векторы спеки в тесте; первая такая спека — course-outreach, 4 из 16
+  `fn` из WASM, 09.10). Долг `mirrored` в `scripts/t27-specs.json` — 38 спек на
   09.10, только сокращается (тест держит `<= 38`), новая спека в него не
   попадает.
 - pre-commit `t27-only` (`scripts/t27-only-guard.cjs`): в ДОБАВЛЕННЫХ строках

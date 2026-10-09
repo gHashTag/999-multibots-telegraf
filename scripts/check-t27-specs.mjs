@@ -32,7 +32,8 @@
  *   logic-required a spec with fns runs from <id>.logic.ts (its compiled bodies),
  *                  unless named in "mirrored" (debt that only shrinks)
  *   logic-hash     <id>.logic.ts was compiled from exactly this spec
- *   mirror         no host file retypes a fn whose compiled body exists
+ *   mirror         no host file retypes a fn whose compiled body exists (a fn
+ *                  the logic file names in __NOT_LOWERED__ has none yet)
  *   cited          every spec a code comment cites is bound, or named in the
  *                  manifest (scripts/t27-specs.json) as known debt
  *
@@ -324,9 +325,13 @@ export function checkSpec({
     if (mirrored)
       say('ratchet', 'it runs from its logic now: remove it from "mirrored"')
     const logicName = `spec/${basename(file, '.t27')}.logic'`
+    // A fn the backend could not lower (a str, u64 or struct in its
+    // signature) has no compiled body to import: the logic file names it in
+    // __NOT_LOWERED__, and until it lowers the host's copy is the only one.
+    const notLowered = notLoweredOf(logic)
     for (const f of hostFiles) {
       if (!f.text.includes(genName) && !f.text.includes(logicName)) continue
-      for (const fn of fns) {
+      for (const fn of fns.filter(n => !notLowered.includes(n))) {
         const camel = fn.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
         if (new RegExp(`\\bfunction ${camel}\\s*\\(`).test(f.text))
           say(
@@ -341,6 +346,16 @@ export function checkSpec({
       `${fns.length} fn(s) and no ${basename(file, '.t27')}.logic.ts: the rules run from the spec (node scripts/t27-logic.mjs), never from a hand-written copy`
     )
   return bad
+}
+
+/** The spec fns a logic file says it could not lower (its __NOT_LOWERED__). */
+export function notLoweredOf(logic) {
+  // As generated (JSON, one line) or as prettier leaves it (quoted, wrapped).
+  const m =
+    /^export const __NOT_LOWERED__ = Object\.freeze\(\[([^\]]*)\]\)/m.exec(
+      logic ?? ''
+    )
+  return m ? [...m[1].matchAll(/['"](\w+)['"]/g)].map(n => n[1]) : []
 }
 
 // ---- the repository ---------------------------------------------------------------
