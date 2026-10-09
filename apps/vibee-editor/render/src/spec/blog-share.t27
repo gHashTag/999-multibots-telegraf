@@ -33,6 +33,18 @@
 //       seven more old ones -- a queue of August articles kept the fresh ones out of
 //       X for a week. An offerable article published within FRESH_MS (seven days) now
 //       goes first, the newest such first; then the queue; then the newest remaining.
+// v5 (2026-10-09): releases. Owner, 2026-10-09 (translated): "set it up so that
+//       releases are published on X". Asked how, they chose: at once, but with
+//       their yes. A release of gHashTag/t27 is news the day it lands. Its pipeline
+//       had to finish first: for t27c that means the crate is on the registry, since
+//       the swarm's release job (specs/jobs/release_t27c.t27) makes the GitHub
+//       release before the crate exists. The daily pace exists so that
+//       articles are not pushed on the owner; it does not hold a release back. A
+//       finished, young release of ours is asked about at once and goes before every
+//       article. Only the newest release of each tool is offered: turned on with
+//       three t27c releases inside the window, the desk would otherwise ask about
+//       0.5.2, then 0.5.1, then 0.5.0 -- the old-release complaint of v4 again.
+//       The yes, the receipt and the profile check stay as they are.
 // UI words (the owner reads Russian) stay in the host; the spec holds the rules.
 // Claim status: the desk is live behind BLOG_SHARE_ENABLED=1 on the render service,
 //       and its posts are confirmed: on 2026-10-03 08:36 UTC it found its post of
@@ -46,7 +58,7 @@ module automation::blog_share {
     pub const KIND : str = "automation";
     pub const ID : str = "blog-share";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- The pace -------------------------------------------------------------------
     pub const TICK_MS : u32 = 300000;  // render-server.ts: every five minutes; a
@@ -170,6 +182,33 @@ module automation::blog_share {
         return FIRST_SETTLE_MS + (LOOKS - 1) * LOOK_EVERY_MS;
     }
 
+    // ---- Releases (v5) ----------------------------------------------------------------
+    pub const RELEASE_REPO : str = "gHashTag/t27";
+    pub const RELEASE_FRESH_MS : u32 = 259200000;  // 3 days: an older release is history,
+                                                   // and turning this on must not post
+                                                   // every release ever made
+    pub const RELEASE_SKIPS_PACE : bool = true;    // asked at once, not after ASK_EVERY_MS
+    // A release is offered when:
+    // - its tag is one of ours (`our_tag`, read by the host: t27c-v* or t27b-v*);
+    // - it is neither a draft nor a pre-release;
+    // - its pipeline finished;
+    // - it is young;
+    // - nobody was asked about it;
+    // - and it is the newest published release of its tool (`newest_of_tool`): a
+    //   newer one, finished or not, makes it history.
+    fn release_offerable(our_tag: bool, draft: bool, prerelease: bool, pipeline_done: bool, age_ms: u32, asked_before: bool, newest_of_tool: bool) -> bool {
+        return our_tag && !draft && !prerelease && pipeline_done && age_ms <= RELEASE_FRESH_MS && !asked_before && newest_of_tool;
+    }
+    // The pace holds articles back, not releases: a release is asked about whenever no
+    // other question is open. One open question at a time still holds.
+    fn may_ask_release(question_open: bool) -> bool {
+        return RELEASE_SKIPS_PACE && !question_open;
+    }
+    // A release goes before every article: fresh, queued or newest.
+    fn release_first(releases_offerable: u8) -> bool {
+        return releases_offerable > 0;
+    }
+
     test "an open question is waited on for the approval's lifetime, then let go" {
         assert(still_waiting("pending", 0));
         assert(still_waiting("pending", 86399999));
@@ -269,9 +308,28 @@ module automation::blog_share {
         assert(!network_used(true));
     }
 
+    test "a finished release of ours is asked about at once, and still needs a yes" {
+        assert(release_offerable(true, false, false, true, 0, false, true));
+        assert(release_offerable(true, false, false, true, 259200000, false, true));
+        assert(!release_offerable(true, false, false, true, 259200001, false, true));
+        assert(!release_offerable(false, false, false, true, 0, false, true));
+        assert(!release_offerable(true, true, false, true, 0, false, true));
+        assert(!release_offerable(true, false, true, true, 0, false, true));
+        assert(!release_offerable(true, false, false, false, 0, false, true));
+        assert(!release_offerable(true, false, false, true, 0, true, true));
+        assert(!release_offerable(true, false, false, true, 0, false, false));
+        assert(may_ask_release(false));
+        assert(!may_ask_release(true));
+        assert(release_first(1));
+        assert(!release_first(0));
+        assert(RELEASE_FRESH_MS < ASK_EVERY_MS * 4);
+        assert(ASK_NEEDS_YES);
+        assert(!posts("pending"));
+    }
+
     test "the desk is live, and its posts were seen on the profile" {
         assert(RUN_LIVE);
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 }
 
