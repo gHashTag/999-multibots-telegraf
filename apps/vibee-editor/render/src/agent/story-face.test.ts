@@ -15,7 +15,8 @@ function pool() {
     sql,
     query: async (q: string, p: unknown[] = []) => {
       sql.push(q)
-      if (/DELETE FROM story_faces/.test(q)) kept = ''
+      // v31: a reset clears the reel's photo and keeps the per-scene picks.
+      if (/UPDATE story_faces SET face_url = ''/.test(q)) kept = ''
       if (/SELECT face_url FROM story_faces/.test(q))
         return { rows: kept ? [{ face_url: kept }] : [] }
       if (/INSERT INTO story_faces/.test(q)) kept = String(p[2])

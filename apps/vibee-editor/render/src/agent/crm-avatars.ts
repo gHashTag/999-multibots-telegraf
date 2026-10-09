@@ -35,6 +35,10 @@ export async function ensureAvatarColumns(pool: {
   await pool.query(
     `ALTER TABLE crm_people ADD COLUMN IF NOT EXISTS avatar_checked_at timestamptz`
   )
+  // Every profile photo, newest first (crm-story-reel v31); NULL -- not read yet.
+  await pool.query(
+    `ALTER TABLE crm_people ADD COLUMN IF NOT EXISTS avatar_urls jsonb`
+  )
 }
 
 interface Due {
@@ -175,4 +179,44 @@ export async function facesKnown(
     // it -- 'unknown' is the safe answer in both directions.
     return new Set()
   }
+}
+
+/**
+ * ALL HER PROFILE PHOTOS, ONCE (crm-story-reel v31, AVATARS_MAX).
+ *
+ * The owner's storyboard showed one avatar three times. Telegram keeps the
+ * history of a person's profile photos; this reads it through the seller's
+ * session, puts each photo on our shelf and remembers the list on her CRM
+ * row -- '[]' when there is none, so the next open does not ask again.
+ */
+export async function avatarHistory(
+  ctx: ToolContext,
+  lead: { id: string; username?: string | null },
+  limit: number
+): Promise<string[]> {
+  const pool = ctx.pool as never as {
+    query: (sql: string, p?: unknown[]) => Promise<{ rows: any[] }>
+  }
+  const owner = String(ctx.telegramId)
+  await ensureAvatarColumns(pool)
+  const { profilePhotosViaSession, publishImageBytes } = await import('./tools')
+  const photos = await withClient(ctx, (c: any) =>
+    profilePhotosViaSession(c, lead, limit)
+  ).catch(() => [] as Buffer[])
+  const urls: string[] = []
+  for (const [i, bytes] of photos.entries()) {
+    const url = await publishImageBytes(
+      bytes,
+      'image/jpeg',
+      `crm-avatar-${lead.id}-${Date.now()}-${i}.jpg`
+    ).catch(() => '')
+    if (url) urls.push(url)
+  }
+  await pool.query(
+    `UPDATE crm_people SET avatar_urls = $3::jsonb,
+            avatar_url = COALESCE(avatar_url, $4)
+      WHERE owner_id = $1 AND lead_id = $2`,
+    [owner, String(lead.id), JSON.stringify(urls), urls[0] ?? null]
+  )
+  return urls
 }

@@ -488,8 +488,8 @@
   {
     "name": "scene 1 is drawn, not the photo itself",
     "file": "src/agent/story-reel-tool.ts",
-    "from": "if (sceneIsSource(i) && !stills[i]) stills[i] = source",
-    "to": "if (false && sceneIsSource(i) && !stills[i]) stills[i] = source",
+    "from": "if (sceneIsSource(i) && !stills[i]) stills[i] = srcOf(i)",
+    "to": "if (false && sceneIsSource(i) && !stills[i]) stills[i] = srcOf(i)",
     "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
   },
   {
@@ -1374,6 +1374,76 @@
     "file": "src/agent/story-template.ts",
     "from": "const clips = carryClips(sameLook, sameVoice, voiceKnown)",
     "to": "const clips = carryStills(sameLook)",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "every scene takes the first avatar",
+    "file": "src/agent/story-scene-faces.ts",
+    "from": "  return i % nAvatars",
+    "to": "  return 0",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "the reel's photo beats a scene's pick",
+    "file": "src/agent/story-scene-faces.ts",
+    "from": "  if (picked) return SPEC.SOURCE_PICKED\n  if (reelFaceCustom) return SPEC.SOURCE_REEL_FACE\n",
+    "to": "  if (reelFaceCustom) return SPEC.SOURCE_REEL_FACE\n  if (picked) return SPEC.SOURCE_PICKED\n",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "avatars beat the reel's photo",
+    "file": "src/agent/story-scene-faces.ts",
+    "from": "  if (reelFaceCustom) return SPEC.SOURCE_REEL_FACE\n  if (nAvatars > 0) return SPEC.SOURCE_AVATAR\n",
+    "to": "  if (nAvatars > 0) return SPEC.SOURCE_AVATAR\n  if (reelFaceCustom) return SPEC.SOURCE_REEL_FACE\n",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "an http pick counts",
+    "file": "src/agent/story-scene-faces.ts",
+    "from": "  typeof u === 'string' && /^https:\\/\\/\\S+$/.test(u.trim())",
+    "to": "  typeof u === 'string' && u.trim() !== ''",
+    "tests": ["src/spec/crm-story-reel.test.ts"]
+  },
+  {
+    "name": "scene 1 opens on the source, not its photo",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "        if (sceneIsSource(i) && !stills[i]) stills[i] = srcOf(i)",
+    "to": "        if (sceneIsSource(i) && !stills[i]) stills[i] = source",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a cut scene is cut from the source",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "          stills[i] = await cut(srcOf(i), shotOfScene(i)).catch(e => {",
+    "to": "          stills[i] = await cut(source, shotOfScene(i)).catch(e => {",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "a drawn scene is drawn from the source",
+    "file": "src/agent/story-reel-tool.ts",
+    "from": "                image_url: srcOf(i),",
+    "to": "                image_url: source,",
+    "tests": ["src/agent/a-story-reel-stays-in-the-studio.test.ts"]
+  },
+  {
+    "name": "the job sends one face",
+    "file": "src/agent/story-template.ts",
+    "from": "          image_urls: sceneFacesFor({",
+    "to": "          image_urls_off: sceneFacesFor({",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "the history is read on every open",
+    "file": "src/agent/crm-story-tool.ts",
+    "from": "      if (s && !s.avatarsRead && args.start !== true) {",
+    "to": "      if (s && args.start !== true) {",
+    "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
+  },
+  {
+    "name": "a non-https scene photo is kept",
+    "file": "src/agent/story-template.ts",
+    "from": "  if (list.some(u => u && !/^https:\\/\\/\\S+$/.test(u)))",
+    "to": "  if (false)",
     "tests": ["src/agent/a-story-reel-for-any-client.test.ts"]
   }
 ]

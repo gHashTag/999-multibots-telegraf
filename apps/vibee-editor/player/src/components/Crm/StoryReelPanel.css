@@ -642,3 +642,48 @@
   white-space: normal;
   overflow: visible;
 }
+
+/* A scene tile is a button: a tap opens its photo (crm-story-reel v31). */
+.story-reel__frame-tap {
+  all: unset;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.story-reel__frame-tap:focus-visible {
+  outline: 2px solid var(--accent, #19e68c);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+.story-reel__frame-tap:active img {
+  transform: scale(0.97);
+}
+.story-reel__frame-own {
+  position: absolute;
+  right: 5px;
+  top: 4px;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 3px #000;
+}
+.story-reel__scene-hint {
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+.story-reel__link {
+  min-height: var(--touch-target, 44px);
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--accent, #19e68c);
+  font-size: 13px;
+  cursor: pointer;
+}
