@@ -1291,8 +1291,10 @@ PYEOF
     # shellcheck disable=SC2086
     npx vitest run $OFFICE_TESTS || exit 1
     if [ "${1:-}" = "--mutants" ]; then
-      # shellcheck disable=SC2086
-      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run $OFFICE_TESTS || exit 1
+      # Every mutant names its own tests ("tests"), so the base command is the
+      # spec's binding alone: the whole suite per mutant took ~2.5 min each
+      # (62 mutants, 2.5 h); this takes ~7 s each (2026-10-09).
+      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run src/spec/bot-neuro-office.test.ts || exit 1
     fi
     ;;
 

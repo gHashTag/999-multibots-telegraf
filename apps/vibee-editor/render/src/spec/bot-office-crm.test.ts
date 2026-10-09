@@ -81,6 +81,13 @@ describe('the office turn is taught the marker', () => {
     expect(routes).toContain('office: officeMember(body.member, gate.room)')
     expect(routes).toMatch(/client: roomGetsClientCard\(!!gate\.room\)/)
   })
+
+  it("the section joins the turn's system prompt", () => {
+    const chat = readFileSync(join(__dirname, '..', 'agent', 'chat.ts'), 'utf8')
+    expect(chat).toMatch(
+      /teamSection\(opts, history\) \+\s*officeTaskSection\(opts\)/
+    )
+  })
 })
 
 /**
@@ -125,7 +132,8 @@ function fakePool(opts: {
           t => t.chat_id === String(params?.[0])
         )
         if (/NOT done/.test(sql)) rows = rows.filter(t => !t.done)
-        const open = rows.length
+        // the count of all only when the SQL counts them
+        const open = /count\(\*\) OVER \(\)/.test(sql) ? rows.length : undefined
         return {
           rows: rows
             .sort((a, b) => a.id - b.id)
@@ -201,6 +209,17 @@ describe("the office in the client's card", () => {
     expect(
       officeTasksLine(true, { tasks: five.slice(0, 2), open: 2 })
     ).not.toMatch(/\/todos/)
+  })
+
+  it('more tasks than the bound handed in: the card still shows five', () => {
+    const seven = [1, 2, 3, 4, 5, 6, 7].map(i => ({
+      id: i,
+      text: `t${i}`,
+      owner_name: 'Anna',
+    }))
+    const line = officeTasksLine(true, { tasks: seven, open: 7 })
+    expect(line).toContain('#5 Anna: t5')
+    expect(line).not.toContain('#6 Anna')
   })
 
   it('an unbound client or an empty office adds no line', () => {
