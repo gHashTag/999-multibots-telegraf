@@ -64,7 +64,12 @@ function officeDb(opts: { failInsert?: boolean } = {}) {
         const [id, bot, chat] = p
         return {
           rows: proposals
-            .filter(r => r.id === id && r.bot === bot && r.chat === chat)
+            .filter(
+              r =>
+                r.id === id &&
+                (!/bot_username = \$2/.test(s) || r.bot === bot) &&
+                (!/chat_id = \$3/.test(s) || r.chat === chat)
+            )
             .map(r => ({
               id: r.id,
               text: r.text,
@@ -308,8 +313,10 @@ describe('a press on a proposal', () => {
     expect(db.proposals[0].taken_by).toBe(9)
   })
 
-  it('a second press finds it taken: no second task, the button goes, the room is not told', async () => {
+  it('a second press finds it taken: no second task, no second write, the room is not told', async () => {
     await takeProposal(pressCtx('otp:1', keyboard()))
+    const updates = () => db.sql.filter(q => q.startsWith('UPDATE')).length
+    expect(updates()).toBe(1)
     const again = pressCtx('otp:1', keyboard(), {
       from: { id: 11, first_name: 'Vera' },
     })
@@ -317,6 +324,25 @@ describe('a press on a proposal', () => {
     expect(db.tasks).toHaveLength(1)
     expect(again.replies).toHaveLength(0)
     expect(again.events).toContain('edit')
+    expect(updates()).toBe(1)
+  })
+
+  it('two presses read it untaken at once: the write takes it only once', async () => {
+    await takeProposal(pressCtx('otp:1', keyboard()))
+    // the second press read the row before the first one wrote it
+    const real = db.query.bind(db)
+    db.query = async (q: string, p: any[] = []) => {
+      const r = await real(q, p)
+      return /^SELECT/.test(q.trim())
+        ? { rows: r.rows.map((x: any) => ({ ...x, taken_at: null })) }
+        : r
+    }
+    const late = pressCtx('otp:1', keyboard(), {
+      from: { id: 11, first_name: 'Vera' },
+    })
+    expect(await takeProposal(late)).toBe('gone')
+    expect(db.tasks).toHaveLength(1)
+    expect(db.proposals[0].taken_by).toBe(9)
   })
 
   it('the last button taken leaves no keyboard', async () => {
