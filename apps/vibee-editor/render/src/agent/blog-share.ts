@@ -49,6 +49,8 @@ export interface Article {
   evidence?: string
   /* The feed's pubDate in epoch ms, absent when the feed gives none. */
   published?: number
+  /* A release of ours rather than a blog article (spec v5). */
+  kind?: 'release'
 }
 
 const tag = (xml: string, name: string): string => {
@@ -301,10 +303,8 @@ export function questionFor(
     subreddit === null
       ? 'LinkedIn, X, Threads, Instagram и Facebook' // cyrillic-ok: shown to the owner
       : `LinkedIn, X, Threads, Instagram, Facebook и r/${subreddit}` // cyrillic-ok: shown to the owner
-  return (
-    `Опубликовать статью блога в ${where}: ` + // cyrillic-ok: shown to the owner
-    `«${a.title}» (${a.link})`
-  )
+  const what = a.kind === 'release' ? 'релиз' : 'статью блога' // cyrillic-ok: shown to the owner
+  return `Опубликовать ${what} в ${where}: «${a.title}» (${a.link})` // cyrillic-ok: shown to the owner
 }
 
 /**
@@ -374,6 +374,143 @@ export function nextArticle(
     if (article) return { article, queued: true }
   }
   return offerable[0] ? { article: offerable[0], queued: false } : undefined
+}
+
+/*
+ * RELEASES GO OUT TOO (spec v5). Owner, 2026-10-09: "set it up so that
+ * releases are published on X"; asked how, they chose at once, with their
+ * yes. A release whose pipeline finished is asked about without the daily
+ * pace and before every article, only the newest of each tool, and posted
+ * the way an article is: thread, receipt, profile check.
+ */
+export const RELEASES_URL = `https://api.github.com/repos/${SPEC.RELEASE_REPO}/releases?per_page=10`
+
+/** The fields of GitHub's release object the desk reads. */
+export interface GhRelease {
+  tag_name: string
+  name?: string | null
+  body?: string | null
+  html_url: string
+  draft: boolean
+  prerelease: boolean
+  published_at?: string | null
+  assets?: Array<{ name: string }>
+}
+
+/** Our tags (t27c-v0.5.2, t27b-v0.1.0): the tool and version, or null. Pure. */
+export function releaseOf(
+  tag: string
+): { tool: string; version: string } | null {
+  const m = /^(t27c|t27b)-v(\d+\.\d+\.\d+)$/.exec(tag)
+  return m ? { tool: m[1], version: m[2] } : null
+}
+
+/** A release's row and card slug, in the card route's alphabet. Pure. */
+export function releaseSlug(tag: string): string {
+  return `release-${tag.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+}
+
+/** The title a release slug stands for ("t27c 0.5.2 released"), else null. Pure. */
+export function releaseTitleOfSlug(slug: string): string | null {
+  const m = /^release-(t27c|t27b)-v(\d+)-(\d+)-(\d+)$/.exec(slug)
+  return m ? `${m[1]} ${m[2]}.${m[3]}.${m[4]} released` : null
+}
+
+/**
+ * What a release says about itself: its name's subtitle, else its first prose
+ * paragraph, else how many changes GitHub's generated notes list. Pure.
+ */
+export function releaseSummary(r: GhRelease): string {
+  const sub = /\s(?:—|--)\s+(.+)$/.exec(r.name ?? '')?.[1]
+  if (sub) return sub.trim()
+  const body = r.body ?? ''
+  const prose = body
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .find(p => p && !/^[#*|>-]/.test(p))
+  if (prose) return prose.replace(/\s+/g, ' ')
+  const changes = body.split('\n').filter(l => /^[*-] /.test(l)).length
+  return changes ? `${changes} changes since the previous release.` : ''
+}
+
+/** A release, carried as the desk carries an article. Pure. */
+export function releaseArticle(r: GhRelease): Article {
+  const slug = releaseSlug(r.tag_name)
+  const out: Article = {
+    slug,
+    title: releaseTitleOfSlug(slug) ?? r.tag_name,
+    link: r.html_url,
+    summary: releaseSummary(r),
+    kind: 'release',
+  }
+  const published = Date.parse(r.published_at ?? '')
+  if (Number.isFinite(published)) out.published = published
+  return out
+}
+
+/** The spec's release_offerable. */
+export function releaseOfferable(
+  ourTag: boolean,
+  draft: boolean,
+  prerelease: boolean,
+  pipelineDone: boolean,
+  ageMs: number,
+  askedBefore: boolean,
+  newestOfTool: boolean
+): boolean {
+  return (
+    ourTag &&
+    !draft &&
+    !prerelease &&
+    pipelineDone &&
+    ageMs <= SPEC.RELEASE_FRESH_MS &&
+    !askedBefore &&
+    newestOfTool
+  )
+}
+
+/** The spec's may_ask_release: the pace holds articles back, not releases. */
+export function mayAskRelease(questionOpen: boolean): boolean {
+  return SPEC.RELEASE_SKIPS_PACE && !questionOpen
+}
+
+/** The spec's release_first. */
+export function releaseFirst(releasesOfferable: number): boolean {
+  return releasesOfferable > 0
+}
+
+/**
+ * The release to ask about, from GitHub's list (newest first): the newest
+ * offerable one. `done` is asked only of a release every other rule lets
+ * through; a pipeline that cannot be read is not finished.
+ */
+export async function nextRelease(
+  list: readonly GhRelease[],
+  asked: ReadonlySet<string>,
+  nowMs: number,
+  done: (r: GhRelease) => Promise<boolean>
+): Promise<Article | undefined> {
+  const toolsSeen = new Set<string>()
+  const offerable: Article[] = []
+  for (const r of list) {
+    const ours = releaseOf(r.tag_name)
+    const out = !r.draft && !r.prerelease
+    const newest = !!ours && out && !toolsSeen.has(ours.tool)
+    if (ours && out) toolsSeen.add(ours.tool)
+    const rule = (finished: boolean) =>
+      releaseOfferable(
+        !!ours,
+        r.draft,
+        r.prerelease,
+        finished,
+        nowMs - Date.parse(r.published_at ?? ''),
+        asked.has(releaseSlug(r.tag_name)),
+        newest
+      )
+    if (rule(true) && rule(await done(r).catch(() => false)))
+      offerable.push(releaseArticle(r))
+  }
+  return releaseFirst(offerable.length) ? offerable[0] : undefined
 }
 
 let ready = false
@@ -509,11 +646,20 @@ export interface ShareDeps {
    * Absent: the newest article goes next, as before spec v3.
    */
   queue?: () => Promise<string>
+  /**
+   * Releases of SPEC.RELEASE_REPO, newest first, and whether one's pipeline
+   * finished (spec v5). Absent: articles only, as before v5.
+   */
+  releases?: {
+    list: () => Promise<GhRelease[]>
+    done: (r: GhRelease) => Promise<boolean>
+  }
 }
 
 /**
  * One tick. First the open question, if any: a yes posts, a no or silence
- * closes it. Then, at most once a day, the next article not offered yet --
+ * closes it. Then a finished release of ours, at once (spec v5). Then, at
+ * most once a day, the next article not offered yet --
  * the owner's queue first, else the newest -- becomes a question. Returns
  * what it did, for the log.
  */
@@ -573,6 +719,21 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     return `${row.slug}: ${outcome}`
   }
 
+  /* A finished release goes before every article and skips the pace (v5). */
+  if (d.releases && mayAskRelease(Boolean(open[0]))) {
+    const r = d.releases
+    const { rows: seen } = await d.pool.query(`SELECT slug FROM blog_shares`)
+    const asked = new Set((seen as Array<{ slug: string }>).map(x => x.slug))
+    const release = await r
+      .list()
+      .then(list => nextRelease(list, asked, d.now(), r.done))
+      .catch(() => undefined)
+    if (release) {
+      await askAbout(d, release)
+      return `asked about ${release.slug} (a release)`
+    }
+  }
+
   const { rows: last } = await d.pool.query(
     `SELECT extract(epoch from max(asked_at)) * 1000 AS at FROM blog_shares`
   )
@@ -592,17 +753,22 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
   const pick = nextArticle(articles, known, queue, d.now())
   if (!pick) return 'every article was offered already'
   const next = pick.article
-  const id = await d.ask(questionFor(next))
-  await d.pool.query(
-    `INSERT INTO blog_shares (slug, state, approval_id, detail) VALUES ($1, 'asked', $2, $3::jsonb)
-     ON CONFLICT (slug) DO NOTHING`,
-    [next.slug, id, JSON.stringify(next)]
-  )
+  await askAbout(d, next)
   return pick.queued
     ? `asked about ${next.slug} (the owner's queue)`
     : queueText === null
       ? `asked about ${next.slug} (newest: the queue could not be read)`
       : `asked about ${next.slug}`
+}
+
+/** The question goes to the owner, and its row remembers what it was about. */
+async function askAbout(d: ShareDeps, a: Article): Promise<void> {
+  const id = await d.ask(questionFor(a))
+  await d.pool.query(
+    `INSERT INTO blog_shares (slug, state, approval_id, detail) VALUES ($1, 'asked', $2, $3::jsonb)
+     ON CONFLICT (slug) DO NOTHING`,
+    [a.slug, id, JSON.stringify(a)]
+  )
 }
 
 /**

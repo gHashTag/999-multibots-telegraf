@@ -22,6 +22,9 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
+import * as MEMORY_SPEC from '@/spec/bot-agent-memory.gen'
+import * as TEAM_SPEC from '@/spec/bot-agent-team.gen'
+import { retryPauseMs } from './personTurns'
 import {
   markReportedByAgent,
   markTurnHistory,
@@ -197,22 +200,52 @@ async function readConversation(
     if (thread.room) where.set('room', thread.room)
     if (thread.conversation) where.set('conversation', thread.conversation)
     const scoped = where.size ? `&${where}` : ''
+    /*
+     * ONE MORE READ (spec bot-agent-memory.t27 reads_again). A turn that runs
+     * on no history answers as if the person had never spoken -- the "it
+     * starts over" the owner reported on 2026-10-08 -- so a failed read is
+     * tried once more before the turn goes ahead without its past.
+     */
+    for (let tries = 1; ; tries++) {
+      const past = await readConversationOnce(
+        `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`
+      )
+      if (!readsAgain(tries, past !== null)) {
+        if (past === null)
+          logger.warn('[trinityAgent] history not read; the turn has no past', {
+            telegram_id: telegramId,
+            tries,
+          })
+        return past ?? []
+      }
+    }
+  } catch {
+    return []
+  }
+}
+
+/** spec bot-agent-memory.t27 reads_again: a failed read is tried once more, never more. */
+export const readsAgain = (triesDone: number, ok: boolean): boolean =>
+  !ok && triesDone < MEMORY_SPEC.HISTORY_READ_TRIES
+
+/** One history read; null when it failed (not when the conversation is empty). */
+async function readConversationOnce(
+  url: string
+): Promise<Array<{ role: string; content: string; surface?: string }> | null> {
+  try {
     // Bounded: a hung history read used to hold the sweep's `running` flag
     // forever (CRM audit 2026-09-12, P1 #3).
-    const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}${scoped}`,
-      {
-        headers: { 'X-Api-Key': apiKey() },
-        signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
-      }
-    )
-    if (!о.ok) return []
+    const о = await fetch(url, {
+      headers: { 'X-Api-Key': apiKey() },
+      signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
+    })
+    if (!о.ok) return null
     const д = (await о.json()) as {
       messages?: Array<{ role: string; content: string; surface?: string }>
     }
     return Array.isArray(д.messages) ? д.messages : []
   } catch {
-    return []
+    return null
   }
 }
 
@@ -307,14 +340,19 @@ export function isLimitError(error: string | undefined): boolean {
   return !!error && LIMIT_RE.test(error)
 }
 
-/** Only once, only on a limit, only when the failed attempt paid for nothing. */
+/**
+ * Only on a limit, only when the failed attempt paid for nothing; once for a
+ * customer's business turn, LIMIT_RETRIES times for the person's own turn
+ * (bot-agent-team.t27 v2, `limit`).
+ */
 export function retryAllowed(
   retriesDone: number,
   error: string | undefined,
-  toolsUsed: string[]
+  toolsUsed: string[],
+  limit: number = RETRY_ON_LIMIT
 ): boolean {
   return (
-    retriesDone < RETRY_ON_LIMIT &&
+    retriesDone < limit &&
     isLimitError(error) &&
     !toolsUsed.some(name => SIDE_EFFECT_TOOL.test(name))
   )
@@ -344,7 +382,36 @@ const ROOM_RE = /^-\d{5,20}$/
 /** A catalogue agent id, as agent-marketplace.ts writes them. */
 const AGENT_ID_RE = /^[a-z][a-z0-9-]{1,31}$/
 
-export async function спроситьАгента(
+/**
+ * THE PERSON'S OWN TURN (bot-agent-team.t27 v2): their private chat or the
+ * mini-app, not a customer's business DM, not the unattended sweep and not a
+ * group room. Only these queue one per person and retry with a growing pause;
+ * a customer waiting in a business DM keeps the one short retry above.
+ */
+export function ownTurn(opts: {
+  surface?: string
+  toolsOnly?: boolean
+  room?: string
+}): boolean {
+  return opts.surface !== 'business' && !opts.toolsOnly && !opts.room
+}
+
+/**
+ * Ask the agent. The person's own turns wait for each other (personTurns.ts):
+ * five tabs written in one minute are five answers in a row, not five
+ * requests a shared model refuses at once.
+ */
+export async function спроситьАгента( // cyrillic-ok: pre-existing export
+  telegramId: string,
+  текст: string, // cyrillic-ok: pre-existing parameter
+  opts: Parameters<typeof askAgentNow>[2] = {}
+): ReturnType<typeof askAgentNow> {
+  if (!ownTurn(opts)) return askAgentNow(telegramId, текст, opts) // cyrillic-ok: pre-existing parameter
+  const { inPersonQueue } = await import('./personTurns')
+  return inPersonQueue(telegramId, () => askAgentNow(telegramId, текст, opts)) // cyrillic-ok: pre-existing parameter
+}
+
+async function askAgentNow(
   telegramId: string,
   текст: string,
   /** Where the answer will be shown; the server shapes the prompt by it. */
@@ -386,6 +453,16 @@ export async function спроситьАгента(
      * asker's -- tools, wallet and rights are personal -- but the history is
      * the chat's, which is what a person writing there assumes.
      */
+    /**
+     * The office channel this room turn is in (bot-neuro-office.t27): a
+     * bot-topic-tabs kind; the render gives the turn that member's trade.
+     */
+    member?: string
+    /**
+     * Who asked, by name (bot-neuro-office.t27 v2 names_speaker): with a
+     * room only, the render names the stored line after them.
+     */
+    speaker?: string
     room?: string
     /**
      * One line about the person, from what Telegram openly shows
@@ -419,9 +496,14 @@ export async function спроситьАгента(
      */
     onTool?: (name: string | null) => void
     /**
+     * The answer as written so far, after each text event of the stream
+     * (bot-agent-stream.t27 drafts). Errors thrown here are swallowed.
+     */
+    onText?: (soFar: string) => void
+    /**
      * ONE OF THE PERSON'S CONVERSATIONS (render conversation.ts
-     * CONVERSATION_RE): a topic tab of the private chat keeps its own memory
-     * (navigation/topics/threads.ts agentConversationFor). Ignored when a
+     * CONVERSATION_RE): a fixed tab of the private chat other than the Agent
+     * tab keeps its own memory (navigation/topics/memory.ts). Ignored when a
      * room or an agent names the thread. Absent -> the base conversation.
      */
     conversation?: string
@@ -536,6 +618,8 @@ export async function спроситьАгента(
            * client pattern (positive digits) would have refused it.
            */
           ...(room ? { room } : {}),
+          ...(room && opts.member ? { member: opts.member } : {}),
+          ...(room && opts.speaker ? { speaker: opts.speaker } : {}),
           ...(agent ? { agent } : {}),
           ...(conversation ? { conversation } : {}),
         }),
@@ -594,9 +678,16 @@ export async function спроситьАгента(
         }
         if (ev.тип === 'ход' && ev.id)
           turnId = ev.id // cyrillic-ok: pre-existing event envelope
-        else if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        else if (ev.тип === 'текст' && typeof ev.текст === 'string') {
           части.push(ev.текст)
-        else if (ev.тип === 'провайдер' && ev.id)
+          // The answer so far, for a draft that grows on screen
+          // (bot-agent-stream.t27). A failing listener never fails the turn.
+          try {
+            opts.onText?.(части.join('')) // cyrillic-ok: pre-existing identifier of this parser
+          } catch {
+            /* an indicator only */
+          }
+        } else if (ev.тип === 'провайдер' && ev.id)
           // cyrillic-ok: pre-existing event envelope
           // The last one wins: a provider that failed mid-stream before any
           // text was handed over is replaced by the one that answered.
@@ -714,17 +805,20 @@ export async function спроситьАгента(
         return await attempt()
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
-        if (!retryAllowed(retries, message, toolsUsed)) throw e
+        const own = ownTurn(opts)
+        const limit = own ? TEAM_SPEC.LIMIT_RETRIES : RETRY_ON_LIMIT
+        if (!retryAllowed(retries, message, toolsUsed, limit)) throw e
+        const pauseMs = own ? retryPauseMs(retries) : RETRY_PAUSE_MS
         // Still ERROR-free on purpose: this attempt failed but the customer
         // has not been failed yet. The throw above is what pages when the
         // second attempt loses too.
-        logger.warn('[trinityAgent] provider limit, one short retry', {
+        logger.warn('[trinityAgent] provider limit, retrying', {
           telegram_id: telegramId,
           upstream: `${БАЗА}/api/agent/chat`,
-          pause_ms: RETRY_PAUSE_MS,
+          pause_ms: pauseMs,
           error: message.slice(0, 200),
         })
-        await pause(RETRY_PAUSE_MS)
+        await pause(pauseMs)
         // The shared deadline may have passed while we waited; a second
         // attempt on an aborted signal would only rename the error.
         if (прерыватель.signal.aborted) throw e // cyrillic-ok: pre-existing identifiers of this parser
@@ -773,17 +867,34 @@ export async function спроситьАгента(
 export async function recordTurns(
   telegramId: string,
   turns: Array<{ role: 'user' | 'assistant'; content: string }>,
-  surface: 'bot' | 'business' = 'bot'
+  surface: 'bot' | 'business' = 'bot',
+  /*
+   * WHERE THE TURN WAS ASKED (spec bot-agent-memory.t27). A line written for
+   * a turn in a room or in a tab goes into that room's or tab's conversation;
+   * without this it landed in the person's base conversation, next to a
+   * question it never answered.
+   */
+  where: { room?: string; conversation?: string } = {}
 ): Promise<'recorded' | 'not recorded'> {
   const usable = turns.filter(turn => (turn.content || '').trim())
   if (!apiKey() || !telegramId || !usable.length) return 'not recorded'
+  const room = where.room && ROOM_RE.test(where.room) ? where.room : undefined
+  const conversation =
+    !room && where.conversation && CONVERSATION_ID_RE.test(where.conversation)
+      ? where.conversation
+      : undefined
   try {
     const response = await fetch(
       `${БАЗА}/api/agent/history?telegram_id=${encodeURIComponent(telegramId)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-        body: JSON.stringify({ turns: usable, surface }),
+        body: JSON.stringify({
+          turns: usable,
+          surface,
+          ...(room ? { room } : {}),
+          ...(conversation ? { conversation } : {}),
+        }),
         signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
       }
     )

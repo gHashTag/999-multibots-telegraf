@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { inEventTab } from '@/navigation/topics/eventTabs'
 import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import {
@@ -124,6 +125,9 @@ const managedBotDeps = (manager: Telegraf<MyContext>): RunnerDeps => {
   return { ...base, ...agentHiveDeps(base) }
 }
 import { startBotApiServerMonitor } from '@/services/botApiServerMonitor'
+
+/** A payment's news in the Treasurer's tab of the private chat (bot-event-tabs.t27). */
+const paidInTreasurerTab = inEventTab('payment', handleSuccessfulPayment as any)
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -527,7 +531,8 @@ async function initializeBots() {
      * paymentHandlers/index.ts.
      */
     bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-    bot.on('successful_payment', handleSuccessfulPayment as any)
+    // Payment news lands in the Treasurer's tab (bot-event-tabs.t27).
+    bot.on('successful_payment', paidInTreasurerTab as any)
 
     /*
      * A CLIENT'S OWN AGENT BOT (Telegram Managed Bots, Bot API 9.6).
@@ -658,6 +663,10 @@ async function initializeBots() {
       'business_message',
       'inline_query',
       'managed_bot',
+      // A stop press on a streamed answer (Bot API 10.3, bot-agent-stream.t27).
+      // A server that does not know the name ignores it, as it already does
+      // for 'successful_payment', which is a message field, not an update.
+      'stopped_message_generation',
     ])
 
     if ((botInfo as { can_manage_bots?: boolean }).can_manage_bots)

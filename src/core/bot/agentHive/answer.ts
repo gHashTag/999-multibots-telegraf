@@ -19,14 +19,39 @@ import {
   type ChatAction,
 } from '@/helpers/telegramLongAnswer'
 import type { ManagedBotRow } from '@/core/bot/managedBots/store'
-import { hiveAgent } from './catalogue'
-import { addressed, callsAll, mayAnswer, mentions, type Entity } from './rules'
+import * as SPEC from '@/spec/agent-hive-group.gen'
+import { threadMissing } from '@/navigation/topics/engine'
+import { setHiveTopic } from '@/core/bot/managedBots/store'
+import { HIVE_AGENTS, hiveAgent } from './catalogue'
+import {
+  addressed,
+  callsAll,
+  followsUp,
+  heardWhileMuted,
+  keepsSeenMark,
+  mayAnswer,
+  mayAnswerAfterStop,
+  mentions,
+  recreateTopic,
+  speaksOnAll,
+  type Entity,
+} from './rules'
 import {
   placeOfIncoming,
   noteBotAnswer,
   noteSent,
   sinceLastBotAnswer,
 } from './chain'
+import {
+  briefFor,
+  logLine,
+  noteAnswered,
+  noteRecreateTry,
+  sinceMute,
+  sinceMyAnswer,
+  sinceRecreateTry,
+  sinceStop,
+} from './room'
 
 export const AGENT_COPY = {
   ru: {
@@ -99,6 +124,46 @@ export function rosterLine(chatId: number, selfId: number): string {
     : '[Hive group.]'
 }
 
+/**
+ * The agent's place in the best-fit order for an all-tag message (spec
+ * speaks_on_all): the agent whose topic it is first, then the agents the text
+ * names, then the catalogue order. Every agent bot computes the same order
+ * from the same roster, so exactly one of them is first.
+ */
+export function allRank(
+  chatId: number,
+  thread: number | undefined,
+  text: string,
+  selfId: number
+): number {
+  const lower = text.toLowerCase()
+  const order = (b: ManagedBotRow & { agentId: string }): number[] => {
+    const a = hiveAgent(b.agentId)
+    const named =
+      a !== undefined &&
+      [a.name.en, a.name.ru].some(n => lower.includes(n.toLowerCase()))
+    return [
+      thread !== undefined && b.hiveTopicId === thread ? 0 : 1,
+      named ? 0 : 1,
+      HIVE_AGENTS.findIndex(x => x.id === b.agentId),
+      b.botId,
+    ]
+  }
+  const mates = [...agentBots.values()]
+    .filter(b => b.hiveChatId === chatId)
+    .sort((x, y) => {
+      const a = order(x)
+      const b = order(y)
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]
+      return 0
+    })
+  const at = mates.findIndex(b => b.botId === selfId)
+  return at < 0 ? mates.length : at
+}
+
+/** The seen mark: 👀 while the agent works, taken away if the turn fails. */
+export const SEEN_REACTION = '👀'
+
 export interface AgentTurnDeps {
   ask: (
     identity: string,
@@ -155,6 +220,28 @@ export interface AgentCtx {
       action: ChatAction,
       extra?: Record<string, unknown>
     ) => Promise<unknown>
+    /** setMessageReaction and createForumTopic; absent in older doubles. */
+    callApi?: (method: string, payload: Record<string, unknown>) => Promise<any>
+  }
+}
+
+/** A courtesy: a chat that refuses reactions costs the turn nothing. */
+async function react(
+  ctx: AgentCtx,
+  chatId: number,
+  messageId: number,
+  emoji: string | null
+): Promise<boolean> {
+  if (!ctx.telegram.callApi) return false
+  try {
+    await ctx.telegram.callApi('setMessageReaction', {
+      chat_id: chatId,
+      message_id: messageId,
+      reaction: emoji ? [{ type: 'emoji', emoji }] : [],
+    })
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -184,19 +271,58 @@ export async function answerAsAgent(
   const thread = m.is_topic_message ? m.message_thread_id : undefined
   const where = thread !== undefined ? { message_thread_id: thread } : {}
 
+  const now = deps.now?.() ?? Date.now()
   let depth = 0
   // Whose turn this is: the sender, or for a bot the person who started the chain.
   let origin: number | null = fromBot ? null : m.from.id
   if (isGroup) {
-    const ok = addressed({
-      tagged: mentions(text, m.entities ?? m.caption_entities, me),
-      allTag: inHive && callsAll(text),
-      replyToMe: m.reply_to_message?.from?.id === me.id,
-      ownTopic:
-        inHive && row.hiveTopicId !== undefined && thread === row.hiveTopicId,
-      fromBot,
-    })
+    // Every agent bot sees every hive message; the topic's log keeps one copy
+    // of each for /summary (room.ts dedupes by message id).
+    if (inHive)
+      logLine(
+        chat.id,
+        thread,
+        m.message_id,
+        m.from.username
+          ? `@${m.from.username}`
+          : m.from.first_name || 'someone',
+        text
+      )
+    // Commands belong to the manager (/stop, /mute, /brief, /summary); an
+    // agent never answers "/stop" as if it were a question.
+    if (text.startsWith('/')) return false
+    const tagged = mentions(text, m.entities ?? m.caption_entities, me)
+    const replyToMe = m.reply_to_message?.from?.id === me.id
+    const ownTopic =
+      inHive && row.hiveTopicId !== undefined && thread === row.hiveTopicId
+    const allTag = inHive && callsAll(text)
+    // spec follows_up: the person's next message in this topic goes to the
+    // agent that answered them last, without a tag, for two minutes.
+    const followUp =
+      inHive &&
+      !tagged &&
+      !replyToMe &&
+      followsUp(
+        fromBot,
+        true,
+        true,
+        sinceMyAnswer(chat.id, thread, m.from.id, me.id, now)
+      )
+    const ok =
+      followUp || addressed({ tagged, allTag, replyToMe, ownTopic, fromBot })
     if (!ok) return false
+    // spec speaks_on_all: an all tag alone wakes only the best fit.
+    const onlyAll = allTag && !tagged && !replyToMe && !ownTopic && !followUp
+    if (onlyAll && !speaksOnAll(allRank(chat.id, thread, text, me.id)))
+      return false
+    // spec heard_while_muted: a muted topic hears only its tag.
+    if (
+      inHive &&
+      !heardWhileMuted(tagged, sinceMute(chat.id, thread, me.id, now))
+    )
+      return false
+    // spec may_answer_after_stop: /stop cuts bot-to-bot turns, never a person.
+    if (!mayAnswerAfterStop(fromBot, sinceStop(chat.id, now))) return false
     const place = placeOfIncoming({
       chatId: chat.id,
       messageId: m.message_id,
@@ -208,7 +334,6 @@ export async function answerAsAgent(
     origin = place.origin
     // A bot message nobody can trace to a person runs in nobody's name.
     if (origin === null) return false
-    const now = deps.now?.() ?? Date.now()
     if (!mayAnswer(fromBot, depth, sinceLastBotAnswer(me.id, now))) return false
     if (fromBot) noteBotAnswer(me.id, now)
   } else if (fromBot) return false
@@ -222,20 +347,37 @@ export async function answerAsAgent(
     ? `@${m.from.username ?? m.from.id} (an agent of this hive)`
     : m.from.first_name ||
       (m.from.username ? `@${m.from.username}` : 'a person')
+  // spec brief_source: the topic's standing brief, else the group's.
+  const brief = inHive ? await briefFor(chat.id, thread) : ''
   const said = isGroup
-    ? `${rosterLine(chat.id, me.id)}\n${author} wrote:\n${text}`
+    ? [
+        rosterLine(chat.id, me.id),
+        ...(brief
+          ? [`[Standing brief from the group's admins: ${brief}]`]
+          : []),
+        `${author} wrote:\n${text}`,
+      ].join('\n')
     : text
   // Never the bot owner's name: a bot hop must not turn a guest's request
   // into the owner's (wallet, tools, keeper rights).
   const identity = String(origin)
 
-  // Repeated, and "sending a photo…" while a picture is drawn: sent once it
-  // went dark five seconds into the turn (#3683).
-  const typing = keepTyping({
-    sendChatAction: async action =>
-      ctx.telegram.sendChatAction(chat.id, action, where),
-  })
+  // The seen mark (spec v3): 👀 while the agent works on a group message.
+  const marked = isGroup
+    ? await react(ctx, chat.id, m.message_id, SEEN_REACTION)
+    : false
+
+  // Repeated every TYPING_REFRESH_MS (spec typing_due), and "sending a
+  // photo…" while a picture is drawn (#3683).
+  const typing = keepTyping(
+    {
+      sendChatAction: async action =>
+        ctx.telegram.sendChatAction(chat.id, action, where),
+    },
+    SPEC.TYPING_REFRESH_MS
+  )
   let reply: string
+  let answered = true
   try {
     reply = await deps.ask(identity, said, {
       agent: row.agentId,
@@ -249,13 +391,15 @@ export async function answerAsAgent(
       error: error instanceof Error ? error.message : String(error),
     })
     reply = copy.busy
+    answered = false
   } finally {
     typing()
   }
   const parts = chunks(reply)
+  let place: Record<string, unknown> = where
   for (const [i, part] of parts.entries()) {
-    const sent = await ctx.telegram.sendMessage(chat.id, part, {
-      ...where,
+    const extra = {
+      ...place,
       ...(i === 0 && isGroup
         ? {
             reply_parameters: {
@@ -264,8 +408,73 @@ export async function answerAsAgent(
             },
           }
         : {}),
-    })
+    }
+    let sent: { message_id: number }
+    try {
+      sent = await ctx.telegram.sendMessage(chat.id, part, extra)
+    } catch (error) {
+      // spec recreate_topic: the agent's own topic was deleted under it.
+      const remade =
+        inHive && thread !== undefined && thread === row.hiveTopicId
+          ? await remakeTopic(ctx, row, chat.id, error, now)
+          : undefined
+      if (remade === undefined) throw error
+      place = { message_thread_id: remade }
+      sent = await ctx.telegram.sendMessage(chat.id, part, {
+        ...extra,
+        ...place,
+      })
+    }
     if (isGroup) noteSent(chat.id, sent.message_id, depth + 1, origin)
+    if (inHive)
+      logLine(chat.id, thread, sent.message_id, `@${me.username}`, part)
   }
+  const done = answered && parts.length > 0
+  // spec keeps_seen_mark: a failed turn takes the mark away.
+  if (marked && !keepsSeenMark(done))
+    await react(ctx, chat.id, m.message_id, null)
+  if (done && isGroup && !fromBot)
+    noteAnswered(chat.id, thread, m.from.id, me.id, now)
   return parts.length > 0
+}
+
+/**
+ * The agent's topic was deleted: make it again (agent bots are added with
+ * manage_topics, addToGroupLink), at most once per TOPIC_RECREATE_COOLDOWN_MS.
+ * Returns the new thread, or undefined when this is not that case or the
+ * try is not due.
+ */
+async function remakeTopic(
+  ctx: AgentCtx,
+  row: ManagedBotRow,
+  chatId: number,
+  error: unknown,
+  now: number
+): Promise<number | undefined> {
+  if (!threadMissing(error) || !ctx.telegram.callApi) return undefined
+  if (!recreateTopic(true, false, sinceRecreateTry(row.botId, now)))
+    return undefined
+  noteRecreateTry(row.botId, now)
+  const a = hiveAgent(row.agentId)
+  try {
+    const topic = (await ctx.telegram.callApi('createForumTopic', {
+      chat_id: chatId,
+      name: `${a?.icon ?? '🤖'} ${a?.name.ru ?? row.botName}`.slice(0, 128),
+    })) as { message_thread_id: number }
+    const id = topic.message_thread_id
+    registerAgentBot({ ...row, hiveChatId: chatId, hiveTopicId: id })
+    await setHiveTopic(row.botId, chatId, id).catch(e =>
+      logger.warn('[agent-hive] the remade topic is not stored', {
+        bot: row.botUsername,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+    return id
+  } catch (e) {
+    logger.warn('[agent-hive] a deleted topic could not be remade', {
+      bot: row.botUsername,
+      error: e instanceof Error ? e.message : String(e),
+    })
+    return undefined
+  }
 }
