@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/agent-media-kie.t27 -- the agent's reels and pictures are made on Kie, realistic by default.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/agent/tools.ts (video_generate,
+// image_generate), src/image-chain.ts (the picture chain) and src/agent/billing-shared.ts
+// (what image_generate costs us).
+// Trace: owner 2026-10-09 "why can the reels agent not make reels? what nonsense? solve it,
+// and the cow must be real!". Measured that day: video_generate called Replicate only, and
+// Replicate is off, so every clip failed; Kie video was refused to the agent; the picture
+// chain reached Kie last and priced it out, so a free watermarked draft drew the cow.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled
+// logic in src/spec/.
+// Claim status: render contract. Kie is the one provider (skill kie-only, owner 2026-10-02).
+// v1 (2026-10-09): video on Kie (a default model, any model whose bill is named before the
+// press), the picture chain Kie first with the free leg as the rescue, image_generate priced
+// to cover Kie, and a prompt that names no style asks for real footage.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::agent_media_kie {
+    pub const KIND : str = "automation";
+    pub const ID : str = "agent-media-kie";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- video ----
+
+    // The clip the agent orders when the person names no model: Hailuo 02 pro on Kie, sold
+    // per clip (114 tokens on 2026-10-09), lifelike enough for "a real cow".
+    pub const AGENT_VIDEO_MODEL : str = "kie/hailuo/02-text-to-video-pro";
+
+    // A Kie model is ordered only when its bill is named before the press (the route's
+    // kieVideoSale): a model billed per second whose length the provider picks is refused.
+    fn may_order_video(kie_model: bool, bill_named: bool) -> bool {
+        return kie_model && bill_named;
+    }
+
+    // The two lengths a per-second model is asked for -- the route's own grid.
+    pub const CLIP_SHORT_SECONDS : u32 = 6;
+    pub const CLIP_LONG_SECONDS : u32 = 10;
+    fn clip_seconds(requested: u32) -> u32 {
+        if requested <= CLIP_SHORT_SECONDS { return CLIP_SHORT_SECONDS; }
+        return CLIP_LONG_SECONDS;
+    }
+
+    // ---- realism ----
+
+    // A person who asks for a cow means a cow. Unless they name a style (cartoon, anime,
+    // a painting), the prompt asks for live-action footage; the words are the host's copy.
+    pub const ASKS_REALISM : bool = true;
+    fn adds_realism(style_named: bool) -> bool {
+        return ASKS_REALISM && !style_named;
+    }
+
+    // ---- pictures ----
+
+    // The picture chain: Kie first, the free leg only as the rescue (its pictures carry a
+    // watermark and are drafts). No other vendor is in the default chain.
+    pub const IMAGE_VENDOR_ORDER : [2]str = ["kie", "pollinations"];
+
+    // What one image_generate covers at the provider, in micro-dollars: Kie's nano-banana
+    // at $0.02 a picture (2026-10-09 price list). Below it Kie is priced out and never draws.
+    pub const IMAGE_GENERATE_COST_MICRO_USD : u32 = 20000;
+    fn image_price_covers(leg_cost_micro_usd: u32) -> bool {
+        return leg_cost_micro_usd <= IMAGE_GENERATE_COST_MICRO_USD;
+    }
+
+    // ---- tests ----
+
+    test "the agent orders video on Kie, and only a model whose bill is named first" {
+        assert(may_order_video(true, true));
+        assert(!may_order_video(false, true));
+        assert(!may_order_video(true, false));
+    }
+
+    test "a clip is six or ten seconds" {
+        assert(CLIP_SHORT_SECONDS == 6);
+        assert(CLIP_LONG_SECONDS == 10);
+        assert(clip_seconds(1) == 6);
+        assert(clip_seconds(6) == 6);
+        assert(clip_seconds(7) == 10);
+        assert(clip_seconds(60) == 10);
+    }
+
+    test "a prompt that names no style asks for real footage" {
+        assert(ASKS_REALISM);
+        assert(adds_realism(false));
+        assert(!adds_realism(true));
+    }
+
+    test "image_generate covers Kie, so Kie draws first" {
+        assert(IMAGE_GENERATE_COST_MICRO_USD == 20000);
+        assert(image_price_covers(20000));
+        assert(image_price_covers(0));
+        assert(!image_price_covers(20001));
+        assert(!image_price_covers(150000));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
