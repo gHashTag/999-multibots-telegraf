@@ -2,6 +2,7 @@
 # Regenerate with apps/vibee-editor/render/scripts/sync-t27-spec.mjs; never reformat.
 apps/vibee-editor/render/src/spec/*.gen.ts
 apps/vibee-editor/player/src/spec/*.gen.ts
+deployment/ci-bridge/spec/*.gen.ts
 apps/vibee-editor/packages/vibee-atoms/src/spec/*.gen.ts
 src/spec/*.gen.ts
 

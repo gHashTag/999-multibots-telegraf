@@ -19,11 +19,13 @@ import {
   markMode,
   needsRun,
   runAsStatus,
-  ownHead,
-  recent,
+  runsHere,
   redact,
   resultOf,
   appJwt,
+  config,
+  missing,
+  serve,
   sh,
   tokenOf,
   tailOf,
@@ -123,12 +125,13 @@ function world({ prs, statuses = {}, checkRuns = {}, runnerSays }) {
 
 describe('which pull requests run', () => {
   it('a fork head never runs here', () => {
-    assert.equal(ownHead(pr(1, 'a'), REPO), true)
+    const since = Date.parse('2026-10-09T10:00:00Z')
+    assert.equal(runsHere(pr(1, 'a'), REPO, since), true)
     assert.equal(
-      ownHead(pr(1, 'a', 'stranger/999-multibots-telegraf'), REPO),
+      runsHere(pr(1, 'a', 'stranger/999-multibots-telegraf'), REPO, since),
       false
     )
-    assert.equal(ownHead({ head: { repo: null } }, REPO), false)
+    assert.equal(runsHere({ head: { repo: null } }, REPO, since), false)
   })
 
   it('a commit with our verdict is done; a lost pending runs again only when stale', () => {
@@ -171,9 +174,18 @@ describe('which pull requests run', () => {
 
   it('a PR untouched since the bridge began is not backfilled', () => {
     const since = Date.parse('2026-10-09T10:00:00Z')
-    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T10:00:00Z'), since), true)
-    assert.equal(recent(pr(1, 'a', REPO, '2026-10-09T09:59:59Z'), since), false)
-    assert.equal(recent({}, since), false)
+    assert.equal(
+      runsHere(pr(1, 'a', REPO, '2026-10-09T10:00:00Z'), REPO, since),
+      true
+    )
+    assert.equal(
+      runsHere(pr(1, 'a', REPO, '2026-10-09T09:59:59Z'), REPO, since),
+      false
+    )
+    assert.equal(
+      runsHere({ head: { repo: { full_name: REPO } } }, REPO, since),
+      false
+    )
   })
 })
 
@@ -465,5 +477,112 @@ describe('a check run when statuses are not ours to write', () => {
     }
     await assert.rejects(tick(c, w.deps), /neither commit statuses nor checks/)
     assert.ok(!w.calls.some(c => c.url.startsWith('/run')))
+  })
+})
+
+describe('a token takes over when the app may not mark', () => {
+  it('falls back once to the configured token, which writes statuses', async () => {
+    const w = world({
+      prs: [pr(7, 'aaa111')],
+      runnerSays: '::result {"types":0}\n',
+    })
+    const c = {
+      ...cfg,
+      token: 'fallback-token-value-1', // secret-guard-ok: test fake, not a credential
+      appId: '42',
+      appKey: 'unused: the minted token is fresh',
+      minted: {
+        token: 'inst-token-value-2', // secret-guard-ok: test fake, not a credential
+        until: Date.parse('2026-10-10T00:00:00Z'),
+        perms: { pull_requests: 'read' },
+      },
+    }
+    const [d] = await tick(c, w.deps)
+    assert.equal(d.state, 'success')
+    assert.equal(c.preferToken, true)
+    const marks = w.calls.filter(x => x.url.includes('/statuses/'))
+    assert.equal(marks.length, 2)
+    assert.ok(
+      marks.every(
+        x => x.init.headers.Authorization === 'Bearer fallback-token-value-1'
+      )
+    )
+  })
+})
+
+describe('starting the service', () => {
+  it('reads its variables: a key with escaped newlines, a url without its slash', () => {
+    const c = config({
+      GITHUB_APP_ID: '42',
+      GITHUB_APP_PRIVATE_KEY: 'line1\\nline2',
+      CHECK_RUNNER_KEY: 'k',
+      CHECK_RUNNER_URL: 'https://runner.example//',
+      SINCE: '2026-10-09T17:00:00Z',
+    })
+    assert.equal(c.appKey, 'line1\nline2')
+    assert.equal(c.runnerUrl, 'https://runner.example')
+    assert.equal(c.repo, REPO)
+    assert.equal(c.since, Date.parse('2026-10-09T17:00:00Z'))
+    assert.equal(c.pollMs, 120_000)
+    const before = Date.now()
+    assert.ok(config({}).since >= before, 'no SINCE: the start itself')
+  })
+
+  it('names what a start lacks', () => {
+    assert.deepEqual(missing(config({})), [
+      'runnerKey',
+      'runnerUrl',
+      'token or app',
+    ])
+    assert.deepEqual(
+      missing(
+        config({
+          CHECK_RUNNER_KEY: 'k',
+          CHECK_RUNNER_URL: 'u',
+          GITHUB_TOKEN: 't',
+        })
+      ),
+      []
+    )
+    assert.deepEqual(
+      missing(
+        config({
+          CHECK_RUNNER_KEY: 'k',
+          CHECK_RUNNER_URL: 'u',
+          GITHUB_APP_ID: '1',
+        })
+      ),
+      ['token or app']
+    )
+  })
+
+  it('a failed pass is a log line, and the service goes on', async () => {
+    const logs = []
+    let slept = 0
+    const deps = {
+      fetch: async () => new Response('{}', { status: 500 }),
+      now: Date.now,
+      sleep: async () => {
+        slept++
+      },
+      log: m => logs.push(m),
+    }
+    await serve({ ...cfg }, deps, 2)
+    assert.equal(slept, 2)
+    assert.equal(logs.filter(l => l.startsWith('tick failed')).length, 2)
+    assert.match(logs[0], /^watching /)
+  })
+
+  it('tar that dies early fails the pack, not the service', async () => {
+    const { Readable } = await import('node:stream')
+    const broken = new Readable({
+      read() {
+        this.destroy(new Error('connection reset'))
+      },
+    })
+    await assert.rejects(
+      sh('tar', ['-xzf', '-', '-C', tmpdir()], broken),
+      /connection reset|tar exited/
+    )
   })
 })
