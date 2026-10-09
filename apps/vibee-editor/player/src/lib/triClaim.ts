@@ -17,6 +17,7 @@ import { apiFetch } from '@/lib/apiFetch'
 export const TRI_GITHUB_URL = `${API_BASE}/api/tri/github`
 export const TRI_CLAIMS_URL = `${API_BASE}/api/tri/claims`
 export const TRI_CLAIM_URL = `${API_BASE}/api/tri/claim`
+export const TRI_CLAIM_BATCH_URL = `${API_BASE}/api/tri/claim/batch`
 
 export interface TriEarning {
   workId: string
@@ -37,6 +38,10 @@ export interface TriClaims {
   network: '-3'
   status: string
   triPerSpec?: number
+  /** Earnings one batch request may carry (spec tri-claim-batch BATCH_MAX). */
+  batchMax?: number
+  /** TON each mint message carries, in milliton (spec MINT_VALUE_MILLITON). */
+  mintValueMilliton?: number
   earnings: TriEarning[]
 }
 
@@ -67,6 +72,46 @@ export interface BuiltClaim {
 }
 
 export const listTriClaims = () => apiFetch<TriClaims>(TRI_CLAIMS_URL)
+
+/** What /api/tri/claim/batch returns: many messages, sent perTx at a time. */
+export interface BuiltBatch {
+  network: '-3'
+  status: string
+  validUntil: number
+  /** Messages one wallet transaction may carry, from the wallet's own limit. */
+  perTx: number
+  messages: {
+    workId: string
+    address: string
+    amount: string
+    payload: string
+  }[]
+  refused: { workId: string; code: string }[]
+  left: number
+}
+
+export const buildTriClaimBatch = (workIds: string[], walletMax: number) =>
+  apiFetch<BuiltBatch>(TRI_CLAIM_BATCH_URL, {
+    method: 'POST',
+    body: JSON.stringify({ workIds, walletMax }),
+  })
+
+/** The wallet's own TON Connect limit on messages per transaction, 0 if unsaid. */
+export function walletMaxMessages(wallet: unknown): number {
+  const features = (wallet as { device?: { features?: unknown[] } } | null)
+    ?.device?.features
+  if (!Array.isArray(features)) return 0
+  for (const f of features)
+    if (
+      f &&
+      typeof f === 'object' &&
+      (f as { name?: unknown }).name === 'SendTransaction'
+    ) {
+      const n = (f as { maxMessages?: unknown }).maxMessages
+      return typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : 0
+    }
+  return 0
+}
 
 export const startGithubLink = () =>
   apiFetch<GithubCode>(`${TRI_GITHUB_URL}/start`, {

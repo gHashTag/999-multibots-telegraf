@@ -701,3 +701,161 @@ describe('the TRI claim routes', () => {
     ).toBe(503)
   })
 })
+
+describe('withdraw all: many mint messages in one request (spec tri-claim-batch)', () => {
+  beforeEach(() => {
+    resetTriClaimEnsureForTests()
+    clock = Date.UTC(2026, 9, 2, 12, 0, 0)
+  })
+
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_, i) => i.toString(16).padStart(64, '0'))
+  /** Queen credits every id to gHashTag; the signers sign each id for real. */
+  const many = (
+    minted: Set<string> = new Set(),
+    revoked = new Set<string>()
+  ) => {
+    let minterCalls = 0
+    const o = fakeOutside({
+      queenEarning: async id => ({
+        triPerSpec: 27,
+        earning: {
+          workId: id,
+          repo: 'gHashTag/t27',
+          issue: 1,
+          commit: 'c'.repeat(40),
+          specPaths: ['specs/x.t27'],
+          acceptedAt: '2026-09-30T00:00:00.000Z',
+          revokedAt: revoked.has(id) ? '2026-10-01T00:00:00.000Z' : null,
+        },
+        earner: { github: 'gHashTag' },
+      }),
+      sign: async id => {
+        if (minted.has(id)) {
+          const no = { ok: false as const, code: 'already_minted' }
+          return [no, no, no]
+        }
+        const att = attFor({ workId: Buffer.from(id, 'hex') })
+        return [signed(0, att), signed(1, att), signed(2, att)]
+      },
+    })
+    const minter = o.minter
+    o.minter = async () => {
+      minterCalls += 1
+      return minter()
+    }
+    return { o, minterCalls: () => minterCalls }
+  }
+  const batch = (
+    pool: ReturnType<typeof fakePool>,
+    outside: Outside,
+    body: unknown
+  ) => call(depsFor(pool, '7', outside), 'POST', '/api/tri/claim/batch', body)
+
+  it('builds at most sixteen messages, each with its own quorum, and reads the minter once', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    const { o, minterCalls } = many()
+    const r = await batch(pool, o, { workIds: ids(20), walletMax: 255 })
+    expect(r?.status).toBe(200)
+    expect(r?.body.messages).toHaveLength(16)
+    expect(r?.body.left).toBe(4)
+    expect(r?.body.refused).toEqual([])
+    expect(r?.body.perTx).toBe(255)
+    expect(minterCalls()).toBe(1)
+    for (const [i, m] of r!.body.messages.entries()) {
+      expect(m.workId).toBe(ids(20)[i])
+      expect(m.amount).toBe('100000000')
+      const want = mintBody(
+        attFor({ workId: Buffer.from(m.workId, 'hex') }),
+        new Map([
+          [
+            0,
+            Buffer.from(
+              (
+                signed(
+                  0,
+                  attFor({ workId: Buffer.from(m.workId, 'hex') })
+                ) as any
+              ).signature,
+              'hex'
+            ),
+          ],
+          [
+            1,
+            Buffer.from(
+              (
+                signed(
+                  1,
+                  attFor({ workId: Buffer.from(m.workId, 'hex') })
+                ) as any
+              ).signature,
+              'hex'
+            ),
+          ],
+        ])
+      )
+      expect(Cell.fromBase64(m.payload).hash().equals(want.hash())).toBe(true)
+    }
+    expect(pool.claimEvents.filter(e => e.outcome === 'built')).toHaveLength(16)
+  })
+
+  it('names each refused earning and still builds the rest', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    const all = ids(4)
+    const { o } = many(new Set([all[1]]), new Set([all[2]]))
+    const r = await batch(pool, o, { workIds: all })
+    expect(r?.body.messages.map((m: any) => m.workId)).toEqual([all[0], all[3]])
+    expect(r?.body.refused).toEqual([
+      { workId: all[1], code: 'already_minted' },
+      { workId: all[2], code: 'earning_revoked' },
+    ])
+  })
+
+  it('carries what the wallet allows, four when it says nothing, never above 255', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    const { o } = many()
+    for (const [walletMax, perTx] of [
+      [undefined, 4],
+      [0, 4],
+      [1, 1],
+      [255, 255],
+      [1000, 255],
+      [-3, 4],
+      [2.5, 4],
+    ] as const)
+      expect(
+        (await batch(pool, o, { workIds: ids(1), walletMax }))?.body.perTx
+      ).toBe(perTx)
+  })
+
+  it('refuses a batch with no valid id, before GitHub, or without a wallet', async () => {
+    const pool = fakePool()
+    const { o } = many()
+    expect((await batch(pool, o, { workIds: ['nope'] }))?.body).toEqual({
+      error: 'work_id_malformed',
+    })
+    expect((await batch(pool, o, { workIds: ids(2) }))?.body).toEqual({
+      error: 'github_unlinked',
+    })
+    await linked(pool)
+    pool.wallets.length = 0
+    expect((await batch(pool, o, { workIds: ids(2) }))?.body).toEqual({
+      error: 'wallet_unbound',
+    })
+    expect(
+      (
+        await call(
+          depsFor(fakePool(), '7', null),
+          'POST',
+          '/api/tri/claim/batch',
+          {
+            workIds: ids(1),
+          }
+        )
+      )?.status
+    ).toBe(503)
+  })
+})

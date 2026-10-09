@@ -1075,6 +1075,10 @@ const en: Translations = {
   'tri.claim.github.as': 'GitHub: @{login}',
   'tri.claim.github.unlink': 'Unlink',
   'tri.claim.needWallet': 'Bind a TON testnet wallet above to withdraw.',
+  'tri.claim.all': 'Withdraw all ({n})',
+  'tri.claim.all.note':
+    'Each spec carries 0.1 testnet TON to the minter, about {ton} TON in all; the minter returns what the mint does not use. Your wallet asks once per batch.',
+  'tri.claim.all.progress': 'Sent {done} of {total}',
   'tri.claim.empty': 'No accepted specs are credited to this account yet.',
   'tri.claim.withdraw': 'Withdraw',
   'tri.claim.working': 'Waiting for the wallet…',
@@ -4176,6 +4180,10 @@ const ru: Translations = {
   'tri.claim.github.unlink': 'Отвязать',
   'tri.claim.needWallet':
     'Чтобы вывести, привяжите выше TON-кошелёк тестовой сети.',
+  'tri.claim.all': 'Вывести всё ({n})',
+  'tri.claim.all.note':
+    'Каждая спека несёт минтеру 0,1 TON тестовой сети, всего около {ton} TON; лишнее минтер возвращает. Кошелёк спросит один раз на пачку.',
+  'tri.claim.all.progress': 'Отправлено {done} из {total}',
   'tri.claim.empty': 'На этот аккаунт пока не засчитано ни одной спеки.',
   'tri.claim.withdraw': 'Вывести',
   'tri.claim.working': 'Ждём кошелёк…',
