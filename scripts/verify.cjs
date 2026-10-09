@@ -33,7 +33,11 @@ const STEPS = [
   ['check:player-types', 'bun', ['run', 'check:player-types']],
   ['check:t27-specs', 'node', ['scripts/check-t27-specs.mjs']],
   ['security:scan', 'bun', ['run', 'security:scan']],
-  ['audit', 'bun', ['audit', '--audit-level=critical']],
+  // npm, not bun: the image installs with `npm install` from package-lock.json
+  // (Dockerfile). `bun audit` read bun.lock, untouched since 2026-10-02, and
+  // failed for tinypool -- pulled by the vitest 3 that lock still named, while
+  // the tree runs vitest 5 and has no tinypool at all (2026-10-09).
+  ['audit', 'npm', ['audit', '--audit-level=critical']],
   ['test:bun', 'bun', ['run', 'test:bun']],
   ['test:player', 'bun', ['run', 'test:player']],
   ['test:vitest', 'bun', ['run', 'test:vitest']],
@@ -61,7 +65,7 @@ const STEPS = [
 // reproduces on the re-run and the exit code below still fails. Judged by exit
 // code, like every other step — never by grepping output.
 //
-// `audit` is flaky for a different reason: `bun audit` queries the registry over
+// `audit` is flaky for a different reason: `npm audit` queries the registry over
 // the network, and a slow or unreachable registry makes it hang (~30s) and exit
 // non-zero — observed once mid-session, then passing in 0.4s with 0 critical on
 // the immediate re-run. Same treatment: retry once. A real critical advisory is
