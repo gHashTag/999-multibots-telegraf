@@ -1,0 +1,339 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/tri-wallet-chains.t27 -- the TRI payout wallet on every chain a person holds: TON, EVM, Solana and TRON, each bound only by the wallet's own signature.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/tri-wallet.ts (the routes, the
+// TON proof, the tables) and src/tri-wallet-chains.ts (the EVM, Solana and TRON signatures), read by
+// the mini app's player/src/components/Profile/TriWalletCard.tsx and the wallet-browser page
+// player/src/pages/TriBind.tsx.
+// Trace: owner 2026-10-09 "make it cross-chain, so that all the networks are ours and on t27",
+// then "do the blockchain on all networks, so that it is possible".
+// Measured that day: tri_wallets refused every chain but TON (CHECK chain IN ('ton')), the card
+// offered TON Connect only, and the mint oracle already numbered chains (trinity-fpga
+// src/trinet/mint_authority.zig: ton = 1, solana = 2).
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/; the rules run from
+// tri-wallet-chains.logic.ts (scripts/t27-logic.mjs).
+// Claim status: binding only. Nothing here mints, sends or swaps a coin. TRI exists on TON
+// testnet only; a payout on another chain waits for the bridge (trinity-fpga
+// specs/trinet/mint_on_acceptance.t27, open question CROSS_CHAIN_DOUBLE_MINT), so a bound EVM
+// Solana or TRON address is where TRI goes once the bridge is live, and the card says so.
+// Not here: smart-contract wallets (EIP-1271 needs a call to each chain); Bitcoin, which has no
+// token contract TRI could be paid to.
+// v1 (2026-10-09): four chains, one message, the key never from the request, the 15 min
+// window and the 60 s skew moved here from the host, the wallet-browser road proposes and the
+// person confirms, payouts on TON only until the bridge.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::tri_wallet_chains {
+    pub const KIND : str = "automation";
+    pub const ID : str = "tri-wallet-chains";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- the chains ----
+
+    // The numbers are the mint oracle's (mint_authority.zig Chain: ton 1, solana 2), extended
+    // here with evm 3 and tron 4: one chain id means one chain everywhere -- in the oracle's
+    // signed digest, in a claim, and here. The oracle takes 3 and 4 with the bridge.
+    pub const CHAIN_TON : u8 = 1;
+    pub const CHAIN_SOLANA : u8 = 2;
+    pub const CHAIN_EVM : u8 = 3;
+    pub const CHAIN_TRON : u8 = 4;
+    pub const CHAINS_BOUND : u8 = 4;
+
+    // The names the API and the table carry.
+    pub const CHAIN_TON_NAME : str = "ton";
+    pub const CHAIN_SOLANA_NAME : str = "solana";
+    pub const CHAIN_EVM_NAME : str = "evm";
+    pub const CHAIN_TRON_NAME : str = "tron";
+
+    fn chain_known(chain: u8) -> bool {
+        return chain == CHAIN_TON || chain == CHAIN_SOLANA || chain == CHAIN_EVM
+            || chain == CHAIN_TRON;
+    }
+
+    // ---- the networks ----
+
+    // A TON address is a contract on one network: mainnet and testnet are two bindings (TON
+    // Connect ids). An EVM key owns the same address on Ethereum, Base, BNB Chain, Polygon,
+    // Arbitrum and every other EVM chain; a Solana key owns the same address on every cluster,
+    // and a TRON key on mainnet, Shasta and Nile, so each of those is one binding, named by its
+    // CAIP-2 namespace.
+    pub const TON_MAINNET : str = "-239";
+    pub const TON_TESTNET : str = "-3";
+    pub const EVM_NETWORK : str = "eip155";
+    pub const SOLANA_NETWORK : str = "solana";
+    pub const TRON_NETWORK : str = "tron";
+    pub const EVM_ONE_ADDRESS_ALL_CHAINS : bool = true;
+
+    fn networks_of(chain: u8) -> u8 {
+        if chain == CHAIN_TON { return 2; }
+        if chain == CHAIN_EVM || chain == CHAIN_SOLANA || chain == CHAIN_TRON { return 1; }
+        return 0;
+    }
+
+    // ---- the proof ----
+
+    // A bound address is where TRI is paid, so whoever can bind can redirect it. The key a
+    // signature must verify under is never taken from the request: TON reads it from the
+    // wallet's own state init, which must hash to the address; EVM and TRON recover it from the
+    // signature and the address must be its hash; a Solana address IS the key.
+    pub const KEY_FROM_REQUEST : bool = false;
+    pub const KEY_NONE : u8 = 0;
+    pub const KEY_STATE_INIT : u8 = 1;
+    pub const KEY_RECOVERED : u8 = 2;
+    pub const KEY_IS_ADDRESS : u8 = 3;
+    // EIP-1271 wallets prove nothing without a call to their chain; v1 refuses them.
+    pub const EVM_CONTRACT_WALLETS : bool = false;
+
+    // Where the key a chain's signature is checked under comes from. The host checks a
+    // signature by this answer and has no road that reads a key out of the request.
+    fn key_source(chain: u8) -> u8 {
+        if chain == CHAIN_TON { return KEY_STATE_INIT; }
+        if chain == CHAIN_EVM || chain == CHAIN_TRON { return KEY_RECOVERED; }
+        if chain == CHAIN_SOLANA { return KEY_IS_ADDRESS; }
+        return KEY_NONE;
+    }
+
+    // Bytes in an address's key part and in a signature, per chain. A TRON address is 0x41,
+    // the same 20-byte key hash as EVM, and a 4-byte checksum, in base58.
+    fn address_bytes(chain: u8) -> u8 {
+        if chain == CHAIN_EVM || chain == CHAIN_TRON { return 20; }
+        if chain == CHAIN_TON || chain == CHAIN_SOLANA { return 32; }
+        return 0;
+    }
+
+    fn signature_bytes(chain: u8) -> u8 {
+        if chain == CHAIN_EVM || chain == CHAIN_TRON { return 65; }
+        if chain == CHAIN_TON || chain == CHAIN_SOLANA { return 64; }
+        return 0;
+    }
+
+    // An EVM or TRON message signature ends in v: 27 or 28 from most wallets, 0 or 1 from some.
+    // Anything else (an EIP-155 v belongs to a transaction, not a message) has no recovery
+    // id: -1.
+    fn recovery_id(v: u8) -> i32 {
+        if v == 27 || v == 0 { return 0; }
+        if v == 28 || v == 1 { return 1; }
+        return 0 - 1;
+    }
+
+    // ---- the message a wallet shows ----
+
+    // EVM, Solana and TRON wallets sign text a person reads; TON signs ton_proof's own bytes. The
+    // host builds the text line by line from these strings and nothing else:
+    //   "<domain> " MESSAGE_INTENT, blank line, MESSAGE_NO_SPEND, blank line,
+    //   LABEL_CHAIN <chain name>, LABEL_ADDRESS <address>, LABEL_NONCE <nonce>,
+    //   LABEL_ISSUED <ISO 8601 UTC>.
+    // The nonce is the one-time challenge the person was issued; the server rebuilds the text
+    // from the posted fields and the signature must verify over exactly that.
+    pub const MESSAGE_INTENT : str = "wants you to bind this address as your TRI payout wallet.";
+    pub const MESSAGE_NO_SPEND : str = "Signing moves no coins and grants no spending rights.";
+    pub const LABEL_CHAIN : str = "Chain: ";
+    pub const LABEL_ADDRESS : str = "Address: ";
+    pub const LABEL_NONCE : str = "Nonce: ";
+    pub const LABEL_ISSUED : str = "Issued At: ";
+    pub const MESSAGE_LINES : u8 = 8;
+
+    // The nonce is 32 random bytes as lowercase hex: anything else was not issued here.
+    pub const NONCE_HEX_CHARS : u32 = 64;
+    fn nonce_length_ok(chars: u32) -> bool {
+        return chars == NONCE_HEX_CHARS;
+    }
+
+    // ---- the window ----
+
+    // A nonce lives 15 minutes; a signed proof is as old as its timestamp says. A wallet clock
+    // up to a minute ahead of ours is not "from the future". Ages are in milliseconds; an age
+    // beyond i32 is stale (or from the future) either way, and the host clamps it.
+    pub const PROOF_TTL_MS : i32 = 900000;
+    pub const CLOCK_SKEW_MS : i32 = 60000;
+
+    fn proof_expired(age_ms: i32) -> bool {
+        return age_ms > PROOF_TTL_MS;
+    }
+
+    fn proof_from_future(age_ms: i32) -> bool {
+        return age_ms < 0 - CLOCK_SKEW_MS;
+    }
+
+    // Unspent nonces one person may hold at once.
+    pub const MAX_OPEN_CHALLENGES : u32 = 5;
+    fn may_issue(open: u32) -> bool {
+        return open < MAX_OPEN_CHALLENGES;
+    }
+
+    // ---- who binds ----
+
+    // Only the person's own credential binds: a mini-app signature or the app session. Not an
+    // agent key, not the server key, not a game token (the host's personIdentity).
+    pub const BIND_NEEDS_PERSON : bool = true;
+    // One address belongs to one person; a second person gets wallet_bound_elsewhere.
+    pub const ONE_PERSON_PER_ADDRESS : bool = true;
+
+    fn may_bind(person: bool, held_by_other: bool) -> bool {
+        return (person || !BIND_NEEDS_PERSON) && (!held_by_other || !ONE_PERSON_PER_ADDRESS);
+    }
+
+    // ---- the wallet's own browser ----
+
+    // On a phone, Telegram has no EVM, Solana or TRON wallet inside it. The mini app issues a nonce
+    // and opens the wallet's own browser at HANDOFF_PATH with the nonce in the fragment, which
+    // no server log records. That page has no credential: it may only PROPOSE the address it
+    // signed for. Binding takes the person's confirmation in the mini app, where they see the
+    // address -- a nonce that leaked can put a proposal in front of the person, never a binding.
+    pub const HANDOFF_PATH : str = "/tri/bind";
+    pub const NONCE_IN_FRAGMENT : bool = true;
+    pub const PROPOSAL_NEEDS_CONFIRM : bool = true;
+
+    // The first valid signature on an open nonce is its proposal; a second one is refused, and
+    // the person starts over with a new nonce if it was not theirs.
+    fn may_propose(nonce_open: bool, signature_ok: bool, proposed_before: bool) -> bool {
+        return nonce_open && signature_ok && !proposed_before;
+    }
+
+    fn may_confirm(nonce_is_persons: bool, nonce_open: bool, proposed: bool) -> bool {
+        return nonce_is_persons && nonce_open && proposed;
+    }
+
+    fn proposal_binds(confirmed: bool) -> bool {
+        return confirmed || !PROPOSAL_NEEDS_CONFIRM;
+    }
+
+    // ---- where TRI is paid ----
+
+    // One minter until the bridge exists (mint_on_acceptance.t27 CROSS_CHAIN_DOUBLE_MINT): two
+    // independent minters could together mint twice the cap. So a binding on another chain is
+    // recorded and shown, and TRI is paid there only once the bridge is live.
+    pub const PAYOUT_CHAIN : u8 = 1;
+    pub const BRIDGE_LIVE : bool = false;
+
+    fn paid_on(chain: u8) -> bool {
+        return chain == PAYOUT_CHAIN || (BRIDGE_LIVE && chain_known(chain));
+    }
+
+    // ---- tests ----
+
+    test "four chains, numbered as the mint oracle numbers them" {
+        assert(CHAIN_TON == 1);
+        assert(CHAIN_SOLANA == 2);
+        assert(CHAIN_EVM == 3);
+        assert(CHAIN_TRON == 4);
+        assert(CHAINS_BOUND == 4);
+        assert(chain_known(1));
+        assert(chain_known(2));
+        assert(chain_known(3));
+        assert(chain_known(4));
+        assert(!chain_known(0));
+        assert(!chain_known(5));
+    }
+
+    test "TON binds per network, EVM, Solana and TRON once for every network" {
+        assert(EVM_ONE_ADDRESS_ALL_CHAINS);
+        assert(networks_of(CHAIN_TON) == 2);
+        assert(networks_of(CHAIN_EVM) == 1);
+        assert(networks_of(CHAIN_SOLANA) == 1);
+        assert(networks_of(CHAIN_TRON) == 1);
+        assert(networks_of(9) == 0);
+    }
+
+    test "the key is never taken from the request" {
+        assert(!KEY_FROM_REQUEST);
+        assert(!EVM_CONTRACT_WALLETS);
+        assert(key_source(CHAIN_TON) == KEY_STATE_INIT);
+        assert(key_source(CHAIN_EVM) == KEY_RECOVERED);
+        assert(key_source(CHAIN_SOLANA) == KEY_IS_ADDRESS);
+        assert(key_source(CHAIN_TRON) == KEY_RECOVERED);
+        assert(key_source(0) == KEY_NONE);
+        assert(key_source(5) == KEY_NONE);
+    }
+
+    test "addresses and signatures have each chain's length" {
+        assert(address_bytes(CHAIN_EVM) == 20);
+        assert(address_bytes(CHAIN_SOLANA) == 32);
+        assert(address_bytes(CHAIN_TON) == 32);
+        assert(address_bytes(CHAIN_TRON) == 20);
+        assert(address_bytes(0) == 0);
+        assert(signature_bytes(CHAIN_EVM) == 65);
+        assert(signature_bytes(CHAIN_SOLANA) == 64);
+        assert(signature_bytes(CHAIN_TON) == 64);
+        assert(signature_bytes(CHAIN_TRON) == 65);
+        assert(signature_bytes(7) == 0);
+    }
+
+    test "an EVM or TRON message signature recovers with v 27, 28, 0 or 1 and nothing else" {
+        assert(recovery_id(27) == 0);
+        assert(recovery_id(28) == 1);
+        assert(recovery_id(0) == 0);
+        assert(recovery_id(1) == 1);
+        assert(recovery_id(29) == 0 - 1);
+        assert(recovery_id(37) == 0 - 1);
+        assert(recovery_id(2) == 0 - 1);
+    }
+
+    test "the message has eight lines and names a 64-hex nonce" {
+        assert(MESSAGE_LINES == 8);
+        assert(NONCE_HEX_CHARS == 64);
+        assert(nonce_length_ok(64));
+        assert(!nonce_length_ok(63));
+        assert(!nonce_length_ok(65));
+        assert(!nonce_length_ok(0));
+    }
+
+    test "a proof is fresh for 15 minutes and a minute ahead" {
+        assert(PROOF_TTL_MS == 900000);
+        assert(CLOCK_SKEW_MS == 60000);
+        assert(!proof_expired(0));
+        assert(!proof_expired(900000));
+        assert(proof_expired(900001));
+        assert(!proof_from_future(0 - 60000));
+        assert(proof_from_future(0 - 60001));
+        assert(!proof_from_future(900001));
+    }
+
+    test "a person holds at most five open nonces" {
+        assert(MAX_OPEN_CHALLENGES == 5);
+        assert(may_issue(0));
+        assert(may_issue(4));
+        assert(!may_issue(5));
+        assert(!may_issue(6));
+    }
+
+    test "only the person binds, and an address has one person" {
+        assert(BIND_NEEDS_PERSON);
+        assert(ONE_PERSON_PER_ADDRESS);
+        assert(may_bind(true, false));
+        assert(!may_bind(false, false));
+        assert(!may_bind(true, true));
+        assert(!may_bind(false, true));
+    }
+
+    test "the wallet browser proposes once and only the person's confirmation binds" {
+        assert(NONCE_IN_FRAGMENT);
+        assert(PROPOSAL_NEEDS_CONFIRM);
+        assert(may_propose(true, true, false));
+        assert(!may_propose(false, true, false));
+        assert(!may_propose(true, false, false));
+        assert(!may_propose(true, true, true));
+        assert(may_confirm(true, true, true));
+        assert(!may_confirm(false, true, true));
+        assert(!may_confirm(true, false, true));
+        assert(!may_confirm(true, true, false));
+        assert(!proposal_binds(false));
+        assert(proposal_binds(true));
+    }
+
+    test "TRI is paid on TON only until the bridge is live" {
+        assert(PAYOUT_CHAIN == CHAIN_TON);
+        assert(!BRIDGE_LIVE);
+        assert(paid_on(CHAIN_TON));
+        assert(!paid_on(CHAIN_EVM));
+        assert(!paid_on(CHAIN_SOLANA));
+        assert(!paid_on(CHAIN_TRON));
+        assert(!paid_on(0));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
