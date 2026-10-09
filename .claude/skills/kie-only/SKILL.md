@@ -117,8 +117,16 @@ goes only to who ordered it, and a failure is refunded once
 is from a third-party price page, NOT measured on our key -- measure it on the
 first live song and correct `MUSIC_COST_MICRO_USD` in the spec.
 
-Not yet: the TTS model choice beside the voice clones, face swap and LoRA
-training (Kie has none -- say so, never fake it).
+**The voice (agent-neuro-kie v2, #3928).** `audio_generate` takes `model`:
+`kie/elevenlabs/text-to-speech-turbo-2-5` by default ($0.03 per 1000
+characters, 12 tokens) or `kie/elevenlabs/text-to-speech-multilingual-v2`
+(richer, 24 tokens). Any other name is refused before the charge. A clone
+(the owner's, a client's) takes no Kie model -- Kie has no cloning. The agent
+is charged per STARTED 1000 characters (`speech_units`), the same rule as the
+app's route; before #3928 it charged one flat price for any length.
+
+**Not on Kie, said plainly (`NOT_ON_KIE_NOTE`, in the prompt):** face swap
+and LoRA (own-model) training. Never fake it, never name another provider.
 
 ## The free leg is not a way around Kie (2026-10-03)
 
