@@ -52,6 +52,8 @@ import { MyStoryWidget } from '@/components/Story/MyStoryWidget'
 import { AgentTemplates } from '@/components/Chat/AgentTemplates'
 import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
+import { PhotoActionChips } from '@/components/Chat/PhotoActionChips'
+import { lastPicture, photoRowShown } from '@/lib/photoActions'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
 import {
@@ -536,6 +538,9 @@ function ChatThread({
       templateAgents: Object.keys(AGENT_TEMPLATES),
     })
   }, [client, helper, store, t])
+
+  const imageAttached = attachments.some(a => a.kind === 'image')
+  const lastPic = useMemo(() => lastPicture(messages), [messages])
 
   const send = useCallback(
     (text: string) => {
@@ -1168,6 +1173,23 @@ function ChatThread({
                 session={voice}
                 onClose={closeVoice}
                 onExpand={() => setVoiceSeparate(true)}
+              />
+            ) : null}
+            {photoRowShown(
+              client ? helper : marketplaceAgent,
+              imageAttached,
+              lastPic
+            ) ? (
+              /*
+               * ONE-TAP PHOTO ACTIONS FOR THE BLOGGER (photo-actions.t27):
+               * a poster without people, a studio frame, a video -- the whole
+               * ask and its photo in one press, right above the input.
+               */
+              <PhotoActionChips
+                imageAttached={imageAttached}
+                last={lastPic}
+                onSend={send}
+                disabled={uploading}
               />
             ) : null}
             <div className="chat-input-container">

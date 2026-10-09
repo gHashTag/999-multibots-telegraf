@@ -1256,6 +1256,10 @@ export async function handleAgentChat(
           heard: heardFrom(history),
           // A lane other than main works in its own browser window (lanes.ts).
           ...(lane !== lanes.MAIN_LANE ? { lane } : {}),
+          // Where a picture that finishes after the answer is posted
+          // (agent-claims-honest.t27 v2, late_file_posted).
+          thread,
+          ephemeral,
         },
         // The surface was already parsed and allow-listed above; the agent needs
         // it so that button markers are proposed in the bot and nowhere else.
