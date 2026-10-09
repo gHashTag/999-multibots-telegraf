@@ -23,6 +23,7 @@ import {
   priceForKieModel,
 } from './billing-shared'
 import { EDIT_MODEL } from '../kie-image'
+import * as MEDIA from '../spec/agent-media-kie.gen'
 import { PAID } from './pricing'
 import { marginReport } from './margin-report'
 
@@ -46,8 +47,22 @@ describe('an img2img still is sold at its cost x the markup', () => {
     expect(TOKEN_PRICES.image_edit).toBeGreaterThanOrEqual(FLOOR)
     // The same number the Mini App would charge for this Kie model.
     expect(TOKEN_PRICES.image_edit).toBe(priceForKieModel(EDIT_MODEL))
-    // And the text-to-image price it used to borrow does not cover it.
-    expect(TOKEN_PRICES.image_generate).toBeLessThan(FLOOR)
+    // The text-to-image price it used to borrow (2 tokens, Replicate) did not
+    // cover it. Since agent-media-kie.t27 image_generate is priced for Kie
+    // nano-banana at the spec's cost -- the same $0.02 class as this edit --
+    // so the two meet at the floor; neither is below its own cost x markup.
+    const floorOf = (usd: number) =>
+      Math.ceil(Number(((usd * НАЦЕНКА) / COST_PER_TOKEN_USD).toFixed(6))) // cyrillic-ok: existing export name
+    expect(OPERATION_COST_USD.image_generate).toBe(
+      MEDIA.IMAGE_GENERATE_COST_MICRO_USD / 1_000_000
+    )
+    expect(TOKEN_PRICES.image_generate).toBeGreaterThanOrEqual(
+      floorOf(OPERATION_COST_USD.image_generate)
+    )
+    // Negative control for floorOf: the old 2-token price is below it.
+    expect(2).toBeLessThan(floorOf(OPERATION_COST_USD.image_generate))
+    // And floorOf is the FLOOR's own rule: same cost, same floor.
+    expect(floorOf(Number(COST))).toBe(FLOOR)
   })
 
   it('the agent charges a nano-banana still as image_edit, not image_generate', () => {

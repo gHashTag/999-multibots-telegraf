@@ -44,6 +44,8 @@ import { KIE_WEB_MODELS } from './src/agent/kie-web-provider'
 import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated' // cyrillic-ok: generated table
 import { DEAREST_VARIANT_USD } from './src/agent/kie-prices.generated'
 import { KIE_MODELS } from './src/agent/kie-models'
+import * as MEDIA from './src/spec/agent-media-kie.gen'
+import { REALISM_WORDS } from './src/agent/agent-media'
 
 const MARKUP = НАЦЕНКА // cyrillic-ok: the owner's markup constant
 const modelPrices = модельныеЦены // cyrillic-ok: existing export
@@ -477,7 +479,13 @@ describe('the route orders what it charged', () => {
 })
 
 describe('the agent tool charges the clip it orders', () => {
-  let bodies: unknown[]
+  /*
+   * Since agent-media-kie.t27 (#3920) the agent orders on Kie, through the
+   * same `priceForModel` the app's press is charged by. So each expectation
+   * below is the APP's price for the model the agent asked the route for,
+   * times the units it asked for -- never a number written here.
+   */
+  let bodies: { model?: unknown; duration?: unknown; prompt?: unknown }[]
   beforeEach(() => {
     bodies = []
     vi.stubGlobal(
@@ -497,12 +505,27 @@ describe('the agent tool charges the clip it orders', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('10 s: charged the 10-second price and asks the route for 10 s', async () => {
+  const videoTool = async () => {
     const { TOOLS } = await import('./src/agent/tools')
-    const video = TOOLS.find(t => t.name === 'video_generate')!
+    return TOOLS.find(t => t.name === 'video_generate')!
+  }
+  /** The app's price for one unit of a Kie model; refused models fail here. */
+  const appUnitPrice = (model: string) => {
+    const p = priceForModel('video_generate', model)
+    if (typeof p !== 'number') throw new Error(`${model} has no app price`)
+    return p
+  }
+
+  it('no model: the spec default, charged its per-clip price, at the length asked', async () => {
+    const video = await videoTool()
+    const model = MEDIA.AGENT_VIDEO_MODEL
+    // The default is a per-clip model: one unit whatever the length.
+    expect(videoChargeLength(model)).toBe('clip')
     for (const [asked, made] of [
-      [10, 10],
-      [undefined, 5],
+      [10, MEDIA.CLIP_LONG_SECONDS],
+      [7, MEDIA.CLIP_LONG_SECONDS],
+      [undefined, MEDIA.CLIP_SHORT_SECONDS],
+      [3, MEDIA.CLIP_SHORT_SECONDS],
     ] as const) {
       bodies = []
       const w = wallet(1000)
@@ -510,10 +533,96 @@ describe('the agent tool charges the clip it orders', () => {
         telegramId: BUYER,
         pool: w.pool,
       } as never)
-      expect(w.debits, `asked ${asked}`).toEqual([replicateClipTokens(made)])
+      expect(w.debits, `asked ${asked}`).toEqual([appUnitPrice(model)])
+      // The app's quote for the same press: same number, so the agent and
+      // the app cannot charge two prices for one clip.
+      const quote = kieVideoQuote(model.slice(4), 1)
+      if ('refused' in quote) throw new Error(quote.refused)
+      expect(w.debits, `asked ${asked}`).toEqual([quote.tokens])
+      expect(covers(quote.tokens)).toBeGreaterThanOrEqual(quote.costUsd)
       expect(bodies, `asked ${asked}`).toEqual([
-        expect.objectContaining({ duration: made }),
+        expect.objectContaining({ model, duration: made }),
+      ])
+      // The provider failed: the refund gives back exactly what was taken.
+      expect(w.credits, `asked ${asked}`).toEqual(w.debits)
+    }
+  }, 120_000)
+
+  it('a per-second Kie model: charged its unit price times the seconds it orders', async () => {
+    const video = await videoTool()
+    const model = 'kie/kling/v3-turbo-text-to-video'
+    expect(videoChargeLength(model)).toBe('person')
+    for (const [asked, made] of [
+      [10, 10],
+      [5, 6],
+    ] as const) {
+      bodies = []
+      const w = wallet(1000)
+      await video.handler({ prompt: 'x', model, duration: asked }, {
+        telegramId: BUYER,
+        pool: w.pool,
+      } as never)
+      const quote = kieVideoQuote(model.slice(4), made)
+      if ('refused' in quote) throw new Error(quote.refused)
+      expect(w.debits, `asked ${asked}`).toEqual([appUnitPrice(model) * made])
+      expect(w.debits, `asked ${asked}`).toEqual([quote.tokens])
+      expect(bodies, `asked ${asked}`).toEqual([
+        expect.objectContaining({ model, duration: made }),
       ])
     }
+  }, 120_000)
+
+  it('a Kie model the floor refuses: nothing charged, the route never asked', async () => {
+    const video = await videoTool()
+    for (const id of ['bytedance/seedance-2', 'grok-imagine/text-to-video']) {
+      // The premise: the app refuses it too.
+      expect(kieVideoSaleOf(id).sold, id).toBe(false)
+      expect(priceForModel('video_generate', `kie/${id}`), id).toBeNull()
+      bodies = []
+      const w = wallet(1000)
+      const r = (await video.handler(
+        { prompt: 'x', model: `kie/${id}`, duration: 10 },
+        { telegramId: BUYER, pool: w.pool } as never
+      )) as Record<string, unknown>
+      expect(r['сделано'], id).toBe(false) // cyrillic-ok: the tool's response field
+      expect(String(r['причина']), id).toContain(id) // cyrillic-ok: the tool's response field
+      expect(w.debits, id).toEqual([])
+      expect(w.balance(), id).toBe(1000)
+      expect(bodies, id).toEqual([])
+    }
+  }, 120_000)
+
+  it('a name that is not Kie orders the default clip at the default price', async () => {
+    const video = await videoTool()
+    for (const model of ['kling-v1-6 pro', replicateClipModel(10)]) {
+      bodies = []
+      const w = wallet(1000)
+      await video.handler({ prompt: 'x', model, duration: 10 }, {
+        telegramId: BUYER,
+        pool: w.pool,
+      } as never)
+      expect(w.debits, model).toEqual([appUnitPrice(MEDIA.AGENT_VIDEO_MODEL)])
+      expect(bodies, model).toEqual([
+        expect.objectContaining({ model: MEDIA.AGENT_VIDEO_MODEL }),
+      ])
+    }
+  }, 120_000)
+
+  it('a prompt that names no style asks for real footage; a named style is kept', async () => {
+    const video = await videoTool()
+    const w = wallet(1000)
+    await video.handler({ prompt: 'a cow in a field' }, {
+      telegramId: BUYER,
+      pool: w.pool,
+    } as never)
+    await video.handler({ prompt: 'a cow in a field', style: 'anime' }, {
+      telegramId: BUYER,
+      pool: w.pool,
+    } as never)
+    expect(bodies).toHaveLength(2)
+    expect(String(bodies[0].prompt)).toContain('a cow in a field')
+    expect(String(bodies[0].prompt)).toContain(REALISM_WORDS)
+    expect(String(bodies[1].prompt)).toContain('anime')
+    expect(String(bodies[1].prompt)).not.toContain(REALISM_WORDS)
   }, 120_000)
 })

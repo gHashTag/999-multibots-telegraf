@@ -34,6 +34,8 @@ const real = {
     },
   ],
   ignore: `${DIR}/*.gen.ts\n`,
+  // Still a hand-written mirror: named in scripts/t27-specs.json "mirrored".
+  mirrored: true,
 }
 const laws = (p: Problem[]) => [...new Set(p.map(x => x.law))]
 
@@ -81,6 +83,7 @@ describe('each law fails when it should', () => {
         },
       ],
       ignore: 'src/spec/*.gen.ts\n',
+      mirrored: true,
     }
     expect(checkSpec(tabs)).toEqual([])
     const gen = swap(tabs.gen, '[7322096, 16749490,', '[7322096, 9363846,')
@@ -221,5 +224,98 @@ describe('t27c test-report is read by its table, not its exit code', () => {
       fail: null,
       failed: [],
     })
+  })
+})
+
+/**
+ * THE LOGIC IS THE SPEC'S (owner, 2026-10-09: "write the logic in .t27 and in
+ * no other way"; "forbid new logic in the bot in other languages"). A spec
+ * with fns runs from its compiled bodies, <id>.logic.ts; a hand-written
+ * mirror is debt in "mirrored", which only shrinks and admits nobody new.
+ */
+describe('the logic runs from the spec', () => {
+  const office = {
+    file: `${DIR}/bot-office-crm.t27`,
+    spec: readFileSync(join(HERE, 'bot-office-crm.t27'), 'utf8'),
+    gen: readFileSync(join(HERE, 'bot-office-crm.gen.ts'), 'utf8'),
+    test: readFileSync(join(HERE, 'bot-office-crm.test.ts'), 'utf8'),
+    logic: readFileSync(join(HERE, 'bot-office-crm.logic.ts'), 'utf8'),
+    hostFiles: [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import * as SPEC from '../spec/bot-office-crm.gen'\nimport { mayAssign } from '../spec/bot-office-crm.logic'\n",
+      },
+    ],
+    ignore: `${DIR}/*.gen.ts\n`,
+  }
+
+  it('the office spec with its compiled logic is green (the controls start here)', () => {
+    expect(checkSpec(office)).toEqual([])
+  })
+
+  it('logic-required: a spec with fns and no compiled logic, not named as debt', () => {
+    expect(laws(checkSpec({ ...office, logic: null }))).toEqual([
+      'logic-required',
+    ])
+    expect(checkSpec({ ...office, logic: null, mirrored: true })).toEqual([])
+  })
+
+  it('logic-hash: the logic was compiled from another version of the spec', () => {
+    const spec = office.spec.replace(
+      'pub const CLIENT_CARD_TASKS_MAX : u32 = 5;',
+      'pub const CLIENT_CARD_TASKS_MAX : u32 = 5; '
+    )
+    expect(spec).not.toBe(office.spec)
+    expect(laws(checkSpec({ ...office, spec }))).toContain('logic-hash')
+  })
+
+  it('mirror: a host file of the vertical retypes a fn the spec compiles', () => {
+    const hostFiles = [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import * as SPEC from '../spec/bot-office-crm.gen'\nexport function mayAssign(a: boolean) {\n  return a\n}\n",
+      },
+    ]
+    const bad = checkSpec({ ...office, hostFiles })
+    expect(laws(bad)).toEqual(['mirror'])
+    expect(bad[0].what).toMatch(/may_assign/)
+  })
+
+  it('host-imports: an import of the compiled logic alone binds the host', () => {
+    const hostFiles = [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import { mayAssign } from '../spec/bot-office-crm.logic'\n",
+      },
+    ]
+    expect(checkSpec({ ...office, hostFiles })).toEqual([])
+    expect(laws(checkSpec({ ...office, hostFiles: [] }))).toContain(
+      'host-imports'
+    )
+  })
+
+  it('ratchet: a spec that runs from its logic is still named as debt', () => {
+    expect(laws(checkSpec({ ...office, mirrored: true }))).toEqual(['ratchet'])
+  })
+
+  it('the debt only shrinks: no more mirrored specs than on 2026-10-09', () => {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(HERE, '..', '..', '..', '..', '..', 'scripts', 't27-specs.json'),
+        'utf8'
+      )
+    )
+    expect(manifest.mirrored.length).toBeLessThanOrEqual(38)
+    expect(new Set(manifest.mirrored).size).toBe(manifest.mirrored.length)
+  })
+
+  it('the compiled logic is the spec: its own test vectors hold on the wasm', async () => {
+    const L = await import('./bot-office-crm.logic')
+    expect(L.mayAssign(true, false, true, true)).toBe(true)
+    expect(L.mayAssign(true, true, true, true)).toBe(false)
+    expect(L.cardTasksShown(6)).toBe(5)
+    expect(L.__NOT_LOWERED__).toEqual([])
+    expect(() => L.cardTasksShown(-1)).toThrow(RangeError)
+    expect(() => L.assignOk(1.5, 2)).toThrow(RangeError)
   })
 })
