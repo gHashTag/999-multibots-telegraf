@@ -11,13 +11,16 @@
 // v1 (2026-10-09): a head runs once, a lost pending reruns after an hour, no backfill, no fork;
 // a commit status when allowed, else a check run, else nothing; error is never green; the
 // installation token is renewed before its last five minutes.
+// v2 (2026-10-09): the bridge heals a stale deploy (Railway skipped the deploys of #3945,
+// #3946, #3947, #3949 and #3957: the service kept running old code); a trusted `/recheck`
+// comment newer than the mark runs the head again.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ci_bridge {
     pub const KIND : str = "automation";
     pub const ID : str = "ci-bridge";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // The name of the mark on GitHub, a commit status context or a check run name.
     pub const CONTEXT : str = "railway/checks";
@@ -88,6 +91,37 @@ module automation::ci_bridge {
         return seconds_left <= RENEW_MARGIN_S;
     }
 
+    // A running bridge that does not contain the latest commit touching its own directory
+    // was not redeployed: it asks Railway to deploy main, once per process, and only after it
+    // has run long enough that a deploy in flight would already have replaced it.
+    pub const STALE_GRACE_S : u32 = 600;
+    fn heal_due(contains_latest: bool, uptime_s: u32, healed: bool) -> bool {
+        return !contains_latest && !healed && uptime_s >= STALE_GRACE_S;
+    }
+
+    // `/recheck` runs a finished head again, asked by someone who may write to the repository
+    // (author association OWNER, MEMBER or COLLABORATOR), and only when the comment is newer
+    // than the mark -- so one comment is one run, not one run per pass.
+    pub const RECHECK_WORD : str = "/recheck";
+    pub const RECHECK_TRUSTED : str = "OWNER,MEMBER,COLLABORATOR";
+    fn recheck_due(has_finished_mark: bool, asked_after_mark: bool, trusted: bool) -> bool {
+        return has_finished_mark && asked_after_mark && trusted;
+    }
+
+    test "a stale bridge heals once, after its grace" {
+        assert(heal_due(false, STALE_GRACE_S, false));
+        assert(!heal_due(false, STALE_GRACE_S - 1, false));
+        assert(!heal_due(true, 99999, false));
+        assert(!heal_due(false, 99999, true));
+    }
+
+    test "a trusted /recheck newer than a finished mark runs the head again" {
+        assert(recheck_due(true, true, true));
+        assert(!recheck_due(true, true, false));
+        assert(!recheck_due(true, false, true));
+        assert(!recheck_due(false, true, true));
+    }
+
     test "only our own heads touched since the bridge began run" {
         assert(!FORK_HEADS_RUN);
         assert(runs_here(true, 100, 100));
@@ -131,7 +165,7 @@ module automation::ci_bridge {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
