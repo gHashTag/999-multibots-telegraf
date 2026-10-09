@@ -15,12 +15,26 @@
  * another member's channel answers there under its own name. A room carries
  * no pay buttons (pay_buttons_in): a top-up is one person's.
  *
- * The numbers come from the spec's t27c gen-ts output; each rule is written
- * once here and src/spec/bot-neuro-office.test.ts runs every test of the
- * spec against it.
+ * The numbers come from the spec's t27c gen-ts output, and every RULE is
+ * the spec's own compiled body (bot-neuro-office.logic.ts, from
+ * scripts/t27-logic.mjs): nothing here restates one. Owner, 2026-10-09: the
+ * logic is written in .t27 and in no other way.
  */
 import type { Telegraf } from 'telegraf'
 import * as OFFICE from '@/spec/bot-neuro-office.gen'
+import {
+  answers,
+  catchupListsTasks,
+  channelSpeaker,
+  handsOff,
+  heardChars,
+  hears,
+  mayCatchUp,
+  mayOpenOffice,
+  namesSpeaker,
+  payButtonsIn,
+  speakerChars,
+} from '@/spec/bot-neuro-office.logic'
 import * as TABS_SPEC from '@/spec/bot-topic-tabs.gen'
 import * as TEAM from '@/spec/bot-agent-team.gen'
 import { logger } from '@/utils/logger'
@@ -28,61 +42,19 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ensureTabs, knownTabs, TABS } from './tabs'
 import { addressed, speaker } from './team'
 
-/** spec may_open_office: a forum, the bot managing topics, an admin asking. */
-export function mayOpenOffice(
-  isForum: boolean,
-  botManagesTopics: boolean,
-  senderIsAdmin: boolean
-): boolean {
-  return isForum && botManagesTopics && senderIsAdmin
-}
-
-/** spec answers: spoken to, or (in an office only) named first. */
-export function answersInRoom(
-  replyToBot: boolean,
-  mentioned: boolean,
-  command: boolean,
-  office: boolean,
-  memberNamedFirst: boolean
-): boolean {
-  return replyToBot || mentioned || command || (office && memberNamedFirst)
-}
-
-/** spec channel_speaker: the channel's member, or the Agent (0). */
-export function channelSpeaker(channelKnown: boolean, channel: number): number {
-  return channelKnown ? channel : 0
-}
-
-/** spec pay_buttons_in: no pay buttons in a room (ROOM_PAY_BUTTONS). */
-export function payButtonsIn(room: boolean): boolean {
-  return !room || OFFICE.ROOM_PAY_BUTTONS
-}
-
-/** spec hears (v2): in an office, a person's line nobody addressed to the agent. */
-export function hears(
-  office: boolean,
-  addressed: boolean,
-  fromBot: boolean,
-  isCommand: boolean
-): boolean {
-  return OFFICE.HEARS_PEOPLE && office && !addressed && !fromBot && !isCommand
-}
-
-/** spec heard_chars (v2): a heard line is kept up to HEARD_MAX_CHARS. */
-export function heardChars(chars: number): number {
-  return chars > OFFICE.HEARD_MAX_CHARS ? OFFICE.HEARD_MAX_CHARS : chars
-}
-
-/** spec names_speaker (v2): a person's line in a room names who said it. */
-export function namesSpeaker(room: boolean): boolean {
-  return room && OFFICE.ROOM_LINE_NAMES_SPEAKER
-}
-
-/** spec speaker_chars (v2): a name is cut to SPEAKER_NAME_MAX_CHARS. */
-export function speakerChars(chars: number): number {
-  return chars > OFFICE.SPEAKER_NAME_MAX_CHARS
-    ? OFFICE.SPEAKER_NAME_MAX_CHARS
-    : chars
+// The spec's rules, compiled from bot-neuro-office.t27 (never retyped here).
+export {
+  answers as answersInRoom,
+  catchupListsTasks,
+  channelSpeaker,
+  handsOff,
+  heardChars,
+  hears,
+  mayCatchUp,
+  mayOpenOffice,
+  namesSpeaker,
+  payButtonsIn,
+  speakerChars,
 }
 
 /**
@@ -100,11 +72,6 @@ export function speakerName(from: any): string {
   return chars.slice(0, speakerChars(chars.length)).join('')
 }
 
-/** spec may_catch_up (v3): /catchup is answered in an office only. */
-export function mayCatchUp(office: boolean): boolean {
-  return office || !OFFICE.CATCHUP_ONLY_IN_OFFICE
-}
-
 /**
  * What a catch-up names, in the spec's order (CATCHUP_PARTS): what was
  * decided, what is still open, who took what on. Interface text only.
@@ -115,11 +82,6 @@ export const CATCHUP_PARTS_TEXT: ReadonlyArray<{ ru: string; en: string }> = [
   { ru: 'кто что взял на себя (по именам)', en: 'who took what on, by name' },
 ]
 
-/** spec catchup_lists_tasks (v6): the open tasks follow the summary, if any. */
-export function catchupListsTasks(openTasks: number): boolean {
-  return OFFICE.CATCHUP_SHOWS_TASKS && openTasks > 0
-}
-
 /** The turn /catchup asks the agent, in the person's language. */
 export function catchupAsk(isRu: boolean): string {
   const parts = CATCHUP_PARTS_TEXT.map(
@@ -128,21 +90,6 @@ export function catchupAsk(isRu: boolean): string {
   return isRu
     ? `Я был(а) не здесь. Коротко по памяти этой комнаты: ${parts}. Только то, что люди здесь сказали; чего не было — так и скажи.`
     : `I was away. Briefly, from this room's memory: ${parts}. Only what people here said; if something was not said, say so.`
-}
-
-/** spec hands_off (v4): once, in an office, to a colleague, never to oneself. */
-export function handsOff(
-  office: boolean,
-  depth: number,
-  namesColleague: boolean,
-  colleagueIsSelf: boolean
-): boolean {
-  return (
-    office &&
-    depth < OFFICE.HANDOFF_DEPTH_MAX &&
-    namesColleague &&
-    !colleagueIsSelf
-  )
 }
 
 /**
@@ -290,7 +237,7 @@ export async function namedInOffice(ctx: any): Promise<boolean> {
   const named = memberNamedFirst(text) < TEAM.TEAM_SIZE
   if (!named) return false
   const office = (await officeRows(ctx)).length > 0
-  return answersInRoom(false, false, false, office, named)
+  return answers(false, false, false, office, named)
 }
 
 /**

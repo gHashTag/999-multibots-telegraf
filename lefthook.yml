@@ -128,6 +128,15 @@ pre-commit:
       run: node scripts/check-t27-specs.mjs
       fail_text: 'A .t27 spec of record breaks a law: see the lines above (skill t27-spec-first).'
 
+    # 8b. New logic in the bot is written in .t27 and nowhere else (owner,
+    #     2026-10-09). A new predicate or threshold in src/ or the render's
+    #     src/ must come from <id>.logic.ts / <id>.gen.ts; plumbing says why
+    #     with `// t27-plumbing: <reason>`.
+    t27-only:
+      glob: '*.{ts,tsx}'
+      run: node scripts/t27-only-guard.cjs staged
+      fail_text: 'New logic outside .t27: write it as a spec fn and import it from <id>.logic.ts (skill t27-spec-first).'
+
     # 9. Every Railway call in tri names its project (#3427). A bare call
     #    follows the directory's link, which drifts between projects, and
     #    `tri secret` / `tri meta put` once wrote keys into whatever it pointed

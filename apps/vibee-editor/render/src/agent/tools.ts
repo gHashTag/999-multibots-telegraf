@@ -1260,6 +1260,7 @@ import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
 import { CRM_MAP_TOOLS } from './crm-map'
 import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
+import { OFFICE_CRM_TOOLS } from './office-crm'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
 import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
@@ -4260,6 +4261,8 @@ TOOLS.push(...CRM_MOVE_STATS_TOOLS)
 TOOLS.push(...CRM_MAP_TOOLS)
 // A client's group (crm-client-group.ts): posts there are tg_send cards.
 TOOLS.push(...CRM_CLIENT_GROUP_TOOLS)
+// The owner assigns a task into the client's office (bot-office-crm.t27 v2).
+TOOLS.push(...OFFICE_CRM_TOOLS)
 // The client card's feed and summary (crm-client-timeline.ts): a screen.
 TOOLS.push(...CRM_CLIENT_TIMELINE_TOOLS)
 // The CRM screen's revenue strip (crm-revenue-tool.ts): a screen.
@@ -4479,7 +4482,7 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * the reel is asked of the owner's full-size agent. Moving that line is the owner's call, not a refactor's.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_office_task|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

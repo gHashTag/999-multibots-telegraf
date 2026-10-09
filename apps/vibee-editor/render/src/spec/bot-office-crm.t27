@@ -12,13 +12,17 @@
 // v1 (2026-10-09): an office turn is taught the task marker and nothing else is; the owner's
 // client card lists the open tasks of the client's office, oldest first, at most 5; a room
 // turn never carries a client's card, because the client may sit in that very room.
+// v2 (2026-10-09): the owner assigns from the client's thread. "Give Anna the mockup" in the
+// client's thread puts a proposal into the client's office -- its bot posts it with the same
+// button as bot-neuro-office v7, and a person in the office makes it a task by pressing. Only
+// the seller, never from the client's own DM, only into a bound group that runs an office.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_office_crm {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-office-crm";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- the agent proposes tasks ----
 
@@ -54,6 +58,31 @@ module automation::bot_office_crm {
         return !room || ROOM_SEES_CLIENT_CARD;
     }
 
+    // ---- the owner assigns from the client's thread (v2) ----
+
+    // The seller's agent may post a task proposal into the client's office: not from the
+    // client's DM (a client's sentence must not assign the owner's team), only into the
+    // group the owner bound to this client, and only where an office runs (its bot posts).
+    fn may_assign(seller: bool, client_dm: bool, group_bound: bool, office_open: bool) -> bool {
+        return seller && !client_dm && group_bound && office_open;
+    }
+
+    // What the owner's word puts there is a proposal; a person in the office makes it a
+    // task with the same press as the agent's own proposals (bot-neuro-office v7 may_take).
+    pub const ASSIGN_IS_PROPOSAL : bool = true;
+    fn assigned_is_task(pressed: bool) -> bool {
+        return pressed || !ASSIGN_IS_PROPOSAL;
+    }
+
+    // The bounds of the office's proposals (bot-neuro-office SPEAKER_NAME_MAX_CHARS and
+    // TASK_TEXT_MAX_CHARS): what the office could not hold is not posted there.
+    pub const ASSIGN_NAME_MAX_CHARS : u32 = 64;
+    pub const ASSIGN_TEXT_MAX_CHARS : u32 = 300;
+    fn assign_ok(name_chars: u32, text_chars: u32) -> bool {
+        return name_chars > 0 && name_chars <= ASSIGN_NAME_MAX_CHARS
+            && text_chars > 0 && text_chars <= ASSIGN_TEXT_MAX_CHARS;
+    }
+
     // ---- tests ----
 
     test "the task marker is taught in an office turn of the bot only" {
@@ -84,8 +113,33 @@ module automation::bot_office_crm {
         assert(room_gets_client_card(false));
     }
 
+    test "the owner assigns into the client's office, never from the client's DM" {
+        assert(may_assign(true, false, true, true));
+        assert(!may_assign(false, false, true, true));
+        assert(!may_assign(true, true, true, true));
+        assert(!may_assign(true, false, false, true));
+        assert(!may_assign(true, false, true, false));
+    }
+
+    test "an assignment is a proposal until a person in the office presses" {
+        assert(ASSIGN_IS_PROPOSAL);
+        assert(!assigned_is_task(false));
+        assert(assigned_is_task(true));
+    }
+
+    test "an assignment names a person and the work within the office's bounds" {
+        assert(ASSIGN_NAME_MAX_CHARS == 64);
+        assert(ASSIGN_TEXT_MAX_CHARS == 300);
+        assert(assign_ok(4, 20));
+        assert(assign_ok(64, 300));
+        assert(!assign_ok(65, 20));
+        assert(!assign_ok(4, 301));
+        assert(!assign_ok(0, 20));
+        assert(!assign_ok(4, 0));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
