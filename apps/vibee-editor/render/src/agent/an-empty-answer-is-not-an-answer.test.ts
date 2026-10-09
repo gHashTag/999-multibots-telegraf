@@ -33,6 +33,13 @@ import { forgetProviderChoiceForTests } from './provider-choice'
 import { breakerSnapshot, forgetBreakersForTests } from './provider-breaker'
 import { TOOLS_BY_NAME } from './tools'
 
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+})
+
 /* ---------- fake providers, told apart by the model they are asked for ---------- */
 
 const PERSON_WORDS = 'покажи мои материалы, пожалуйста' // cyrillic-ok: test fixture
