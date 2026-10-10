@@ -220,10 +220,22 @@ function fakePool() {
     challenges,
     wallets,
     events,
+    statements: [] as string[],
     async query(text: string, p: any[] = []) {
       const t = text.replace(/\s+/g, ' ').trim()
       if (t.startsWith('CREATE ') || t.startsWith('ALTER TABLE'))
         return { rows: [] }
+      // Transactions and the per-person lock: this fake has one connection
+      // and no concurrency of its own; the real behaviour is held by
+      // tri-wallet.pg.test.ts on a real Postgres.
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(t)) {
+        pool.statements.push(t)
+        return { rows: [] }
+      }
+      if (t.startsWith('SELECT pg_advisory_xact_lock')) {
+        pool.statements.push('LOCK ' + p[0])
+        return { rows: [] }
+      }
       if (t.startsWith('DELETE FROM tri_wallet_challenges')) {
         for (let i = challenges.length - 1; i >= 0; i--) {
           const c = challenges[i]

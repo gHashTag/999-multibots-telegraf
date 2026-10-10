@@ -42,6 +42,8 @@ export interface TriClaims {
   batchMax?: number
   /** TON each mint message carries, in milliton (spec MINT_VALUE_MILLITON). */
   mintValueMilliton?: number
+  /** Wallet confirmations a run takes, before the press (spec confirmations_for). */
+  confirmations?: { w5: number; v4: number }
   earnings: TriEarning[]
 }
 
@@ -86,14 +88,19 @@ export interface BuiltBatch {
     amount: string
     payload: string
   }[]
-  refused: { workId: string; code: string }[]
+  /** Each refused earning: its code, its class, and whether to ask again. */
+  refused: { workId: string; code: string; kind: number; retry: boolean }[]
   left: number
 }
 
-export const buildTriClaimBatch = (workIds: string[], walletMax: number) =>
+export const buildTriClaimBatch = (
+  workIds: string[],
+  walletMax: number,
+  round = 0
+) =>
   apiFetch<BuiltBatch>(TRI_CLAIM_BATCH_URL, {
     method: 'POST',
-    body: JSON.stringify({ workIds, walletMax }),
+    body: JSON.stringify({ workIds, walletMax, round }),
   })
 
 /** The wallet's own TON Connect limit on messages per transaction, 0 if unsaid. */
@@ -161,6 +168,9 @@ export function triClaimErrorKey(code: string | undefined): string {
     case 'expired_token':
       return 'tri.claim.err.expired'
     case 'quorum_not_reached':
+    case 'signer_unreachable':
+    case 'signers_disagree':
+    case 'signer_answer_malformed':
     case 'claims_not_configured':
     case 'outside_unavailable':
       return 'tri.claim.err.unavailable'

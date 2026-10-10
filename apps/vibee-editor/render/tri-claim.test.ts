@@ -808,8 +808,8 @@ describe('withdraw all: many mint messages in one request (spec tri-claim-batch)
     const r = await batch(pool, o, { workIds: all })
     expect(r?.body.messages.map((m: any) => m.workId)).toEqual([all[0], all[3]])
     expect(r?.body.refused).toEqual([
-      { workId: all[1], code: 'already_minted' },
-      { workId: all[2], code: 'earning_revoked' },
+      { workId: all[1], code: 'already_minted', kind: 1, retry: false },
+      { workId: all[2], code: 'earning_revoked', kind: 3, retry: false },
     ])
   })
 
@@ -857,5 +857,108 @@ describe('withdraw all: many mint messages in one request (spec tri-claim-batch)
         )
       )?.status
     ).toBe(503)
+  })
+})
+
+describe('withdraw all: every refusal keeps its reason (spec tri-claim-batch v2)', () => {
+  beforeEach(() => {
+    resetTriClaimEnsureForTests()
+    clock = Date.UTC(2026, 9, 2, 12, 0, 0)
+  })
+
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_, i) => (i + 1).toString(16).padStart(64, '0'))
+  const refusing = (code: string) =>
+    fakeOutside({
+      queenEarning: async id => ({
+        triPerSpec: 27,
+        earning: {
+          workId: id,
+          repo: 'gHashTag/t27',
+          issue: 1,
+          commit: 'c'.repeat(40),
+          specPaths: ['specs/x.t27'],
+          acceptedAt: '2026-09-30T00:00:00.000Z',
+          revokedAt: null,
+        },
+        earner: { github: 'gHashTag' },
+      }),
+      sign: async () => {
+        const no = { ok: false as const, code }
+        return [no, no, no]
+      },
+    })
+
+  it('marks a passing refusal for retry for two rounds, then not', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    const o = refusing('signer_unreachable')
+    const at = async (round: number) =>
+      (
+        await call(depsFor(pool, '7', o), 'POST', '/api/tri/claim/batch', {
+          workIds: ids(16),
+          round,
+        })
+      )?.body
+    const r0 = await at(0)
+    expect(r0.messages).toEqual([])
+    expect(r0.refused).toHaveLength(16)
+    expect(r0.refused[0]).toEqual({
+      workId: ids(16)[0],
+      code: 'signer_unreachable',
+      kind: 2,
+      retry: true,
+    })
+    expect((await at(1)).refused.every((x: any) => x.retry)).toBe(true)
+    expect((await at(2)).refused.every((x: any) => !x.retry)).toBe(true)
+    // A malformed round counts as the first.
+    expect((await at(-1 as never)).refused[0].retry).toBe(true)
+  })
+
+  it('names quorum_not_reached, refusal by refusal, so the card can show it', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    // Two signers refuse for different reasons: the quorum fails as such.
+    const o = fakeOutside({
+      queenEarning: refusing('x').queenEarning,
+      sign: async () => [
+        { ok: false as const, code: 'not_merged' },
+        { ok: false as const, code: 'signer_unreachable' },
+        { ok: false as const, code: 'signer_unreachable' },
+      ],
+    })
+    const r = await call(
+      depsFor(pool, '7', o),
+      'POST',
+      '/api/tri/claim/batch',
+      {
+        workIds: ids(3),
+      }
+    )
+    expect(r?.body.refused.map((x: any) => [x.code, x.kind, x.retry])).toEqual([
+      ['quorum_not_reached', 2, true],
+      ['quorum_not_reached', 2, true],
+      ['quorum_not_reached', 2, true],
+    ])
+  })
+
+  it('counts the wallet confirmations before the press: one per batch of sixteen', async () => {
+    const pool = fakePool()
+    await linked(pool)
+    const many = Array.from({ length: 874 }, (_, i) => ({
+      workId: ids(874)[i],
+      repo: 'gHashTag/t27',
+      issue: i,
+      commit: 'c'.repeat(40),
+      specPaths: ['specs/x.t27'],
+      acceptedAt: '2026-09-30T00:00:00.000Z',
+      revokedAt: i < 3 ? '2026-10-01T00:00:00.000Z' : null,
+    }))
+    const o = fakeOutside({
+      queenEarningsOf: async () => ({ triPerSpec: 27, earnings: many }),
+    })
+    const list = await call(depsFor(pool, '7', o), 'GET', '/api/tri/claims')
+    // 871 not revoked: 55 batches of at most 16 -> 55 on W5, 219 on v4.
+    expect(list?.body.confirmations).toEqual({ w5: 55, v4: 218 })
   })
 })

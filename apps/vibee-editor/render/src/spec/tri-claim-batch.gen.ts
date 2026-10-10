@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "tri-claim-batch" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 1 satisfies number;
+export const VERSION = 2 satisfies number;
 export const BATCH_MAX = 16 satisfies number;
 export const SIGN_CONCURRENCY = 4 satisfies number;
 // t27c gen-ts: fn batch_size was not emitted -- this backend lowers declarations, not bodies.
@@ -19,7 +19,19 @@ export const WALLET_MESSAGES_MAX = 255 satisfies number;
 export const MINT_VALUE_MILLITON = 100 satisfies number;
 // t27c gen-ts: fn value_milliton was not emitted -- this backend lowers declarations, not bodies.
 export const VALID_FOR_S = 300 satisfies number;
+// t27c gen-ts: fn confirmations_for was not emitted -- this backend lowers declarations, not bodies.
+export const REFUSAL_DONE = 1 satisfies number;
+export const REFUSAL_PASSING = 2 satisfies number;
+export const REFUSAL_FINAL = 3 satisfies number;
+export const DONE_CODES = "already_minted" satisfies string;
+export const PASSING_CODES = "quorum_not_reached,signer_unreachable,signer_answer_malformed,signers_disagree" satisfies string;
+// t27c gen-ts: fn counts_as_done was not emitted -- this backend lowers declarations, not bodies.
+export const MAX_RETRY_ROUNDS = 2 satisfies number;
+// t27c gen-ts: fn may_retry was not emitted -- this backend lowers declarations, not bodies.
+export const SENT_IS_NOT_MINTED = true satisfies boolean;
 // t27c gen-ts: fn continue_after was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -29,7 +41,7 @@ export const VALID_FOR_S = 300 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "BATCH_MAX", "SIGN_CONCURRENCY", "OLDEST_FIRST", "WALLET_MESSAGES_DEFAULT", "WALLET_MESSAGES_MAX", "MINT_VALUE_MILLITON", "VALID_FOR_S"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "BATCH_MAX", "SIGN_CONCURRENCY", "OLDEST_FIRST", "WALLET_MESSAGES_DEFAULT", "WALLET_MESSAGES_MAX", "MINT_VALUE_MILLITON", "VALID_FOR_S", "REFUSAL_DONE", "REFUSAL_PASSING", "REFUSAL_FINAL", "DONE_CODES", "PASSING_CODES", "MAX_RETRY_ROUNDS", "SENT_IS_NOT_MINTED"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

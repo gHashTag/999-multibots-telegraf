@@ -11,13 +11,20 @@ import { describe, expect, it } from 'vitest'
 import * as SPEC from './tri-claim-batch.gen'
 import {
   batchSize,
+  confirmationsFor,
   continueAfter,
+  countsAsDone,
+  mayRetry,
   messagesPerTx,
   selectable,
   transactionsFor,
   valueMilliton,
 } from './tri-claim-batch.logic'
-import { MINT_VALUE_NANO, TRI_CLAIM_BATCH_PATH } from '../tri-claim'
+import {
+  MINT_VALUE_NANO,
+  TRI_CLAIM_BATCH_PATH,
+  refusalKind,
+} from '../tri-claim'
 
 describe('spec tri-claim-batch.t27', () => {
   it('a request builds at most sixteen messages', () => {
@@ -86,8 +93,42 @@ describe('spec tri-claim-batch.t27', () => {
     expect(continueAfter(0, true, false)).toBe(false)
   })
 
+  it('the confirmations are one per batch of sixteen, counted before the press', () => {
+    expect(confirmationsFor(874, 255)).toBe(55)
+    expect(confirmationsFor(874, 4)).toBe(219)
+    expect(confirmationsFor(16, 255)).toBe(1)
+    expect(confirmationsFor(17, 255)).toBe(2)
+    expect(confirmationsFor(10, 4)).toBe(3)
+    expect(confirmationsFor(0, 255)).toBe(0)
+    expect(confirmationsFor(874, 255)).not.toBe(4)
+    // The server lists these numbers (tri-claim.test.ts "counts the wallet
+    // confirmations before the press"); the card shows them before the press.
+  })
+
+  it('a refusal keeps its reason: done counts, passing is retried twice, final stops', () => {
+    expect(SPEC.REFUSAL_DONE).toBe(1)
+    expect(SPEC.REFUSAL_PASSING).toBe(2)
+    expect(SPEC.REFUSAL_FINAL).toBe(3)
+    expect(countsAsDone(SPEC.REFUSAL_DONE)).toBe(true)
+    expect(countsAsDone(SPEC.REFUSAL_PASSING)).toBe(false)
+    expect(countsAsDone(SPEC.REFUSAL_FINAL)).toBe(false)
+    expect(SPEC.MAX_RETRY_ROUNDS).toBe(2)
+    expect(mayRetry(SPEC.REFUSAL_PASSING, 0)).toBe(true)
+    expect(mayRetry(SPEC.REFUSAL_PASSING, 1)).toBe(true)
+    expect(mayRetry(SPEC.REFUSAL_PASSING, 2)).toBe(false)
+    expect(mayRetry(SPEC.REFUSAL_FINAL, 0)).toBe(false)
+    expect(mayRetry(SPEC.REFUSAL_DONE, 0)).toBe(false)
+    expect(SPEC.SENT_IS_NOT_MINTED).toBe(true)
+    // The host sorts codes with the spec's lists and nothing else.
+    expect(refusalKind('already_minted')).toBe(SPEC.REFUSAL_DONE)
+    for (const c of SPEC.PASSING_CODES.split(','))
+      expect(refusalKind(c)).toBe(SPEC.REFUSAL_PASSING)
+    for (const c of ['earning_revoked', 'not_merged', 'not_your_earning'])
+      expect(refusalKind(c)).toBe(SPEC.REFUSAL_FINAL)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
     const spec = readFileSync(join(__dirname, 'tri-claim-batch.t27'), 'utf8')
     const notes = [...spec.matchAll(/^\/\/ v(\d+) \(/gm)].map(m => Number(m[1]))
     expect(Math.max(...notes)).toBe(SPEC.VERSION)

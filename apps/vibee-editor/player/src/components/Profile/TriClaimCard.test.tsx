@@ -238,7 +238,7 @@ describe('TriClaimCard', () => {
   })
 })
 
-describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
+describe('TriClaimCard: withdraw all (spec tri-claim-batch v2)', () => {
   let host: HTMLDivElement
   let root: Root
   const at = (d: string, id: string, revoked = false) => ({
@@ -251,6 +251,7 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
     ...LINKED,
     batchMax: 16,
     mintValueMilliton: 100,
+    confirmations: { w5: 1, v4: 1 },
     earnings: [
       at('2026-10-03T00:00:00Z', 'c'),
       at('2026-10-01T00:00:00Z', 'a'),
@@ -262,7 +263,17 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
     workId,
     address: 'kQBtPS1b...',
     amount: '100000000',
-    payload: `p-${workId[0]}`,
+    payload: `p-${workId.slice(0, 4)}`,
+  })
+  const batch = (over: Record<string, unknown>) => ({
+    network: '-3',
+    status: LINKED.status,
+    validUntil: 1_790_000_300,
+    perTx: 4,
+    messages: [],
+    refused: [],
+    left: 0,
+    ...over,
   })
 
   beforeEach(() => {
@@ -286,6 +297,16 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
     })
     await flush()
   }
+  const press = async () => {
+    await act(async () =>
+      (
+        host.querySelector(
+          '[data-testid="tri-claim-all"] button'
+        ) as HTMLButtonElement
+      ).click()
+    )
+    await flush()
+  }
   const connect = async (maxMessages?: number) => {
     const ui = latest() as FakeTonConnect & { wallet?: unknown }
     ui.connected = true
@@ -298,92 +319,178 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
       },
     }
     await act(async () => ui.statusCb?.({ account: { address: '0:11' } }))
-    for (let i = 0; i < 4; i++) await flush()
+    for (let i = 0; i < 12; i++) await flush()
     return ui
   }
+  const batches = () =>
+    apiFetch.mock.calls
+      .filter(([u]) => String(u).endsWith('/claim/batch'))
+      .map(([, init]) => JSON.parse(String(init.body)))
 
-  it('says how many and how much TON before the press', async () => {
-    apiFetch.mockResolvedValue(MANY)
+  it('says how many, how much TON and how many confirmations before the press', async () => {
+    apiFetch.mockResolvedValue({ ...MANY, confirmations: { w5: 55, v4: 219 } })
     await mount()
     const all = host.querySelector('[data-testid="tri-claim-all"]')
     expect(all?.textContent).toContain('Withdraw all (3)')
     expect(all?.textContent).toContain('about 0.3 TON')
+    expect(all?.textContent).toContain('about 55 confirmations on a W5 wallet')
+    expect(all?.textContent).toContain('219 on a v4 wallet')
   })
 
-  it('sends every pending earning oldest first, as many per transaction as the wallet allows', async () => {
-    const asked: unknown[] = []
+  it('874 earnings on a W5 wallet are 55 wallet confirmations, each earning once', async () => {
+    const ids = Array.from({ length: 874 }, (_, i) =>
+      i.toString(16).padStart(64, '0')
+    )
+    const big = {
+      ...MANY,
+      confirmations: { w5: 55, v4: 219 },
+      earnings: ids.map((id, i) => ({
+        ...EARNING,
+        workId: id,
+        acceptedAt: `2026-09-${String(1 + (i % 28)).padStart(2, '0')}T00:00:00Z`,
+      })),
+    }
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url.endsWith('/api/tri/claim/batch')) {
+      if (url.endsWith('/claim/batch')) {
         const body = JSON.parse(String(init?.body))
-        asked.push(body)
-        return {
-          network: '-3',
-          status: LINKED.status,
-          validUntil: 1_790_000_300,
-          perTx: body.walletMax,
-          messages: body.workIds.map(msg),
-          refused: [],
-          left: 0,
-        }
+        return batch({ perTx: 255, messages: body.workIds.map(msg) })
       }
-      return MANY
+      return big
     })
-    // One TonConnectUI per page outlives a test: read only this test's sends.
     const before = latest()?.sent.length ?? 0
     await mount()
-    await act(async () =>
-      (
-        host.querySelector(
-          '[data-testid="tri-claim-all"] button'
-        ) as HTMLButtonElement
-      ).click()
-    )
-    await flush()
-    const ui = await connect(2)
-    // Revoked "b" left out; "a" (10-01) before "d" (10-02) before "c" (10-03).
-    expect(asked).toEqual([
-      { workIds: ['a', 'd', 'c'].map(x => x.repeat(64)), walletMax: 2 },
-    ])
-    expect(
-      (ui.sent.slice(before) as { messages: { payload: string }[] }[]).map(tx =>
-        tx.messages.map(m => m.payload)
-      )
-    ).toEqual([['p-a', 'p-d'], ['p-c']])
-    // The messages are exactly TON Connect's: no workId leaks to the wallet.
-    expect(Object.keys((ui.sent[before] as any).messages[0]).sort()).toEqual([
-      'address',
-      'amount',
-      'payload',
-    ])
-    expect(host.textContent).toContain('Sent 3 of 3')
-    expect(ui.disconnect).toHaveBeenCalled()
+    await press()
+    const ui = await connect(255)
+    for (let i = 0; i < 40; i++) await flush()
+    const sent = ui.sent.slice(before) as { messages: { payload: string }[] }[]
+    // The same number the card showed before the press: 55, not 4.
+    expect(sent).toHaveLength(55)
+    expect(sent.reduce((n, tx) => n + tx.messages.length, 0)).toBe(874)
+    const asked = batches().flatMap(b => b.workIds)
+    expect(asked).toHaveLength(874)
+    expect(new Set(asked).size).toBe(874)
+    expect(host.textContent).toContain('Sent to the wallet: 874 of 874')
   })
 
-  it('counts an already-minted earning as done and stops when the wallet is cancelled', async () => {
+  it('keeps every refusal and its reason, retries the passing ones twice, never loops', async () => {
+    const ids = Array.from({ length: 16 }, (_, i) =>
+      (i + 1).toString(16).padStart(64, '0')
+    )
+    const sixteen = {
+      ...MANY,
+      earnings: ids.map(id => ({ ...EARNING, workId: id })),
+    }
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url.endsWith('/api/tri/claim/batch')) {
-        const ids = JSON.parse(String(init?.body)).workIds as string[]
-        return {
-          network: '-3',
-          status: LINKED.status,
-          validUntil: 1_790_000_300,
-          perTx: 4,
-          messages: ids.slice(1).map(msg),
-          refused: [{ workId: ids[0], code: 'already_minted' }],
-          left: 0,
-        }
+      if (url.endsWith('/claim/batch')) {
+        const body = JSON.parse(String(init?.body))
+        // The server's spec: a passing refusal is retried while round < 2.
+        return batch({
+          refused: body.workIds.map((workId: string) => ({
+            workId,
+            code: 'quorum_not_reached',
+            kind: 2,
+            retry: body.round < 2,
+          })),
+        })
+      }
+      return sixteen
+    })
+    const before = latest()?.sent.length ?? 0
+    await mount()
+    await press()
+    const ui = await connect()
+    expect(ui.sent.slice(before)).toEqual([])
+    // Rounds 0, 1, 2 -- then it stops, with the reason on screen.
+    expect(batches().map(b => [b.round, b.workIds.length])).toEqual([
+      [0, 16],
+      [1, 16],
+      [2, 16],
+    ])
+    const box = host.querySelector('[data-testid="tri-claim-refused"]')
+    expect(box?.getAttribute('role')).toBe('alert')
+    expect(box?.textContent).toContain('Not withdrawn: 16')
+    expect(
+      box?.querySelector('[data-code="quorum_not_reached"]')?.textContent
+    ).toContain('x16')
+    expect(host.textContent).toContain('Sent to the wallet: 0 of 16')
+  })
+
+  it('shows the partial result: sent, minted before, and what stays with its reason', async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/claim/batch')) {
+        const [a, d, c] = JSON.parse(String(init?.body)).workIds
+        return batch({
+          messages: [msg(a)],
+          refused: [
+            { workId: d, code: 'already_minted', kind: 1, retry: false },
+            { workId: c, code: 'not_merged', kind: 3, retry: false },
+          ],
+        })
       }
       return MANY
     })
     await mount()
-    await act(async () =>
-      (
-        host.querySelector(
-          '[data-testid="tri-claim-all"] button'
-        ) as HTMLButtonElement
-      ).click()
+    await press()
+    await connect(4)
+    expect(host.textContent).toContain(
+      'Sent to the wallet: 2 of 3. Not withdrawn: 1.'
     )
-    await flush()
+    expect(
+      host.querySelector(
+        '[data-testid="tri-claim-refused"] [data-code="not_merged"]'
+      )?.textContent
+    ).toContain('x1')
+    expect(batches()).toHaveLength(1)
+  })
+
+  it('a passing refusal that clears on the next round is sent and leaves no reason behind', async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/claim/batch')) {
+        const body = JSON.parse(String(init?.body))
+        if (body.round === 0)
+          return batch({
+            messages: body.workIds.slice(1).map(msg),
+            refused: [
+              {
+                workId: body.workIds[0],
+                code: 'signer_unreachable',
+                kind: 2,
+                retry: true,
+              },
+            ],
+          })
+        return batch({ messages: body.workIds.map(msg) })
+      }
+      return MANY
+    })
+    await mount()
+    await press()
+    await connect(4)
+    expect(batches().map(b => [b.round, b.workIds.length])).toEqual([
+      [0, 3],
+      [1, 1],
+    ])
+    expect(host.textContent).toContain(
+      'Sent to the wallet: 3 of 3. Not withdrawn: 0.'
+    )
+    expect(host.querySelector('[data-testid="tri-claim-refused"]')).toBeNull()
+  })
+
+  it('stops quietly when the wallet is cancelled, counting what was minted before', async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/claim/batch')) {
+        const ids = JSON.parse(String(init?.body)).workIds as string[]
+        return batch({
+          messages: ids.slice(1).map(msg),
+          refused: [
+            { workId: ids[0], code: 'already_minted', kind: 1, retry: false },
+          ],
+        })
+      }
+      return MANY
+    })
+    await mount()
+    await press()
     const ui = latest() as FakeTonConnect & {
       sendTransaction: (tx: unknown) => Promise<unknown>
     }
@@ -393,11 +500,8 @@ describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
     }
     await connect()
     ui.sendTransaction = real
-    // The minted one counts; the cancelled transaction ends the run quietly.
-    expect(host.textContent).toContain('Sent 1 of 3')
+    expect(host.textContent).toContain('Sent to the wallet: 1 of 3')
     expect(host.querySelector('[role="alert"]')).toBeNull()
-    expect(
-      apiFetch.mock.calls.filter(([u]) => u.endsWith('/claim/batch'))
-    ).toHaveLength(1)
+    expect(batches()).toHaveLength(1)
   })
 })

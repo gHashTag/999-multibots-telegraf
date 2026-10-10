@@ -18,13 +18,19 @@
 // v1 (2026-10-09): at most 16 messages per request, signers asked for 4 earnings at a time, the
 // wallet's own message limit (4 when it says nothing, never above 255), only earnings neither
 // revoked nor sent, oldest first, a cancelled prompt stops the run, 0.1 TON per message.
+// v2 (2026-10-09): Codex audit of 999 at 0dc5424e. Every refused earning keeps its reason; a
+// refusal is done (already minted), passing (the signers may answer next time: retried, at most
+// two more rounds) or final, and the card shows the partial result. The wallet confirmations are
+// counted before the press as they happen: one batch of at most 16 per request, sent at once, so
+// 874 earnings are 55 confirmations on a W5 wallet, not 4 -- the v1 trace said 4 and was wrong.
+// A wallet that accepted a transaction has not minted anything yet: only the minter says so.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::tri_claim_batch {
     pub const KIND : str = "automation";
     pub const ID : str = "tri-claim-batch";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 1;
+    pub const VERSION : u8 = 2;
 
     // ---- what one request builds ----
 
@@ -79,6 +85,44 @@ module automation::tri_claim_batch {
 
     // A built batch is good for 5 minutes, like a single claim.
     pub const VALID_FOR_S : u32 = 300;
+
+    // ---- the confirmations, counted honestly ----
+
+    // A request builds at most BATCH_MAX messages and the card sends them at once, so a run asks
+    // the wallet once per batch -- more when the wallet carries fewer than BATCH_MAX per
+    // transaction. No message waits for a later batch: each batch is valid for VALID_FOR_S only.
+    fn confirmations_for(pending: u32, wallet_max: u32) -> u32 {
+        let full : u32 = pending / BATCH_MAX;
+        let rest : u32 = pending - full * BATCH_MAX;
+        return full * transactions_for(BATCH_MAX, wallet_max) + transactions_for(rest, wallet_max);
+    }
+
+    // ---- refusals keep their reason ----
+
+    // What the server answered for one earning. The codes are the claim side's own words
+    // (render tri-claim.ts and the signers); the host sorts each code into one of three classes
+    // with these lists, comma-separated, and nothing else.
+    pub const REFUSAL_DONE : u8 = 1;
+    pub const REFUSAL_PASSING : u8 = 2;
+    pub const REFUSAL_FINAL : u8 = 3;
+    pub const DONE_CODES : str = "already_minted";
+    pub const PASSING_CODES : str = "quorum_not_reached,signer_unreachable,signer_answer_malformed,signers_disagree";
+
+    // Done counts as withdrawn; passing may be asked again; final is shown and not asked again.
+    fn counts_as_done(kind: u8) -> bool {
+        return kind == REFUSAL_DONE;
+    }
+
+    // A passing refusal is asked again at most MAX_RETRY_ROUNDS more times, a round after the
+    // rest of the queue -- never in a tight loop, never forever.
+    pub const MAX_RETRY_ROUNDS : u32 = 2;
+    fn may_retry(kind: u8, rounds_done: u32) -> bool {
+        return kind == REFUSAL_PASSING && rounds_done < MAX_RETRY_ROUNDS;
+    }
+
+    // A wallet that accepted the transaction proves nothing about the mint: the card says
+    // "sent to the wallet", and only the minter's state says minted.
+    pub const SENT_IS_NOT_MINTED : bool = true;
 
     // ---- the run ----
 
@@ -137,8 +181,34 @@ module automation::tri_claim_batch {
         assert(!continue_after(0, true, false));
     }
 
+    test "the confirmations are one per batch of sixteen, counted before the press" {
+        assert(confirmations_for(874, 255) == 55);
+        assert(confirmations_for(874, 4) == 219);
+        assert(confirmations_for(16, 255) == 1);
+        assert(confirmations_for(17, 255) == 2);
+        assert(confirmations_for(10, 4) == 3);
+        assert(confirmations_for(0, 255) == 0);
+        assert(confirmations_for(874, 255) != 4);
+    }
+
+    test "a refusal keeps its reason: done counts, passing is retried twice, final stops" {
+        assert(REFUSAL_DONE == 1);
+        assert(REFUSAL_PASSING == 2);
+        assert(REFUSAL_FINAL == 3);
+        assert(counts_as_done(REFUSAL_DONE));
+        assert(!counts_as_done(REFUSAL_PASSING));
+        assert(!counts_as_done(REFUSAL_FINAL));
+        assert(MAX_RETRY_ROUNDS == 2);
+        assert(may_retry(REFUSAL_PASSING, 0));
+        assert(may_retry(REFUSAL_PASSING, 1));
+        assert(!may_retry(REFUSAL_PASSING, 2));
+        assert(!may_retry(REFUSAL_FINAL, 0));
+        assert(!may_retry(REFUSAL_DONE, 0));
+        assert(SENT_IS_NOT_MINTED);
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 1);
+        assert(VERSION == 2);
     }
 }
 
