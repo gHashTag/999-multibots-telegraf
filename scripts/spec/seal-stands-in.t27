@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/seal-stands-in.t27 -- when a spec's seal answers for its tests, so nothing compiles them again.
+// Host: 999-multibots-telegraf scripts/check-t27-specs.mjs (`--run`: t27c test-report of each
+// vendored spec, one Zig compile per spec).
+// Trace: owner 2026-10-09: "fix CI/CD and speed development up with t27 seal". Measured that
+// day: `check-t27-specs --t27 <t27> --run` compiled all 48 vendored specs in 25 s; 35 of them
+// carried a seal in t27 whose spec_hash equals the vendored file's sha256 and whose tests
+// passed -- the run proved again what the seal already recorded.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs; vendored spec, constants and compiled
+// logic in scripts/spec/.
+// Claim status: host contract. Reading the seal and hashing the file are the host's; whether
+// the seal may stand in for a run is this spec.
+// v1 (2026-10-09): a seal stands in only for the exact bytes it sealed, with tests that ran
+// and none failing, not forced; `--no-seal` always runs.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::seal_stands_in {
+    pub const KIND : str = "automation";
+    pub const ID : str = "seal-stands-in";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // The seal is .trinity/seals/<module>.json in the t27 checkout; it names the spec by
+    // spec_path and its bytes by spec_hash ("sha256:" + hex).
+    pub const SEAL_DIR : str = ".trinity/seals";
+    pub const HASH_PREFIX : str = "sha256:";
+
+    // A seal answers for a run only when it sealed these exact bytes, its tests ran (a seal
+    // of zero tests proves nothing), none failed, and it was not forced past a failure.
+    fn stands_in(hash_same: bool, sealed_total: u32, sealed_failed: u32, forced: bool) -> bool {
+        return hash_same && sealed_total > 0 && sealed_failed == 0 && !forced;
+    }
+
+    // `--no-seal` asks for the compiler every time: a full run stays one flag away.
+    fn compiles(no_seal: bool, seal_stands_in: bool) -> bool {
+        return no_seal || !seal_stands_in;
+    }
+
+    test "a seal stands in only for its exact bytes with tests that ran and passed" {
+        assert(stands_in(true, 6, 0, false));
+        assert(!stands_in(false, 6, 0, false));
+        assert(!stands_in(true, 0, 0, false));
+        assert(!stands_in(true, 6, 1, false));
+        assert(!stands_in(true, 6, 0, true));
+    }
+
+    test "no-seal always compiles; otherwise only what no seal answers for" {
+        assert(compiles(true, true));
+        assert(compiles(true, false));
+        assert(compiles(false, false));
+        assert(!compiles(false, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
