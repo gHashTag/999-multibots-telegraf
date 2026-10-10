@@ -3,7 +3,7 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 61e4f0923086bffdbb04b486977bbafecf60bed2433ad59df785f11309e60af0
+// spec-sha256: 1be59db0bda13079dd52a02e594b354640b8ac6c385b4bcc344b674bafa6996a
 /* eslint-disable */
 
 const WASM =

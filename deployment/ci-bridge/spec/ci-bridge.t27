@@ -17,19 +17,23 @@
 // v3 (2026-10-09): the live app may write neither statuses nor checks but may comment
 // (logged: checks=read issues=write pull_requests=write); the mark is then one comment per
 // head, edited from pending to the verdict, and only the app's own comment counts as one.
+// v4 (2026-10-10): the pre-push player lint ratchet runs too. Two new player lint errors
+// reached main on 2026-10-09 (API merges run no hooks) and the ratchet then refused every
+// push of a branch at main; the bridge now marks such a PR red before it merges.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::ci_bridge {
     pub const KIND : str = "automation";
     pub const ID : str = "ci-bridge";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // The name of the mark on GitHub, a commit status context or a check run name.
     pub const CONTEXT : str = "railway/checks";
     // The local gates, in the runner's own names: the pre-commit type gates, the pre-push
-    // related tests and the bundle boot. tri remote-check runs the same list.
-    pub const SUITES : str = "types,render-types,guard,boots";
+    // related tests, the bundle boot and the player lint ratchet. tri remote-check runs the
+    // same list.
+    pub const SUITES : str = "types,render-types,guard,boots,player-lint";
 
     // One pass over the open pull requests every two minutes.
     pub const POLL_S : u32 = 120;
@@ -183,7 +187,7 @@ module automation::ci_bridge {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 3);
+        assert(VERSION == 4);
     }
 }
 

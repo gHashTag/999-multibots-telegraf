@@ -65,10 +65,19 @@ failed, with GitHub's own words:
 
 ## Common Issues
 
-- **Railway SKIPPED the deploy after a merge**: watch paths. The service has root
-  directory `/deployment/ci-bridge`; a leading `/` pattern never matched. Patterns
-  now `deployment/ci-bridge/**` and `bridge.mjs`; if a merge is still skipped,
-  `redeploy` with the skipped deployment's id builds that commit.
+- **Railway SKIPPED the deploy after a merge**: it still happens with the watch
+  pattern `/deployment/ci-bridge/**` (Railway docs: patterns start at the repo
+  root `/`). The bridge heals itself (spec v2 `heal_due`: 10 min grace, once per
+  process). The check-runner has no such heal: after a merge that changes BOTH,
+  check its deploy (`list-deployments`) -- a bridge asking for a suite the old
+  runner does not know gets `unknown suite` on every PR.
+- **The pre-push player lint ratchet is a bridge suite since v4** (`player-lint`).
+  API merges run no hooks: 2026-10-09 two lint errors reached main and then
+  every push at main was refused. On the runner `PLAYER_LINT_REQUIRED=1` turns
+  "eslint not installed, skipping" into a failure.
+- **`tri ci` said "no mark" for a running head**: `gh api` puts GitHub's 403 body
+  on STDOUT, so `2>/dev/null` does not hide it and it was read as the status.
+  Every read now drops its output on a non-zero exit.
 - **A Railway variable set to `""` keeps acting**: the app wins over a token when
   both are configured (`tokenOf`), so an emptied token cannot shadow it.
 - **Do not backfill**: on day one there were 34 open PRs, mostly stale; the runner
