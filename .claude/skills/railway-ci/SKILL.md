@@ -70,7 +70,12 @@ failed, with GitHub's own words:
   root `/`). The bridge heals itself (spec v2 `heal_due`: 10 min grace, once per
   process). The check-runner has no such heal: after a merge that changes BOTH,
   check its deploy (`list-deployments`) -- a bridge asking for a suite the old
-  runner does not know gets `unknown suite` on every PR.
+  runner does not know gets `unknown suite` on every PR. Until 2026-10-10 the
+  runner had NO source at all (deployed by hand with `railway up`, builder
+  RAILPACK); it is now connected like the bridge: repo main, root
+  `/deployment/check-runner`, Dockerfile, watch `/deployment/check-runner/**`.
+  Its image builds for about 10 minutes (Rust t27c, Zig, Chromium), the bridge
+  in seconds: after a merge touching both, `/recheck` any PR marked `error`.
 - **The pre-push player lint ratchet is a bridge suite since v4** (`player-lint`).
   API merges run no hooks: 2026-10-09 two lint errors reached main and then
   every push at main was refused. On the runner `PLAYER_LINT_REQUIRED=1` turns
