@@ -183,6 +183,6 @@ describe('spec automation/ci-bridge', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 })

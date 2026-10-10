@@ -35,16 +35,18 @@ worst=0
 for n in $PRS; do
   sha=$(gh api "repos/$REPO/pulls/$n" --jq .head.sha 2>/dev/null) ||
     { echo "  #$n  could not be read"; worst=2; continue; }
+  # A refused read (403) prints GitHub's error body on stdout: it is no mark.
   line=$(gh api "repos/$REPO/commits/$sha/status" \
-    --jq ".statuses[] | select(.context==\"$CONTEXT\") | \"\(.state)\t\(.description)\"" 2>/dev/null | head -1)
+    --jq ".statuses[] | select(.context==\"$CONTEXT\") | \"\(.state)\t\(.description)\"" 2>/dev/null) || line=""
+  line=${line%%$'\n'*}
   if [ -z "$line" ]; then
     line=$(gh api "repos/$REPO/commits/$sha/check-runs?check_name=$CONTEXT&per_page=1" \
-      --jq '.check_runs[0] | select(.) | "\(if .status=="completed" then .conclusion else "pending" end)\t\(.output.title // "")"' 2>/dev/null)
+      --jq '.check_runs[0] | select(.) | "\(if .status=="completed" then .conclusion else "pending" end)\t\(.output.title // "")"' 2>/dev/null) || line=""
   fi
   if [ -z "$line" ]; then
     # spec v3: the app's own PR comment carries the mark when it may only comment
     st=$(gh api "repos/$REPO/issues/$n/comments?per_page=100" \
-      --jq "[.[] | select(.performed_via_github_app != null) | .body | capture(\"^<!-- $CONTEXT sha=(?<s>[0-9a-f]+) state=(?<st>[a-z]+) -->\")? | select(.s==\"$sha\") | .st] | last // empty" 2>/dev/null)
+      --jq "[.[] | select(.performed_via_github_app != null) | .body | capture(\"^<!-- $CONTEXT sha=(?<s>[0-9a-f]+) state=(?<st>[a-z]+) -->\")? | select(.s==\"$sha\") | .st] | last // empty" 2>/dev/null) || st=""
     [ -n "$st" ] && line="$st"$'\t'"(PR comment)"
   fi
   state=${line%%$'\t'*}; desc=${line#*$'\t'}

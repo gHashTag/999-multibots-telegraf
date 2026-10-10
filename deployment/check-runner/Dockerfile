@@ -55,7 +55,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM node:20-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash git tar ca-certificates python3 make g++ ffmpeg \
-      chromium fonts-liberation libssl3 \
+      chromium fonts-liberation libssl3 tini \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=t27c /t27/target/release/t27c /usr/local/bin/t27c
 COPY --from=zig /opt/zig /opt/zig
@@ -79,4 +79,8 @@ COPY server.mjs suites.mjs /app/
 # Dependencies installed per lockfile live on the volume mounted at /cache.
 ENV CHECK_CACHE=/cache CHECK_WORK=/tmp/work CHROME_PATH=/usr/bin/chromium
 EXPOSE 8080
+# tini is PID 1 and reaps orphans. Node as PID 1 never waits on the grandchildren
+# a killed run or a test leaves behind; 2026-10-06..10 their zombies filled the
+# process table until every spawn failed with EAGAIN (pthread_create, spawn tar).
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "/app/server.mjs"]

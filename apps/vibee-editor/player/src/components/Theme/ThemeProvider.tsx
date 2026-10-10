@@ -6,7 +6,6 @@
 import { useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { resolvedThemeAtom, systemThemeAtom } from '@/atoms/theme'
-import type { ResolvedTheme } from '@/atoms/theme'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolvedTheme] = useAtom(resolvedThemeAtom)

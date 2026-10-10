@@ -6,9 +6,9 @@
 export const KIND = "automation" satisfies string;
 export const ID = "ci-bridge" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 3 satisfies number;
+export const VERSION = 4 satisfies number;
 export const CONTEXT = "railway/checks" satisfies string;
-export const SUITES = "types,render-types,guard,boots" satisfies string;
+export const SUITES = "types,render-types,guard,boots,player-lint" satisfies string;
 export const POLL_S = 120 satisfies number;
 export const STALE_S = 3600 satisfies number;
 export const TAIL_LINES = 80 satisfies number;
