@@ -64,7 +64,11 @@ Full rules and skip reasons: `bee-delegation`.
 **For a subagent** -- a prompt with:
 
 1. the goal in one sentence and why it matters;
-2. repo, base branch, where to work;
+2. repo, base branch, and its **own uniquely named working directory**,
+   written in the order (`<scratch>/ord-<task>`). Measured 2026-10-11: two
+   executors told to clone into the same name `tb` deleted the general's
+   working clone mid-round; nothing was lost only because every commit had
+   been pushed;
 3. **boundary**: which files may be touched;
 4. "done" criteria as commands with expected output, plus a negative control;
 5. prohibitions: **no merge to `main`, no deploy**, no prod, never print
@@ -72,18 +76,29 @@ Full rules and skip reasons: `bee-delegation`.
 6. persistence: push after every green step, open the PR as soon as there is
    something to show, keep the order under ~30 minutes (sessions die --
    memory `sessions-die-persist-as-you-go`);
-7. what to return: the PR link and one table "check | command | result".
+7. what to return: the PR link and one table "check | command | result",
+   with **measured and estimated kept apart**: an extrapolation is marked as
+   an estimate. 2026-10-11 inventory: "~250 missing" was extrapolated from a
+   35% hand-checked rate; the general relays it as an estimate, never as a
+   count.
 
 ### Parallel without collisions
 
-- Orders are **independent**: different files, different branches. Two
-  orders on one file are one order.
+- **One file = one order.** Before splitting, map which files each order
+  touches; orders that share a file merge into one order. 2026-10-11:
+  `order_money` and `order_status` both live in `src/api/orders.rs`, so they
+  went to one executor, and the pricing copy in that file was explicitly
+  left to that same executor.
 - Bees: the boundary must not overlap files already held (`/queen/status`,
   `skipSummary.claimed` and `fileConflict`).
 - Subagents: each gets its own worktree (`isolation: "worktree"`); launch
   them all **in one message**, in the background.
 - An order that depends on another (a report cron waits for its spec) is
   issued when the dependency is delivered, not before.
+- **Disk budget.** Measured 2026-10-11: a full Rust build of a large crate
+  took ~5.7 GB and filled the disk once. Parallel Rust executors share ONE
+  `CARGO_TARGET_DIR` (cargo serializes on its lock and reuses deps), and
+  below a free-space floor they skip local builds and rely on CI.
 
 ### What the general does itself
 
@@ -101,12 +116,17 @@ Full rules and skip reasons: `bee-delegation`.
 Work is accepted by **running** it, not by reading the executor's report: run
 its criteria yourself, look at CI. A "done" without a command and a result is
 not acceptance. A bee delivered -- check its PR in t27; a subagent delivered
--- check its branch.
+-- check its branch. Acceptance runs on the general's side with its own
+commands, and spot-checks at least one specific claim against the code
+(2026-10-11: the availability drift claim was verified by reading
+`bike_card.rs:149` and the spec `fn`).
 
 Checklist per order:
 
 ```
-- [ ] criteria commands run by the general, output matches
+- [ ] criteria commands run by the general, with its own commands, output matches
+- [ ] at least one spot check of the executor's specific claims against the code
+- [ ] estimates in the report are relayed as estimates, not counts
 - [ ] negative control fails when it should
 - [ ] CI status read from the source (`gh pr view`, `gh run list`), "queued" is not "green"
 - [ ] if a person will touch it: the rainbow bridge (Stage 3)
