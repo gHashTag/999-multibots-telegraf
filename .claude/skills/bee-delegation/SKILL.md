@@ -1,59 +1,61 @@
 ---
-name: 'Bee Delegation'
-description: 'Отдать работу пчёлам Королевы дешевле, чем делать самому: что пчёлы могут и чего не могут (только репозиторий gHashTag/t27), как написать делегируемую задачу (Boundary + проверяемые критерии), как прочитать доску и причины пропуска (claimed, fileConflict, missingBoundary), ежечасный отчёт о работе и блокерах, удалённое управление ульем из Telegram. Загружать при словах «делегируй пчёлам», «через пчёл», «отдай улью», «королева», «ежечасный отчёт», «блокеры в чат», «управление пчёлами», и ПЕРЕД тем, как писать самому то, что может сделать улей.'
+name: bee-delegation
+description: 'Hands work to the Queen''s bees, cheaper than doing it yourself: what bees can and cannot do (gHashTag/t27 only), how to write a delegable issue (Boundary + measurable criteria), how to read the board and skip reasons (claimed, fileConflict, missingBoundary, incompleteSpec, notFirst), the hourly work-and-blockers report, remote hive control from Telegram. Use BEFORE writing yourself what the hive can do. Triggers: "delegate to the bees", "through the bees", "give it to the hive", "Queen", "hourly report", "blockers to chat", "bee control"; in Russian: «делегируй пчёлам», «через пчёл», «отдай улью», «королева», «ежечасный отчёт», «блокеры в чат», «управление пчёлами».'
 ---
 
 # Bee Delegation
 
-**Владелец, 11.10.2026: «делегируй задачи пчёлам, через пчёл экономней делать».**
-Пчела — воркер Королевы на `trios-agent-server` (Railway, проект 999). Её
-ход стоит дешевле хода сессии Claude Code, и улей работает, пока сессия спит.
-Поэтому всё, что пчела **может** сделать, ставится ей, а не пишется руками.
+Owner, 2026-10-11: "delegate tasks to the bees, through the bees it is
+cheaper." A bee is a Queen worker on `trios-agent-server` (Railway, project
+999). Its turn costs less than a Claude Code session turn, and the hive keeps
+working while the session sleeps. So everything a bee **can** do is issued to
+it, not written by hand. Bees are the first executor of the general in skill
+`tri`.
 
-## Что пчёлы могут, а что нет (замер 11.10.2026)
+## What bees can and cannot do (measured 2026-10-11)
 
-| Может | Не может |
-|---|---|
-| работать в **`gHashTag/t27`**: спеки, `cli/t27b`, `gen/rust`, отчёты | трогать любой другой репозиторий (TurboBaby, 999-multibots-telegraf): доска читает только t27, границу из чужого репо держать негде |
-| написать спеку правила, которое потом подключит хост | подключить спеку к хосту в другом репо (это делаем мы) |
-| чинить t27b/t27c по проверяемым критериям | деплоить, вливать в `main`, трогать прод |
+| Can                                                                | Cannot                                                                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| work in **`gHashTag/t27`**: specs, `cli/t27b`, `gen/rust`, reports | touch any other repo (TurboBaby, 999-multibots-telegraf): the board reads only t27, there is nowhere to hold a boundary from a foreign repo |
+| write the spec of a rule a host wires in later                     | wire a spec into a host in another repo (we do that)                                                                                        |
+| fix t27b/t27c against measurable criteria                          | deploy, merge into `main`, touch prod                                                                                                       |
 
-Отсюда правило разделения: **спека и компилятор — пчёлам, подключение к
-хосту и релиз — нам.**
+Hence the split: **spec and compiler -- to the bees; wiring into the host and
+release -- to us.**
 
-## Делегируемая задача = issue в gHashTag/t27
+## A delegable task = an issue in gHashTag/t27
 
-Королева берёт issue, только если выполнены **все четыре** проверки
-(правило — `apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts`,
-`judge`, зеркало движка `QueenSpecQuality`):
+The Queen takes an issue only when **all four** checks pass (the rule:
+`apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts`, `judge`, mirror
+of the engine's `QueenSpecQuality`):
 
 ```
 ## User Scenarios & Testing
-- **Given** ..., **When** ..., **Then** ...  (без него: incompleteSpec)
+- **Given** ..., **When** ..., **Then** ...  (without it: incompleteSpec)
 ## Requirements
-- FR-001: ... MUST ...                       (номер FR-NNN или MUST)
-## Success Criteria                          (или Acceptance criteria)
-1. `cargo test -p t27b` exits 0              (измеримо: exit 0, число тестов,
-                                              путь .rs/.ts/.json, команда cargo/git/bun)
+- FR-001: ... MUST ...                       (an FR-NNN number or MUST)
+## Success Criteria                          (or Acceptance criteria)
+1. `cargo test -p t27b` exits 0              (measurable: exit 0, test count,
+                                              a .rs/.ts/.json path, a cargo/git/bun command)
 ## Boundary
-- путь/к/файлу, который держит пчела        (без раздела: missingBoundary)
+- path/to/file the bee holds                 (without the section: missingBoundary)
 ```
 
-Замер 11.10.2026: три задачи с Boundary, FR и критериями, но **без
-сценария**, простояли тик как `incompleteSpec`. Королева потом сама дописывает
-сценарии (метка `queen-shaped`), но это лишний тик — **пиши все четыре
-раздела сразу**. Образец формы — t27#8590, t27#8959.
+Measured 2026-10-11: three tasks with Boundary, FR and criteria but **no
+scenario** sat a tick as `incompleteSpec`. The Queen later writes the
+scenarios herself (label `queen-shaped`), but that costs a tick -- **write all
+four sections at once**. Form examples: t27#8590, t27#8959.
 
-Дешевле всего: одна задача = одна мысль, граница — минимальная. Чем больше
-файлов в Boundary, тем дольше задача стоит в `fileConflict`.
+Cheapest: one task = one idea, minimal boundary. The more files in Boundary,
+the longer the task waits in `fileConflict`.
 
-**Каталог в границе — это занятый каталог.** Замер 11.10.2026: две задачи
-спек с границей `.trinity/seals/` стояли в `fileConflict`, потому что этот
-каталог держат десятки других пчёл. Называй конкретный файл печати:
-`.trinity/seals/automation_automation::<module>.json` (имя — от
-`module automation::<module>` спеки).
+**A directory in Boundary is a held directory.** Measured 2026-10-11: two
+spec tasks with boundary `.trinity/seals/` sat in `fileConflict` because
+dozens of other bees hold that directory. Name the concrete seal file:
+`.trinity/seals/automation_automation::<module>.json` (the name comes from
+the spec's `module automation::<module>`).
 
-## Как читать доску (без ключа)
+## Reading the board (no key needed)
 
 ```bash
 B=https://trios-agent-server-production.up.railway.app
@@ -61,74 +63,77 @@ curl -s $B/queen/status          # swarmState, workers.active/capacity, lastTick
 curl -s $B/queen/public-board    # repo, columns, cards, pulse
 ```
 
-`lastTick.skipSummary` — почему задачу сейчас не берут:
+`lastTick.skipSummary` -- why a task is not being taken now:
 
-| причина | значит | что делать |
-|---|---|---|
-| `claimed` | **пчела уже работает** | ждать PR |
-| `fileConflict` | файлы границы держит другая пчела | ждать или сузить Boundary |
-| `missingBoundary` | нет `## Boundary` | дописать раздел |
-| `incompleteSpec` | не хватает сценария, FR или измеримого критерия | дописать недостающий раздел |
-| `notFirst` | задача годна, просто не первая в очереди тика | ждать, ничего не править |
-| `completed` | сделано | проверить PR и закрыть |
+| reason            | means                                                     | what to do              |
+| ----------------- | --------------------------------------------------------- | ----------------------- |
+| `claimed`         | **a bee is already working on it**                        | wait for the PR         |
+| `fileConflict`    | another bee holds the boundary files                      | wait or narrow Boundary |
+| `missingBoundary` | no `## Boundary`                                          | add the section         |
+| `incompleteSpec`  | scenario, FR or a measurable criterion is missing         | add the missing section |
+| `notFirst`        | the task is eligible, just not first in this tick's queue | wait, change nothing    |
+| `completed`       | done                                                      | check the PR and close  |
 
-Списки в `skipSummary` усечены (`more: N`), так что отсутствие номера в
-первых 25 ещё не значит, что задачи нет. `refusal: "nothing to choose"` при
-`workers.active > 0` — это **работающий улей**, а не простой (навык
+Lists in `skipSummary` are truncated (`more: N`), so a number missing from
+the first 25 does not mean the task is absent. `refusal: "nothing to choose"`
+with `workers.active > 0` is a **working hive**, not an idle one (skill
 `why-the-bees-are-silent`).
 
-## Ежечасный отчёт о работе и блокерах
+## Hourly work-and-blockers report
 
-Правила отчёта — спека **`specs/automation/bee-report.t27`** (t27#8960,
-делегирована пчёлам): крон раз в час не в :00, молчать без изменений, кроме
-пульса раз в 6 ч; блокеры — упавший CI сразу, CI в очереди дольше 60 мин,
-задача без движения 6 ч, Королева без dispatch 90 мин; ≤ 4000 символов;
-без имён клиентов и секретов.
+The report rules are the spec **`specs/automation/bee-report.t27`** (t27#8960,
+delegated to bees): a cron once an hour, not at :00; silent when nothing
+changed, except a pulse every 6 h; blockers -- failed CI immediately, CI
+queued over 60 min, a task without movement for 6 h, the Queen without a
+dispatch for 90 min; at most 4000 characters; no client names, no secrets.
 
-Хост — Inngest-крон в боте (`src/inngest_app/functions/hive/beeReport.ts`),
-рядом с `mailPushHeartbeat`: собирает факты (`/queen/status`, PR и CI
-отслеживаемых задач) и пишет **в чат владельца**. Порядок, как всегда:
-спека в t27 → `sync-t27-spec` → хост и тест → PR в 999. Слияние в `main` 999
-— это деплой: только по слову владельца.
+The host is an Inngest cron in the bot
+(`src/inngest_app/functions/hive/beeReport.ts`), next to
+`mailPushHeartbeat`: it collects facts (`/queen/status`, PR and CI of tracked
+tasks) and writes **to the owner's chat**. Order as always: spec in t27 ->
+`sync-t27-spec` -> host and test -> PR in 999. A merge into 999 `main` is a
+deploy: only on the owner's word.
 
-**Не делать вместо этого:** локальные запланированные задачи на Mac (падают
-через 2 с, память `scheduled-tasks-dead-on-glm`), сессионный `CronCreate`
-(умирает с сессией) и отчёт клиенту (у VIP-клиента автоответы могут быть
-выключены — навык `vip-client-care`).
+**Not instead:** local scheduled tasks on the Mac (they die after 2 s, memory
+`scheduled-tasks-dead-on-glm`), a session `CronCreate` (dies with the
+session), or a report to the client (a VIP client may have auto-replies off
+-- skill `vip-client-care`).
 
-## Удалённое управление ульем из Telegram
+## Remote hive control from Telegram
 
-Сейчас читать улей можно из Telegram (`hive_pulse`, `hive_board`,
-`hive_events`, `hive_queen` в `render/src/agent/hive-tools.ts`), а ставить
-работу — только руками на компьютере. Шаг вперёд — инструмент
-`hive_delegate`: владелец описывает задачу в чате, агент собирает issue с
-Boundary и критериями, показывает текст и **создаёт только по нажатию
-владельца** (issue в публичном репо — это публикация). Правила — спека
-**`specs/automation/hive-delegate.t27`** (t27#8961, делегирована): только
-владелец, только `gHashTag/t27`, ≥ 1 файл границы и ≤ 12, ≥ 1 критерий,
-дубль по заголовку — отказ.
+Today the hive can be read from Telegram (`hive_pulse`, `hive_board`,
+`hive_events`, `hive_queen` in `render/src/agent/hive-tools.ts`), but work
+can be issued only by hand on a computer. The next step is a `hive_delegate`
+tool: the owner describes the task in chat, the agent builds the issue with
+Boundary and criteria, shows the text and **creates it only on the owner's
+press** (an issue in a public repo is a publication). Rules: spec
+**`specs/automation/hive-delegate.t27`** (t27#8961, delegated): owner only,
+`gHashTag/t27` only, at least 1 and at most 12 boundary files, at least 1
+criterion, a duplicate title is refused.
 
-## Порядок работы
+## Workflow
 
-1. Раздели задачу: что в t27 (пчёлам) и что в других репо (нам).
-2. Для пчёл — issue с Boundary и пронумерованными критериями-командами.
-3. Через минуту-две — `/queen/status`: задача в `claimed` или почему пропущена.
-4. Свою часть делай параллельно; не делай то, что уже `claimed` пчелой.
-5. Когда пчела прислала PR — проверь критерии сам (запуск, а не чтение) и
-   только потом подключай к хосту.
+1. Split the task: what is in t27 (bees) and what is in other repos (us).
+2. For bees -- an issue with Boundary and numbered command criteria.
+3. After a minute or two -- `/queen/status`: is the task `claimed`, or why
+   was it skipped.
+4. Do your own part in parallel; do not do what a bee has `claimed`.
+5. When a bee sends a PR -- check its criteria yourself (by running, not
+   reading) and only then wire it into the host.
 
 ## Пишем на .t27
 
-**Владелец, 07.10.2026: «все пишем на .t27».** Число, порог, правило, цена,
-лимит, порядок на экране -- всё, что в этой теме решает поведение, пишется
-спекой `.t27` ПЕРВОЙ (в `gHashTag/t27`); хост импортирует числа из вывода
-`t27c gen-ts`, а тест гоняет каждый `test` спеки против кода. Код без спеки --
-долг, а не норма. Как именно, законы и ловушки -- только в навыке
-`t27-spec-first`: здесь указатель, не копия правила.
+Owner, 07.10.2026: "we write everything in .t27". Any number, threshold,
+rule, price, limit or on-screen order that decides behaviour here is written
+as a `.t27` spec FIRST (in `gHashTag/t27`); the host imports the numbers from
+`t27c gen-ts` output, and a test runs every spec `test` against the code.
+Code without a spec is debt, not the norm. How, the laws and the traps live
+only in the skill `t27-spec-first`: this is a pointer, not a copy.
 
-## Related Resources
+## Related resources
 
-- `why-the-bees-are-silent` — диагностика тишины улья по логам Railway
-- `agent-hive` — боты-агенты каталога и их чаты
-- `vip-client-care` — отчёты клиенту, а не владельцу
-- Память: `queen-takes-issues-not-logs` — доска читает только issues t27
+- `tri` -- the general: splitting work into orders and accepting it
+- `why-the-bees-are-silent` -- diagnosing a silent hive from Railway logs
+- `agent-hive` -- the catalogue's agent bots and their chats
+- `vip-client-care` -- reports to the client, not to the owner
+- Memory `queen-takes-issues-not-logs` -- the board reads only t27 issues
