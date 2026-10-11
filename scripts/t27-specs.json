@@ -29,6 +29,10 @@
     {
       "root": "deployment/ci-bridge",
       "specDir": "deployment/ci-bridge/spec"
+    },
+    {
+      "root": "scripts",
+      "specDir": "scripts/spec"
     }
   ],
   "unbound": [

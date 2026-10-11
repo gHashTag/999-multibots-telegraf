@@ -428,7 +428,13 @@ function namingCode(root) {
 }
 
 /** Every vendored spec, and every law over it and over the citations. */
-export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
+export function checkRepo({
+  root = ROOT,
+  t27 = null,
+  run = false,
+  seal = null,
+  noSeal = false,
+} = {}) {
   const bad = []
   const manifest = readManifest(root)
   const ignore = existsSync(join(root, '.prettierignore'))
@@ -509,12 +515,16 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
         what: 'bound now: remove it from "unbound"',
       })
 
-  if (t27) bad.push(...checkAgainstT27({ root, t27, bound, manifest, run }))
+  if (t27)
+    bad.push(
+      ...checkAgainstT27({ root, t27, bound, manifest, run, seal, noSeal })
+    )
   return bad
 }
 
 /** The laws that need the t27 checkout: identity, the compiler, the ratchet. */
-function checkAgainstT27({ root, t27, bound, manifest, run }) {
+function checkAgainstT27({ root, t27, bound, manifest, run, seal, noSeal }) {
+  const seals = run && seal ? sealsOf(t27) : new Map()
   const bad = []
   if (!existsSync(join(t27, 'specs')))
     return [{ spec: t27, law: 'judge', what: 'not a t27 checkout' }]
@@ -556,7 +566,19 @@ function checkAgainstT27({ root, t27, bound, manifest, run }) {
         what: `t27c gen-ts failed: ${String(e.message).slice(0, 120)}`,
       })
     }
-    if (run) bad.push(...testReport(t27c, t27, theirs, file))
+    if (run) {
+      const answered =
+        Boolean(seal) &&
+        sealAnswers(
+          seals.get(`specs/${id}.t27`),
+          readFileSync(join(root, file)),
+          seal.standsIn
+        )
+      if (!seal || seal.compiles(noSeal, answered)) {
+        runTally.compiled++
+        bad.push(...testReport(t27c, t27, theirs, file))
+      } else runTally.sealed++
+    }
   }
   const ours = []
   const walk = d => {
@@ -616,6 +638,42 @@ export function readTestReport(out) {
   }
 }
 
+/*
+ * A SEAL ANSWERS FOR A RUN (spec automation/seal-stands-in, scripts/spec/).
+ * t27 keeps .trinity/seals/<module>.json for a spec: the sha256 of the bytes
+ * it sealed and the tests that ran on them. Measured 2026-10-09: 35 of the
+ * 48 vendored specs carried a seal for their exact bytes with passing tests,
+ * and `--run` compiled every one of them again (25 s). The decision is the
+ * spec's compiled logic; this reads the seals and hashes the file.
+ */
+export function sealsOf(t27) {
+  const dir = join(t27, '.trinity', 'seals')
+  const out = new Map()
+  if (!existsSync(dir)) return out
+  for (const n of readdirSync(dir).filter(x => x.endsWith('.json'))) {
+    try {
+      const s = JSON.parse(readFileSync(join(dir, n), 'utf8'))
+      if (s?.spec_path) out.set(s.spec_path, s)
+    } catch {
+      /* a seal that does not parse answers for nothing */
+    }
+  }
+  return out
+}
+
+export function sealAnswers(seal, bytes, standsIn) {
+  const hash = 'sha256:' + createHash('sha256').update(bytes).digest('hex')
+  return standsIn(
+    Boolean(seal) && seal.spec_hash === hash,
+    Number(seal?.tests?.total ?? 0),
+    Number(seal?.tests?.failed ?? 0),
+    Boolean(seal?.tests?.forced)
+  )
+}
+
+/* What the last --run did: compiled, or answered by a seal. */
+export const runTally = { compiled: 0, sealed: 0 }
+
 function testReport(t27c, t27, spec, file) {
   let out = ''
   try {
@@ -669,7 +727,22 @@ if (main) {
   const t27 = at >= 0 ? args[at + 1] : null
   let bad
   try {
-    bad = checkRepo({ t27, run: args.includes('--run') })
+    const run = args.includes('--run')
+    /* The seal's logic is TypeScript (spec automation/seal-stands-in): loaded
+     * only for --run, so the offline gate never depends on type stripping. */
+    let seal = null
+    if (run)
+      seal = await import('./spec/seal-stands-in.logic.ts').catch(e => {
+        console.error(
+          `t27 specs: seals not read (${String(e.message).slice(0, 80)}); compiling every spec`
+        )
+        return null
+      })
+    bad = checkRepo({ t27, run, seal, noSeal: args.includes('--no-seal') })
+    if (run)
+      console.error(
+        `t27 specs: --run compiled ${runTally.compiled}, ${runTally.sealed} answered by their seals${args.includes('--no-seal') ? ' (--no-seal)' : ''}`
+      )
   } catch (e) {
     console.error(`t27 specs: could not judge: ${e.message}`)
     process.exit(2)

@@ -15,7 +15,8 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 
 ## СЕЙЧАС В РАБОТЕ
 
-- Tick 2: spec v2 (t27#8310) heal + /recheck; `tri ci --recheck`.
+- Tick 4: spec v4 (t27#8558) -- SUITES gains player-lint; check-runner suite
+  `player-lint` (PLAYER_LINT_REQUIRED=1: a missing eslint fails, never skips).
 
 ## Что уже есть
 
@@ -24,7 +25,7 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
 
 ## План
 
-- [ ] Owner gives the bees app `Checks: write` -> first live mark on a fresh PR.
+- [x] Live marks without new permissions: the app's own PR comment (spec v3).
 - [x] t27#8300 merged.
 - [x] Railway auto-deploys ci-bridge on merge (the deploy of #3953 built itself).
 - [ ] Mark main's head too (base red vs PR red).
@@ -39,3 +40,15 @@ is merged. Epic gHashTag/999-multibots-telegraf#3950. Skill `railway-ci`.
   deployed). Perms logged: checks=read issues=write pull_requests=write. Spec v3
   (t27#8330) marks by the app's own PR comment. Next: seal-based skip of t27c test-report
   for vendored specs whose sha256 equals the t27 seal (35 of 48 match; full --run 25 s).
+
+- 10.10.2026 12:40: t27#8330 (v3) and #8335 (seal-stands-in) merged; 999 #3963 merged
+  (spec --run: 3 compiled, 43 answered by seals). main had 407 player lint errors over a
+  406 baseline -- API merges run no hooks, so every push at main was refused (#3969 pays
+  two). The bridge never ran the lint ratchet: v4 adds it. `tri ci` printed "no mark" for
+  a pending comment mark: a 403 on the status read put GitHub's error JSON on stdout;
+  fixed. Main history was rewritten overnight: `git reset` the branch to origin, never
+  force-push. Drift NOT mine: crm-client-workspace v5<6, tri-claim-batch v1<2,
+  tri-wallet-chains v2<3 (999 lags t27; #3968 is on tri-wallet).
+- t27 seal merge conflict: master re-minted seals as seal_schema 2 (t27c 0.5.2). Take
+  ours, rebuild t27c from the merged tree (CARGO_TARGET_DIR=/home/user/t27/target, ~2 min),
+  `t27c seal --save` again. spec_hash is the same across schemas.
