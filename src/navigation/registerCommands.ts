@@ -276,6 +276,12 @@ import {
   notifyTeamOfPackageOrder,
   placePackageOrder,
 } from '@/services/agentPackageOrder'
+import {
+  courseIntent,
+  courseKeyReply,
+  requestCourseKey,
+  type CourseIntent,
+} from '@/services/courseAccess'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -3175,6 +3181,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let wantsReel = false
       /** The agent package ordered from the mini app (?start=agentpkg_<id>). */
       let orderedPackage: string | null = null
+      /** A t27.ai reader's course step (?start=course_<bot|paid>_<route>). */
+      let courseStep: CourseIntent | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3285,6 +3293,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // makes it in the background and sends it back to this chat.
             wantsReel = true
             logger.info('Story reel deep-link', { telegramId })
+          } else if (courseIntent(startParam)) {
+            // t27.ai's course ladder: the bot step or the club step.
+            courseStep = courseIntent(startParam)
+            logger.info('Course deep-link', { telegramId, step: courseStep })
           } else if (agentPackageIntent(startParam)) {
             // A package card's "Order" press: a request for the team.
             orderedPackage = agentPackageIntent(startParam)
@@ -3345,6 +3357,35 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         )
       }
 
+      /*
+       * THE COURSE KEY IS HANDED OVER BEFORE ANYTHING ELSE, for the same
+       * reason as the order above: a new reader goes through CreateUserScene
+       * next. The render decides (spec automation/course-access.t27), files
+       * the reader in the owner's CRM and tells the owner; this only carries
+       * the press and the answer. No club -> the club card, so a press never
+       * dead-ends.
+       */
+      if (courseStep && ctx.from) {
+        const outcome = await requestCourseKey(ctx.from, courseStep)
+        const reply = courseKeyReply(
+          isRussianFromState(ctx),
+          courseStep,
+          outcome
+        )
+        await ctx.reply(
+          reply.text,
+          reply.button
+            ? Markup.inlineKeyboard([
+                [Markup.button.url(reply.button.label, reply.button.url)],
+              ])
+            : undefined
+        )
+        if (outcome.kind === 'no_club') {
+          wantsClub = true
+          ctx.session.clubDeepLink = true
+        }
+      }
+
       if (!userDetails.isExist) {
         if (orderedPackage) ctx.session.agentPackageOrdered = true
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
@@ -3353,6 +3394,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (orderedPackage) {
         // Answered above; a greeting on top would bury the confirmation.
         orderedPackage = null
+      } else if (courseStep && !wantsClub) {
+        // Answered above with the key; a greeting on top would bury it.
+        courseStep = null
       } else if (wantsApp) {
         ctx.session.appDeepLink = undefined
         await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))

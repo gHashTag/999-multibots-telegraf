@@ -102,6 +102,7 @@ import {
   clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
+import { isCoursePath, handleCourse } from './src/agent/course-access'
 import {
   isAgentPackageSalePath,
   handleAgentPackageSale,
@@ -537,7 +538,7 @@ import {
   CLUB_ONLY_STATUS,
   mayViewProfile,
 } from './src/club/profile-visibility'
-import { clubAccessFor } from './src/agent/club-membership'
+import { clubAccessFor, clubStatus } from './src/agent/club-membership'
 import {
   serveShelfRequest,
   createShelfVideo,
@@ -9001,6 +9002,34 @@ const server = createServer(async (req, res) => {
       // get the month's tokens through the ledger (kind 'grant').
       grant: clubGrantSource(),
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /*
+   * The ladder to the t27 courses (src/agent/course-access.ts, spec
+   * automation/course-access.t27): the bot mints a reader's key with the
+   * server key, t27.ai checks it and reports finished lessons with it; every
+   * reader past the bot is filed in the owner's CRM and the owner is told.
+   */
+  if (isCoursePath(req.url?.split('?')[0] || '')) {
+    const out = await handleCourse(req, {
+      getPool: async () => (await getPool()) as any,
+      isServer: r => hasServerKey(r as any),
+      readBody: r => readBody(r as any),
+      // The club exactly as handleClub reads it: paid months and free passes.
+      club: async id => {
+        const pool = (await getPool()) as any
+        const s = await clubStatus(
+          pool,
+          id,
+          new Date(),
+          await clubAccessFor(id, clubGrantSource())
+        )
+        return { active: s.active, daysLeft: s.days_left }
+      },
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

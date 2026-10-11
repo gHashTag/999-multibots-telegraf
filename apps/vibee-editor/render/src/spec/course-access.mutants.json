@@ -1,0 +1,62 @@
+[
+  {
+    "name": "the club is not asked: a paid key for anybody",
+    "file": "src/agent/course-access.ts",
+    "from": "      ? await deps.club(p.telegramId)\n      : { active: false, daysLeft: 0 }",
+    "to": "      ? { active: true, daysLeft: 30 }\n      : { active: false, daysLeft: 0 }"
+  },
+  {
+    "name": "the signature is not checked",
+    "file": "src/agent/course-access.ts",
+    "from": "  if (want.length !== got.length || !crypto.timingSafeEqual(want, got))",
+    "to": "  if (false)"
+  },
+  {
+    "name": "an expired key still opens",
+    "file": "src/agent/course-access.ts",
+    "from": "  if (expDay * DAY_MS <= now.getTime()) return { ok: false, reason: 'expired' }",
+    "to": ""
+  },
+  {
+    "name": "the Telegram id goes into the key",
+    "file": "src/agent/course-access.ts",
+    "from": "  const signed = mintKey(step, learnerId, days, now, key!)",
+    "to": "  const signed = mintKey(step, `${learnerId}${p.telegramId}`, days, now, key!)"
+  },
+  {
+    "name": "anybody mints, not only the bot",
+    "file": "src/agent/course-access.ts",
+    "from": "    if (!deps.isServer(req))",
+    "to": "    if (false)"
+  },
+  {
+    "name": "the owner is told every time",
+    "file": "src/agent/course-access.ts",
+    "from": "  if (tellsOwner(event, !first))\n    await tell(",
+    "to": "  if (true)\n    await tell("
+  },
+  {
+    "name": "the lesson count is taken from the report",
+    "file": "src/agent/course-access.ts",
+    "from": "  const done = Math.min(255, Number(c.rows[0]?.n ?? 0))",
+    "to": "  const done = Math.min(255, Number(lesson.replace(/\\D/g, '') || 0))"
+  },
+  {
+    "name": "a report without a key is written",
+    "file": "src/agent/course-access.ts",
+    "from": "  if (!mayReport(reading.ok)) return { ok: false, reason: reading.reason ?? 'no_key' }",
+    "to": ""
+  },
+  {
+    "name": "no CRM tag",
+    "file": "src/agent/course-access.ts",
+    "from": "    await fileInCrm(pool, p, crmTag(step), `",
+    "to": "    await fileInCrm(pool, p, '', `"
+  },
+  {
+    "name": "the bot key runs out with the club",
+    "file": "src/agent/course-access.ts",
+    "from": "  const days = keyDays(step, Math.max(1, Math.min(65535, club.daysLeft)))",
+    "to": "  const days = Math.max(1, club.daysLeft)"
+  }
+]

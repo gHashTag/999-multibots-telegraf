@@ -359,6 +359,14 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/traffic/arrival',
   /*
+   * The t27 course ladder (src/agent/course-access.ts). t27.ai has no
+   * Telegram: GET checks a reader's key, POST /progress reports a lesson WITH
+   * that key, and the handler refuses a mint without the server key
+   * (hasServerKey), so nobody mints for another person by typing a number.
+   */
+  '/api/course/key',
+  '/api/course/progress',
+  /*
    * A step on the welcome screen (the screen's heatmap), sent the same way
    * and bounded the same way: a closed list of steps, no person.
    */
