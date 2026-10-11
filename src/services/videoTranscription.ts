@@ -1,4 +1,5 @@
 import { redactBotToken } from '@/utils/redactBotToken'
+import { replicateLive } from '@/core/replicate/replicateLive'
 import fs, { createReadStream } from 'fs'
 import path from 'path'
 import https from 'https'
@@ -397,7 +398,7 @@ class VideoTranscriptionService {
       formData.append('response_format', 'json')
 
       // Try Replicate first if available (no regional restrictions)
-      if (process.env.REPLICATE_API_TOKEN) {
+      if (replicateLive()) {
         try {
           console.log(`🔄 Trying Replicate Whisper API...`)
 
