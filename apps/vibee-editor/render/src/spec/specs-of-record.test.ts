@@ -381,6 +381,22 @@ describe('the logic runs from the spec', () => {
     expect(door(numberOk)).not.toContain('strCall')
   })
 
+  it('t27-logic reads a pub fn as well as a private one', () => {
+    const fns = zigFns(
+      [
+        'pub fn decode_opcode(byte: u32) u32 {',
+        'fn has_imm(op: u32) bool {',
+      ].join('\n')
+    )
+    expect(fns.map(f => [f.name, f.ret])).toEqual([
+      ['decode_opcode', 'u32'],
+      ['has_imm', 'bool'],
+    ])
+    expect(zigExport(fns[0])).toBe(
+      'export fn t27_decode_opcode(byte: u32) u32 { return decode_opcode(byte); }'
+    )
+  })
+
   it('host-imports: an import of the compiled logic alone binds the host', () => {
     const hostFiles = [
       {
