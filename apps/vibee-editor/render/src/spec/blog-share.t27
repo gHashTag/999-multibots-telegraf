@@ -45,12 +45,42 @@
 //       three t27c releases inside the window, the desk would otherwise ask about
 //       0.5.2, then 0.5.1, then 0.5.0 -- the old-release complaint of v4 again.
 //       The yes, the receipt and the profile check stay as they are.
+// v6 (2026-10-09): autopost. Owner, 2026-10-09 (translated): "set it up so that every
+//       post of the blog from the RSS goes to X and Telegram automatically!! and the
+//       other networks", and the same day: "and make a schedule that publishes what was
+//       not published". With BLOG_AUTOPOST=1 beside BLOG_SHARE_ENABLED=1 the desk no
+//       longer asks about articles; it posts them and tells the owner, one receipt per
+//       article:
+//       - a NEW article -- first seen in the feed after the cutoff, the moment autopost
+//         was switched on, recorded in the database on its first tick (the service has
+//         no volume) -- goes out at once, one per tick;
+//       - the BACKLOG -- every article already in the feed at the cutoff -- drips out
+//         on a schedule: one article per slot, at 06:00 and 14:00 UTC (09:00 and 17:00
+//         in Moscow, where the owner reads; 14:00 UTC is 10:00 in New York, where the
+//         English blog's readers wake), each slot an hour wide (twelve ticks: a deploy
+//         inside the hour still meets it; a slot missed for longer is not made up);
+//       - Telegram is a network: the channel's bot posts the title and the static
+//         article link, and its receipt is the message_id it returns;
+//       - an article gets one autopost pass, and a network that already carries it is
+//         skipped: an article on X and not in Telegram gets only Telegram.
+//       Releases keep their yes. With autopost off the desk is v5, and the cutoff is
+//       cleared, so switching it on again starts a new one instead of a flood.
+//       Why the moment the desk first SAW an article and not the feed's pubDate: all
+//       96 items of the feed are dated 12:00 (the apex's rss.xml, 2026-10-08), so an
+//       article published at 18:00 would read as older than a cutoff at 15:00 that day.
+//       An article seen on the tick that recorded the cutoff is backlog: equal is old.
+//       The day cap: in those 39 days new articles came at a median of 2 a day, 5 on
+//       the 90th-percentile day, 11 at most. 5 new + 2 backlog slots = 7, so
+//       AUTO_PER_DAY = 8 keeps such a day whole with one to spare; a bigger day is
+//       spread over the next by the same cap, never blasted.
 // UI words (the owner reads Russian) stay in the host; the spec holds the rules.
 // Claim status: the desk is live behind BLOG_SHARE_ENABLED=1 on the render service,
 //       and its posts are confirmed: on 2026-10-03 08:36 UTC it found its post of
 //       one-regional-clock-twelve-pull-requests on the owner's X, LinkedIn and Reddit
 //       profiles (blog_shares row, state "posted"); Facebook went by its API, Threads
-//       was not signed in. The order of v4 is not yet measured on a live tick.
+//       was not signed in. The order of v4 is not yet measured on a live tick, and
+//       autopost (v6) has not run live: it waits for BLOG_AUTOPOST=1 and the
+//       channel's TELEGRAM_CHANNEL_BOT_TOKEN / TELEGRAM_CHANNEL_ID.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::blog_share {
@@ -58,7 +88,7 @@ module automation::blog_share {
     pub const KIND : str = "automation";
     pub const ID : str = "blog-share";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 5;
+    pub const VERSION : u8 = 6;
 
     // ---- The pace -------------------------------------------------------------------
     pub const TICK_MS : u32 = 300000;  // render-server.ts: every five minutes; a
@@ -209,6 +239,120 @@ module automation::blog_share {
         return releases_offerable > 0;
     }
 
+    // ---- Autopost (v6) ----------------------------------------------------------------
+    pub const AUTOPOST_SWITCH : str = "BLOG_AUTOPOST";  // set to "1" on the render service
+    pub const AUTO_ASKS : bool = false;        // autopost tells the owner; it does not ask
+    pub const AUTO_PER_TICK : u32 = 1;         // one article per tick, new or backlog
+    pub const AUTO_PER_DAY : u32 = 8;          // every autopost pass in AUTO_DAY_MS (v6 note)
+    pub const AUTO_DAY_MS : u32 = 86400000;    // the caps count over the last 24 h
+    pub const BACKLOG_PER_SLOT : u32 = 1;
+    pub const BACKLOG_PER_DAY : u32 = 2;       // one per slot, two slots a day
+    pub const BACKLOG_SLOT_1_S : u32 = 21600;  // 06:00 UTC = 09:00 Moscow
+    pub const BACKLOG_SLOT_2_S : u32 = 50400;  // 14:00 UTC = 17:00 Moscow, 10:00 New York
+    pub const BACKLOG_SLOT_WIDTH_S : u32 = 3600;  // an hour: twelve five-minute ticks
+    pub const TELEGRAM : str = "telegram";     // the network's name in the ledger
+    pub const CUTOFF_CLEARED_WHEN_OFF : bool = true;  // a new switch-on is a new cutoff
+
+    // Autopost is on only when its switch reads exactly "1".
+    fn autopost_on(switch_value: str) -> bool {
+        return switch_value == "1";
+    }
+
+    // With autopost on, articles are posted, not asked about; releases are still asked.
+    fn question_offers_articles(autopost: bool) -> bool {
+        return !autopost;
+    }
+
+    // New: first seen strictly after a recorded cutoff. Seen on the cutoff's own tick
+    // (equal) is backlog; no cutoff recorded (0) makes nothing new.
+    fn is_new(seen_s: u32, cutoff_s: u32) -> bool {
+        return cutoff_s > 0 && seen_s > cutoff_s;
+    }
+
+    // A new article is posted when autopost is on, the feed carries it, and it never had
+    // an autopost pass.
+    fn auto_offerable(autopost: bool, in_feed: bool, seen_s: u32, cutoff_s: u32, passed: bool) -> bool {
+        return autopost && in_feed && is_new(seen_s, cutoff_s) && !passed;
+    }
+
+    // A backlog article is posted on a slot when autopost is on, the feed carries it, it
+    // was there by the cutoff, it never had an autopost pass, no question about it is
+    // open, and at least one network does not carry it yet.
+    fn backlog_offerable(autopost: bool, in_feed: bool, seen_s: u32, cutoff_s: u32, passed: bool, question_open: bool, missing: u32) -> bool {
+        return autopost && in_feed && cutoff_s > 0 && !is_new(seen_s, cutoff_s) && !passed && !question_open && missing > 0;
+    }
+
+    // The slot a second of the UTC day falls in: 1 or 2, from its start to one second
+    // before its end; 0 between slots.
+    fn backlog_slot(second_of_day: u32) -> u32 {
+        if second_of_day >= BACKLOG_SLOT_1_S && second_of_day < BACKLOG_SLOT_1_S + BACKLOG_SLOT_WIDTH_S {
+            return 1;
+        }
+        if second_of_day >= BACKLOG_SLOT_2_S && second_of_day < BACKLOG_SLOT_2_S + BACKLOG_SLOT_WIDTH_S {
+            return 2;
+        }
+        return 0;
+    }
+
+    // How many new articles this tick posts: one while the day cap has room.
+    fn auto_take(new_offerable: u32, auto_today: u32) -> u32 {
+        if new_offerable == 0 || auto_today >= AUTO_PER_DAY {
+            return 0;
+        }
+        let room : u32 = AUTO_PER_DAY - auto_today;
+        if room < AUTO_PER_TICK {
+            return room;
+        }
+        return AUTO_PER_TICK;
+    }
+
+    // How many backlog articles this tick posts: one, inside a slot nobody used yet,
+    // when no new article took the tick, under the backlog's and the overall day cap.
+    fn backlog_take(slot: u32, slot_used: bool, offerable: u32, new_taken: u32, backlog_today: u32, auto_today: u32) -> u32 {
+        if slot == 0 || slot_used || offerable == 0 || new_taken >= AUTO_PER_TICK {
+            return 0;
+        }
+        if backlog_today >= BACKLOG_PER_DAY || auto_today >= AUTO_PER_DAY {
+            return 0;
+        }
+        return BACKLOG_PER_SLOT;
+    }
+
+    // The backlog's order: the owner's queue first (v3), then the newest (v4).
+    fn backlog_source(queued_offerable: u32, offerable_left: u32) -> str {
+        if queued_offerable > 0 {
+            return "queue";
+        }
+        if offerable_left > 0 {
+            return "newest";
+        }
+        return "none";
+    }
+
+    // A network already carries the article when its ledger state is "posted" or
+    // "unconfirmed": a press nobody saw may still be a post, and posting again could
+    // make two. "failed" and "not-configured" do not carry it.
+    fn network_carries(state: str) -> bool {
+        return state == "posted" || state == "unconfirmed";
+    }
+
+    // One network in an autopost pass: skipped when it carries the article already,
+    // "not-configured" when it has no account here, else posted.
+    fn network_step(carries: bool, configured: bool) -> str {
+        if carries {
+            return "skip";
+        }
+        if !configured {
+            return "not-configured";
+        }
+        return "post";
+    }
+
+    // Telegram's receipt: the message_id the Bot API returned, which is never 0.
+    fn telegram_posted(message_id: u32) -> bool {
+        return message_id > 0;
+    }
+
     test "an open question is waited on for the approval's lifetime, then let go" {
         assert(still_waiting("pending", 0));
         assert(still_waiting("pending", 86399999));
@@ -327,9 +471,112 @@ module automation::blog_share {
         assert(!posts("pending"));
     }
 
+    test "autopost is on only by BLOG_AUTOPOST=1, and with it off the desk is v5" {
+        assert(AUTOPOST_SWITCH == "BLOG_AUTOPOST");
+        assert(autopost_on("1"));
+        assert(!autopost_on(""));
+        assert(!autopost_on("0"));
+        assert(!autopost_on("true"));
+        assert(!autopost_on("1 "));
+        assert(question_offers_articles(false));
+        assert(!question_offers_articles(true));
+        assert(!auto_offerable(false, true, 200, 100, false));
+        assert(!backlog_offerable(false, true, 50, 100, false, false, 3));
+        assert(!AUTO_ASKS);
+        assert(ASK_NEEDS_YES);
+        assert(CUTOFF_CLEARED_WHEN_OFF);
+    }
+
+    test "a new article is first seen after the cutoff; the cutoff tick's own is backlog" {
+        assert(is_new(101, 100));
+        assert(!is_new(100, 100));
+        assert(!is_new(99, 100));
+        assert(!is_new(101, 0));
+        assert(auto_offerable(true, true, 101, 100, false));
+        assert(!auto_offerable(true, true, 100, 100, false));
+        assert(!auto_offerable(true, false, 101, 100, false));
+        assert(!auto_offerable(true, true, 101, 100, true));
+        assert(!auto_offerable(true, true, 101, 0, false));
+    }
+
+    test "a new article goes at once, one per tick, under the day cap" {
+        assert(AUTO_PER_TICK == 1);
+        assert(AUTO_PER_DAY == 8);
+        assert(AUTO_DAY_MS == 86400000);
+        assert(auto_take(1, 0) == 1);
+        assert(auto_take(5, 0) == 1);
+        assert(auto_take(0, 0) == 0);
+        assert(auto_take(3, 7) == 1);
+        assert(auto_take(3, 8) == 0);
+        assert(auto_take(3, 9) == 0);
+        assert(AUTO_PER_DAY >= 5 + BACKLOG_PER_DAY);
+        assert(AUTO_DAY_MS / TICK_MS > AUTO_PER_DAY);
+    }
+
+    test "the backlog goes one article per slot, at 06:00 and 14:00 UTC" {
+        assert(BACKLOG_SLOT_1_S == 21600);
+        assert(BACKLOG_SLOT_2_S == 50400);
+        assert(BACKLOG_SLOT_WIDTH_S == 3600);
+        assert(backlog_slot(21600) == 1);
+        assert(backlog_slot(25199) == 1);
+        assert(backlog_slot(25200) == 0);
+        assert(backlog_slot(21599) == 0);
+        assert(backlog_slot(36000) == 0);
+        assert(backlog_slot(50400) == 2);
+        assert(backlog_slot(53999) == 2);
+        assert(backlog_slot(54000) == 0);
+        assert(backlog_slot(0) == 0);
+        assert(backlog_slot(86399) == 0);
+        assert(BACKLOG_SLOT_WIDTH_S / (TICK_MS / 1000) == 12);
+        assert(backlog_offerable(true, true, 100, 100, false, false, 1));
+        assert(backlog_offerable(true, true, 0, 100, false, false, 1));
+        assert(!backlog_offerable(true, true, 101, 100, false, false, 1));
+        assert(!backlog_offerable(true, true, 50, 0, false, false, 1));
+        assert(!backlog_offerable(true, false, 50, 100, false, false, 1));
+        assert(!backlog_offerable(true, true, 50, 100, true, false, 1));
+        assert(!backlog_offerable(true, true, 50, 100, false, true, 1));
+        assert(!backlog_offerable(true, true, 50, 100, false, false, 0));
+        assert(backlog_take(1, false, 2, 0, 0, 0) == 1);
+        assert(backlog_take(2, false, 2, 0, 1, 1) == 1);
+        assert(backlog_take(0, false, 2, 0, 0, 0) == 0);
+        assert(backlog_take(1, true, 2, 0, 0, 0) == 0);
+        assert(backlog_take(1, false, 0, 0, 0, 0) == 0);
+        assert(backlog_take(1, false, 2, 1, 0, 1) == 0);
+        assert(backlog_take(1, false, 2, 0, 1, 1) == 1);
+        assert(backlog_take(1, false, 2, 0, 2, 2) == 0);
+        assert(backlog_take(1, false, 2, 0, 3, 3) == 0);
+        assert(backlog_take(1, false, 2, 0, 0, 7) == 1);
+        assert(backlog_take(1, false, 2, 0, 0, 8) == 0);
+        assert(BACKLOG_PER_SLOT == 1);
+        assert(BACKLOG_PER_DAY == 2);
+    }
+
+    test "the backlog goes the owner's queue first, then the newest" {
+        assert(backlog_source(2, 9) == "queue");
+        assert(backlog_source(1, 1) == "queue");
+        assert(backlog_source(0, 4) == "newest");
+        assert(backlog_source(0, 0) == "none");
+    }
+
+    test "a network that carries the article is skipped; telegram's receipt is its message_id" {
+        assert(TELEGRAM == "telegram");
+        assert(network_carries("posted"));
+        assert(network_carries("unconfirmed"));
+        assert(!network_carries("failed"));
+        assert(!network_carries("not-configured"));
+        assert(!network_carries(""));
+        assert(network_step(true, true) == "skip");
+        assert(network_step(true, false) == "skip");
+        assert(network_step(false, false) == "not-configured");
+        assert(network_step(false, true) == "post");
+        assert(telegram_posted(1));
+        assert(telegram_posted(4294967295));
+        assert(!telegram_posted(0));
+    }
+
     test "the desk is live, and its posts were seen on the profile" {
         assert(RUN_LIVE);
-        assert(VERSION == 5);
+        assert(VERSION == 6);
     }
 }
 

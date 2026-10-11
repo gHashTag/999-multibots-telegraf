@@ -27,9 +27,9 @@
  * or returned. An empty bio stores nothing.
  */
 import * as SPEC from '../spec/course-outreach.gen'
-// spec bio_due is the spec's compiled body (scripts/t27-logic.mjs); bio_next
-// returns a str, which the backend does not lower yet (__NOT_LOWERED__).
-import { bioDue } from '../spec/course-outreach.logic'
+// bio_due and bio_next are the spec's compiled bodies (scripts/t27-logic.mjs;
+// bio_next's str answer crosses the wasm boundary since #3941).
+import { bioDue, bioNext as specBioNext } from '../spec/course-outreach.logic'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows?: any[] }>
@@ -37,11 +37,10 @@ type Pool = {
 
 /** spec bio_next: a FLOOD_WAIT ends the run; so does the cap. Pure. */
 export type BioStep = 'wait' | 'cap' | 'go'
-export function bioNext(floodWaitS: number, readThisRun: number): BioStep {
-  if (floodWaitS > 0) return 'wait'
-  if (readThisRun >= SPEC.BIOS_PER_RUN) return 'cap'
-  return 'go'
-}
+export const bioNext = specBioNext as (
+  floodWaitS: number,
+  readThisRun: number
+) => BioStep
 
 /**
  * The seconds a FLOOD_WAIT asks for, or 0 when the error is something else.
@@ -168,7 +167,11 @@ export async function readBios(
   let flood = left
   let i = 0
   for (; i < due.length; i++) {
-    const step = bioNext(flood, report.bios_read)
+    // t27-plumbing: fits the counters to bio_next's u32/u8 (a ceiling still waits, still caps); bio_next decides
+    const step = bioNext(
+      Math.min(flood, 0xffffffff),
+      Math.min(report.bios_read, 0xff)
+    )
     if (step === 'wait') {
       report.bios_stopped = `FLOOD_WAIT: bios resume after ${new Date(
         (nowS + flood) * 1000

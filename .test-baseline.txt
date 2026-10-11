@@ -6211,6 +6211,7 @@ apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser a person he removed is not filed again
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser expired: not opened either
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser files programmers by THEIR headline or bio, tagged with the network
+apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser half a read is unknown too, though it shows people
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser no browser to ask: nothing opened, both unknown
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser not signed in: that network is not opened, and the answer says so
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: networks: the round in his browser refused: not opened either
@@ -6245,7 +6246,9 @@ apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the bio ingest: pol
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the bio ingest: politely, resumed next run a read stamped ahead of this clock is fresh, not a thrown error
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the bio ingest: politely, resumed next run keeps only the bio text, cut, and nothing of the rest
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the bio ingest: politely, resumed next run the never read come before the oldest read
-apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the compiled logic runs the lowered fns from the spec and names the rest
+apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the compiled logic a str call frees what it took, thrown or not
+apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the compiled logic a str crosses as UTF-8 bytes, both ways
+apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the compiled logic runs every fn from the spec, the str ones too
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the gate: a batch leaves only on the owner's Allow Allow sends each message once and remembers it
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the gate: a batch leaves only on the owner's Allow a card answered by somebody else sends nothing
 apps/vibee-editor/render/src/spec/course-outreach.test.ts :: the gate: a batch leaves only on the owner's Allow a stop after the card still wins at the press
@@ -6586,10 +6589,10 @@ apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: t27c test-report is
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec host-imports: an import of the compiled logic alone binds the host
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec logic-hash: the logic was compiled from another version of the spec
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec logic-required: a spec with fns and no compiled logic, not named as debt
-apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec mirror: a fn the backend could not lower has no body to import yet
+apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec mirror: a hand copy of a str fn fails like any other (#3941)
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec mirror: a host file of the vertical retypes a fn the spec compiles
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec ratchet: a spec that runs from its logic is still named as debt
-apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec t27-logic reads a str-returning fn, so __NOT_LOWERED__ names it
+apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec t27-logic lowers a str fn: bytes in, (ptr, len) out
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec the compiled logic is the spec: its own test vectors hold on the wasm
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec the debt only shrinks: no more mirrored specs than on 2026-10-09
 apps/vibee-editor/render/src/spec/specs-of-record.test.ts :: the logic runs from the spec the office spec with its compiled logic is green (the controls start here)
@@ -7860,6 +7863,17 @@ deployment/check-runner/server.test.mjs :: website: only a check script name eve
 deployment/check-runner/server.test.mjs :: website: only a check script name ever reaches the shell anything else is refused, and the suite has no command for it
 deployment/check-runner/server.test.mjs :: website: only a check script name ever reaches the shell no names, a mix with a bot suite, or an unknown suite is refused
 deployment/check-runner/server.test.mjs :: website: only a check script name ever reaches the shell one bad name refuses the whole list
+deployment/ci-bridge/bridge.test.mjs :: one pass a red run posts failure and one comment with the tail, secrets scrubbed
+deployment/ci-bridge/bridge.test.mjs :: one pass a runner that cannot be reached is an error status, never success
+deployment/ci-bridge/bridge.test.mjs :: one pass runs our own unchecked head and posts pending, then success
+deployment/ci-bridge/bridge.test.mjs :: one pass sends the runner the local gates, the changed files and no ballast
+deployment/ci-bridge/bridge.test.mjs :: the verdict a secret never survives redaction
+deployment/ci-bridge/bridge.test.mjs :: the verdict green only when every suite says 0
+deployment/ci-bridge/bridge.test.mjs :: the verdict heartbeats are not part of the tail
+deployment/ci-bridge/bridge.test.mjs :: the verdict no result, an empty one or a runner error is never green
+deployment/ci-bridge/bridge.test.mjs :: the verdict the last ::result line is the one read
+deployment/ci-bridge/bridge.test.mjs :: which pull requests run a commit with our verdict is done; a lost pending runs again only when stale
+deployment/ci-bridge/bridge.test.mjs :: which pull requests run a fork head never runs here
 deployment/queen-watch/igla.test.mjs :: igla: the loop watch on the Queen IGLA=0 is off, IGLA_TRIGGER=0 watches without the tick
 deployment/queen-watch/igla.test.mjs :: igla: the loop watch on the Queen JUDGEUP: a judge deployment live past judge_max_h
 deployment/queen-watch/igla.test.mjs :: igla: the loop watch on the Queen LOOPUP: a live loop run past the board loop_max_h, never a tick

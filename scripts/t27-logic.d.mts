@@ -9,3 +9,11 @@ export function door(f: {
   params: string[][]
   ret: string
 }): string
+/** The Zig export that forwards to one lowered fn (a str as ptr, len). */
+export function zigExport(f: {
+  name: string
+  params: string[][]
+  ret: string
+}): string
+/** A spec `str`, as `t27c gen` writes it in Zig. */
+export const STR: string

@@ -8,7 +8,7 @@ import {
   readTestReport,
   type Problem,
 } from '../../../../../scripts/check-t27-specs.mjs'
-import { zigFns } from '../../../../../scripts/t27-logic.mjs'
+import { door, zigExport, zigFns } from '../../../../../scripts/t27-logic.mjs'
 
 /**
  * EVERY VENDORED SPEC OBEYS THE LAWS (scripts/check-t27-specs.mjs).
@@ -283,8 +283,9 @@ describe('the logic runs from the spec', () => {
     expect(bad[0].what).toMatch(/may_assign/)
   })
 
-  it('mirror: a fn the backend could not lower has no body to import yet', () => {
-    // course-outreach v2: may_send takes a str, number_ok a u32.
+  it('mirror: a hand copy of a str fn fails like any other (#3941)', () => {
+    // course-outreach v2: may_send takes a str, verdict returns one, number_ok
+    // takes a u32. Every one of them is compiled now, so none may be retyped.
     const outreach = {
       file: `${DIR}/course-outreach.t27`,
       spec: readFileSync(join(HERE, 'course-outreach.t27'), 'utf8'),
@@ -293,8 +294,7 @@ describe('the logic runs from the spec', () => {
       logic: readFileSync(join(HERE, 'course-outreach.logic.ts'), 'utf8'),
       ignore: `${DIR}/*.gen.ts\n`,
     }
-    expect(notLoweredOf(outreach.logic)).toContain('may_send')
-    expect(notLoweredOf(outreach.logic)).not.toContain('number_ok')
+    expect(notLoweredOf(outreach.logic)).toEqual([])
     // As the script writes it, before prettier wraps it.
     expect(
       notLoweredOf('export const __NOT_LOWERED__ = Object.freeze(["a_b","c"])')
@@ -305,40 +305,53 @@ describe('the logic runs from the spec', () => {
         text: `import * as SPEC from '../spec/course-outreach.gen'\n${body}`,
       },
     ]
+    // The control starts green: the host names the compiled bodies.
     expect(
       checkSpec({
         ...outreach,
         hostFiles: host(
-          'export function maySend(a: unknown) {\n  return a\n}\n'
+          "export { maySend } from '../spec/course-outreach.logic'\n"
         ),
       })
     ).toEqual([])
+    for (const [copy, fn] of [
+      ['export function maySend(a: unknown) {\n  return a\n}\n', 'may_send'],
+      [
+        "export function verdict(g: number, n: boolean) {\n  return n ? 'not' : 'unknown'\n}\n",
+        'verdict',
+      ],
+      [
+        'export function bioNext(f: number, r: number) {\n  return f\n}\n',
+        'bio_next',
+      ],
+      ['export function numberOk(n: number) {\n  return n\n}\n', 'number_ok'],
+    ]) {
+      const bad = checkSpec({ ...outreach, hostFiles: host(copy) })
+      expect(laws(bad)).toEqual(['mirror'])
+      expect(bad[0].what).toMatch(new RegExp(`spec fn ${fn}\\b`))
+    }
+    // __NOT_LOWERED__ exempts nothing any more: a fn the backend still could
+    // not lower is lowered, never retyped.
+    const unlowered = outreach.logic.replace(
+      /__NOT_LOWERED__ = [^\n]*/,
+      '__NOT_LOWERED__ = Object.freeze(["may_send"])'
+    )
     const bad = checkSpec({
       ...outreach,
-      hostFiles: host('export function numberOk(n: number) {\n  return n\n}\n'),
+      logic: unlowered,
+      hostFiles: host('export function maySend(a: unknown) {\n  return a\n}\n'),
     })
     expect(laws(bad)).toEqual(['mirror'])
-    expect(bad[0].what).toMatch(/number_ok/)
-    // A logic file that names nothing exempts nothing.
-    expect(
-      laws(
-        checkSpec({
-          ...outreach,
-          logic: outreach.logic.replace(/__NOT_LOWERED__ = [^\n]*/, ''),
-          hostFiles: host(
-            'export function maySend(a: unknown) {\n  return a\n}\n'
-          ),
-        })
-      )
-    ).toEqual(['mirror'])
+    expect(bad[0].what).toMatch(/does not lower yet/)
   })
 
-  it('t27-logic reads a str-returning fn, so __NOT_LOWERED__ names it', () => {
+  it('t27-logic lowers a str fn: bytes in, (ptr, len) out', () => {
     const fns = zigFns(
       [
         'fn verdict(groups: u8, negated: bool) []const u8 {',
         'fn may_send(answer: []const u8) bool {',
         'fn number_ok(n: u32) bool {',
+        'fn total(n: u64) u64 {',
         'fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {',
       ].join('\n')
     )
@@ -346,7 +359,26 @@ describe('the logic runs from the spec', () => {
       ['verdict', '[]const u8'],
       ['may_send', 'bool'],
       ['number_ok', 'bool'],
+      ['total', 'u64'],
     ])
+    const [verdict, maySend, numberOk] = fns
+    // A str argument crosses as (ptr, len) and is rebuilt as a slice.
+    expect(zigExport(maySend)).toBe(
+      'export fn t27_may_send(answer__p: u32, answer__n: u32) bool { return may_send(t27__in(answer__p, answer__n)); }'
+    )
+    expect(door(maySend)).toContain('...str(answer, held, ')
+    expect(door(maySend)).toContain('strCall(held =>')
+    // A str result is written to the slot and read back.
+    expect(zigExport(verdict)).toBe(
+      'export fn t27_verdict(groups: u8, negated: bool) void { t27__out(verdict(groups, negated)); }'
+    )
+    expect(door(verdict)).toContain('return strOut()')
+    expect(door(verdict)).toContain('): string {')
+    // A fn without a str is exported exactly as before #3941.
+    expect(zigExport(numberOk)).toBe(
+      'export fn t27_number_ok(n: u32) bool { return number_ok(n); }'
+    )
+    expect(door(numberOk)).not.toContain('strCall')
   })
 
   it('host-imports: an import of the compiled logic alone binds the host', () => {
@@ -373,7 +405,7 @@ describe('the logic runs from the spec', () => {
         'utf8'
       )
     )
-    expect(manifest.mirrored.length).toBeLessThanOrEqual(38)
+    expect(manifest.mirrored.length).toBeLessThanOrEqual(36)
     expect(new Set(manifest.mirrored).size).toBe(manifest.mirrored.length)
   })
 

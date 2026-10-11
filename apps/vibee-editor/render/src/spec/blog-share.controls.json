@@ -1,0 +1,112 @@
+[
+  {
+    "name": "the cutoff tick's own article counts as new (equal is new)",
+    "from": "return cutoff_s > 0 && seen_s > cutoff_s;",
+    "to": "return cutoff_s > 0 && seen_s >= cutoff_s;"
+  },
+  {
+    "name": "an unrecorded cutoff makes everything new",
+    "from": "return cutoff_s > 0 && seen_s > cutoff_s;",
+    "to": "return seen_s > cutoff_s;"
+  },
+  {
+    "name": "an article with an autopost pass is posted again",
+    "from": "return autopost && in_feed && is_new(seen_s, cutoff_s) && !passed;",
+    "to": "return autopost && in_feed && is_new(seen_s, cutoff_s);"
+  },
+  {
+    "name": "autopost runs with the switch off",
+    "from": "        return switch_value == \"1\";",
+    "to": "        return switch_value != \"0\";"
+  },
+  {
+    "name": "the day cap lets one more through (cap + 1)",
+    "from": "        if new_offerable == 0 || auto_today >= AUTO_PER_DAY {\n            return 0;\n        }\n        let room : u32 = AUTO_PER_DAY - auto_today;\n        if room < AUTO_PER_TICK {\n            return room;\n        }\n",
+    "to": "        if new_offerable == 0 || auto_today > AUTO_PER_DAY {\n            return 0;\n        }\n"
+  },
+  {
+    "name": "a tick posts every new article at once",
+    "from": "        return AUTO_PER_TICK;\n    }\n\n    // How many backlog",
+    "to": "        return new_offerable;\n    }\n\n    // How many backlog"
+  },
+  {
+    "name": "a slot's end second is still inside it",
+    "from": "second_of_day < BACKLOG_SLOT_1_S + BACKLOG_SLOT_WIDTH_S {",
+    "to": "second_of_day <= BACKLOG_SLOT_1_S + BACKLOG_SLOT_WIDTH_S {"
+  },
+  {
+    "name": "the second slot is never met",
+    "from": "            return 2;",
+    "to": "            return 0;"
+  },
+  {
+    "name": "a used slot posts a second backlog article (restart inside a slot)",
+    "from": "        if slot == 0 || slot_used || offerable == 0 || new_taken >= AUTO_PER_TICK {",
+    "to": "        if slot == 0 || offerable == 0 || new_taken >= AUTO_PER_TICK {"
+  },
+  {
+    "name": "a new article and a backlog article go in one tick",
+    "from": "        if slot == 0 || slot_used || offerable == 0 || new_taken >= AUTO_PER_TICK {",
+    "to": "        if slot == 0 || slot_used || offerable == 0 {"
+  },
+  {
+    "name": "the backlog ignores its own day cap",
+    "from": "        if backlog_today >= BACKLOG_PER_DAY || auto_today >= AUTO_PER_DAY {",
+    "to": "        if auto_today >= AUTO_PER_DAY {"
+  },
+  {
+    "name": "the backlog ignores the overall day cap",
+    "from": "        if backlog_today >= BACKLOG_PER_DAY || auto_today >= AUTO_PER_DAY {",
+    "to": "        if backlog_today >= BACKLOG_PER_DAY {"
+  },
+  {
+    "name": "a backlog article every network carries is posted again",
+    "from": "&& !passed && !question_open && missing > 0;",
+    "to": "&& !passed && !question_open;"
+  },
+  {
+    "name": "a backlog article with an open question is posted beside it",
+    "from": "&& !passed && !question_open && missing > 0;",
+    "to": "&& !passed && missing > 0;"
+  },
+  {
+    "name": "a new article is also backlog",
+    "from": "cutoff_s > 0 && !is_new(seen_s, cutoff_s) && !passed",
+    "to": "cutoff_s > 0 && !passed"
+  },
+  {
+    "name": "the backlog goes newest first, past the owner's queue",
+    "from": "fn backlog_source(queued_offerable: u32, offerable_left: u32) -> str {\n        if queued_offerable > 0 {\n            return \"queue\";\n        }\n",
+    "to": "fn backlog_source(queued_offerable: u32, offerable_left: u32) -> str {\n"
+  },
+  {
+    "name": "an unconfirmed press does not carry the article (a second post)",
+    "from": "return state == \"posted\" || state == \"unconfirmed\";",
+    "to": "return state == \"posted\";"
+  },
+  {
+    "name": "a failed network carries the article",
+    "from": "return state == \"posted\" || state == \"unconfirmed\";",
+    "to": "return state != \"\";"
+  },
+  {
+    "name": "a network that carries the article is posted again",
+    "from": "        if carries {\n            return \"skip\";\n        }\n        if !configured {",
+    "to": "        if !configured {"
+  },
+  {
+    "name": "telegram without a message_id counts as posted",
+    "from": "return message_id > 0;",
+    "to": "return message_id >= 0;"
+  },
+  {
+    "name": "autopost still asks about articles",
+    "from": "        return !autopost;",
+    "to": "        return true;"
+  },
+  {
+    "name": "the day cap is the old six",
+    "from": "pub const AUTO_PER_DAY : u32 = 8;",
+    "to": "pub const AUTO_PER_DAY : u32 = 6;"
+  }
+]

@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 3b00f9721e342832586034e8f458cbb2451238736d8e1854d84bb67b3c126239
+// spec-sha256: 75527dda838cf50f84f42cfa05c4d2e133c73602ac09f06685c434cf5337eaae
 /* eslint-disable */
 
 const WASM =
-  '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'
+  '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'
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -20,6 +20,87 @@ function int(v: number, lo: number, hi: number, at: string): number {
   return v
 }
 
+const MEM = W.memory as WebAssembly.Memory
+const UTF8_IN = new TextEncoder()
+const UTF8_OUT = new TextDecoder()
+
+/**
+ * A spec str crosses into wasm as UTF-8 bytes at (ptr, len) in the module's
+ * memory, allocated for one call and freed by strCall after it. Anything
+ * but a string is a thrown error, never a coerced value.
+ */
+function str(v: string, held: number[], at: string): [number, number] {
+  if (typeof v !== 'string')
+    throw new TypeError(`${at}: ${typeof v} is not a str`)
+  const bytes = UTF8_IN.encode(v)
+  const ptr = (W.t27__alloc as (n: number) => number)(bytes.length) >>> 0
+  if (ptr === 0)
+    throw new RangeError(`${at}: no wasm memory for ${bytes.length} bytes`)
+  held.push(ptr, bytes.length)
+  // Read MEM.buffer after the allocation: growing memory replaces it.
+  new Uint8Array(MEM.buffer, ptr, bytes.length).set(bytes)
+  return [ptr, bytes.length]
+}
+
+/** One call; the str arguments it allocated are freed after it, thrown or not. */
+function strCall<T>(call: (held: number[]) => T): T {
+  const held: number[] = []
+  try {
+    return call(held)
+  } finally {
+    for (let i = 0; i < held.length; i += 2)
+      (W.t27__free as (p: number, n: number) => void)(held[i], held[i + 1])
+  }
+}
+
+/** The str a call returned, as (ptr, len) in the slot t27__ret_at points to. */
+function strOut(): string {
+  const at = (W.t27__ret_at as () => number)() >>> 0
+  const slot = new DataView(MEM.buffer)
+  const ptr = slot.getUint32(at, true)
+  const len = slot.getUint32(at + 4, true)
+  return UTF8_OUT.decode(new Uint8Array(MEM.buffer, ptr, len))
+}
+
+/** spec fn verdict */
+export function verdict(groups: number, negated: boolean): string {
+  ;(W.t27_verdict as (...a: number[]) => void)(
+    int(groups, 0, 255, 'verdict.groups'),
+    negated ? 1 : 0
+  )
+  return strOut()
+}
+
+/** spec fn channel */
+export function channel(dmMessages: number): string {
+  ;(W.t27_channel as (...a: number[]) => void)(
+    int(dmMessages, 0, 4294967295, 'channel.dm_messages')
+  )
+  return strOut()
+}
+
+/** spec fn pitch_state */
+export function pitchState(
+  programmer: boolean,
+  hasChannel: boolean,
+  optedOut: boolean,
+  dropped: boolean,
+  refused: boolean,
+  pitched: boolean,
+  replied: boolean
+): string {
+  ;(W.t27_pitch_state as (...a: number[]) => void)(
+    programmer ? 1 : 0,
+    hasChannel ? 1 : 0,
+    optedOut ? 1 : 0,
+    dropped ? 1 : 0,
+    refused ? 1 : 0,
+    pitched ? 1 : 0,
+    replied ? 1 : 0
+  )
+  return strOut()
+}
+
 /** spec fn number_ok */
 export function numberOk(n: number): boolean {
   return (
@@ -29,12 +110,42 @@ export function numberOk(n: number): boolean {
   )
 }
 
+/** spec fn draft_problem */
+export function draftProblem(
+  chars: number,
+  courseLinks: number,
+  hashLinks: number,
+  strayNumbers: number,
+  hype: number,
+  namesWhy: boolean
+): string {
+  ;(W.t27_draft_problem as (...a: number[]) => void)(
+    int(chars, 0, 65535, 'draft_problem.chars'),
+    int(courseLinks, 0, 255, 'draft_problem.course_links'),
+    int(hashLinks, 0, 255, 'draft_problem.hash_links'),
+    int(strayNumbers, 0, 255, 'draft_problem.stray_numbers'),
+    int(hype, 0, 255, 'draft_problem.hype'),
+    namesWhy ? 1 : 0
+  )
+  return strOut()
+}
+
 /** spec fn batch_ok */
 export function batchOk(n: number): boolean {
   return (
     (W.t27_batch_ok as (...a: number[]) => number)(
       int(n, 0, 255, 'batch_ok.n')
     ) !== 0
+  )
+}
+
+/** spec fn may_send */
+export function maySend(answer: string): boolean {
+  return strCall(
+    held =>
+      (W.t27_may_send as (...a: number[]) => number)(
+        ...str(answer, held, 'may_send.answer')
+      ) !== 0
   )
 }
 
@@ -47,6 +158,25 @@ export function shareLinkOk(hasHashRoute: boolean): boolean {
   )
 }
 
+/** spec fn own_words */
+export function ownWords(source: string): boolean {
+  return strCall(
+    held =>
+      (W.t27_own_words as (...a: number[]) => number)(
+        ...str(source, held, 'own_words.source')
+      ) !== 0
+  )
+}
+
+/** spec fn bio_next */
+export function bioNext(floodWaitS: number, readThisRun: number): string {
+  ;(W.t27_bio_next as (...a: number[]) => void)(
+    int(floodWaitS, 0, 4294967295, 'bio_next.flood_wait_s'),
+    int(readThisRun, 0, 255, 'bio_next.read_this_run')
+  )
+  return strOut()
+}
+
 /** spec fn bio_due */
 export function bioDue(ageDays: number, neverRead: boolean): boolean {
   return (
@@ -57,18 +187,102 @@ export function bioDue(ageDays: number, neverRead: boolean): boolean {
   )
 }
 
-/** Spec fns this backend could not lower (types outside bool/ints/floats). */
-export const __NOT_LOWERED__ = Object.freeze([
-  'verdict',
-  'channel',
-  'pitch_state',
-  'draft_problem',
-  'may_send',
-  'own_words',
-  'bio_next',
-  'round_go',
-  'network_verdict',
-  'network_channel',
-  'card_max',
-  'card_ok',
-])
+/** spec fn round_go */
+export function roundGo(login: string): boolean {
+  return strCall(
+    held =>
+      (W.t27_round_go as (...a: number[]) => number)(
+        ...str(login, held, 'round_go.login')
+      ) !== 0
+  )
+}
+
+/** spec fn network_verdict */
+export function networkVerdict(
+  readOk: boolean,
+  people: number,
+  programmers: number
+): string {
+  ;(W.t27_network_verdict as (...a: number[]) => void)(
+    readOk ? 1 : 0,
+    int(people, 0, 4294967295, 'network_verdict.people'),
+    int(programmers, 0, 4294967295, 'network_verdict.programmers')
+  )
+  return strOut()
+}
+
+/** spec fn network_channel */
+export function networkChannel(
+  network: string,
+  connection: boolean,
+  followsOwner: boolean
+): string {
+  return strCall(held => {
+    ;(W.t27_network_channel as (...a: number[]) => void)(
+      ...str(network, held, 'network_channel.network'),
+      connection ? 1 : 0,
+      followsOwner ? 1 : 0
+    )
+    return strOut()
+  })
+}
+
+/** spec fn card_max */
+export function cardMax(channelArg: string): number {
+  return strCall(
+    held =>
+      (W.t27_card_max as (...a: number[]) => number)(
+        ...str(channelArg, held, 'card_max.channel_arg')
+      ) >>> 0
+  )
+}
+
+/** spec fn card_ok */
+export function cardOk(channelArg: string, n: number): boolean {
+  return strCall(
+    held =>
+      (W.t27_card_ok as (...a: number[]) => number)(
+        ...str(channelArg, held, 'card_ok.channel_arg'),
+        int(n, 0, 255, 'card_ok.n')
+      ) !== 0
+  )
+}
+
+/** spec fn network_day_cap */
+export function networkDayCap(network: string): number {
+  return strCall(
+    held =>
+      (W.t27_network_day_cap as (...a: number[]) => number)(
+        ...str(network, held, 'network_day_cap.network')
+      ) >>> 0
+  )
+}
+
+/** spec fn network_week_cap */
+export function networkWeekCap(network: string): number {
+  return strCall(
+    held =>
+      (W.t27_network_week_cap as (...a: number[]) => number)(
+        ...str(network, held, 'network_week_cap.network')
+      ) >>> 0
+  )
+}
+
+/** spec fn network_may_send */
+export function networkMaySend(
+  network: string,
+  sentDay: number,
+  sentWeek: number
+): boolean {
+  return strCall(
+    held =>
+      (W.t27_network_may_send as (...a: number[]) => number)(
+        ...str(network, held, 'network_may_send.network'),
+        int(sentDay, 0, 65535, 'network_may_send.sent_day'),
+        int(sentWeek, 0, 65535, 'network_may_send.sent_week')
+      ) !== 0
+  )
+}
+
+/** Spec fns this backend could not lower (types outside bool/ints/floats/str). */
+export const __NOT_LOWERED__ = Object.freeze([])

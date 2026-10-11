@@ -6,7 +6,9 @@ import type { Queryable } from '../browser/sessions'
 import type { DeskWho } from '../browser/desk-page'
 import {
   ANSWER_WAIT_MS,
+  autopostOn,
   blogShareTick,
+  linkFor,
   parseRss,
   LEFT_THE_FORM,
   needleOf,
@@ -23,6 +25,7 @@ import {
   releaseTitleOfSlug,
   RSS_URL,
   SEEN_ON_PROFILE,
+  staticArticleUrl,
   seenOn,
   SHARE_LABELS,
   shareUrls,
@@ -34,10 +37,14 @@ import {
 } from './blog-share'
 import {
   AFTER_CLICK_SETTLE_MS,
+  AUTOPOST_SWITCH,
   FIRST_SETTLE_MS,
   LOOK_EVERY_MS,
   LOOKS,
 } from '../spec/blog-share.gen'
+import type { TelegramAnswer } from './blog-autopost'
+/* The channel's env names have one home: channel-delivery.ts. */
+import { ENV_NAMES as CHANNEL_ENV } from '../channel-delivery'
 
 const settle = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -49,31 +56,47 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
   const { requestPermission } = await import('../browser/agent-tools')
   const { readApproval } = await import('../browser/approvals')
   const { sendToTelegram } = await import('../auth/telegram-sender')
-  return await blogShareTick({
+  const fetchRss = async () => {
+    const r = await fetch(RSS_URL, { signal: AbortSignal.timeout(20_000) })
+    if (!r.ok) throw new Error(`feed answered ${r.status}`)
+    return await r.text()
+  }
+  /* The order's one home: the owner's own skill (blog-share.ts QUEUE_SKILL). */
+  const queue = async () => {
+    const { rows } = await pool.query(
+      `SELECT content FROM user_skills WHERE telegram_id = $1 AND name = $2
+        ORDER BY updated_at DESC LIMIT 1`,
+      [owner, QUEUE_SKILL]
+    )
+    return String((rows[0] as { content?: unknown } | undefined)?.content ?? '')
+  }
+  const tell = (text: string) => sendToTelegram(owner, text)
+
+  /*
+   * AUTOPOST (spec v6): every new article at once, the backlog on its
+   * schedule, Telegram among the networks; the owner gets a receipt. Its own
+   * failure never stops the questions below (releases keep their yes).
+   */
+  const { autopost, said: auto } = await autopostStep({
+    pool,
+    env: process.env,
+    fetchRss,
+    queue,
+    publish: (a, skip) => publishEverywhere(pool, owner, a, skip),
+    tell,
+  })
+  const said = await blogShareTick({
     pool,
     owner,
     now: Date.now,
-    fetchRss: async () => {
-      const r = await fetch(RSS_URL, { signal: AbortSignal.timeout(20_000) })
-      if (!r.ok) throw new Error(`feed answered ${r.status}`)
-      return await r.text()
-    },
+    fetchRss,
     ask: what => requestPermission(pool, owner, what, ANSWER_WAIT_MS),
     answerOf: async id =>
       ((await readApproval(pool, id))?.state ?? 'expired') as Answer,
     publish: a => publishEverywhere(pool, owner, a),
-    tell: text => sendToTelegram(owner, text),
-    /* The order's one home: the owner's own skill (blog-share.ts QUEUE_SKILL). */
-    queue: async () => {
-      const { rows } = await pool.query(
-        `SELECT content FROM user_skills WHERE telegram_id = $1 AND name = $2
-          ORDER BY updated_at DESC LIMIT 1`,
-        [owner, QUEUE_SKILL]
-      )
-      return String(
-        (rows[0] as { content?: unknown } | undefined)?.content ?? ''
-      )
-    },
+    tell,
+    queue,
+    autopost,
     /* Releases of ours (spec v5): GitHub's list, newest first. */
     releases: {
       list: async () => {
@@ -87,6 +110,105 @@ export async function runBlogShare(pool: Queryable): Promise<string> {
       done: releaseFinished,
     },
   })
+  /* A quiet autopost tick stays out of the log, as a quiet question tick does. */
+  return auto && !auto.startsWith('autopost: nothing due')
+    ? `${auto}; ${said}`
+    : said
+}
+
+/**
+ * The autopost half of a tick (spec v6): on by BLOG_AUTOPOST=1 (autopost_on),
+ * a tick of blog-autopost.ts with the channel as a network; off, the cutoff
+ * is cleared. Its failure is said, never thrown: the questions still run.
+ */
+export async function autopostStep(d: {
+  pool: Queryable
+  env: Record<string, string | undefined>
+  fetchRss: () => Promise<string>
+  queue: () => Promise<string>
+  publish: (
+    a: Article,
+    skip: ReadonlySet<string>
+  ) => Promise<Record<string, string>>
+  tell: (text: string) => Promise<void>
+  now?: () => number
+  doFetch?: typeof fetch
+}): Promise<{ autopost: boolean; said: string }> {
+  const autopost = autopostOn(d.env[AUTOPOST_SWITCH] ?? '')
+  const { blogAutopostTick, autopostOff } = await import('./blog-autopost')
+  try {
+    if (!autopost) {
+      await autopostOff(d.pool)
+      return { autopost, said: '' }
+    }
+    const said = await blogAutopostTick({
+      pool: d.pool,
+      now: d.now ?? Date.now,
+      fetchRss: d.fetchRss,
+      queue: d.queue,
+      publish: d.publish,
+      telegram: telegramChannel(d.env, d.doFetch),
+      tell: d.tell,
+    })
+    return { autopost, said }
+  } catch (e) {
+    return { autopost, said: `autopost failed: ${String(e).slice(0, 200)}` }
+  }
+}
+
+/**
+ * THE TELEGRAM CHANNEL AS A NETWORK (spec v6, TELEGRAM). The channel the
+ * reels go to (channel-delivery.ts): the same env names, deploy name first
+ * (ENV_NAMES via readChannelConfig), the same Bot API host per bot
+ * (telegramApiFor). The post is the title and the article's static page --
+ * never a #/ route, which every crawler reads as the home page (skill
+ * link-previews) -- with the link preview on. The receipt is the message_id.
+ */
+export function telegramChannel(
+  env: Record<string, string | undefined> = process.env,
+  doFetch: typeof fetch = fetch
+): {
+  configured: boolean
+  send: (a: Article) => Promise<TelegramAnswer>
+} {
+  return {
+    configured: channelConfig(env).ok,
+    send: async a => {
+      const cfg = channelConfig(env)
+      if (!cfg.ok) return { error: 'the channel is not configured' }
+      const { telegramApiFor } = await import('../telegram-api')
+      const link = linkFor({ ...a, link: staticArticleUrl(a.link) }, 'telegram')
+      const r = await doFetch(`${telegramApiFor(cfg.token)}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: cfg.chatId,
+          text: `${a.title}\n\n${link}`,
+          link_preview_options: { is_disabled: false, url: link },
+        }),
+        signal: AbortSignal.timeout(20_000),
+      })
+      const body = (await r.json().catch(() => ({}))) as {
+        ok?: boolean
+        description?: string
+        result?: { message_id?: unknown }
+      }
+      const id = Number(body.result?.message_id)
+      if (r.ok && body.ok && Number.isInteger(id)) return { messageId: id }
+      return {
+        error: String(body.description || `HTTP ${r.status}`).slice(0, 200),
+      }
+    },
+  }
+}
+
+/** The channel's token and chat id, read by channel-delivery.ts's own names. */
+function channelConfig(env: Record<string, string | undefined>) {
+  const read = (names: readonly string[]) =>
+    names.map(n => (env[n] || '').trim()).find(Boolean) ?? ''
+  const token = read(CHANNEL_ENV.token)
+  const chatId = read(CHANNEL_ENV.chatId)
+  return { ok: Boolean(token && chatId), token, chatId }
 }
 
 /* crates.io refuses a request that does not say who is asking. */
@@ -116,7 +238,13 @@ export async function releaseFinished(r: GhRelease): Promise<boolean> {
 export async function publishEverywhere(
   pool: Queryable,
   owner: string,
-  a: Article
+  a: Article,
+  /*
+   * Networks that already carry the article (spec v6 network_step "skip"):
+   * neither their API nor their page is touched. Instagram rides on the
+   * Facebook token, so a Facebook that carries it skips Instagram too.
+   */
+  skip: ReadonlySet<string> = new Set()
 ): Promise<Record<string, string>> {
   /*
    * META'S OWN API FIRST (meta-connect.t27 route()): a network the owner
@@ -131,11 +259,13 @@ export async function publishEverywhere(
     sleep: settle,
   }
   /* LinkedIn and X by their own APIs too (social-api.t27), same rule. */
+  const only = apiNetworksFor(skip)
   const [meta, social] = await Promise.all(
     [postByApi, postBySocialApi].map(post =>
-      post(pool, owner, cardPost(a), apiDeps).catch(
-        () => ({}) as Record<string, string>
-      )
+      post(pool, owner, cardPost(a), {
+        ...apiDeps,
+        ...(only ? { only } : {}),
+      }).catch(() => ({}) as Record<string, string>)
     )
   )
   const viaApi: Record<string, string> = { ...meta, ...social }
@@ -202,7 +332,9 @@ export async function publishEverywhere(
   }
 
   /* Posted by X's API already: no thread in the browser on top of it. */
-  if (String(viaApi.X || '').startsWith(VIA_API)) {
+  if (skip.has('X')) {
+    /* nothing: X carries the article already (v6) */
+  } else if (String(viaApi.X || '').startsWith(VIA_API)) {
     /* nothing: the API answered */
   } else if (isNotConnected(urls.x, logins)) {
     out.X = notOpened('X')
@@ -227,6 +359,7 @@ export async function publishEverywhere(
       : ([['Reddit', urls.reddit, SHARE_LABELS.Reddit]] as const)),
     ['Threads', urls.threads, SHARE_LABELS.Threads],
   ] as const) {
+    if (skip.has(net)) continue
     if (net === 'X' && !String(out.X || '').startsWith('тред не получился'))
       continue
     /* Already answered by its API -- the browser does not post it twice. */
@@ -309,6 +442,27 @@ export async function publishEverywhere(
     }
   }
   return out
+}
+
+/**
+ * The API networks a run may post to: all of them (undefined, as before v6)
+ * when nothing is skipped, else those whose article is not there yet.
+ * Instagram has no token of its own: it goes with Facebook. Pure.
+ */
+export function apiNetworksFor(
+  skip: ReadonlySet<string>
+): Array<'threads' | 'facebook' | 'linkedin' | 'x'> | undefined {
+  if (!skip.size) return undefined
+  return (
+    [
+      ['threads', 'Threads'],
+      ['facebook', 'Facebook'],
+      ['linkedin', 'LinkedIn'],
+      ['x', 'X'],
+    ] as const
+  )
+    .filter(([, name]) => !skip.has(name))
+    .map(([net]) => net)
 }
 
 /**

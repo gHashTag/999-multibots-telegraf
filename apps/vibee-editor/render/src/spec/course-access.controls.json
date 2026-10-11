@@ -1,0 +1,62 @@
+[
+  {
+    "name": "the second course is free too",
+    "from": "        if opened == 1 {\n            return STEP_BOT;",
+    "to": "        if opened == 9 {\n            return STEP_BOT;"
+  },
+  {
+    "name": "the ladder pays from the fifth course, not the fourth",
+    "from": "        if opened >= 3 {",
+    "to": "        if opened >= 4 {"
+  },
+  {
+    "name": "a bot step opens without the bot key",
+    "from": "        if step == STEP_BOT {\n            return bot_key;",
+    "to": "        if step == STEP_BOT {\n            return true;"
+  },
+  {
+    "name": "a paid key opens the bot step",
+    "from": "            return bot_key;",
+    "to": "            return bot_key || paid_key;"
+  },
+  {
+    "name": "a key is minted without the secret",
+    "from": "        if !has_secret {\n            return false;",
+    "to": "        if !has_secret {\n            return step == STEP_BOT;"
+  },
+  {
+    "name": "a paid key without the club",
+    "from": "        if step == STEP_PAID {\n            return club_active;",
+    "to": "        if step == STEP_PAID {\n            return true;"
+  },
+  {
+    "name": "a paid key outlives the club",
+    "from": "            return club_days_left;",
+    "to": "            return BOT_KEY_DAYS;"
+  },
+  {
+    "name": "a module is two lessons",
+    "from": "        if done_in_course % LESSONS_PER_MODULE == 0 {",
+    "to": "        if done_in_course % 2 == 0 {"
+  },
+  {
+    "name": "the owner is told the same thing twice",
+    "from": "        if told_before {\n            return false;\n        }",
+    "to": ""
+  },
+  {
+    "name": "every lesson goes to the owner",
+    "from": "        if event == EVENT_LESSON {\n            return false;\n        }",
+    "to": ""
+  },
+  {
+    "name": "the site reports before the bot",
+    "from": "        if SENDS_BEFORE_BOT {\n            return true;\n        }\n        return has_valid_key;",
+    "to": "        return true;"
+  },
+  {
+    "name": "a club course stays open after the club",
+    "from": "        if step == STEP_PAID {\n            return paid_key;\n        }\n        return step == STEP_FREE || step == STEP_BOT;",
+    "to": "        return true;"
+  }
+]

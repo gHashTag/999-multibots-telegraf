@@ -1,0 +1,170 @@
+[
+  {
+    "name": "an article with an autopost pass is offered again as new",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "      cutoffS,\n      passed.has(a.slug)\n    )",
+    "to": "      cutoffS,\n      false\n    )"
+  },
+  {
+    "name": "the cutoff is written before the feed is seen (the backlog floods)",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  const cutoffS = u32(Number((cut[0] as { s?: unknown } | undefined)?.s) || 0)",
+    "to": "  const cutoffS = u32((Number((cut[0] as { s?: unknown } | undefined)?.s) || 0) - 1)"
+  },
+  {
+    "name": "an article with an open question goes out beside it",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "      asked.has(a.slug),",
+    "to": "      false,"
+  },
+  {
+    "name": "a used slot is not looked at",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  const slotUsed = key !== null && passes.some(p => p.slot === key)",
+    "to": "  const slotUsed = false"
+  },
+  {
+    "name": "the day window never frees",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    p => Number(p.at_ms) > d.now() - SPEC.AUTO_DAY_MS",
+    "to": "    p => true"
+  },
+  {
+    "name": "the backlog count is the overall count",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "recent.filter(p => p.kind === 'backlog').length",
+    "to": "recent.length"
+  },
+  {
+    "name": "an unconfigured channel still counts as missing",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    ...(d.telegram.configured ? [SPEC.TELEGRAM] : []),",
+    "to": "    SPEC.TELEGRAM,"
+  },
+  {
+    "name": "the backlog ignores the owner's queue",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    source === 'queue'",
+    "to": "    source === 'never'"
+  },
+  {
+    "name": "a lost claim posts anyway",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  if (!claimed.length) return `autopost: ${a.slug} was claimed already`",
+    "to": "  if (false) return ''"
+  },
+  {
+    "name": "Telegram is posted although it carries the article",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  const tg = networkStep(has.has(SPEC.TELEGRAM), d.telegram.configured)",
+    "to": "  const tg = networkStep(false, d.telegram.configured)"
+  },
+  {
+    "name": "an unconfigured channel is called anyway",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  const tg = networkStep(has.has(SPEC.TELEGRAM), d.telegram.configured)",
+    "to": "  const tg = networkStep(has.has(SPEC.TELEGRAM), true)"
+  },
+  {
+    "name": "a Telegram answer without a message_id counts as posted",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    if ('messageId' in answer && telegramPosted(u32(id))) {",
+    "to": "    if ('messageId' in answer) {"
+  },
+  {
+    "name": "the desk posts what already carries the article",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  const skip = new Set(deskNetworks().filter(n => has.has(n)))",
+    "to": "  const skip = new Set<string>()"
+  },
+  {
+    "name": "the desk runs although every desk network carries the article",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    skip.size === deskNetworks().length",
+    "to": "    false"
+  },
+  {
+    "name": "the yes path's own results are not read",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "      if (networkCarries(lineState(String(line)))) add(r.slug, net)",
+    "to": "      if (false) add(r.slug, net)"
+  },
+  {
+    "name": "the receipt is not sent",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  await d\n    .tell(\n      `${label}",
+    "to": "  void (async (_: string) => {})(\n      `${label}"
+  },
+  {
+    "name": "switching off keeps the cutoff",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "  await q.query(`DELETE FROM blog_autopost`)",
+    "to": "  await q.query(`SELECT 1`)"
+  },
+  {
+    "name": "a slot key without its date",
+    "file": "src/agent/blog-autopost.ts",
+    "from": "    key: slot ? `${new Date(nowMs).toISOString().slice(0, 10)}#${slot}` : null,",
+    "to": "    key: slot ? `#${slot}` : null,"
+  },
+  {
+    "name": "autopost asks about articles too",
+    "file": "src/agent/blog-share.ts",
+    "from": "  if (!questionOffersArticles(Boolean(d.autopost)))",
+    "to": "  if (false)"
+  },
+  {
+    "name": "the switch is read from the wrong name",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "  const autopost = autopostOn(d.env[AUTOPOST_SWITCH] ?? '')",
+    "to": "  const autopost = autopostOn(d.env.BLOG_SHARE_ENABLED ?? '')"
+  },
+  {
+    "name": "an autopost failure is thrown at the questions",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "    return { autopost, said: `autopost failed: ${String(e).slice(0, 200)}` }",
+    "to": "    throw e"
+  },
+  {
+    "name": "the channel counts as set up with one of its two names",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "  return { ok: Boolean(token && chatId), token, chatId }",
+    "to": "  return { ok: Boolean(token || chatId), token, chatId }"
+  },
+  {
+    "name": "the Telegram post carries the #/ route",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "      const link = linkFor({ ...a, link: staticArticleUrl(a.link) }, 'telegram')",
+    "to": "      const link = linkFor(a, 'telegram')"
+  },
+  {
+    "name": "the link preview is switched off",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "          link_preview_options: { is_disabled: false, url: link },",
+    "to": "          link_preview_options: { is_disabled: true, url: link },"
+  },
+  {
+    "name": "a refused sendMessage returns a message_id",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "      if (r.ok && body.ok && Number.isInteger(id)) return { messageId: id }",
+    "to": "      if (r.ok || body.ok) return { messageId: id }"
+  },
+  {
+    "name": "the API posts what already carries the article",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "    .filter(([, name]) => !skip.has(name))",
+    "to": "    .filter(() => true)"
+  },
+  {
+    "name": "the browser opens a network that carries the article",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "    if (skip.has(net)) continue\n",
+    "to": "\n"
+  },
+  {
+    "name": "the X thread is written although X carries the article",
+    "file": "src/agent/blog-share-wiring.ts",
+    "from": "  if (skip.has('X')) {",
+    "to": "  if (false) {"
+  }
+]

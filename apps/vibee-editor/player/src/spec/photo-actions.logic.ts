@@ -58,5 +58,5 @@ export function vertical(w: number, h: number): boolean {
   )
 }
 
-/** Spec fns this backend could not lower (types outside bool/ints/floats). */
+/** Spec fns this backend could not lower (types outside bool/ints/floats/str). */
 export const __NOT_LOWERED__ = Object.freeze([])
