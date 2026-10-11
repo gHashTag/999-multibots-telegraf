@@ -69,6 +69,7 @@ curl -s $B/queen/public-board    # repo, columns, cards, pulse
 | `fileConflict` | файлы границы держит другая пчела | ждать или сузить Boundary |
 | `missingBoundary` | нет `## Boundary` | дописать раздел |
 | `incompleteSpec` | не хватает сценария, FR или измеримого критерия | дописать недостающий раздел |
+| `notFirst` | задача годна, просто не первая в очереди тика | ждать, ничего не править |
 | `completed` | сделано | проверить PR и закрыть |
 
 Списки в `skipSummary` усечены (`more: N`), так что отсутствие номера в
