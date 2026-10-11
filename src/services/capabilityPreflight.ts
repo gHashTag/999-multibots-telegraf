@@ -149,7 +149,7 @@ export interface Verdict {
  *
  * Asking the providers on every boot would put three network calls in front of
  * every restart, so it stays out of here and lives in a command instead:
- * `tri ключи --gate` (scripts/provider-liveness.cjs).
+ * `tri keys --gate` (scripts/provider-liveness.cjs).
  */
 const isSet = (name: string): boolean => Boolean(process.env[name]?.trim())
 

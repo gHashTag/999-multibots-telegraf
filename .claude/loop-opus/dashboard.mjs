@@ -61,7 +61,7 @@ const читать = f => {
  * NO STATE -- SEED IT, DO NOT DIE.
  *
  * STATE.json is gitignored (it is run state), so on any clean clone and for
- * every new cron cycle the file simply did not exist: `tri панель` printed an
+ * every new cron cycle the file simply did not exist: `tri panel` printed an
  * error and exited 1. Verified 2026-08-29 -- the file was nowhere in the
  * repository, so the dashboard had never been built at all. A tool that cannot
  * run by default is a decoration.
