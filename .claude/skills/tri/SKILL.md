@@ -1,6 +1,6 @@
 ---
 name: tri
-description: 'Runs any multi-part task as one brain: the session is the general that splits the task into independent orders, hands them out in parallel (Queen bees for gHashTag/t27, worktree subagents for every other repo), then accepts the results by running them and through the rainbow bridge, where two live people check a feature from both sides with agents between them. Use at the start of ANY task with several parts, before opening the editor yourself, and before saying a feature "works". Triggers: "/tri", "you are the general", "delegate", "parallelize", "through the bees", "rainbow bridge", "check from both sides", "who asks, who does, who checks"; in Russian: «ты генерал», «делегируй», «распараллель», «через пчёл», «через акторов», «ставь приказы», «сам не делай», «радужный мост», «проверь с двух сторон», «прогони функции через юзер-ботов».'
+description: 'Runs any multi-part task as one brain: the session is the general that splits the task into independent orders, hands them out in parallel (Queen bees for gHashTag/t27, worktree subagents for every other repo), then accepts the results by running them and through the rainbow bridge, where two live people check a feature from both sides with agents between them. Use at the start of ANY task with several parts, before opening the editor yourself, and before saying a feature "works". Triggers: "/tri", "you are the general", "delegate", "parallelize", "through the bees", "rainbow bridge", "check from both sides", "who asks, who does, who checks"; in Russian: «ты генерал», «делегируй», «распараллель», «через пчёл», «через акторов», «ставь приказы», «сам не делай», «радужный мост», «проверь с двух сторон», «прогони функции через юзер-ботов», «проверь, работает ли», «протестируй функции», «прогони по ботам».'
 argument-hint: '[task, epic or feature]'
 ---
 
@@ -18,8 +18,7 @@ One loop, three stages:
 3. **Acceptance** -- the general runs each order's criteria; for anything a
    person touches, the rainbow bridge accepts it from both sides.
 
-Deeper trap list for the bridge: skill `rainbow-bridge`. Bee details: skill
-`bee-delegation`.
+Bee details: skill `bee-delegation`.
 
 ## Stage 1. The general gives orders
 
@@ -119,6 +118,15 @@ Checklist per order:
 is green. Proof is a check-mark row in `tri commands` or a quote from
 `tg_history`, not `vitest` output.
 
+A check from one side proves nothing: half of this project's defects are
+visible only at the other end -- a client whose invoice came in the wrong
+currency, a relative who received a name leaked from a test fixture, a
+partner whose button opened the command list.
+
+**Machine first, people second.** If a check can be done without sending
+anything to anyone, it must not be done by hand. A live pair is expensive and
+slow; spending it on what the API can read leaves the rest unchecked.
+
 ### Three roles
 
 Owner, 2026-09-21: one makes a request for a function, the second provides
@@ -134,11 +142,14 @@ is a problem.
 ### Run order
 
 ```bash
+tri bridge                                # farm + owner only
 tri bridge <owner_id> <second_party_id>   # 1. machine: bots, both parties' profiles, the agent on two surfaces
 tri commands                              # 2. which menu commands NOBODY has pressed yet
 ```
 
-1. **`tri bridge`** -- one minute, parallel, writes to no one. Read only the
+1. **`tri bridge`** -- one minute, parallel (six lanes), writes to no one:
+   11 bots x (token, app button, command menu) and each party x 2 surfaces
+   (bot, DM). Read only the
    yellow and red rows. The "profiles" section says whether a party is ready
    for **real work**: is it a seller (Telegram connected), is the live wallet
    readable, does the render know it. Every gap names whose press closes it.
@@ -146,11 +157,77 @@ tri commands                              # 2. which menu commands NOBODY has pr
    decision.
 2. **`tri commands`** -- from the owner's chat with each bot: check = answered,
    cross = silent, dot = not tried. Dot rows are the press list for people.
-3. **People** do only what the machine cannot: a real voice note both ways,
-   a real `.md` and `.pdf`, payment through their own cashier, the mini app
-   from their own account.
+3. **People** do only what the machine cannot (the list below is printed at
+   the end of every run, not left unsaid):
+   - party A sends party B a **real voice note** through B's bot; B checks
+     that the agent **quoted the words**, not "got your voice note" -- the
+     proof is the transcript;
+   - A sends a real **`.md`** (must be read and parsed) and a real **`.pdf`**
+     (must get a **clear refusal with the reason named**, not a vague answer);
+   - **payment** through the cashier each party actually sees;
+   - the **mini app** from each party's own account: hive, profile, club,
+     sign-in on a second device.
 4. **Checks**: after the presses -- `tri commands` again; red goes to the hive
-   (`bot-errors`, `client-unanswered` are filed automatically).
+   journal (`bot-errors`, `client-unanswered` arrive there by themselves;
+   `alarm` reaches the keeper within one tick).
+
+### "Command in the menu" is not "command answers"
+
+`tri bridge` reads `getMyCommands`: that proves a command is **set**, not
+that anyone **answers** it. A menu item without a handler is a button that
+does nothing, and the bridge prints it green.
+
+`tri commands` reads the owner's chat with every bot (`tg_history`, read
+only) and for each "bot x command" pair says answered / silent / not tried.
+Measured 2026-09-21: answered 11, silent 0, **not tried 55** -- of 66 pairs a
+person had pressed 11. "Not tried" is the press list for the live pair, not
+for the machine.
+
+The code half is `src/__tests__/bot/everyAdvertisedCommandAnswers.test.ts`:
+the menu comes from `setCommands.ts`, every command in both languages goes
+through the real `registerCommands`. Six mutants (handler removed or muted)
+-- all killed.
+
+### Bridge from a Claude Code cloud container
+
+On a Mac the bridge takes bot tokens and the agent key via `railway
+variables`. A cloud container has neither; until 2026-10-09 the bridge could
+not run there at all (the proxy answered `connect_rejected`). `tri
+bridge-preflight` prints what is missing (exit 0 = ready, 1 = names what is
+closed; secret values are never printed):
+
+| What                                                                                                | Where to fix                                       |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `vibee-render-production.up.railway.app`, `api.telegram.org`, `api.kie.ai`, `backboard.railway.com` | environment -> Network access -> Allowed domains   |
+| `RAILWAY_TOKEN` (project 999 token) or `AGENT_KEY`                                                  | environment -> Secrets                             |
+| `railway` CLI                                                                                       | `npm i -g @railway/cli` (the npm registry is open) |
+
+**Trap:** a policy change applies to a NEW container. A session started
+before the change keeps getting refused -- measure from a new session.
+
+### Bridge traps
+
+1. **The check must read the very place the code writes.** The first run
+   reported `commands: 0` on all eleven bots, and a fix was started for a
+   defect that did not exist. `setCommands.ts` writes commands to the
+   `all_private_chats` scope and **deliberately deletes** the group ones;
+   `getMyCommands` without a scope asks the default scope, empty by design.
+   With the right scope: 4 commands on every bot, 5 on the cashier. Same
+   class as `tri hive` printing "not set on vibee-render" while reading the
+   linked service's variables. Output that names a place must read that
+   place.
+2. **The silence guard is an "answer" too.** `silenceNet` replies "did not
+   understand" to any unhandled DM, so "something was sent" is true for a
+   command **without a handler**; a send counter misses a dead command. A
+   handler that fell into `catch` sends an error message -- also a send. The
+   first command test passed `/start` exactly this way (no database in the
+   test, `/start` failed and answered with an error). **An answer is only
+   what is neither the guard's phrase nor an error message**, and the check
+   first proves it can tell them apart on a command that does not exist.
+3. **The Railway link is shared.** `railway service X` changes the link of
+   the **directory**, and every session in this checkout shares it: switching
+   pulls the service out from under a neighbour session. New `tri` commands
+   take the service as a flag: `railway run --service <name> -- ...`.
 
 ### Bots on our own Bot API server
 
@@ -210,6 +287,9 @@ status "draft"): the person answers the onboarding questions.
   Otherwise only a live person's press.
 - **Does not send from the owner's account without permission.** Outside the
   duet every send from it is a card with a "Send" button.
+- **Never acts as the second party.** That account is a live person even
+  when two people agreed to the test: the agent acts **for** the owner, never
+  in the second party's name.
 
 ## Report to the owner (format)
 
@@ -236,7 +316,6 @@ only in the skill `t27-spec-first`: this is a pointer, not a copy.
 ## Related resources
 
 - `bee-delegation` -- issuing orders to bees and reading the board
-- `rainbow-bridge` -- the full trap list for two-sided checks
 - `vip-client-care` -- client work, reports, prohibitions
 - `mcp-owner-access` -- acting as the owner without their credentials
 - `three-options-at-the-end` -- how to end the report
