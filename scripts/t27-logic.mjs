@@ -65,11 +65,15 @@ const tsType = t => (t === 'bool' ? 'boolean' : t === STR ? 'string' : 'number')
  * Any return type is read, `[]const u8` (a spec `str`) included: a fn the
  * pattern did not see would be neither lowered nor named in __NOT_LOWERED__,
  * and the host would keep its copy with no record that it must (course-outreach
- * v2, 2026-10-09: seven str fns vanished that way).
+ * v2, 2026-10-09: seven str fns vanished that way). A spec's `pub fn` is
+ * emitted as `pub fn` (isa/ternary_encoding, 2026-10-11: the whole spec read
+ * as zero fns and wrote an empty module without a word).
  */
 export function zigFns(zigSrc) {
   const out = []
-  for (const m of zigSrc.matchAll(/^fn (\w+)\(([^)]*)\) ([^{\n]+?) \{/gm)) {
+  for (const m of zigSrc.matchAll(
+    /^(?:pub )?fn (\w+)\(([^)]*)\) ([^{\n]+?) \{/gm
+  )) {
     const [, name, params, ret] = m
     if (name.startsWith('__') || name === 'assert_eq') continue
     const ps = params
@@ -222,6 +226,13 @@ function main() {
   const dir = mkdtempSync(join(tmpdir(), 't27-logic-'))
   const zigSrc = execFileSync(t27c, ['gen', source], { encoding: 'utf8' })
   const fns = zigFns(zigSrc)
+  const declared = (spec.match(/^\s*(?:pub\s+)?fn\s+\w+/gm) || []).length
+  if (declared > 0 && fns.length === 0) {
+    console.error(
+      `${source} declares ${declared} fn(s) but none was read from the generated Zig; nothing written`
+    )
+    process.exit(1)
+  }
   const lowered = fns.filter(
     f => LOWERED.has(f.ret) && f.params.every(([, t]) => LOWERED.has(t))
   )
