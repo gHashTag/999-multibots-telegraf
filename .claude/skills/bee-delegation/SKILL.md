@@ -23,18 +23,26 @@ description: 'Отдать работу пчёлам Королевы дешев
 
 ## Делегируемая задача = issue в gHashTag/t27
 
-Королева берёт issue, если у него есть:
+Королева берёт issue, только если выполнены **все четыре** проверки
+(правило — `apps/vibee-editor/packages/vibee-atoms/src/spec-quality.ts`,
+`judge`, зеркало движка `QueenSpecQuality`):
 
 ```
+## User Scenarios & Testing
+- **Given** ..., **When** ..., **Then** ...  (без него: incompleteSpec)
+## Requirements
+- FR-001: ... MUST ...                       (номер FR-NNN или MUST)
+## Success Criteria                          (или Acceptance criteria)
+1. `cargo test -p t27b` exits 0              (измеримо: exit 0, число тестов,
+                                              путь .rs/.ts/.json, команда cargo/git/bun)
 ## Boundary
-- путь/к/файлу, который держит пчела        (без раздела: missingBoundary, пропуск)
-## Acceptance criteria
-1. `команда` prints `ожидаемое`              (проверяемо, по коду возврата)
+- путь/к/файлу, который держит пчела        (без раздела: missingBoundary)
 ```
 
-Королева сама «оформляет» свежие issues (метка `queen-shaped`, добавляет
-User Scenarios), но **границу и критерии пиши сам** — так задача точно
-делегируема и точно проверяема. Образец формы — t27#8590, t27#8959.
+Замер 11.10.2026: три задачи с Boundary, FR и критериями, но **без
+сценария**, простояли тик как `incompleteSpec`. Королева потом сама дописывает
+сценарии (метка `queen-shaped`), но это лишний тик — **пиши все четыре
+раздела сразу**. Образец формы — t27#8590, t27#8959.
 
 Дешевле всего: одна задача = одна мысль, граница — минимальная. Чем больше
 файлов в Boundary, тем дольше задача стоит в `fileConflict`.
@@ -54,7 +62,7 @@ curl -s $B/queen/public-board    # repo, columns, cards, pulse
 | `claimed` | **пчела уже работает** | ждать PR |
 | `fileConflict` | файлы границы держит другая пчела | ждать или сузить Boundary |
 | `missingBoundary` | нет `## Boundary` | дописать раздел |
-| `incompleteSpec` | нет проверяемых критериев | дописать критерии |
+| `incompleteSpec` | не хватает сценария, FR или измеримого критерия | дописать недостающий раздел |
 | `completed` | сделано | проверить PR и закрыть |
 
 Списки в `skipSummary` усечены (`more: N`), так что отсутствие номера в
