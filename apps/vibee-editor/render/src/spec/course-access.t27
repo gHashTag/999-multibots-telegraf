@@ -19,8 +19,10 @@
 //       courses. A step is FREE (one press, nothing asked), BOT (the reader opens the
 //       bot with a course link; the bot hands back a key) or PAID (the bot checks the
 //       club and hands back a key that lives as long as the club does). Rungs past the
-//       fourth stay PAID. A course opened stays open for that reader: the order is kept
-//       in his browser, the keys prove the two steps that need proof.
+//       fourth stay PAID. A course opened on a free or a bot rung stays open for that
+//       reader; one opened on a paid rung stays open only while he holds a paid key that
+//       has not run out (stays_open): the club is a subscription, not a purchase. The
+//       order is kept in his browser, the keys prove the two steps that need proof.
 // THE KEY. Signed by the render with a secret only the render holds; it carries the
 //       step, an opaque learner id and an expiry, never a Telegram id or a name. A BOT
 //       key does not expire; a PAID key expires with the club period it was minted
@@ -113,6 +115,15 @@ module automation::course_access {
             return paid_key;
         }
         return false;
+    }
+
+    // Does a course stay open, given the rung it was opened on: free and bot rungs for
+    // good, a paid rung only while a paid key holds.
+    fn stays_open(step: u8, paid_key: bool) -> bool {
+        if step == STEP_PAID {
+            return paid_key;
+        }
+        return step == STEP_FREE || step == STEP_BOT;
     }
 
     // May the render mint a key for this step. The bot asks; a bot step needs only that
@@ -211,6 +222,14 @@ module automation::course_access {
         assert(!may_open(STEP_PAID, true, false));
         assert(may_open(STEP_PAID, false, true));
         assert(LADDER_RUNGS == 4);
+    }
+
+    test "a club course closes when the club ends, the others stay" {
+        assert(stays_open(STEP_FREE, false));
+        assert(stays_open(STEP_BOT, false));
+        assert(stays_open(STEP_PAID, true));
+        assert(!stays_open(STEP_PAID, false));
+        assert(!stays_open(3, true));
     }
 
     test "an unknown step opens nothing" {

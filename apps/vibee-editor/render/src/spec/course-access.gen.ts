@@ -34,12 +34,14 @@ export const CONTENT_HIDDEN = false satisfies boolean;
 export const RUN_LIVE = false satisfies boolean;
 // t27c gen-ts: fn step_of was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_open was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn stays_open was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn mint_ok was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn key_days was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn crm_tag was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn lesson_event was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn tells_owner was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn may_report was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.

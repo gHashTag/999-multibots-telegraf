@@ -53,5 +53,10 @@
     "name": "the site reports before the bot",
     "from": "        if SENDS_BEFORE_BOT {\n            return true;\n        }\n        return has_valid_key;",
     "to": "        return true;"
+  },
+  {
+    "name": "a club course stays open after the club",
+    "from": "        if step == STEP_PAID {\n            return paid_key;\n        }\n        return step == STEP_FREE || step == STEP_BOT;",
+    "to": "        return true;"
   }
 ]

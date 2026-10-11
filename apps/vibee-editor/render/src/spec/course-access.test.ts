@@ -10,6 +10,7 @@ import {
   mayOpen,
   mayReport,
   mintOk,
+  staysOpen,
   stepOf,
   tellsOwner,
 } from './course-access.logic'
@@ -180,6 +181,16 @@ describe('course-access.t27: every spec test, against the host', () => {
     clubDays = 12
     const out = await mintFor(pool, ADA, 'paid', 'clocks-and-cdc', deps())
     expect(out).toMatchObject({ ok: true, step: SPEC.STEP_PAID })
+  })
+
+  it('a club course closes when the club ends, the others stay', () => {
+    // The site holds this (t27.ai Course.tsx); the render's paid key, which it
+    // reads, expires with the club -- see 'a paid key lives as long as the club'.
+    expect(staysOpen(SPEC.STEP_FREE, false)).toBe(true)
+    expect(staysOpen(SPEC.STEP_BOT, false)).toBe(true)
+    expect(staysOpen(SPEC.STEP_PAID, true)).toBe(true)
+    expect(staysOpen(SPEC.STEP_PAID, false)).toBe(false)
+    expect(staysOpen(3, true)).toBe(false)
   })
 
   it('an unknown step opens nothing', async () => {
