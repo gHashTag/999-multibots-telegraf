@@ -158,7 +158,7 @@ describe('a rendered button always has somewhere to land', () => {
       'utf8'
     )
     expect(menu, 'the main menu must offer something to press').toMatch(
-      new RegExp('standardButtons\\(isRu\\)')
+      new RegExp('standardButtons\\(isRu')
     )
   })
 })

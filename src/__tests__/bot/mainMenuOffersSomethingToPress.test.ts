@@ -50,7 +50,14 @@ describe('the main menu leaves the person something to press', () => {
     expect(replies[0][1]?.reply_markup?.remove_keyboard).toBe(true)
   })
 
-  it('follows with buttons, top-up first', async () => {
+  /**
+   * Top-up was first from 2026-10-12 morning until the same evening, when the
+   * club took the row above it: the club is the one subscription, and the
+   * funnel of thirty days counted 1 club card against 56 new people, because
+   * its button lived on a /start branch a newcomer never takes. The standard
+   * set did not shrink -- the top-up is one row down, still there.
+   */
+  it('follows with buttons, the club first and the top-up right under it', async () => {
     const { ctx, replies } = fakeCtx()
     await showMainMenu(ctx)
     expect(replies.length).toBe(2)
@@ -59,6 +66,9 @@ describe('the main menu leaves the person something to press', () => {
       0
     )
     expect(JSON.stringify(markup.reply_markup.inline_keyboard[0])).toContain(
+      'club_card'
+    )
+    expect(JSON.stringify(markup.reply_markup.inline_keyboard)).toContain(
       'act:topup'
     )
   })
