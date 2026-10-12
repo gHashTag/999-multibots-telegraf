@@ -94,10 +94,18 @@ function appButton(isRu: boolean): InlineKeyboardButton {
  * The standard set: pay first, because that is the thing the owner wants
  * offered without being asked, and it is the step a paying person is looking
  * for.
+ *
+ * `first` is a row the CALLER's screen has earned, above the standard set.
+ * It exists so a screen can put its one extra door on top without a hand
+ * copy of these rows: the copy is how the standard set used to drift.
  */
-export function standardButtons(isRu: boolean, opts?: { app?: boolean }) {
+export function standardButtons(
+  isRu: boolean,
+  opts?: { app?: boolean; first?: InlineKeyboardButton[] }
+) {
   const byId = (id: string) => ACTIONS.find(a => a.id === id)!
   const rows: InlineKeyboardButton[][] = [
+    ...(opts?.first?.length ? [opts.first] : []),
     [
       Markup.button.callback(
         label(byId('topup'), isRu),

@@ -29,6 +29,7 @@ import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
 import { isAdmin } from '@/middleware/adminOnly'
 import { standardButtons } from './actionButtons'
+import { clubButton } from './clubCard'
 import { track } from '@/services/trackEvent'
 
 /**
@@ -261,14 +262,32 @@ export async function showMainMenu(ctx: MyContext): Promise<void> {
      * The failure is swallowed: a menu that displayed is not undone by a
      * follow-up that did not.
      */
+    /*
+     * THE CLUB, ON THE ONE SCREEN EVERY NEWCOMER REACHES (2026-10-12).
+     *
+     * The top-up row landed here; the club never did. It lived on the /start
+     * greeting -- the EXISTING-user branch, which a newcomer never sees: the
+     * funnel of thirty days counted 56 new people, 1 club card, 0 invoices.
+     * The club is the one subscription and the one thing worth a row on the
+     * terminal screen, so it goes first, above the top-up, the same
+     * "price behind the press" card the greeting's button opens
+     * (clubCard.ts). No number here: the price is the card's to say.
+     */
     const next = isRu
       ? 'Что дальше? Для генераций нужен баланс в звёздах — пополнить можно прямо здесь. ' +
+        'А если двойник нужен всерьёз и надолго — клуб: подписка, и часть каждого платежа возвращается токенами. ' +
         'Или просто напишите, что нужно сделать.'
       : 'What next? Generations run on a star balance -- you can top it up right here. ' +
+        'And if you want the twin for real and for long -- the club: a subscription, with part of every payment coming back as tokens. ' +
         'Or just tell me what you need.'
-    await ctx.reply(next, standardButtons(isRu)).catch(() => {
-      // The menu is already on screen; a missing follow-up is not a failure of it.
-    })
+    await ctx
+      .reply(
+        next,
+        standardButtons(isRu, { first: [clubButton(isRu, { join: true })] })
+      )
+      .catch(() => {
+        // The menu is already on screen; a missing follow-up is not a failure of it.
+      })
 
     logger.info('✅ [showMainMenu] Main menu displayed', { telegramId })
   } catch (error) {
