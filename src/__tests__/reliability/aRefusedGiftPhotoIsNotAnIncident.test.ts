@@ -103,6 +103,7 @@ const run = (is_ru = true) =>
 
 let error: { mock: { calls: any[][] } }
 let warn: { mock: { calls: any[][] } }
+let savedGiftSwitch: string | undefined
 
 /** Every message the owner's phone would have rung about. */
 const pages = () => error.mock.calls.map(c => String(c[0]))
@@ -115,6 +116,14 @@ const said = () =>
   ].join(' ')
 
 beforeEach(() => {
+  // This suite pins the gift's behaviour WHEN THE GIFT RUNS. Since 2026-10-12
+  // the gift is off by default (WELCOME_GIFT_ENABLED, owner decision -- the
+  // kie.ai balance was at zero), and the handler guards itself on that switch
+  // before anything here. Turn it on for the duration of the suite, or every
+  // case below would "pass" by never running the code under test.
+  savedGiftSwitch = process.env.WELCOME_GIFT_ENABLED
+  process.env.WELCOME_GIFT_ENABLED = 'true'
+
   // Spied on the real logger object -- the same instance the Telegram
   // transport is attached to, so "which method" is the whole question.
   error = vi.spyOn(logger, 'error').mockImplementation(() => logger as any)
@@ -133,6 +142,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  if (savedGiftSwitch === undefined) delete process.env.WELCOME_GIFT_ENABLED
+  else process.env.WELCOME_GIFT_ENABLED = savedGiftSwitch
 })
 
 describe('the welcome gift: a refused profile photo', () => {

@@ -83,6 +83,24 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       hasAvatar: !!avatarUrl,
     })
 
+    /*
+     * THE GIFT IS OFF (owner, 2026-10-12), and this is the second door.
+     * createUserScene no longer sends the event, but anything already queued
+     * in Inngest, plus any legacy sender still on "user/welcome.avatar.generate",
+     * would land here and spend the owner's provider money on a gift nobody
+     * asked to keep paying for. Same switch as the scene, same default OFF —
+     * stop before reserve-gift-slot, before generate-image, before any step
+     * that spends or messages. Re-enable with WELCOME_GIFT_ENABLED=true once
+     * the provider account is funded (see createUserScene for the full story).
+     */
+    if (process.env.WELCOME_GIFT_ENABLED !== 'true') {
+      logger.warn(
+        '🎁 [Welcome Avatar] Gift disabled (WELCOME_GIFT_ENABLED unset) — skipping',
+        { telegram_id, bot_name }
+      )
+      return { success: false, skipped: 'welcome-gift-disabled' }
+    }
+
     // Step 1: Validate bot exists (just check, don't pass instance)
     const botValidation = await step.run('validate-bot', async () => {
       const botData = getBotByNameAdapter(bot_name)
