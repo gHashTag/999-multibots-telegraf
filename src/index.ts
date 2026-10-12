@@ -40,6 +40,9 @@ import {
 import { setBotCommands } from './setCommands'
 // ✅ ДОБАВЛЯЕМ IMPORT LANGUAGE MIDDLEWARE
 import { languageMiddleware } from './middlewares/languageMiddleware'
+// Scene-move telemetry: the ONLY entrypoint Railway starts (bot.ts is a
+// parity file) -- a registration that lives only in bot.ts records nothing.
+import { createClientTelemetryMiddleware } from './core/telemetry/telemetryMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
 import {
   setupErrorHandler,
@@ -338,6 +341,7 @@ async function initializeBots() {
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
     bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+    bot.use(createClientTelemetryMiddleware()) // 2a. Records scene-to-scene moves
 
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
     setupErrorHandler(bot)
