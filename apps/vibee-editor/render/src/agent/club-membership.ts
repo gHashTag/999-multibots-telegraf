@@ -51,6 +51,7 @@ import { keepers } from '../hive/roles'
 import { clubGuests, guestPassFor } from './club-guests'
 import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
 import { telegramApiFor } from '../telegram-api'
+import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<any>
@@ -891,6 +892,99 @@ export async function sweepClubGrants(
   return out
 }
 
+/** The owner's live message; injectable so tests send nothing. */
+export type TellOwner = (text: string) => Promise<unknown>
+
+export interface ClubPaid {
+  telegramId: string
+  name?: string
+  username?: string
+  /** Stars charged; 0 for a cash month. */
+  stars: number
+  /** ISO end of the booked period. */
+  until: string
+  via: 'stars' | 'cash'
+}
+
+async function sendOwnerPayment(text: string): Promise<void> {
+  const { sendToTelegram } = await import('../auth/telegram-sender')
+  await sendToTelegram(
+    String(process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK),
+    text,
+    undefined,
+    { event: 'payment' }
+  )
+}
+
+/** The words the owner reads about one paid club period. */
+export function clubPaidText(
+  p: ClubPaid,
+  activeMembers: number | null
+): string {
+  const who = [
+    p.name || '',
+    p.username ? `@${p.username}` : '',
+    `id ${p.telegramId}`,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const paid = p.via === 'cash' ? 'cash' : `${spacedNumber(p.stars)} Stars`
+  const members =
+    activeMembers === null ? '' : `, active members now: ${activeMembers}`
+  return `Club payment: ${who} paid ${paid}, member until ${p.until.slice(0, 10)}${members}.`
+}
+
+/**
+ * Tell the owner a club period was paid. Called only right after the INSERT
+ * that created the period row, so once per period. Never throws: a failed
+ * count or a failed send must not undo or block the booking.
+ */
+export async function tellOwnerClubPaid(
+  pool: Queryable,
+  p: ClubPaid,
+  tellOwner: TellOwner = sendOwnerPayment
+): Promise<void> {
+  let members: number | null = null
+  let name = p.name
+  let username = p.username
+  try {
+    const r = await pool.query(
+      `SELECT count(DISTINCT telegram_id)::int AS n FROM club_period WHERE until > now()`
+    )
+    const n = Number(r?.rows?.[0]?.n)
+    members = Number.isFinite(n) && r?.rows?.length ? n : null
+  } catch {
+    members = null
+  }
+  if (!name && !username) {
+    try {
+      const r = await pool.query(
+        `SELECT first_name, last_name, username FROM crm_people
+          WHERE owner_id = $1 AND lead_id = $2 LIMIT 1`,
+        [
+          String(process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK),
+          p.telegramId,
+        ]
+      )
+      const row = r?.rows?.[0]
+      if (row) {
+        name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim()
+        username = row.username || undefined
+      }
+    } catch {
+      // No CRM row is fine: the id alone still names the payer.
+    }
+  }
+  try {
+    await tellOwner(clubPaidText({ ...p, name, username }, members))
+  } catch (e) {
+    console.warn(
+      '[club] owner payment notice not sent:',
+      String(e).slice(0, 160)
+    )
+  }
+}
+
 /** The slice of a Bot API StarTransaction this file reads. */
 export interface StarTx {
   id: string
@@ -898,7 +992,12 @@ export interface StarTx {
   date: number
   source?: {
     type?: string
-    user?: { id?: number }
+    user?: {
+      id?: number
+      first_name?: string
+      last_name?: string
+      username?: string
+    }
     subscription_period?: number
     invoice_payload?: string
   }
@@ -948,7 +1047,8 @@ export async function bookClubPeriods(
   pool: Queryable,
   txs: StarTx[],
   credit: Credit,
-  who?: string
+  who?: string,
+  opts: { tellOwner?: TellOwner } = {}
 ): Promise<BookedPeriod[]> {
   await ensureClubTables(pool)
   const out: BookedPeriod[] = []
@@ -995,6 +1095,20 @@ export async function bookClubPeriods(
     } catch {
       // The period row is the record that matters; the journal is a courtesy.
     }
+    // Only here, after the INSERT created the row: once per paid period.
+    const u = t.source!.user!
+    await tellOwnerClubPaid(
+      pool,
+      {
+        telegramId: tid,
+        name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim(),
+        username: u.username,
+        stars: Number(t.amount),
+        until: until.toISOString(),
+        via: 'stars',
+      },
+      opts.tellOwner
+    )
     out.push({
       telegramId: tid,
       starTxId: String(t.id),
