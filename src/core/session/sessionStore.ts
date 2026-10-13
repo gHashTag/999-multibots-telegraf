@@ -262,6 +262,16 @@ function getRedisClient(url: string): RedisClientType {
 }
 
 /**
+ * The same shared Redis connection, for a small per-person record that has to
+ * outlive one bot's session (sessions are bot-scoped, see KEYS above).
+ * Undefined without REDIS_URL: the caller keeps its own memory fallback.
+ */
+export function sharedKvClient(): KvClient | undefined {
+  const url = process.env.REDIS_URL
+  return url ? getRedisClient(url) : undefined
+}
+
+/**
  * The middleware every bot installs instead of `session()`.
  * With REDIS_URL: Redis-backed, bot-scoped keys. Without: memory, said aloud.
  */

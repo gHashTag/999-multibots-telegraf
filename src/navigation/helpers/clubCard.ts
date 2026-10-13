@@ -36,11 +36,29 @@ import {
   type ClubStatus,
 } from '@/services/clubMembership'
 import { track } from '@/services/trackEvent'
+import {
+  COURSES_ROUTE,
+  courseKeyReply,
+  requestCourseKey,
+  type CourseIntent,
+} from '@/services/courseAccess'
 
 /** Show the card. Registered at bot level; callback ids stay `[a-z_]` only. */
 export const CLUB_CARD = 'club_card'
 /** Mint the invoice. */
 export const CLUB_JOIN = 'club_join'
+/** A member signs in on t27.ai: a paid key for the course catalog. */
+export const CLUB_SITE = 'club_site'
+
+/** The member's door to the site; only a member is shown it. */
+export function siteSignInRow(isRu: boolean): InlineKeyboardButton[] {
+  return [
+    Markup.button.callback(
+      isRu ? '🎓 Войти на t27.ai' : '🎓 Sign in on t27.ai',
+      CLUB_SITE
+    ),
+  ]
+}
 
 /**
  * Callbacks of offers that no longer exist, still pressable on old messages
@@ -216,6 +234,8 @@ export function clubCardKeyboard(
         CLUB_JOIN
       ),
     ])
+  } else {
+    rows.push(siteSignInRow(isRu))
   }
   // web_app buttons are legal in private chats only.
   if (opts.app) rows.push(appRow(isRu))
@@ -300,6 +320,7 @@ export async function joinClub(
     await ctx.reply(clubMemberText(isRu, invoice), {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
+        siteSignInRow(isRu),
         ...(app ? [appRow(isRu)] : []),
         [actionButton('balance', isRu), actionButton('human', isRu)],
       ]),
@@ -329,6 +350,34 @@ export async function joinClub(
 }
 
 /**
+ * The press on "Sign in on t27.ai": the same render call as the site's
+ * `?start=course_paid_courses`, answered with one URL button. A club that
+ * lapsed since the card was drawn gets the card again, never a fake key.
+ */
+export async function signInOnSite(
+  ctx: MyContext,
+  opts: { key?: string; fetchImpl?: typeof fetch } = {}
+): Promise<void> {
+  if (!ctx.from) return
+  const isRu = isRussianFromState(ctx)
+  const intent: CourseIntent = { step: 'paid', route: COURSES_ROUTE }
+  const outcome = await requestCourseKey(ctx.from, intent, {
+    ...opts,
+    campaign: 'signin',
+  })
+  const reply = courseKeyReply(isRu, intent, outcome)
+  await ctx.reply(
+    reply.text,
+    reply.button
+      ? Markup.inlineKeyboard([
+          [Markup.button.url(reply.button.label, reply.button.url)],
+        ])
+      : undefined
+  )
+  if (outcome.kind === 'no_club') await showClubCard(ctx, 'button')
+}
+
+/**
  * The club's buttons, at bot level and before the scenes. `answerCbQuery`
  * first, always: the invoice call can take seconds and Telegram gives ten.
  */
@@ -340,6 +389,10 @@ export function registerClubButtons(bot: Telegraf<MyContext>): void {
   bot.action(CLUB_JOIN, async ctx => {
     await ctx.answerCbQuery().catch(() => {})
     await joinClub(ctx)
+  })
+  bot.action(CLUB_SITE, async ctx => {
+    await ctx.answerCbQuery().catch(() => {})
+    await signInOnSite(ctx)
   })
   bot.action(RETIRED_OFFER_CALLBACK, async ctx => {
     await ctx.answerCbQuery().catch(() => {})

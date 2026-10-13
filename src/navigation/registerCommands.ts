@@ -280,6 +280,7 @@ import {
   courseIntent,
   courseKeyReply,
   requestCourseKey,
+  wantedCourses,
   type CourseIntent,
 } from '@/services/courseAccess'
 
@@ -3383,6 +3384,11 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         if (outcome.kind === 'no_club') {
           wantsClub = true
           ctx.session.clubDeepLink = true
+          // The charge lands at the cashier bot, whose session is not this
+          // one: the course is kept per person, and handed back after paying.
+          await wantedCourses()
+            .set(String(ctx.from.id), courseStep.route)
+            .catch(() => undefined)
         }
       }
 

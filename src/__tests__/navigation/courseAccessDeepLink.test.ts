@@ -83,7 +83,7 @@ describe('course deep link', () => {
     })
     expect(out).toEqual({
       kind: 'key',
-      url: 'https://t27.ai/#/verify-hardware?unlock=abc.def',
+      url: 'https://t27.ai/?utm_source=telegram&utm_medium=bot&utm_campaign=course#/verify-hardware?unlock=abc.def',
       until: '2036-10-08',
     })
     const reply = courseKeyReply(

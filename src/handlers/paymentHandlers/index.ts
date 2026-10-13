@@ -300,6 +300,8 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       chargeId: telegramPaymentChargeId,
       totalAmount: successfulPayment.total_amount,
       recurring: (successfulPayment as { is_recurring?: boolean }).is_recurring,
+      firstRecurring: (successfulPayment as { is_first_recurring?: boolean })
+        .is_first_recurring,
     })
   ) {
     await ctx.scene?.leave?.()
