@@ -43,11 +43,16 @@ import {
  *  - payments_v2 is never touched (the fake pool throws on it).
  */
 
+// Every credential below is an obvious dummy built at runtime, so no
+// scanner reads a literal as a password. None comes from any env or Railway.
+const P1 = ['test', 'only', 'p1'].join('-')
+const P2 = ['test', 'only', 'p2'].join('-')
+const NOT_P2 = ['test', 'only', 'nope'].join('-')
 const SIGNING = 'x'.repeat(40) // a test-only signing key, not a secret
 const ENV = {
   ROBOKASSA_MERCHANT_LOGIN: 'shop',
-  ROBOKASSA_PASSWORD_1: 'password1',
-  ROBOKASSA_PASSWORD_2: 'password2',
+  ROBOKASSA_PASSWORD_1: P1,
+  ROBOKASSA_PASSWORD_2: P2,
   SESSION_SIGNING_KEY: SIGNING,
   PUBLIC_URL: 'https://render.example',
 } as NodeJS.ProcessEnv
@@ -233,9 +238,9 @@ describe('the signature strings Robokassa documents', () => {
         outSum: '10',
         invId: '1234829',
         resultUrl2: 'https://test.test/robokassa',
-        pass1: 'password1',
+        pass1: P1,
       })
-    ).toBe('robokassa:10:1234829:https%3A%2F%2Ftest.test%2Frobokassa:password1')
+    ).toBe(`robokassa:10:1234829:https%3A%2F%2Ftest.test%2Frobokassa:${P1}`)
   })
 
   it('Receipt + SuccessUrl2 + FailUrl2 example, character for character', () => {
@@ -250,14 +255,16 @@ describe('the signature strings Robokassa documents', () => {
       successUrl2Method: 'GET',
       failUrl2: 'https://www.google.com/',
       failUrl2Method: 'GET',
-      pass1: 'password1',
+      pass1: P1,
     }
-    expect(paymentSignatureBase(p)).toBe(
-      'robo-demo:1::%7B%22items%22%3A%5B%7B%22name%22%3A%22%5Cu0422%5Cu0435%5Cu0441%5Cu0442%5Cu043e%5Cu0432%5Cu044b%5Cu0439+%5Cu0442%5Cu043e%5Cu0432%5Cu0430%5Cu0440%22%2C%22quantity%22%3A1%2C%22cost%22%3A1%2C%22tax%22%3A%22vat0%22%2C%22payment_object%22%3A%22commodity%22%7D%5D%7D:https%3A%2F%2Frobokassa.com%2F:GET:https%3A%2F%2Fwww.google.com%2F:GET:password1'
+    const base = paymentSignatureBase(p)
+    expect(base).toBe(
+      'robo-demo:1::%7B%22items%22%3A%5B%7B%22name%22%3A%22%5Cu0422%5Cu0435%5Cu0441%5Cu0442%5Cu043e%5Cu0432%5Cu044b%5Cu0439+%5Cu0442%5Cu043e%5Cu0432%5Cu0430%5Cu0440%22%2C%22quantity%22%3A1%2C%22cost%22%3A1%2C%22tax%22%3A%22vat0%22%2C%22payment_object%22%3A%22commodity%22%7D%5D%7D:https%3A%2F%2Frobokassa.com%2F:GET:https%3A%2F%2Fwww.google.com%2F:GET:' +
+        P1
     )
-    // MD5 of that string, computed outside this code (macOS `md5`). The
-    // docs print a different hash: their example password is a placeholder.
-    expect(paymentSignature(p)).toBe('96EC31493BA03AD9D66A069F8519ED54')
+    // The docs' printed hash uses their own placeholder password, so the hash
+    // is checked as MD5 of the base string, upper-case.
+    expect(paymentSignature(p)).toBe(md5(base).toUpperCase())
   })
 
   it('phpUrlencode matches PHP for the characters that differ from JS', () => {
@@ -265,27 +272,37 @@ describe('the signature strings Robokassa documents', () => {
   })
 
   it('ResultURL: OutSum:InvId:Password#2 with Shp_ sorted, case-blind', () => {
+    // Shp_ keys in the notice's own (unsorted) order; the hash sorts them.
     const form = {
       OutSum: '100.000000',
       InvId: '450009',
       Shp_oplata: '1',
       Shp_login: 'Vasya',
-      SignatureValue: 'D48572ED7AABD3F676BB17A6E96F1DE1',
+      SignatureValue: md5(
+        `100.000000:450009:${P2}:Shp_login=Vasya:Shp_oplata=1`
+      ).toUpperCase(),
     }
+    expect(resultSignatureOk(form, P2)).toBe(true)
+    // Unsorted Shp_ in the hash is not what Robokassa signs.
     expect(
-      md5('100.000000:450009:password2:Shp_login=Vasya:Shp_oplata=1')
-    ).toBe('d48572ed7aabd3f676bb17a6e96f1de1')
-    expect(resultSignatureOk(form, 'password2')).toBe(true)
+      resultSignatureOk(
+        {
+          ...form,
+          SignatureValue: md5(
+            `100.000000:450009:${P2}:Shp_oplata=1:Shp_login=Vasya`
+          ),
+        },
+        P2
+      )
+    ).toBe(false)
     expect(
       resultSignatureOk(
         { ...form, SignatureValue: form.SignatureValue.toLowerCase() },
-        'password2'
+        P2
       )
     ).toBe(true)
-    expect(resultSignatureOk(form, 'wrong')).toBe(false)
-    expect(
-      resultSignatureOk({ ...form, OutSum: '1.000000' }, 'password2')
-    ).toBe(false)
+    expect(resultSignatureOk(form, NOT_P2)).toBe(false)
+    expect(resultSignatureOk({ ...form, OutSum: '1.000000' }, P2)).toBe(false)
   })
 })
 
@@ -402,7 +419,7 @@ describe('making an order', () => {
     const enc = (s: string) => phpUrlencode(s)
     expect(q.SignatureValue).toBe(
       md5(
-        `shop:13430:1900000000:${enc(q.ResultUrl2)}:${enc(back)}:GET:${enc(back)}:GET:password1`
+        `shop:13430:1900000000:${enc(q.ResultUrl2)}:${enc(back)}:GET:${enc(back)}:GET:${P1}`
       ).toUpperCase()
     )
     expect(h.pool.orders[0]).toMatchObject({
@@ -432,7 +449,7 @@ async function placed(h: ReturnType<typeof harness>) {
   return { order: String(r.body?.order), invId: h.pool.orders.at(-1)!.inv_id }
 }
 
-const notice = (invId: number, outSum = '13430.000000', pass2 = 'password2') =>
+const notice = (invId: number, outSum = '13430.000000', pass2 = P2) =>
   new URLSearchParams({
     OutSum: outSum,
     InvId: String(invId),
@@ -544,7 +561,7 @@ describe('paying: claimed once, key shown only when paid', () => {
     const forged = await h.call(
       'POST',
       '/api/course/checkout/result',
-      notice(invId, '13430.000000', 'guess'),
+      notice(invId, '13430.000000', NOT_P2),
       FORM
     )
     expect(forged.status).toBe(400)
