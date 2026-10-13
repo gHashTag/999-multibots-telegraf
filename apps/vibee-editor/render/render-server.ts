@@ -9020,6 +9020,9 @@ const server = createServer(async (req, res) => {
    * (src/agent/course-checkout.ts): an order, Robokassa's ResultUrl2
    * notification, the way back to the course page, and the site's poll for
    * the paid key. Off unless CLUB_RUB_PRICE and the Robokassa values are set.
+   * The same club in TON (src/agent/course-checkout-ton.ts) is on when the
+   * bot's TON_WALLET_ADDRESS is set and a fresh TON/USD rate is at hand; its
+   * order poll reads toncenter.
    */
   if (isCheckoutPath(req.url?.split('?')[0] || '')) {
     const out = await handleCheckout(req as any, {

@@ -41,11 +41,22 @@
  * payments_v2 (the bot's) is a frozen archive and is never touched here; the
  * CRM is keyed by Telegram id, so a web buyer gets no CRM row.
  *
+ * Owner, 2026-10-13: "or with crypto" -- the same period paid in native TON
+ * to the bot's own wallet, any language (course-checkout-ton.ts). The TON
+ * amount is CLUB_USD at the live TON/USD rate, rounded up to 0.1 TON, frozen
+ * on the order, and the order expires after 60 minutes. The site's poll looks
+ * at the chain; the claim is the same atomic UPDATE, the key the same fulfil().
+ *
  * Routes (render-server.ts, all public, see auth.ts):
- *   GET  /api/course/checkout            on?, rub, days, stars, usd, rate, rateDate
- *   POST /api/course/checkout            an order and its Robokassa URL
+ *   GET  /api/course/checkout            on?, rub, days, stars, usd, rate,
+ *                                        rateDate, ton {on, amount, address,
+ *                                        rate, rateDate}
+ *   POST /api/course/checkout            an order and its Robokassa URL, or
+ *                                        with pay:'ton' an order and its
+ *                                        TON transfer (address, amount, code)
  *   GET  /api/course/checkout/return     back from Robokassa -> t27.ai
  *   GET  /api/course/checkout/order      the site polls: pending | paid (+key)
+ *                                        | expired (TON only)
  *   POST /api/course/checkout/result     Robokassa's ResultUrl2 notification
  */
 import crypto from 'node:crypto'
@@ -61,6 +72,17 @@ import {
 import { STAR_PRICE_USD } from '@vibee/atoms'
 import { CLUB_PERIOD_S, CLUB_STARS } from './club-membership'
 import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
+import {
+  TonUnreadable,
+  nanoToTon,
+  orderCode,
+  tonConfig,
+  tonLink,
+  tonNano,
+  tonUsd,
+  txPaysTonOrder,
+  walletTxs,
+} from './course-checkout-ton'
 
 export const CHECKOUT_PATHS = [
   '/api/course/checkout',
@@ -105,6 +127,13 @@ const RATE_TIMEOUT_MS = 5000
 const FALLBACK_USD_RUB = 100
 // t27-plumbing: a rounding step for a price shown in roubles
 const RUB_STEP = 10
+// t27-plumbing: how long a TON order's frozen amount stands, 60 minutes
+const TON_ORDER_MS = 60 * 60 * 1000
+// A transfer sent inside the window may be indexed a little after it.
+// t27-plumbing: how long past expiry the poll still reads the chain
+const TON_LATE_LOOK_MS = 15 * 60 * 1000
+// t27-plumbing: retries for an order code that collided with a stored one
+const CODE_TRIES = 3
 
 export interface UsdRub {
   rate: number
@@ -368,10 +397,23 @@ export async function ensureCheckoutTables(pool: Queryable): Promise<void> {
       `pay_via text NOT NULL DEFAULT 'robokassa'`,
       `from_placement text`,
       `source text`,
+      // TON orders: the transfer comment, the nanoton frozen at creation, the
+      // expiry, and the hash of the transfer that paid it.
+      `ton_code text`,
+      `ton_nano bigint`,
+      `expires_at timestamptz`,
+      `ton_tx text`,
     ])
       await pool.query(
         `ALTER TABLE course_order ADD COLUMN IF NOT EXISTS ${col}`
       )
+    // One code is one order, and one transfer pays at most one order.
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS course_order_ton_code_key ON course_order (ton_code)`
+    )
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS course_order_ton_tx_key ON course_order (ton_tx)`
+    )
   })().catch(e => {
     ensured = null
     throw e
@@ -388,6 +430,8 @@ export interface CheckoutDeps {
   env?: NodeJS.ProcessEnv
   /** The CBR fetch; injectable so tests reach no network. */
   fetchRate?: typeof fetch
+  /** The CoinGecko and toncenter fetch; injectable so tests reach no network. */
+  fetchTon?: typeof fetch
 }
 
 export interface CheckoutReply {
@@ -488,19 +532,38 @@ export async function returnTo(
 /** GET /api/course/checkout/order: pending or paid; the key only when paid. */
 export async function orderStatus(
   pool: Queryable,
-  orderId: string
+  orderId: string,
+  deps?: CheckoutDeps
 ): Promise<CheckoutReply> {
   if (!ORDER_ID.test(orderId))
     return { status: 404, body: { ok: false, reason: 'not_found' } }
   await ensureCheckoutTables(pool)
-  const r = await pool.query(
-    `SELECT status, key, until FROM course_order WHERE id = $1`,
-    [orderId]
-  )
-  const row = r.rows[0]
+  const select = async () =>
+    (
+      await pool.query(
+        `SELECT status, key, until, pay_via, inv_id, email, ton_code, ton_nano, created_at, expires_at FROM course_order WHERE id = $1`,
+        [orderId]
+      )
+    ).rows[0]
+  let row = await select()
   if (!row) return { status: 404, body: { ok: false, reason: 'not_found' } }
+  if (row.pay_via === 'ton' && deps && !(row.status === 'paid' && row.key)) {
+    const seen = await settleTon(pool, orderId, row, deps)
+    if (seen === 'expired')
+      return { status: 200, body: { ok: true, status: 'expired' } }
+    if (seen === 'paid') row = await select()
+  }
   if (row.status !== 'paid' || !row.key)
-    return { status: 200, body: { ok: true, status: 'pending' } }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        status: 'pending',
+        ...(row.pay_via === 'ton' && row.status !== 'paid'
+          ? { ton: tonTransfer(row, deps?.env ?? process.env) }
+          : {}),
+      },
+    }
   return {
     status: 200,
     body: {
@@ -564,11 +627,13 @@ export async function settle(
     return { status: 400, text: 'bad inv' }
   await ensureCheckoutTables(pool)
   const found = await pool.query(
-    `SELECT inv_id, email, route, rub, status, key FROM course_order WHERE inv_id = $1`,
+    `SELECT inv_id, email, route, rub, status, key, pay_via FROM course_order WHERE inv_id = $1`,
     [invId]
   )
   const order = found.rows[0]
-  if (!order) return { status: 404, text: 'unknown order' }
+  // A TON order is settled by the chain only, never by a Robokassa notice.
+  if (!order || (order.pay_via && order.pay_via !== 'robokassa'))
+    return { status: 404, text: 'unknown order' }
   const paid = Number(form.OutSum)
   if (!Number.isFinite(paid) || Math.abs(paid - Number(order.rub)) > 0.005)
     return { status: 400, text: 'bad sum' }
@@ -588,15 +653,218 @@ export async function settle(
   if (!claim.rows.length) return { status: 200, text: `OK${invId}` }
   const won = claim.rows[0]
   const minted = await fulfil(pool, won, secret, now)
-  await tell(
-    deps,
-    `Course checkout: ${maskEmail(String(won.email))} paid ${won.rub} RUB on t27.ai for "${won.route}"` +
-      saleOrigin(won) +
-      (minted
-        ? `, paid key valid until ${minted.until.slice(0, 10)}.`
-        : ', but NO key was minted (course keys are off) -- check SESSION_SIGNING_KEY.')
-  )
+  await tell(deps, paidNotice(won, `${won.rub} RUB`, minted))
   return { status: 200, text: `OK${invId}` }
+}
+
+/** The owner's paid-club notice, the same words for every rail. */
+function paidNotice(
+  won: {
+    email: unknown
+    route: unknown
+    from_placement?: unknown
+    source?: unknown
+  },
+  paid: string,
+  minted: { until: string } | null
+): string {
+  return (
+    `Course checkout: ${maskEmail(String(won.email))} paid ${paid} on t27.ai for "${won.route}"` +
+    saleOrigin(won) +
+    (minted
+      ? `, paid key valid until ${minted.until.slice(0, 10)}.`
+      : ', but NO key was minted (course keys are off) -- check SESSION_SIGNING_KEY.')
+  )
+}
+
+/** GET's TON block: on with a fresh rate and the wallet set, else off. */
+export async function tonOffer(
+  env: NodeJS.ProcessEnv,
+  fetchFn?: typeof fetch,
+  nowMs?: number
+): Promise<
+  | { on: false }
+  | {
+      on: true
+      amount: number
+      address: string
+      rate: number
+      rateDate: string
+    }
+> {
+  const cfg = tonConfig(env)
+  // No key secret, no key: TON is not taken for a key that cannot be minted.
+  if (!cfg.on || !courseKeySecret(env)) return { on: false }
+  const fx = await tonUsd(fetchFn, nowMs)
+  if (!fx) return { on: false }
+  return {
+    on: true,
+    amount: nanoToTon(tonNano(CLUB_USD, fx.rate)),
+    address: cfg.address,
+    rate: fx.rate,
+    rateDate: fx.date,
+  }
+}
+
+/** The transfer a TON order asks for, from its own row. */
+function tonTransfer(
+  row: { ton_code: unknown; ton_nano: unknown; expires_at: unknown },
+  env: NodeJS.ProcessEnv
+): Record<string, unknown> {
+  const cfg = tonConfig(env)
+  const address = cfg.on ? cfg.address : ''
+  const nano = BigInt(String(row.ton_nano ?? '0'))
+  const comment = String(row.ton_code ?? '')
+  return {
+    address,
+    amount: nanoToTon(nano),
+    nano: nano.toString(),
+    comment,
+    link: address ? tonLink(address, nano, comment) : null,
+    expiresAt: row.expires_at
+      ? new Date(row.expires_at as string | Date).toISOString()
+      : null,
+  }
+}
+
+/** POST /api/course/checkout with pay:'ton': store the order, hand back the transfer. */
+export async function createTonOrder(
+  pool: Queryable,
+  body: Record<string, unknown>,
+  deps: CheckoutDeps
+): Promise<CheckoutReply> {
+  const env = deps.env ?? process.env
+  const cfg = tonConfig(env)
+  if (!cfg.on || !courseKeySecret(env))
+    return { status: 200, body: { ok: false, reason: 'off' } }
+  const email = String(body.email ?? '')
+    .trim()
+    .toLowerCase()
+  if (email.length > 254 || !EMAIL.test(email))
+    return { status: 200, body: { ok: false, reason: 'bad_email' } }
+  const route = String(body.route ?? '')
+  if (!ROUTE.test(route))
+    return { status: 200, body: { ok: false, reason: 'bad_route' } }
+  const now = (deps.now ?? (() => new Date()))()
+  const fx = await tonUsd(deps.fetchTon, now.getTime())
+  if (!fx) return { status: 200, body: { ok: false, reason: 'no_rate' } }
+  await ensureCheckoutTables(pool)
+  const nano = tonNano(CLUB_USD, fx.rate)
+  const expires = new Date(now.getTime() + TON_ORDER_MS)
+  // Any language may pay in TON; the tag is kept only for the record.
+  const lang =
+    typeof body.lang === 'string' && /^[a-z]{2}$/i.test(body.lang)
+      ? body.lang.toLowerCase()
+      : 'und'
+  const id = crypto.randomBytes(24).toString('base64url') // 32 chars
+  let code = ''
+  for (let i = 0; i < CODE_TRIES && !code; i++) {
+    const c = orderCode()
+    try {
+      // rub is 0: a TON order carries no rouble amount; ton_nano is its price.
+      await pool.query(
+        `INSERT INTO course_order
+           (id, email, route, lang, rub, pay_via, from_placement, source,
+            ton_code, ton_nano, created_at, expires_at)
+         VALUES ($1, $2, $3, $4, 0, 'ton', $5, $6, $7, $8, $9, $10)`,
+        [
+          id,
+          email,
+          route,
+          lang,
+          tag(body.from),
+          tag(body.source),
+          c,
+          nano.toString(),
+          now.toISOString(),
+          expires.toISOString(),
+        ]
+      )
+      code = c
+    } catch (e) {
+      if ((e as { code?: string })?.code !== '23505') throw e
+    }
+  }
+  if (!code) return { status: 503, body: { ok: false, reason: 'busy' } }
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      order: id,
+      ton: tonTransfer(
+        { ton_code: code, ton_nano: nano.toString(), expires_at: expires },
+        env
+      ),
+    },
+  }
+}
+
+/**
+ * A pending TON order: read the wallet, and when a transfer pays this order,
+ * claim it once (the same atomic UPDATE as the rouble rail, plus the tx hash
+ * under a unique index, so one transfer never pays two orders), then mint
+ * through the same fulfil() and tell the owner. An unreadable chain changes
+ * nothing; an order past its window with no paying transfer is 'expired'.
+ */
+async function settleTon(
+  pool: Queryable,
+  orderId: string,
+  row: Record<string, any>,
+  deps: CheckoutDeps
+): Promise<'paid' | 'pending' | 'expired'> {
+  const env = deps.env ?? process.env
+  const now = (deps.now ?? (() => new Date()))()
+  const secret = courseKeySecret(env)
+  if (row.status === 'paid') {
+    // Claimed earlier and failed before its key was stored: mint now.
+    if (!row.key) await fulfil(pool, row as any, secret, now)
+    return 'paid'
+  }
+  if (row.status !== 'pending') return 'pending'
+  const createdMs = new Date(row.created_at).getTime()
+  const expiresMs = new Date(row.expires_at).getTime()
+  if (!Number.isFinite(createdMs) || !Number.isFinite(expiresMs))
+    return 'pending'
+  if (now.getTime() > expiresMs + TON_LATE_LOOK_MS) return 'expired'
+  const cfg = tonConfig(env)
+  if (!cfg.on) return now.getTime() > expiresMs ? 'expired' : 'pending'
+  const order = {
+    code: String(row.ton_code ?? ''),
+    nano: BigInt(String(row.ton_nano ?? '0')),
+    createdMs,
+    expiresMs,
+  }
+  if (!order.code || order.nano <= 0n) return 'pending'
+  let txs
+  try {
+    txs = await walletTxs(cfg, deps.fetchTon, now.getTime())
+  } catch (e) {
+    if (e instanceof TonUnreadable) return 'pending'
+    throw e
+  }
+  for (const tx of txs) {
+    if (!txPaysTonOrder(tx, order)) continue
+    let claim
+    try {
+      claim = await pool.query(
+        `UPDATE course_order SET status = 'paid', paid_at = now(), ton_tx = $2
+          WHERE id = $1 AND status = 'pending' AND pay_via = 'ton'
+          RETURNING inv_id, email, route, ton_nano, from_placement, source`,
+        [orderId, tx.hash]
+      )
+    } catch (e) {
+      // This transfer already paid another order: it pays nothing here.
+      if ((e as { code?: string })?.code === '23505') continue
+      throw e
+    }
+    if (!claim.rows.length) return 'paid' // another poll claimed it first
+    const won = claim.rows[0]
+    const minted = await fulfil(pool, won, secret, now)
+    const ton = nanoToTon(BigInt(String(won.ton_nano)))
+    await tell(deps, paidNotice(won, `${ton} TON`, minted))
+    return 'paid'
+  }
+  return now.getTime() > expiresMs ? 'expired' : 'pending'
 }
 
 /** ", via blog:foo / source x" -- only the parts the order carries. */
@@ -616,15 +884,21 @@ export async function handleCheckout(
   const path = url.pathname
   const env = deps.env ?? process.env
   if (path === '/api/course/checkout' && req.method === 'GET') {
-    if (!checkoutConfig(env).on) return { status: 200, body: { on: false } }
     const now = (deps.now ?? (() => new Date()))()
+    const ton = await tonOffer(env, deps.fetchTon, now.getTime())
+    if (!checkoutConfig(env).on)
+      return { status: 200, body: { on: false, ton } }
     const p = await clubPrice(env, deps.fetchRate, now.getTime())
-    return { status: 200, body: { on: true, ...p } }
+    return { status: 200, body: { on: true, ...p, ton } }
   }
   if (path === '/api/course/checkout/return' && req.method === 'GET')
     return returnTo(await deps.getPool(), url.searchParams.get('order') || '')
   if (path === '/api/course/checkout/order' && req.method === 'GET')
-    return orderStatus(await deps.getPool(), url.searchParams.get('id') || '')
+    return orderStatus(
+      await deps.getPool(),
+      url.searchParams.get('id') || '',
+      deps
+    )
   if (path === '/api/course/checkout/result') {
     let form: Record<string, string>
     if (req.method === 'GET') form = Object.fromEntries(url.searchParams)
@@ -653,6 +927,8 @@ export async function handleCheckout(
     }
     if (!body || typeof body !== 'object')
       return { status: 400, body: { ok: false, reason: 'bad_json' } }
+    if (body.pay === 'ton')
+      return createTonOrder(await deps.getPool(), body, deps)
     if (!checkoutConfig(env).on)
       return { status: 200, body: { ok: false, reason: 'off' } }
     return createOrder(await deps.getPool(), body, deps)
