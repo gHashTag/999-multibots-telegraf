@@ -75,8 +75,10 @@ function owner(): string {
 }
 
 /** The signing secret, derived; null when the service has none to derive from. */
-function secret(): Buffer | null {
-  const raw = process.env.SESSION_SIGNING_KEY
+export function courseKeySecret(
+  env: NodeJS.ProcessEnv = process.env
+): Buffer | null {
+  const raw = env.SESSION_SIGNING_KEY
   // t27-plumbing: the same floor session.ts holds for its own signing key
   if (!raw || raw.length < 32) return null
   return crypto
@@ -84,6 +86,8 @@ function secret(): Buffer | null {
     .update('course-access/v1')
     .digest()
 }
+
+const secret = () => courseKeySecret()
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString('base64url')
 
@@ -147,12 +151,24 @@ export function readKey(k: string, now: Date, key: Buffer | null): KeyReading {
 }
 
 let ensured: Promise<void> | null = null
+export function forgetCourseTablesForTests(): void {
+  ensured = null
+}
 export async function ensureCourseTables(pool: Queryable): Promise<void> {
   ensured ??= (async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS course_learner (
       learner_id text PRIMARY KEY,
       telegram_id text UNIQUE NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now())`)
+    // A reader who paid on t27.ai has no Telegram (course-checkout.ts): his
+    // row carries the e-mail he paid with instead. Idempotent, like the
+    // CREATEs: a second boot changes nothing.
+    await pool.query(
+      `ALTER TABLE course_learner ALTER COLUMN telegram_id DROP NOT NULL`
+    )
+    await pool.query(
+      `ALTER TABLE course_learner ADD COLUMN IF NOT EXISTS email text`
+    )
     await pool.query(`CREATE TABLE IF NOT EXISTS course_progress (
       learner_id text NOT NULL,
       course text NOT NULL,
@@ -270,6 +286,13 @@ async function tell(deps: CourseDeps, text: string): Promise<void> {
   }
 }
 
+/** `a***@domain`: enough for the owner to tell two buyers apart, no more. */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf('@')
+  if (at < 1) return '***'
+  return `${email[0]}***${email.slice(at)}`
+}
+
 export type MintOutcome =
   | { ok: true; key: string; until: string; step: number }
   | { ok: false; reason: 'keys_off' | 'no_club' | 'bad_request' }
@@ -359,7 +382,7 @@ export async function reportLesson(
   const first = await claimTold(pool, learnerId, course, event, done)
   if (!tellsOwner(event, !first)) return { ok: true, event, done }
   const who = await pool.query(
-    `SELECT l.telegram_id, p.first_name, p.last_name, p.username
+    `SELECT l.telegram_id, l.email, p.first_name, p.last_name, p.username
        FROM course_learner l
        LEFT JOIN crm_people p ON p.owner_id = $2 AND p.lead_id = l.telegram_id
       WHERE l.learner_id = $1`,
@@ -367,6 +390,19 @@ export async function reportLesson(
   )
   const row = who.rows[0]
   if (!row) return { ok: true, event, done }
+  const progressWords =
+    event === SPEC.EVENT_COURSE
+      ? `finished the course "${course}": ${done} of ${SPEC.LESSONS_PER_COURSE} lessons`
+      : `finished module ${done / SPEC.LESSONS_PER_MODULE} of "${course}" (${done} of ${SPEC.LESSONS_PER_COURSE} lessons)`
+  if (!row.telegram_id) {
+    // A web buyer (course-checkout.ts): no Telegram id, so no CRM row (the
+    // CRM is keyed by Telegram id); the owner still hears, the e-mail masked.
+    await tell(
+      deps,
+      `Courses t27: web reader ${maskEmail(String(row.email ?? ''))} ${progressWords}.`
+    )
+    return { ok: true, event, done }
+  }
   const person: Person = {
     telegramId: String(row.telegram_id),
     firstName: row.first_name ?? undefined,

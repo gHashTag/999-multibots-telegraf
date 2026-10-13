@@ -61,6 +61,10 @@ function fakePool() {
     async query(sql: string, p: unknown[] = []) {
       const q = sql.replace(/\s+/g, ' ').trim()
       if (q.startsWith('CREATE TABLE')) return { rows: [], rowCount: 0 }
+      // The web buyer's migration (course-checkout.ts): nullable telegram_id
+      // and an email column, idempotent.
+      if (q.startsWith('ALTER TABLE course_learner'))
+        return { rows: [], rowCount: 0 }
       if (q.startsWith('INSERT INTO course_learner')) {
         const tg = String(p[1])
         if (!learners.has(tg)) learners.set(tg, `L${++n}`.padEnd(16, 'x'))

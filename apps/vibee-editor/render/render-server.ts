@@ -103,6 +103,7 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import { isCoursePath, handleCourse } from './src/agent/course-access'
+import { isCheckoutPath, handleCheckout } from './src/agent/course-checkout'
 import {
   isAgentPackageSalePath,
   handleAgentPackageSale,
@@ -9014,6 +9015,32 @@ const server = createServer(async (req, res) => {
    * server key, t27.ai checks it and reports finished lessons with it; every
    * reader past the bot is filed in the owner's CRM and the owner is told.
    */
+  /*
+   * The club bought on t27.ai in roubles by a reader without Telegram
+   * (src/agent/course-checkout.ts): an order, Robokassa's ResultUrl2
+   * notification, the way back to the course page, and the site's poll for
+   * the paid key. Off unless CLUB_RUB_PRICE and the Robokassa values are set.
+   */
+  if (isCheckoutPath(req.url?.split('?')[0] || '')) {
+    const out = await handleCheckout(req as any, {
+      getPool: async () => (await getPool()) as any,
+      readBody: r => readBody(r as any),
+    })
+    if (out.location) {
+      res.writeHead(302, { Location: out.location })
+      res.end()
+    } else if (out.text !== undefined) {
+      res.writeHead(out.status, {
+        'Content-Type': 'text/plain; charset=utf-8',
+      })
+      res.end(out.text)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.body ?? {}))
+    }
+    return
+  }
+
   if (isCoursePath(req.url?.split('?')[0] || '')) {
     const out = await handleCourse(req, {
       getPool: async () => (await getPool()) as any,
