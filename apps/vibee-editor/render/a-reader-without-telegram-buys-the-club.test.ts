@@ -71,6 +71,8 @@ function fakePool() {
           route: params[2],
           lang: params[3],
           rub: params[4],
+          from_placement: params[5] ?? null,
+          source: params[6] ?? null,
           status: 'pending',
           key: null,
           until: null,
@@ -587,6 +589,49 @@ describe('paying: claimed once, key shown only when paid', () => {
     )
     expect(r.status).toBe(404)
     expect(r.body).toEqual({ ok: false, reason: 'not_found' })
+  })
+})
+
+describe('where the sale came from: from and source', () => {
+  it('stored and told to the owner; a bad tag is null, never a refusal', async () => {
+    const h = harness()
+    const post = (extra: object) =>
+      h.call(
+        'POST',
+        '/api/course/checkout',
+        JSON.stringify({
+          email: 'ann@mail.ru',
+          route: 'intro',
+          lang: 'ru',
+          ...extra,
+        })
+      )
+    const good = await post({ from: 'blog:foo', source: 'x' })
+    expect(good.body?.ok).toBe(true)
+    expect(h.pool.orders[0]).toMatchObject({
+      from_placement: 'blog:foo',
+      source: 'x',
+    })
+    for (const bad of [
+      { from: 'a b', source: '<script>' },
+      { from: 'x'.repeat(81), source: 42 },
+      { from: { evil: 1 }, source: ['x'] },
+      { from: '', source: null },
+    ]) {
+      const r = await post(bad)
+      expect(r.body?.ok, JSON.stringify(bad)).toBe(true)
+      expect(h.pool.orders.at(-1)).toMatchObject({
+        from_placement: null,
+        source: null,
+      })
+    }
+    const inv = h.pool.orders[0].inv_id
+    await h.call('POST', '/api/course/checkout/result', notice(inv), FORM)
+    expect(h.told[0]).toContain('(via blog:foo / source x)')
+    const plain = h.pool.orders[1].inv_id
+    await h.call('POST', '/api/course/checkout/result', notice(plain), FORM)
+    expect(h.told[1]).not.toContain('via')
+    expect(h.told[1]).not.toContain('source')
   })
 })
 

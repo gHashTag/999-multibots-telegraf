@@ -81,6 +81,8 @@ const SITE = 'https://t27.ai'
 const ROBOKASSA_URL = 'https://auth.robokassa.ru/Merchant/Index.aspx'
 const ROUTE = /^[a-z0-9-]{1,64}$/
 const ORDER_ID = /^[A-Za-z0-9_-]{24,64}$/
+/** Where the sale came from (shelf placement, utm_source): a tag, or nothing. */
+const TAG = /^[a-z0-9:_.-]{1,80}$/i
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
 /** InvIds start high and stay in int32 (Robokassa's InvId, Postgres integer). */
 // t27-plumbing: a sequence start, kept clear of the bot's Date.now() InvIds
@@ -353,12 +355,23 @@ export async function ensureCheckoutTables(pool: Queryable): Promise<void> {
       lang text NOT NULL,
       rub integer NOT NULL,
       pay_via text NOT NULL DEFAULT 'robokassa',
+      from_placement text,
+      source text,
       status text NOT NULL DEFAULT 'pending',
       learner_id text,
       key text,
       until timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       paid_at timestamptz)`)
+    // A table made before a column existed gets it here; re-running is free.
+    for (const col of [
+      `pay_via text NOT NULL DEFAULT 'robokassa'`,
+      `from_placement text`,
+      `source text`,
+    ])
+      await pool.query(
+        `ALTER TABLE course_order ADD COLUMN IF NOT EXISTS ${col}`
+      )
   })().catch(e => {
     ensured = null
     throw e
@@ -405,6 +418,11 @@ async function tell(deps: CheckoutDeps, text: string): Promise<void> {
   }
 }
 
+/** An optional tag from the site; anything else is stored as null, never refused. */
+function tag(v: unknown): string | null {
+  return typeof v === 'string' && TAG.test(v) ? v : null
+}
+
 /** POST /api/course/checkout: validate, store the order, hand back the URL. */
 export async function createOrder(
   pool: Queryable,
@@ -430,9 +448,10 @@ export async function createOrder(
   const id = crypto.randomBytes(24).toString('base64url') // 32 chars
   // The amount is frozen here; the ResultURL check reads it back from the row.
   const r = await pool.query(
-    `INSERT INTO course_order (id, email, route, lang, rub, pay_via)
-     VALUES ($1, $2, $3, $4, $5, 'robokassa') RETURNING inv_id`,
-    [id, email, route, 'ru', rub]
+    `INSERT INTO course_order
+       (id, email, route, lang, rub, pay_via, from_placement, source)
+     VALUES ($1, $2, $3, $4, $5, 'robokassa', $6, $7) RETURNING inv_id`,
+    [id, email, route, 'ru', rub, tag(body.from), tag(body.source)]
   )
   const invId = Number(r.rows[0]?.inv_id)
   return {
@@ -563,7 +582,7 @@ export async function settle(
   }
   const claim = await pool.query(
     `UPDATE course_order SET status = 'paid', paid_at = now()
-      WHERE inv_id = $1 AND status = 'pending' RETURNING inv_id, email, route, rub`,
+      WHERE inv_id = $1 AND status = 'pending' RETURNING inv_id, email, route, rub, from_placement, source`,
     [invId]
   )
   if (!claim.rows.length) return { status: 200, text: `OK${invId}` }
@@ -572,11 +591,20 @@ export async function settle(
   await tell(
     deps,
     `Course checkout: ${maskEmail(String(won.email))} paid ${won.rub} RUB on t27.ai for "${won.route}"` +
+      saleOrigin(won) +
       (minted
         ? `, paid key valid until ${minted.until.slice(0, 10)}.`
         : ', but NO key was minted (course keys are off) -- check SESSION_SIGNING_KEY.')
   )
   return { status: 200, text: `OK${invId}` }
+}
+
+/** ", via blog:foo / source x" -- only the parts the order carries. */
+function saleOrigin(o: { from_placement?: unknown; source?: unknown }): string {
+  const parts: string[] = []
+  if (o.from_placement) parts.push(`via ${String(o.from_placement)}`)
+  if (o.source) parts.push(`source ${String(o.source)}`)
+  return parts.length ? ` (${parts.join(' / ')})` : ''
 }
 
 /** The five routes, one handler; render-server.ts writes what it returns. */
