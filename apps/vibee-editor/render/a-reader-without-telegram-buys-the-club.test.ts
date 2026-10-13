@@ -88,7 +88,7 @@ function fakePool() {
       }
       if (/^SELECT route FROM course_order WHERE id/i.test(s))
         return { rows: orders.filter(o => o.id === params[0]) }
-      if (/^SELECT status, key, until FROM course_order WHERE id/i.test(s))
+      if (/^SELECT status, key, until\b.* FROM course_order WHERE id/i.test(s))
         return { rows: orders.filter(o => o.id === params[0]) }
       if (/^SELECT .* FROM course_order WHERE inv_id/i.test(s))
         return { rows: orders.filter(o => o.inv_id === params[0]) }
@@ -337,11 +337,13 @@ describe('the off switch', () => {
       usd: 160,
       rate: 83.9153,
       rateDate: '2026-10-13',
+      ton: { on: false }, // no TON wallet in this env
     })
     expect(CLUB_DAYS).toBe(30)
     const off = harness({ ...ENV, ROBOKASSA_PASSWORD_2: '' })
     expect((await off.call('GET', '/api/course/checkout')).body).toEqual({
       on: false,
+      ton: { on: false },
     })
     const r = await off.call(
       'POST',
