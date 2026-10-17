@@ -679,12 +679,17 @@ async function setFocusedValue(call: Call, text: string): Promise<string> {
     var proto = tag === 'TEXTAREA'
       ? window.HTMLTextAreaElement.prototype
       : window.HTMLInputElement.prototype
-    var setter = Object.getOwnPropertyDescriptor(proto, 'value').set
+    var desc = Object.getOwnPropertyDescriptor(proto, 'value')
+    var setter = desc && desc.set
+    if (typeof setter !== 'function') return 'not-native'
     var before = (el.value || '').length
     setter.call(el, (el.value || '') + t)
     el.dispatchEvent(new Event('input', { bubbles: true }))
     var grew = (el.value || '').length - before
     if (grew === 0 && t.length > 0) return 'ignored'
+    // A field with maxlength keeps grew < t.length: the browser clamped, the
+    // same characters a person's keystrokes would have (the surplus never
+    // lands either way), so this is 'ok', not a partial that needs retyping.
     return 'ok'
   })(${JSON.stringify(text)})`
   const out = await call('Runtime.evaluate', {
