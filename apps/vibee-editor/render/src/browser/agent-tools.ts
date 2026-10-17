@@ -47,6 +47,7 @@ import {
   readSession,
   markAllowed,
   personHasTheWheel,
+  touchSession,
   type BrowserSession,
   type Queryable,
 } from './sessions'
@@ -697,6 +698,23 @@ async function podOf(
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
     throw await noBrowserError(ctx)
   }
+  /*
+   * KEEP AN ACTIVELY-USED VISIT ALIVE.
+   *
+   * The reaper deletes a session row after ten quiet minutes (reaper.ts),
+   * and measures "quiet" by `last_seen_at`. Only the viewer WebSocket
+   * (render-server.ts) and the start path (routes.ts) touch that column, so
+   * an agent working for more than ten minutes with nobody watching had its
+   * row reaped MID-TASK: the next action found no row, re-ran the whole cold
+   * start -- a new row, the tenant writes, a Telegram announce to the person
+   * -- and paid that cost again. Every acting tool reaches a live browser
+   * through here, so this is where "the agent is using it" is known. The
+   * touch is fire-and-forget: a visit is kept warm, never a round-trip added
+   * to the action itself.
+   */
+  void touchSession(ctx.pool as unknown as Queryable, ctx.telegramId).catch(
+    () => {}
+  )
   /*
    * A LANE ACTS IN ITS OWN TAB OR NOWHERE (lanes.ts). Falling back to the
    * first page, as main does, would put this lane's click into another
