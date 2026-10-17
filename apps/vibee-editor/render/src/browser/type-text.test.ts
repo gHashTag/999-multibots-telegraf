@@ -33,6 +33,20 @@ function fieldProto(): Record<string, unknown> {
 const INPUT_PROTO = fieldProto()
 const TEXTAREA_PROTO = fieldProto()
 
+/* A getter with no setter -- a frozen or polyfilled prototype. The page's
+ * `Object.getOwnPropertyDescriptor(proto, 'value').set` is undefined here, so
+ * the one-hop set must refuse rather than throw on `setter.call`. */
+function getterOnlyProto(): Record<string, unknown> {
+  const proto: Record<string, unknown> = {}
+  Object.defineProperty(proto, 'value', {
+    get(this: { _value: string }) {
+      return this._value
+    },
+    configurable: true,
+  })
+  return proto
+}
+
 interface FakeEl {
   tagName: string
   isContentEditable: boolean
@@ -48,9 +62,11 @@ function makeEl(
   tag: 'INPUT' | 'TEXTAREA' | 'DIV',
   opts: Partial<
     Pick<FakeEl, 'isContentEditable' | 'readOnly' | 'disabled' | '_value'>
-  > = {}
+  > = {},
+  protoOverride?: Record<string, unknown>
 ): FakeEl {
-  const proto = tag === 'TEXTAREA' ? TEXTAREA_PROTO : INPUT_PROTO
+  const proto =
+    protoOverride ?? (tag === 'TEXTAREA' ? TEXTAREA_PROTO : INPUT_PROTO)
   const el = Object.create(tag === 'DIV' ? {} : proto) as FakeEl
   el.tagName = tag
   el.isContentEditable = opts.isContentEditable ?? false
@@ -90,7 +106,14 @@ interface Recorder {
  * character and appends it to the focused field (as a real keypress would, so
  * a fallback after a swallowed set is observable).
  */
-function recorder(): Recorder {
+function recorder(
+  protos: {
+    input?: Record<string, unknown>
+    textarea?: Record<string, unknown>
+  } = {}
+): Recorder {
+  const inputProto = protos.input ?? INPUT_PROTO
+  const textareaProto = protos.textarea ?? TEXTAREA_PROTO
   const r: Recorder = {
     evals: 0,
     keys: [],
@@ -117,8 +140,8 @@ function recorder(): Recorder {
         const value = run(
           { activeElement: r.focused },
           {
-            HTMLInputElement: { prototype: INPUT_PROTO },
-            HTMLTextAreaElement: { prototype: TEXTAREA_PROTO },
+            HTMLInputElement: { prototype: inputProto },
+            HTMLTextAreaElement: { prototype: textareaProto },
           },
           FakeEvent
         )
@@ -248,6 +271,31 @@ describe('typeWith: a plain field that swallows the set', () => {
       return {}
     }
     await typeWith(call, 'xy')
+    expect(keys).toEqual([])
+  })
+
+  it('a prototype with no value setter refuses the set and falls to keys', async () => {
+    const noSetter = getterOnlyProto()
+    const r = recorder({ input: noSetter })
+    const el = makeEl('INPUT', {}, noSetter)
+    r.focus(el)
+    await typeWith(r.call, 'ab')
+    /* The probe ran, found no usable setter, returned not-native: no throw,
+     * and every character still arrived by key. */
+    expect(r.evals).toBe(1)
+    expect(r.keys).toEqual(['a', 'b'])
+  })
+
+  it('a maxlength field that clamps is ok, not a partial to retype', async () => {
+    /* The browser drops the surplus exactly as it would for keystrokes, so the
+     * set grew (0 < grew < len) and typeWith must not add the rest by key. */
+    const keys: string[] = []
+    const call: Call = async (method, params = {}) => {
+      if (method === 'Runtime.evaluate') return { result: { value: 'ok' } }
+      keys.push(String(params.text))
+      return {}
+    }
+    await typeWith(call, 'hello world')
     expect(keys).toEqual([])
   })
 })
