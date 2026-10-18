@@ -119,9 +119,10 @@ export function genModule(text) {
   const re = /^export const (\w+) = (.+?) satisfies \w+;$/gm
   for (const [, name, raw] of text.matchAll(re))
     consts.set(name, JSON.parse(raw))
-  // gen-ts prints an array const as `[...] as const satisfies readonly [...]`.
+  // gen-ts prints an array const as `[...] as const satisfies readonly [...]`,
+  // or `readonly T[]` past 32 elements, where it drops the length from the type.
   const arrays =
-    /^export const (\w+) = (\[.*\]) as const satisfies readonly \[.*\];$/gm
+    /^export const (\w+) = (\[.*\]) as const satisfies readonly (?:\[.*\]|\w+\[\]);$/gm
   for (const [, name, raw] of text.matchAll(arrays))
     consts.set(name, JSON.parse(raw))
   const list = name => {

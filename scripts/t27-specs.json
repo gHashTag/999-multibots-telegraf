@@ -110,7 +110,8 @@
     "base/ops",
     "isa/registers",
     "numeric/formats",
-    "server/api"
+    "server/api",
+    "t27mcp/service"
   ],
   "citedMissing": [],
   "mirrored": [
