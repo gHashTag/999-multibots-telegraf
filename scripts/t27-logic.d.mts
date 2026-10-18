@@ -17,3 +17,11 @@ export function zigExport(f: {
 }): string
 /** A spec `str`, as `t27c gen` writes it in Zig. */
 export const STR: string
+/** True when this backend lowers the fn: its result and params all lower. */
+export function lowers(f: {
+  name: string
+  params: string[][]
+  ret: string
+}): boolean
+/** The TypeScript `int` check every integer door calls, as source lines. */
+export const TS_INT: string[]

@@ -55,6 +55,10 @@ three repos attached (`persistent_session_id`). An empty EPIC after a day of
 rounds is the sign that this broke again: read the trigger's `last_run`
 (`get_trigger`) and the run's duration.
 
+**Measured 2026-10-18: run as a subagent, queen-course-keeper has no Agent
+tool and cannot dispatch bees.** The scheduled round therefore runs in the
+main session: that session is the Queen and dispatches the bees itself.
+
 **The owner's Mac.** Every check goes through `./tri remote-check`, as the
 other keepers do. The Mac is overloaded.
 
