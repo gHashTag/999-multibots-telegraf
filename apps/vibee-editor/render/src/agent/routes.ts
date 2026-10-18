@@ -39,6 +39,7 @@ import {
   SessionError,
 } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
+import { scopeOf, t27Hidden } from './t27-tools'
 import { runAgent, type ChatMessage } from './chat'
 import { honestyLogFields, honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
@@ -802,8 +803,14 @@ export async function handleMcp(
   const err = (code: number, message: string, data: { code: string }) =>
     json(res, 200, { jsonrpc: '2.0', id, error: { code, message, data } })
   const scoped = identity.scope === 'leela-editorial'
+  // service.t27: who sees the mounted t27 tools. The allowlists already leave
+  // them out of the editorial and game scopes; this is the spec saying so.
+  const t27Scope = scopeOf(identity.scope, !!game)
   const visibleTools = () =>
-    toMcpTools().filter(t => !scoped || EDITORIAL_TOOLS.has(t.name))
+    toMcpTools().filter(
+      t =>
+        (!scoped || EDITORIAL_TOOLS.has(t.name)) && !t27Hidden(t.name, t27Scope)
+    )
 
   if (rpc.method === 'initialize') {
     return ok({
@@ -852,6 +859,8 @@ export async function handleMcp(
       return err(-32602, 'Tool name must be a string', {
         code: 'bad_tool_name',
       })
+    if (t27Hidden(toolName, t27Scope))
+      return err(-32003, 'Tool forbidden by scope', { code: 't27_scope' })
     const tool = toolName ? TOOLS_BY_NAME.get(toolName) : null
     if (!tool) {
       // Подсказываем ИМЕНА, а не просто отказываем: агент исправится за виток.
