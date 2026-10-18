@@ -26,3 +26,7 @@ declare module 't27-mcp/service' {
   export const S_NONE: number
   export const CODER_TOOLS: readonly string[]
 }
+
+declare module 't27-mcp/visual' {
+  export const ruleTriClaw: string
+}
