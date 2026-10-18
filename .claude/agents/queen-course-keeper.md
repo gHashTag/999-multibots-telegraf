@@ -47,6 +47,14 @@ and `trios-agent-server` are not reachable from the container (proxy), so a
 course is proven live through the apex repo tree (skill `course-factory`,
 step 4).
 
+**Measured 2026-10-18: a fresh-session Routine does not work for this
+round.** `queen-course-round` fired every 6 hours for a week, and each run
+ended in about 20 seconds (`config:no-git-repo`). It left no comment on #9063
+and no PR. The rounds now fire into a long-lived session that already has the
+three repos attached (`persistent_session_id`). An empty EPIC after a day of
+rounds is the sign that this broke again: read the trigger's `last_run`
+(`get_trigger`) and the run's duration.
+
 **The owner's Mac.** Every check goes through `./tri remote-check`, as the
 other keepers do. The Mac is overloaded.
 
