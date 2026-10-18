@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import {
   checkRepo,
@@ -8,7 +9,13 @@ import {
   readTestReport,
   type Problem,
 } from '../../../../../scripts/check-t27-specs.mjs'
-import { door, zigExport, zigFns } from '../../../../../scripts/t27-logic.mjs'
+import {
+  door,
+  lowers,
+  TS_INT,
+  zigExport,
+  zigFns,
+} from '../../../../../scripts/t27-logic.mjs'
 
 /**
  * EVERY VENDORED SPEC OBEYS THE LAWS (scripts/check-t27-specs.mjs).
@@ -395,6 +402,64 @@ describe('the logic runs from the spec', () => {
     expect(zigExport(fns[0])).toBe(
       'export fn t27_decode_opcode(byte: u32) u32 { return decode_opcode(byte); }'
     )
+  })
+
+  // #4017: most specs/ml entry points take an `index: usize`. On wasm32 a
+  // usize is 32 bits, so it lowers exactly as u32 does.
+  const usizeFns = () =>
+    zigFns(
+      [
+        'pub fn softmax_at(a: f64, b: f64, c: f64, temperature: f64, index: usize) f64 {',
+        'fn pick(which: usize) usize {',
+      ].join('\n')
+    )
+
+  /**
+   * The door of `pick`, run against a real wasm32 module: `t27_pick(i32) i32`
+   * hands its argument back, the shape Zig gives `fn (usize) usize`.
+   */
+  const pickDoor = () => {
+    const name = [...'t27_pick'].map(c => c.charCodeAt(0))
+    const wasm = Uint8Array.from([
+      ...[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00],
+      ...[0x01, 0x06, 0x01, 0x60, 0x01, 0x7f, 0x01, 0x7f], // type (i32) -> i32
+      ...[0x03, 0x02, 0x01, 0x00], // one function of that type
+      ...[0x07, 2 + name.length + 2, 0x01, name.length, ...name, 0x00, 0x00],
+      ...[0x0a, 0x06, 0x01, 0x04, 0x00, 0x20, 0x00, 0x0b], // local.get 0
+    ])
+    const W = new WebAssembly.Instance(new WebAssembly.Module(wasm)).exports
+    const pick = usizeFns()[1]
+    const js = ts.transpileModule(
+      [...TS_INT, door(pick).replace(/^export /m, '')].join('\n'),
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+    ).outputText
+    return new Function('W', `${js}\nreturn pick`)(W) as (v: number) => number
+  }
+
+  it('t27-logic lowers a usize fn as a 32-bit integer (#4017)', () => {
+    const fns = usizeFns()
+    expect(fns.map(f => [f.name, f.ret, lowers(f)])).toEqual([
+      ['softmax_at', 'f64', true],
+      ['pick', 'usize', true],
+    ])
+    expect(zigExport(fns[0])).toBe(
+      'export fn t27_softmax_at(a: f64, b: f64, c: f64, temperature: f64, index: usize) f64 { return softmax_at(a, b, c, temperature, index); }'
+    )
+    expect(door(fns[0])).toContain(
+      "int(index, 0, 4294967295, 'softmax_at.index')"
+    )
+    const pick = pickDoor()
+    expect(pick(0)).toBe(0)
+    expect(pick(3)).toBe(3)
+    // The top of the range crosses as i32 -1 and comes back unsigned.
+    expect(pick(4294967295)).toBe(4294967295)
+  })
+
+  it('t27-logic refuses a usize the wasm32 type cannot hold', () => {
+    const pick = pickDoor()
+    expect(() => pick(-1)).toThrow(RangeError)
+    expect(() => pick(4294967296)).toThrow(RangeError)
+    expect(() => pick(1.5)).toThrow(RangeError)
   })
 
   it('host-imports: an import of the compiled logic alone binds the host', () => {

@@ -25,9 +25,11 @@
  * from; scripts/check-t27-specs.mjs (law `logic-hash`) fails when the vendored
  * spec moves on without the logic being regenerated -- offline, no Zig needed.
  *
- * Types: bool, u8/u16/u32, i8/i16/i32, f32/f64, and str (`[]const u8`). A
- * fn with any other type (u64, a struct) is not lowered and is named in
- * `__NOT_LOWERED__`.
+ * Types: bool, u8/u16/u32, usize, i8/i16/i32, f32/f64, and str (`[]const u8`).
+ * A fn with any other type (u64, a struct) is not lowered and is named in
+ * `__NOT_LOWERED__`. `usize` is 32 bits wide on wasm32, so it crosses as an
+ * i32 and its door holds it to 0..4294967295 exactly as u32 does (#4017):
+ * most `specs/ml` entry points take an `index: usize`.
  *
  * A str cannot cross the wasm boundary as a value, so it crosses as bytes
  * (#3941): the module exports an allocator (`t27__alloc` / `t27__free`, on
@@ -45,7 +47,17 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
-const NUM = new Set(['u8', 'u16', 'u32', 'i8', 'i16', 'i32', 'f32', 'f64'])
+const NUM = new Set([
+  'u8',
+  'u16',
+  'u32',
+  'usize',
+  'i8',
+  'i16',
+  'i32',
+  'f32',
+  'f64',
+])
 /** A spec `str`, as t27c gen writes it in Zig. */
 export const STR = '[]const u8'
 const LOWERED = new Set(['bool', STR, ...NUM])
@@ -53,10 +65,15 @@ const RANGE = {
   u8: [0, 255],
   u16: [0, 65535],
   u32: [0, 4294967295],
+  // The module is built for wasm32, where usize is 32 bits: u32's range.
+  usize: [0, 4294967295],
   i8: [-128, 127],
   i16: [-32768, 32767],
   i32: [-2147483648, 2147483647],
 }
+/** A fn this backend lowers: its result and every param have a lowered type. */
+export const lowers = f =>
+  LOWERED.has(f.ret) && f.params.every(([, t]) => LOWERED.has(t))
 const camel = s => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
 const tsType = t => (t === 'bool' ? 'boolean' : t === STR ? 'string' : 'number')
 
@@ -131,6 +148,17 @@ export function zigExport(f) {
     return `export fn t27_${f.name}(${params}) void { t27__out(${f.name}(${args})); }`
   return `export fn t27_${f.name}(${params}) ${f.ret} { return ${f.name}(${args}); }`
 }
+
+/** The check every integer door calls: a value the type holds, or a throw. */
+export const TS_INT = [
+  "/** An integer the spec's type can hold, or a thrown error: never a wrapped value. */",
+  'function int(v: number, lo: number, hi: number, at: string): number {',
+  '  if (!Number.isInteger(v) || v < lo || v > hi)',
+  '    throw new RangeError(`${at}: ${v} is outside ${lo}..${hi}`)',
+  '  return v',
+  '}',
+  '',
+]
 
 /** The str boundary in Zig: the module's allocator and the result slot. */
 const ZIG_STR = [
@@ -233,9 +261,7 @@ function main() {
     )
     process.exit(1)
   }
-  const lowered = fns.filter(
-    f => LOWERED.has(f.ret) && f.params.every(([, t]) => LOWERED.has(t))
-  )
+  const lowered = fns.filter(lowers)
   const skipped = fns.filter(f => !lowered.includes(f)).map(f => f.name)
   const usesStr = lowered.some(
     f => f.ret === STR || f.params.some(([, t]) => t === STR)
@@ -284,17 +310,7 @@ function main() {
     '  new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))',
     ').exports as Record<string, unknown>',
     '',
-    ...(needsInt
-      ? [
-          "/** An integer the spec's type can hold, or a thrown error: never a wrapped value. */",
-          'function int(v: number, lo: number, hi: number, at: string): number {',
-          '  if (!Number.isInteger(v) || v < lo || v > hi)',
-          '    throw new RangeError(`${at}: ${v} is outside ${lo}..${hi}`)',
-          '  return v',
-          '}',
-          '',
-        ]
-      : []),
+    ...(needsInt ? TS_INT : []),
     ...(usesStr ? TS_STR : []),
     ...lowered.map(door).flatMap(d => [d, '']),
     `/** Spec fns this backend could not lower (types outside bool/ints/floats/str). */`,
