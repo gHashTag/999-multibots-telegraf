@@ -17,8 +17,19 @@ import {
 import { handleMcp } from './src/agent/routes'
 import { TOOLS, TOOLS_BY_NAME, toOpenAITools } from './src/agent/tools'
 import { SPEC_BANK_TOOLS } from './src/agent/spec-bank-tools'
-import { T27_TURN_TOOLS, scopeOf, t27Hidden } from './src/agent/t27-tools'
-import { marketplaceAgentPrompt } from './src/agent/chat'
+import { T27_TURN_TOOLS, scopeOf, shelveDrawing, t27Hidden } from './src/agent/t27-tools'
+import { marketplaceAgentPrompt, systemPrompt } from './src/agent/chat'
+import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const shelf = vi.hoisted(() => ({ puts: [] as { key: string; body: Buffer; type: string }[] }))
+vi.mock('./src/lib/s3-put', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  assetKeyFor: (name: string) => `assets/test-${name}`,
+  shelfUrlFor: (key: string) => `https://render.test/s3/${key}`,
+  s3PutObject: async (key: string, body: Buffer, type: string) => void shelf.puts.push({ key, body, type }),
+}))
 
 /**
  * TRI CLAW AND THE t27 MCP ARE ONE SERVICE (specs/t27mcp/service.t27,
@@ -143,5 +154,33 @@ describe('who sees the t27 tools on /mcp', () => {
     expect(names.filter((n: string) => homeOf(n) === H_T27)).toEqual([])
     const call = await rpc('tools/call', { name: 't27_check', arguments: { source: 'module M;' } }, KEY)
     expect(call.error.code).toBe(-32003)
+  })
+})
+
+/**
+ * specs/t27mcp/visual_output.t27: in TRI CLAW a drawing is shown by its https
+ * .svg URL (CH_IMAGE_URL). The shelf is replaced here; nothing leaves the test.
+ */
+describe('a t27f drawing reaches the chat as an image', () => {
+  it('the chat prompt carries the TRI CLAW visual rule; the business DM does not', () => {
+    expect(systemPrompt('bot')).toContain('Visual output (specs/t27mcp/visual_output.t27):')
+    expect(systemPrompt('bot')).toContain('its https URL ending in .svg')
+    expect(systemPrompt('business')).not.toContain('Visual output (')
+    expect(toOpenAITools().map(t => t.function.name)).toContain('t27f_graph')
+  })
+
+  it('t27f_graph puts its SVG on the shelf, answers the URL and ignores out', async () => {
+    shelf.puts.length = 0
+    const out = join(tmpdir(), 'one-service-out-must-not-exist.svg')
+    const r: any = await TOOLS_BY_NAME.get('t27f_graph')!.handler({ fixture: 1, out }, {} as any)
+    expect(r.text.split('\n')[0]).toBe('https://render.test/s3/assets/test-t27f-graph-fx1.svg')
+    expect(r.text).toContain('\ninline: ')
+    expect(existsSync(out)).toBe(false)
+    expect(shelf.puts.map(p => [p.key, p.type])).toEqual([['assets/test-t27f-graph-fx1.svg', 'image/svg+xml']])
+    expect(shelf.puts[0].body.toString().startsWith('<svg ')).toBe(true)
+  })
+
+  it('an answer with no drawing passes through untouched', async () => {
+    expect(await shelveDrawing('no drawing here\n/tmp/x.txt')).toBe('no drawing here\n/tmp/x.txt')
   })
 })

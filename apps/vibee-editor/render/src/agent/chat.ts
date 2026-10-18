@@ -70,6 +70,7 @@ import {
   ownPhones,
 } from './client-facing'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
+import { ruleTriClaw } from './t27-tools'
 import {
   ARCHIVE_EXTENSIONS,
   OFFICE_EXTENSIONS,
@@ -1494,7 +1495,9 @@ function ownerSideSection(surface?: string): string {
      * The bank's tools are the mounted t27 ones (t27mcp/service.t27).
      */
     'Правило, число или порог проекта — сверяй со спекой .t27 (бесплатно): ' + // cyrillic-ok: prompt copy
-    't27_find or t27_specs to search, t27_spec to read one spec.'
+    't27_find or t27_specs to search, t27_spec to read one spec, t27f_graph to draw it.' +
+    // specs/t27mcp/visual_output.t27 RULE_TRI_CLAW, read from the spec through t27-mcp.
+    '\n\n' + ruleTriClaw
   )
 }
 

@@ -111,7 +111,8 @@
     "isa/registers",
     "numeric/formats",
     "server/api",
-    "t27mcp/service"
+    "t27mcp/service",
+    "t27mcp/visual_output"
   ],
   "citedMissing": [],
   "mirrored": [
