@@ -181,8 +181,9 @@ describe('the remembered course', () => {
     )
     // Only the catalog (the site sign-in) goes on to the club card: a course
     // is free since spec VERSION 3 and got its own button.
-    const noClub = src.indexOf(
-      "outcome.kind === 'no_club' &&\n          courseStep.route === COURSES_ROUTE"
+    // Matched across whitespace: the formatter decides where the line breaks.
+    const noClub = src.search(
+      /outcome\.kind === 'no_club' &&\s+courseStep\.route === COURSES_ROUTE/
     )
     const remember = src.indexOf('.set(String(ctx.from.id), courseStep.route)')
     expect(noClub).toBeGreaterThan(0)
