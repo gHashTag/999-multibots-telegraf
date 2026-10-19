@@ -65,7 +65,9 @@ player/src/components/Telegram/TelegramProvider.tsx  START_PARAM_ROUTES — ку
 ```
 
 Маршруты (ровно ключи `START_PARAM_ROUTES`): `feed search learn editor create
-avatar video image audio profile hive chat browser club pair`. Новый экран —
+avatar video image audio profile hive chat browser club pair story keys`.
+`keys` (19.10.2026) — свои API-ключи человека на `/game/account`, бесплатный
+путь TRI CLAW: `t.me/<бот>?start=app_keys`. Новый экран —
 в ЧЕТЫРЕ места сразу: плеер (`START_PARAM_ROUTES` + `<Route>` в App.tsx), бот,
 рендер, плеерный `appLink.ts`. `appLinksParity.test.ts` не даст забыть.
 

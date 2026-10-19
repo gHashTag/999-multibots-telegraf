@@ -67,6 +67,13 @@ export const APP_ROUTES = [
   'club',
   'pair',
   'story',
+  /*
+   * `keys` -- the API keys a person adds (/game/account, pages/HiveAccount.tsx):
+   * the free path of TRI CLAW is a key of their own (NVIDIA, z.ai today).
+   * Owner, 2026-10-19. The screen only takes a key the person types; it
+   * mints nothing, so a link may name it.
+   */
+  'keys',
 ] as const
 
 export type AppRoute = (typeof APP_ROUTES)[number]
@@ -353,6 +360,8 @@ export function routeOfAppUrl(url: string): AppRoute {
   if (isAppRoute(segs[0])) return segs[0]
   // The board of the Queen lives inside the hive tab of the app.
   if (segs[0] === 'queen') return 'hive'
+  // The key screen lives under the game: /game/account.
+  if (segs[0] === 'game' && segs[1] === 'account') return 'keys'
   return APP_HOME_ROUTE
 }
 
@@ -513,6 +522,7 @@ const ROUTE_LABELS: Partial<Record<AppRoute, { ru: string; en: string }>> = {
   pair: { ru: '📱 Показать код входа', en: '📱 Show the sign-in code' },
   feed: { ru: '🎬 Открыть ленту', en: '🎬 Open the feed' },
   story: { ru: '🎬 Мои рилсы', en: '🎬 My reels' },
+  keys: { ru: '🔑 Мои ключи API', en: '🔑 My API keys' },
 }
 
 export function appDoorLabel(route: AppRoute, isRu: boolean): string {

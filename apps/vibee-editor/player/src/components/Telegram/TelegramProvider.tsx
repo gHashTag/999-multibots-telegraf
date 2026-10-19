@@ -57,6 +57,12 @@ const START_PARAM_ROUTES: Record<string, string> = {
    * she can make the next reel herself: t.me/<her bot>?start=app_story.
    */
   story: '/story',
+  /*
+   * `keys` -- THE PERSON'S OWN API KEYS (pages/HiveAccount.tsx): TRI CLAW's
+   * free path, a key of their own (NVIDIA, z.ai), owner 2026-10-19. The link
+   * t.me/<bot>?start=app_keys lands here inside Telegram.
+   */
+  keys: '/game/account',
   /**
    * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
    * signing in impossible.

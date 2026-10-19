@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   APP_ROUTES,
+  appDoorLabel,
   appLinkFor,
   appRouteFromStartParam,
   appButton,
@@ -450,5 +451,47 @@ describe('a file on the app host is not a screen', () => {
     expect(hasRawAppUrl('app.t27.ai/hive')).toBe(true)
     // Punctuation after the file name is the sentence, not the name.
     expect(hasRawAppUrl('Смотри app.t27.ai/lipsync/lipsync.mp4.')).toBe(false)
+  })
+})
+
+describe('keys -- the API keys a person adds (owner, 2026-10-19)', () => {
+  /*
+   * TRI CLAW has a free path: a key of the person's own (NVIDIA, z.ai), added
+   * on /game/account. The link to that screen opens inside Telegram like
+   * every other one.
+   */
+  it('is a linkable route, one tap or two', () => {
+    expect(APP_ROUTES).toContain('keys')
+    expect(appLinkFor(BOT, 'keys')).toBe(
+      'https://t.me/example_farm_bot?start=app_keys'
+    )
+    expect(appLinkFor(BOT, 'keys', { mainWebApp: true })).toBe(
+      'https://t.me/example_farm_bot?startapp=keys'
+    )
+  })
+
+  it('/start app_keys is read as the key screen', () => {
+    expect(appRouteFromStartParam('app_keys')).toBe('keys')
+  })
+
+  it('a raw /game/account URL in model text becomes the app_keys link', () => {
+    expect(routeOfAppUrl('https://app.t27.ai/game/account')).toBe('keys')
+    expect(rewriteAppUrls('https://app.t27.ai/game/account', BOT)).toBe(
+      'https://t.me/example_farm_bot?start=app_keys'
+    )
+  })
+
+  it('the door names the screen, in both languages', async () => {
+    expect(appDoorLabel('keys', false)).toBe('🔑 My API keys')
+    expect(appDoorLabel('keys', true)).toMatch(/API/)
+    const reply = vi.fn().mockResolvedValue(undefined)
+    await sendAppDoor(
+      { reply, chat: { type: 'private' }, botInfo: { username: BOT } },
+      'keys',
+      false
+    )
+    const rows = reply.mock.calls[0][1].reply_markup.inline_keyboard
+    expect(rows[0][0].text).toBe('🔑 My API keys')
+    expect(rows[0][0].web_app.url).toMatch(/tgWebAppStartParam=keys$/)
   })
 })
