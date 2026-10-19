@@ -92,6 +92,13 @@ const NOT_A_PARAM = new Set(
     'var void while with yield held int str W WASM'
   ).split(' ')
 )
+/** How the door reads a result narrower than the i32 it crosses as. */
+const NARROW = {
+  u8: c => `(${c} & 0xff)`,
+  u16: c => `(${c} & 0xffff)`,
+  i8: c => `((${c} << 24) >> 24)`,
+  i16: c => `((${c} << 16) >> 16)`,
+}
 const param = n => (NOT_A_PARAM.has(camel(n)) ? `${camel(n)}_` : camel(n))
 const tsType = t => (t === 'bool' ? 'boolean' : t === STR ? 'string' : 'number')
 
@@ -144,12 +151,18 @@ export function door(f) {
     return `${head}  return strCall(held => {\n    ${call}\n    return strOut()\n  })\n}`
   }
   const call = `(W.t27_${f.name} as (...a: number[]) => number)(${pass})`
+  // A result narrower than 32 bits crosses as an i32 whose upper bits wasm
+  // leaves undefined: zig 0.16 compiled review-jam's jam_is_queens_turn to
+  // `(case > 8) | (250 >> case)`, whose low bit is the answer and whose other
+  // bits are not. So the door reads only the bits of the spec's type.
   const ret =
     f.ret === 'bool'
-      ? `${call} !== 0`
-      : f.ret.startsWith('u')
-        ? `${call} >>> 0`
-        : call
+      ? `(${call} & 1) !== 0`
+      : NARROW[f.ret]
+        ? NARROW[f.ret](call)
+        : f.ret.startsWith('u')
+          ? `${call} >>> 0`
+          : call
   if (strIn) return `${head}  return strCall(held => ${ret})\n}`
   return `${head}  return ${ret}\n}`
 }
