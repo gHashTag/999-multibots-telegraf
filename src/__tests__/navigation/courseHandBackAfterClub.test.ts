@@ -89,18 +89,35 @@ describe('the URL the bot sends', () => {
 })
 
 describe('the no-club answer', () => {
-  it('promises the automatic button back, not a second press', () => {
+  it('on the site sign-in, promises the automatic button back, not a second press', () => {
     for (const isRu of [true, false]) {
-      for (const route of ['course', COURSES_ROUTE]) {
-        const r = courseKeyReply(
-          isRu,
-          { step: 'paid', route },
-          { kind: 'no_club' }
-        )
-        expect(r.button).toBeUndefined()
-        expect(r.text).not.toMatch(/same button|ту же кнопку/) // cyrillic-ok: UI copy under test
-        expect(r.text).toMatch(/bot sends|бот сам пришлёт/) // cyrillic-ok: UI copy under test
-      }
+      const r = courseKeyReply(
+        isRu,
+        { step: 'paid', route: COURSES_ROUTE },
+        { kind: 'no_club' }
+      )
+      expect(r.button).toBeUndefined()
+      expect(r.text).not.toMatch(/same button|ту же кнопку/) // cyrillic-ok: UI copy under test
+      expect(r.text).toMatch(/bot sends|бот сам пришлёт/) // cyrillic-ok: UI copy under test
+      // ...and does not pretend a course needs signing in.
+      expect(r.text).toMatch(/free to read|бесплатны/) // cyrillic-ok: UI copy under test
+    }
+  })
+
+  it('on a course, opens the course free and never asks for the club (spec VERSION 3)', () => {
+    for (const isRu of [true, false]) {
+      const r = courseKeyReply(
+        isRu,
+        { step: 'paid', route: 'clocks-and-cdc' },
+        { kind: 'no_club' }
+      )
+      expect(r.button?.url).toBe(
+        'https://t27.ai/?utm_source=telegram&utm_medium=bot&utm_campaign=course#/clocks-and-cdc'
+      )
+      // No key rides in a free course's address.
+      expect(r.button?.url).not.toContain('unlock')
+      expect(r.text).toMatch(/free now|бесплатны/) // cyrillic-ok: UI copy under test
+      expect(r.text).not.toMatch(/fourth|четвёрт|how to join|как вступить/i) // cyrillic-ok: UI copy under test
     }
   })
 
@@ -157,12 +174,17 @@ describe('the remembered course', () => {
     expect(await store.get('2')).toBeNull()
   })
 
-  it('/start remembers the route when the press finds no club', () => {
+  it('/start remembers the route when the sign-in press finds no club', () => {
     const src = readFileSync(
       join(ROOT, 'src/navigation/registerCommands.ts'),
       'utf8'
     )
-    const noClub = src.indexOf("if (outcome.kind === 'no_club') {")
+    // Only the catalog (the site sign-in) goes on to the club card: a course
+    // is free since spec VERSION 3 and got its own button.
+    // Matched across whitespace: the formatter decides where the line breaks.
+    const noClub = src.search(
+      /outcome\.kind === 'no_club' &&\s+courseStep\.route === COURSES_ROUTE/
+    )
     const remember = src.indexOf('.set(String(ctx.from.id), courseStep.route)')
     expect(noClub).toBeGreaterThan(0)
     expect(remember).toBeGreaterThan(noClub)

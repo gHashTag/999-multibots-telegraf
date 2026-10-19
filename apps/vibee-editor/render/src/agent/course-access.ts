@@ -9,6 +9,12 @@
  * third free, the fourth for the club -- and "track every user in the CRM and
  * tell me each client's progress online".
  *
+ * Owner, 2026-10-19 (spec VERSION 3, t27#10799): "make the courses free for
+ * everyone". step_of is STEP_FREE for every rung, so no course asks for the
+ * bot or the club. The bot and paid keys stay: an old link still mints one,
+ * and a key already minted keeps opening what it opened. A paid key is now a
+ * club member signing in on the site, not the price of a course.
+ *
  * What lives here:
  *   - the KEY the bot hands a reader after `/start course_<step>_<route>`:
  *     signed with a secret derived from SESSION_SIGNING_KEY (no new variable
@@ -328,7 +334,7 @@ export async function mintFor(
     step === SPEC.STEP_PAID ? SPEC.EVENT_KEY_PAID : SPEC.EVENT_KEY_BOT
   const words =
     step === SPEC.STEP_PAID
-      ? `открыл платную ступень (клуб), курс «${route}»` // cyrillic-ok: owner-facing
+      ? `вошёл на сайт с ключом клуба, курс «${route}»` // cyrillic-ok: owner-facing
       : `подписался на бота ради курса «${route}»` // cyrillic-ok: owner-facing
   try {
     await fileInCrm(pool, p, crmTag(step), `Курсы t27: ${words}`) // cyrillic-ok: CRM note

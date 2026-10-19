@@ -277,6 +277,7 @@ import {
   placePackageOrder,
 } from '@/services/agentPackageOrder'
 import {
+  COURSES_ROUTE,
   courseIntent,
   courseKeyReply,
   requestCourseKey,
@@ -3363,8 +3364,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
        * reason as the order above: a new reader goes through CreateUserScene
        * next. The render decides (spec automation/course-access.t27), files
        * the reader in the owner's CRM and tells the owner; this only carries
-       * the press and the answer. No club -> the club card, so a press never
-       * dead-ends.
+       * the press and the answer. No club on the site sign-in (the catalog)
+       * -> the club card, so a press never dead-ends. No club on a course ->
+       * the course's own button: since spec VERSION 3 (t27#10799) every
+       * course is free, and the club card would sell a door that is open.
        */
       if (courseStep && ctx.from) {
         const outcome = await requestCourseKey(ctx.from, courseStep)
@@ -3381,7 +3384,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
               ])
             : undefined
         )
-        if (outcome.kind === 'no_club') {
+        if (outcome.kind === 'no_club' && courseStep.route === COURSES_ROUTE) {
           wantsClub = true
           ctx.session.clubDeepLink = true
           // The charge lands at the cashier bot, whose session is not this

@@ -96,16 +96,31 @@ describe('course deep link', () => {
     expect(reply.text).not.toContain('abc.def')
   })
 
-  it('no club: says so and hands over to the club card, no key', async () => {
+  it('no club on a course: the course opens free, with no key (spec VERSION 3)', async () => {
     const out = await requestCourseKey(
       { id: 1000001 },
       { step: 'paid', route: 'course' },
       { key: 'k', fetchImpl: fakeFetch(200, { ok: false, reason: 'no_club' }) }
     )
     expect(out).toEqual({ kind: 'no_club' })
-    expect(
-      courseKeyReply(false, { step: 'paid', route: 'course' }, out).button
-    ).toBeUndefined()
+    const reply = courseKeyReply(false, { step: 'paid', route: 'course' }, out)
+    expect(reply.button?.url).toBe(
+      'https://t27.ai/?utm_source=telegram&utm_medium=bot&utm_campaign=course#/course'
+    )
+    expect(reply.text).not.toMatch(/club\b(?! needed)/)
+  })
+
+  it('/start sends only the site sign-in on to the club card, never a course', () => {
+    const src = readFileSync(
+      join(__dirname, '..', '..', 'navigation', 'registerCommands.ts'),
+      'utf8'
+    )
+    const at = src.indexOf("outcome.kind === 'no_club'")
+    expect(at).toBeGreaterThan(0)
+    expect(src.slice(at, at + 120)).toContain(
+      'courseStep.route === COURSES_ROUTE'
+    )
+    expect(src.slice(at - 200, at + 400)).toContain('wantsClub = true')
   })
 
   it('a render that is off or unreachable is "unavailable", never a fake key', async () => {

@@ -158,6 +158,26 @@ describe('the start parameter of a bot launch', () => {
     expect(navigations[0].opts).toEqual({ replace: true })
   })
 
+  it('opens the key screen for app_keys, end to end', async () => {
+    // t.me/<bot>?start=app_keys answers with a web_app button whose start
+    // parameter is `keys`; it lands on the API keys a person adds (TRI CLAW's
+    // free path, pages/HiveAccount.tsx), not on the feed.
+    telegramLaunch('/?tgWebAppStartParam=keys')
+    const { provider } = await freshModules()
+
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={['/']}>
+          <provider.TelegramProvider />
+        </MemoryRouter>
+      )
+    })
+
+    expect(navigations.map(n => n.to)).toEqual(['/game/account'])
+    expect(navigations[0].opts).toEqual({ replace: true })
+  })
+
   it('sends nobody anywhere on a parameter the map does not know', async () => {
     // An unknown value must stay a no-op: the map is the allowlist, which is
     // what makes reading the parameter from the URL harmless.

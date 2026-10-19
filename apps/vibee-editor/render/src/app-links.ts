@@ -41,6 +41,7 @@ export const APP_ROUTES = [
   'club',
   'pair',
   'story',
+  'keys',
 ] as const
 
 export type AppRoute = (typeof APP_ROUTES)[number]
@@ -115,6 +116,7 @@ export function routeOfAppUrl(url: string): AppRoute {
   if (segs[0] === 'generate' && isAppRoute(segs[1])) return segs[1]
   if (isAppRoute(segs[0])) return segs[0]
   if (segs[0] === 'queen') return 'hive'
+  if (segs[0] === 'game' && segs[1] === 'account') return 'keys'
   return APP_HOME_ROUTE
 }
 

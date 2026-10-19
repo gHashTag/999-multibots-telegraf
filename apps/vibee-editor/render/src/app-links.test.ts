@@ -40,6 +40,19 @@ describe('appLinkFor (render mirror)', () => {
     )
     expect(appLinkFor('', 'hive')).toBe('')
   })
+
+  it('keys: the API keys a person adds (/game/account), owner 2026-10-19', () => {
+    expect(appLinkFor('example_farm_bot', 'keys')).toBe(
+      'https://t.me/example_farm_bot?start=app_keys'
+    )
+    expect(appLinkFor('example_farm_bot', 'keys', { mainWebApp: true })).toBe(
+      'https://t.me/example_farm_bot?startapp=keys'
+    )
+    // A render notice that names the screen by its address gets the same link.
+    expect(
+      rewriteAppUrls('https://app.t27.ai/game/account', 'example_farm_bot')
+    ).toBe('https://t.me/example_farm_bot?start=app_keys')
+  })
 })
 
 describe('botOfToken -- getMe on the bot’s own host, remembered', () => {

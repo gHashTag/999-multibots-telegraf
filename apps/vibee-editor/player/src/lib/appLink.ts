@@ -34,6 +34,7 @@ export const APP_ROUTES = [
   'club',
   'pair',
   'story',
+  'keys',
 ] as const
 
 export type AppRoute = (typeof APP_ROUTES)[number]

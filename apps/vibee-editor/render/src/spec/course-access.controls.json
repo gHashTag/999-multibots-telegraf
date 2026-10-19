@@ -1,13 +1,23 @@
 [
   {
-    "name": "the second course is free too",
-    "from": "        if opened == 1 {\n            return STEP_BOT;",
-    "to": "        if opened == 9 {\n            return STEP_BOT;"
+    "name": "the second course asks for the bot again",
+    "from": "    fn step_of(opened: u8) -> u8 {\n        return STEP_FREE;",
+    "to": "    fn step_of(opened: u8) -> u8 {\n        if opened == 1 {\n            return STEP_BOT;\n        }\n        return STEP_FREE;"
   },
   {
-    "name": "the ladder pays from the fifth course, not the fourth",
-    "from": "        if opened >= 3 {",
-    "to": "        if opened >= 4 {"
+    "name": "the fourth course asks for the club again (the VERSION 2 ladder)",
+    "from": "    fn step_of(opened: u8) -> u8 {\n        return STEP_FREE;",
+    "to": "    fn step_of(opened: u8) -> u8 {\n        if opened >= 3 {\n            return STEP_PAID;\n        }\n        return STEP_FREE;"
+  },
+  {
+    "name": "one far rung asks for the club (only the loop over every rung sees it)",
+    "from": "    fn step_of(opened: u8) -> u8 {\n        return STEP_FREE;",
+    "to": "    fn step_of(opened: u8) -> u8 {\n        if opened == 254 {\n            return STEP_PAID;\n        }\n        return STEP_FREE;"
+  },
+  {
+    "name": "a rung past the ladder is an unknown step",
+    "from": "    fn step_of(opened: u8) -> u8 {\n        return STEP_FREE;",
+    "to": "    fn step_of(opened: u8) -> u8 {\n        if opened >= 7 {\n            return 3;\n        }\n        return STEP_FREE;"
   },
   {
     "name": "a bot step opens without the bot key",

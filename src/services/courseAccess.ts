@@ -6,12 +6,17 @@ import { sharedKvClient, type KvClient } from '@/core/session/sessionStore'
  *
  * Spec of record: specs/automation/course-access.t27 (gHashTag/t27); the
  * render holds the rules (apps/vibee-editor/render/src/agent/course-access.ts)
- * and this side only carries the press. A reader on t27.ai who reaches the
- * second course (the bot step) or the fourth (the club) taps
+ * and this side only carries the press. A reader taps
  * `t.me/t27ai_bot?start=course_<bot|paid>_<route>`; the bot asks the render
  * for his key with the server key and answers with one button back to the
  * course, the key in the address. The render files him in the owner's CRM and
  * tells the owner; nothing of that is decided here.
+ *
+ * Owner, 2026-10-19 (spec VERSION 3, t27#10799): every course is free, so no
+ * course asks for the bot or the club any more. A bot link still mints its
+ * key; a club link for a course, pressed without the club, gets the course
+ * itself (it opens free), never the club card. The club stays the bot's
+ * subscription, and signing in on the site (the catalog) is still a member's.
  */
 
 /*
@@ -41,6 +46,14 @@ export function courseUrl(
   return (
     `${SITE}/?utm_source=telegram&utm_medium=bot&utm_campaign=${campaign}` +
     `#/${route}?unlock=${encodeURIComponent(key)}`
+  )
+}
+
+/** The course itself, with no key: since spec VERSION 3 every course opens free. */
+export function freeCourseUrl(route: string): string {
+  return (
+    `${SITE}/?utm_source=telegram&utm_medium=bot&utm_campaign=course` +
+    `#/${route}`
   )
 }
 
@@ -155,15 +168,23 @@ export function courseKeyReply(
       },
     }
   }
-  if (outcome.kind === 'no_club') {
+  if (outcome.kind === 'no_club' && catalog) {
     return {
-      text: catalog
-        ? isRu
-          ? `Вход на t27.ai — для участников клуба. Ниже — как вступить; сразу после оплаты бот сам пришлёт кнопку для входа на сайт.`
-          : `Signing in on t27.ai is for club members. Here is how to join; right after you pay, the bot sends you a button to sign in on the site.`
-        : isRu
-          ? `Четвёртый и следующие курсы открываются с клубом. Ниже — как вступить; сразу после оплаты бот сам пришлёт кнопку, которая вернёт вас к курсу.`
-          : `The fourth course and every one after it open with the club. Here is how to join; right after you pay, the bot sends you a button back to the course.`,
+      text: isRu
+        ? `Вход на t27.ai — для участников клуба. Сами курсы бесплатны и читаются без входа. Ниже — как вступить; сразу после оплаты бот сам пришлёт кнопку для входа на сайт.`
+        : `Signing in on t27.ai is for club members. The courses themselves are free to read without signing in. Here is how to join; right after you pay, the bot sends you a button to sign in on the site.`,
+    }
+  }
+  if (outcome.kind === 'no_club') {
+    // Spec VERSION 3: a course needs no club. The press gets the course.
+    return {
+      text: isRu
+        ? `Все курсы на t27.ai теперь бесплатны — клуб не нужен ✅\n\nНажмите кнопку — курс «${intent.route}» откроется на сайте.`
+        : `Every course on t27.ai is free now — no club needed ✅\n\nPress the button to open the course "${intent.route}" on the site.`,
+      button: {
+        label: isRu ? 'Открыть курс' : 'Open the course',
+        url: freeCourseUrl(intent.route),
+      },
     }
   }
   return {
