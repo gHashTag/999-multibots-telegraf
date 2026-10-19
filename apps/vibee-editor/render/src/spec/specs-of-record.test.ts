@@ -462,6 +462,78 @@ describe('the logic runs from the spec', () => {
     expect(() => pick(1.5)).toThrow(RangeError)
   })
 
+  it('t27-logic reads only the bits of a narrow result', () => {
+    // Zig 0.16 compiled review-jam's jam_is_queens_turn(0) to an i32 of 250:
+    // the low bit is false, the rest is noise. Each export here returns 506
+    // (0x1fa), or -6 for the signed ones, and each door must read its own type.
+    const names = ['t27_flag', 't27_byte', 't27_word', 't27_tiny', 't27_short']
+    const bodies = [
+      [0x41, 0xfa, 0x03], // i32.const 506
+      [0x41, 0xfa, 0x03],
+      [0x41, 0xfa, 0x03],
+      [0x41, 0x7a], // i32.const -6
+      [0x41, 0x7a],
+    ]
+    const exp = names.flatMap((n, i) => [
+      n.length,
+      ...[...n].map(c => c.charCodeAt(0)),
+      0x00,
+      i,
+    ])
+    const code = bodies.flatMap(b => [b.length + 2, 0x00, ...b, 0x0b])
+    const wasm = Uint8Array.from([
+      ...[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00],
+      ...[0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7f], // type () -> i32
+      ...[0x03, 0x06, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00],
+      ...[0x07, exp.length + 1, names.length, ...exp],
+      ...[0x0a, code.length + 1, bodies.length, ...code],
+    ])
+    const W = new WebAssembly.Instance(new WebAssembly.Module(wasm)).exports
+    const fns = zigFns(
+      [
+        'pub fn flag() bool {',
+        'pub fn byte() u8 {',
+        'pub fn word() u16 {',
+        'pub fn tiny() i8 {',
+        'pub fn short() i16 {',
+      ].join('\n')
+    )
+    const js = ts.transpileModule(
+      fns.map(f => door(f).replace(/^export /m, '')).join('\n'),
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+    ).outputText
+    const got = new Function(
+      'W',
+      `${js}\nreturn [flag(), byte(), word(), tiny(), short()]`
+    )(W)
+    expect(got).toEqual([false, 250, 506, -6, -6])
+  })
+
+  it('t27-logic gives a param named by a reserved word a door that parses', () => {
+    // review-jam.t27: `jam_action(case: u8)`. Zig takes `case`; TypeScript does not.
+    const [act] = zigFns('pub fn jam_action(case: u8) u8 {')
+    expect(zigExport(act)).toBe(
+      'export fn t27_jam_action(case: u8) u8 { return jam_action(case); }'
+    )
+    const src = door(act)
+    expect(src).toContain('export function jamAction(case_: number): number')
+    expect(src).toContain("int(case_, 0, 255, 'jam_action.case')")
+    const out = ts.transpileModule([...TS_INT, src].join('\n'), {
+      reportDiagnostics: true,
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    })
+    expect(out.diagnostics?.map(d => d.messageText)).toEqual([])
+    const jamAction = new Function(
+      'W',
+      `${out.outputText.replace(/^export /m, '')}\nreturn jamAction`
+    )({ t27_jam_action: (c: number) => (c > 9 ? 9 : c) }) as (
+      c: number
+    ) => number
+    expect(jamAction(4)).toBe(4)
+    expect(jamAction(200)).toBe(9)
+    expect(() => jamAction(256)).toThrow(RangeError)
+  })
+
   it('host-imports: an import of the compiled logic alone binds the host', () => {
     const hostFiles = [
       {

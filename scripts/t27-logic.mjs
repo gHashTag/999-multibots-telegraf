@@ -75,6 +75,31 @@ const RANGE = {
 export const lowers = f =>
   LOWERED.has(f.ret) && f.params.every(([, t]) => LOWERED.has(t))
 const camel = s => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
+/**
+ * Words a spec may use as a param name that a TypeScript or JavaScript
+ * parameter cannot be (review-jam.t27 `jam_action(case: u8)` made a door
+ * esbuild and tsc refuse), and the door's own names a param must not shadow
+ * (`held`, and the helpers `int`, `str`, `W`). Such a param gets a trailing
+ * `_` in the door only: the spec, the wasm export and every error label keep
+ * the spec's name.
+ */
+const NOT_A_PARAM = new Set(
+  (
+    'arguments await break case catch class const continue debugger default ' +
+    'delete do else enum eval export extends false finally for function if ' +
+    'implements import in instanceof interface let new null package private ' +
+    'protected public return static super switch this throw true try typeof ' +
+    'var void while with yield held int str W WASM'
+  ).split(' ')
+)
+/** How the door reads a result narrower than the i32 it crosses as. */
+const NARROW = {
+  u8: c => `(${c} & 0xff)`,
+  u16: c => `(${c} & 0xffff)`,
+  i8: c => `((${c} << 24) >> 24)`,
+  i16: c => `((${c} << 16) >> 16)`,
+}
+const param = n => (NOT_A_PARAM.has(camel(n)) ? `${camel(n)}_` : camel(n))
 const tsType = t => (t === 'bool' ? 'boolean' : t === STR ? 'string' : 'number')
 
 /**
@@ -105,11 +130,11 @@ export function zigFns(zigSrc) {
 
 /** The TypeScript door: argument checks, the wasm call, the typed result. */
 export function door(f) {
-  const args = f.params.map(([n, t]) => `${camel(n)}: ${tsType(t)}`).join(', ')
+  const args = f.params.map(([n, t]) => `${param(n)}: ${tsType(t)}`).join(', ')
   const strIn = f.params.some(([, t]) => t === STR)
   const pass = f.params
     .map(([n, t]) => {
-      const v = camel(n)
+      const v = param(n)
       if (t === 'bool') return `${v} ? 1 : 0`
       if (t === STR) return `...str(${v}, held, '${f.name}.${n}')`
       if (RANGE[t])
@@ -126,12 +151,18 @@ export function door(f) {
     return `${head}  return strCall(held => {\n    ${call}\n    return strOut()\n  })\n}`
   }
   const call = `(W.t27_${f.name} as (...a: number[]) => number)(${pass})`
+  // A result narrower than 32 bits crosses as an i32 whose upper bits wasm
+  // leaves undefined: zig 0.16 compiled review-jam's jam_is_queens_turn to
+  // `(case > 8) | (250 >> case)`, whose low bit is the answer and whose other
+  // bits are not. So the door reads only the bits of the spec's type.
   const ret =
     f.ret === 'bool'
-      ? `${call} !== 0`
-      : f.ret.startsWith('u')
-        ? `${call} >>> 0`
-        : call
+      ? `(${call} & 1) !== 0`
+      : NARROW[f.ret]
+        ? NARROW[f.ret](call)
+        : f.ret.startsWith('u')
+          ? `${call} >>> 0`
+          : call
   if (strIn) return `${head}  return strCall(held => ${ret})\n}`
   return `${head}  return ${ret}\n}`
 }
