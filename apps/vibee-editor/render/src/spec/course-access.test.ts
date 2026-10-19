@@ -153,11 +153,22 @@ describe('course-access.t27: every spec test, against the host', () => {
     })
   })
 
-  it('the second needs the bot', async () => {
-    expect(stepOf(1)).toBe(SPEC.STEP_BOT)
+  it('the second and the third are free too, no bot asked', () => {
+    expect(stepOf(1)).toBe(SPEC.STEP_FREE)
+    expect(stepOf(2)).toBe(SPEC.STEP_FREE)
+    expect(mayOpen(stepOf(1), false, false)).toBe(true)
+    expect(mayOpen(stepOf(2), false, false)).toBe(true)
+  })
+
+  it('no rung is the bot any more', () => {
+    for (const n of [0, 1, 2, 3, 255]) expect(stepOf(n)).not.toBe(SPEC.STEP_BOT)
+  })
+
+  it('a bot key a reader already holds still opens a bot step', async () => {
     expect(mayOpen(SPEC.STEP_BOT, false, false)).toBe(false)
     expect(mayOpen(SPEC.STEP_BOT, false, true)).toBe(false)
     expect(mayOpen(SPEC.STEP_BOT, true, false)).toBe(true)
+    // The host still mints a bot key for an old bot link, and reads it back.
     const out = await mintFor(pool, ADA, 'bot', 'verify-hardware', deps())
     const r = (await handleCourse(
       { url: `/api/course/key?k=${keyOf(out)}`, method: 'GET' },
@@ -166,17 +177,28 @@ describe('course-access.t27: every spec test, against the host', () => {
     expect(r.body).toMatchObject({ ok: true, step: SPEC.STEP_BOT })
   })
 
-  it('the third is free again', () => {
-    expect(stepOf(2)).toBe(SPEC.STEP_FREE)
-    expect(mayOpen(stepOf(2), false, false)).toBe(true)
+  it('the fourth and every one after it are free too, no club asked', () => {
+    for (const n of [3, 4, 6, 200]) expect(stepOf(n)).toBe(SPEC.STEP_FREE)
+    expect(mayOpen(stepOf(3), false, false)).toBe(true)
+    expect(mayOpen(stepOf(200), false, false)).toBe(true)
+    expect(stepOf(3)).not.toBe(SPEC.STEP_PAID)
+    expect(SPEC.LADDER_RUNGS).toBe(1)
   })
 
-  it('the fourth and every one after it need the club', async () => {
-    for (const n of [3, 4, 6, 200]) expect(stepOf(n)).toBe(SPEC.STEP_PAID)
+  it('every course is free, for every reader, however many he has opened', () => {
+    for (let n = 0; n <= 255; n++) {
+      expect(stepOf(n)).toBe(SPEC.STEP_FREE)
+      expect(stepOf(n)).toBe(stepOf(SPEC.LADDER_RUNGS - 1))
+      expect(mayOpen(stepOf(n), false, false)).toBe(true)
+    }
+  })
+
+  it('a paid key a reader already holds still opens a paid step', async () => {
+    expect(mayOpen(SPEC.STEP_PAID, false, false)).toBe(false)
     expect(mayOpen(SPEC.STEP_PAID, true, false)).toBe(false)
     expect(mayOpen(SPEC.STEP_PAID, false, true)).toBe(true)
-    expect(SPEC.LADDER_RUNGS).toBe(4)
-    // The host asks the club, and without it hands out nothing.
+    // The host still asks the club before it mints a paid key, and without it
+    // hands out nothing: the club is the bot's subscription, not a course door.
     expect(await mintFor(pool, ADA, 'paid', 'clocks-and-cdc', deps())).toEqual({
       ok: false,
       reason: 'no_club',
@@ -356,8 +378,10 @@ describe('course-access.t27: every spec test, against the host', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
-    expect(stepOf(SPEC.VERSION)).toBe(SPEC.STEP_BOT)
+    expect(SPEC.VERSION).toBe(3)
+    expect(stepOf(SPEC.VERSION)).toBe(SPEC.STEP_FREE)
+    expect(stepOf(SPEC.VERSION + 1)).toBe(SPEC.STEP_FREE)
+    expect(stepOf(SPEC.VERSION + 1)).not.toBe(SPEC.STEP_PAID)
     expect(Object.keys(LOGIC)).toContain('stepOf')
   })
 })

@@ -44,7 +44,7 @@
   {
     "name": "a report without a key is written",
     "file": "src/agent/course-access.ts",
-    "from": "  if (!mayReport(reading.ok)) return { ok: false, reason: reading.reason ?? 'no_key' }",
+    "from": "  if (!mayReport(reading.ok))\n    return { ok: false, reason: reading.reason ?? 'no_key' }",
     "to": ""
   },
   {

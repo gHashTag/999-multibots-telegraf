@@ -3,11 +3,11 @@
 // The spec's own fn bodies, compiled: t27c gen (Zig) -> zig 0.16.0 (wasm32).
 // Change the spec in gHashTag/t27, vendor it, regenerate. A rule written
 // by hand beside this file is the thing this file exists to end.
-// spec-sha256: 0acffd8d6e579af8ce3caa9d4ad9569ed7c550ccf85c742737016c84354c5217
+// spec-sha256: edd87ade1cc387f4e153bf22ce4c51856178377e4b4434e679ba7539ba39b978
 /* eslint-disable */
 
 const WASM =
-  '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'
+  'AGFzbQEAAAABOglgBH9/f38Bf2ABfwF/YAJ/fwF/YAF/AGADf39/AX9gAAF/YAJ/fwBgBX9/f39/AGAGf39/f39/AX8DEhEBAgEDAgQCBAEFBgcBAAEICAQFAXABBQUFAwEAEQYJAX8BQYCAwAALB8ABDQZtZW1vcnkCAA50MjdfbWF5X3JlcG9ydAAAD3QyN190ZWxsc19vd25lcgABEHQyN19sZXNzb25fZXZlbnQAAgt0MjdfY3JtX3RhZwADDHQyN19rZXlfZGF5cwAEC3QyN19taW50X29rAAUOdDI3X3N0YXlzX29wZW4ABgx0MjdfbWF5X29wZW4ABwt0Mjdfc3RlcF9vZgAIC3QyN19fcmV0X2F0AAkJdDI3X19mcmVlAAoKdDI3X19hbGxvYwAMCQoBAEEBCwQNEA8LCpwKEQQAIAALKQEBf0EAIQICQCABQQFxDQAgAEEDRg0AIABBf2pB/wFxQQVJIQILIAILIAEBf0EFIQECQCAAQRtGDQBBA0EEIABBA3AbIQELIAELUwECf0EKIQFBgIDAgAAhAgJAAkACQCAAQX9qDgICAAELQQshAUGLgMCAACECDAELQQAhAUGWgMCAACECC0EAIAI2ArCAwIAAQQAgATYCtIDAgAALJQEBf0HCHCECAkACQAJAIABBf2oOAgIAAQsgAQ8LQQAhAgsgAgssAQF/QQEhAwJAAkAgAkEBcUUNAAJAIABBf2oOAgIAAQsgAQ8LQQAhAwsgAwscAAJAAkACQCAADgMAAAIBC0EBDwtBACEBCyABCygBAX9BASEDAkACQAJAAkAgAA4DAwABAgsgAQ8LIAIPC0EAIQMLIAMLBABBAAsIAEGwgMCAAAsaACABIAAgAUEBIAFBAUsbQQAgARCLgICAAAvQAQECfyOAgICAAEEQayIFJICAgIAAIAUgA0EfcToADwJAAkBBICACQQRqIgJBASADdCIDIAIgA0sbIgNBf2pnayICQf//A3FBfWoiBkENTw0AIAFCASACrIanakF8aiAGQQJ0IgMoAuyAwIAANgIAIAMgATYC7IDAgAAMAQsgAUIBQSAgA0GDgARqQRB2QX9qZ2siA61C//8Dg4anQRB0akF8aiADQf//A3FBAnQiAygCoIHAgAA2AgAgAyABNgKggcCAAAsgBUEQaiSAgICAAAtnAgJ/AX4jgICAgABBEGsiASSAgICAAEEAIQIgAUEAOgAMAkBBAUUNAEEAKQOYgMCAACIDpyAAQQEgAEEBSxtBAEEAIANCIIinKAIAEYCAgIAAgICAgAAhAgsgAUEQaiSAgICAACACC5UCAQR/I4CAgIAAQRBrIgQkgICAgAAgBCACQR9xOgAPQQAhBQJAQX8gAUEEaiIGIAYgAUkbIgFBASACdCICIAEgAksbIgFBf2pnIgJFDQACQAJAQSAgAmsiAkH//wNxQX1qIgZBDU8NAEIBIAKtQv//A4OGpyEHIAZBAnQiAigC7IDAgAAiAUUNASACQeyAwIAAaiAHIAFqQXxqKAIANgIAIAEhBQwCCyABQYOABGpBEHYQjoCAgAAhBQwBCyACQbiAwIAAaiEBAkAgAigCuIDAgAAiAkH//wNxDQBBARCOgICAACICRQ0BIAEgAiAHajYCACACIQUMAQsgASACIAdqNgIAIAIhBQsgBEEQaiSAgICAACAFC2QBAn9CAUEgIABBf2pnayIArUL//wODhqchAQJAIABB//8DcUECdCICKAKggcCAACIARQ0AIAJBoIHAgABqIAFBEHQgAGpBfGooAgA2AgAgAA8LQQAgAUAAIgBBEHQgAEF/RhsLHAAgAUEAIAQgBCACIAMgBCAEEJCAgIAAQQFxGwvgAQECfyOAgICAAEEQayIGJICAgIAAIAYgA0EfcToAD0F/IARBBGoiByAHIARJGyIEQQEgA3QiAyAEIANLGyEEAkACQAJAIAJBBGoiAiADIAIgA0sbIgNBf2pnIgJBb2pBDEsNACAEQX9qZyIDDQFBACEDDAILQgFBICADQYOABGpBEHZBf2pna61C//8Dg4anQgFBICAEQYOABGpBEHZBf2pna61C//8Dg4anRiEDDAELQgFBICACa61C//8Dg4anQgFBICADa61C//8Dg4anRiEDCyAGQRBqJICAgIAAIAMLCzkBAEGAgMAACzBjb3Vyc2UtYm90AGNvdXJzZS1wYWlkAAAAAAAAIAAQAAEAAAACAAAAAwAAAAQAAAA='
 
 const W = new WebAssembly.Instance(
   new WebAssembly.Module(Uint8Array.from(atob(WASM), c => c.charCodeAt(0)))
@@ -67,7 +67,7 @@ export function stepOf(opened: number): number {
   return (
     (W.t27_step_of as (...a: number[]) => number)(
       int(opened, 0, 255, 'step_of.opened')
-    ) >>> 0
+    ) & 0xff
   )
 }
 
@@ -78,21 +78,25 @@ export function mayOpen(
   paidKey: boolean
 ): boolean {
   return (
-    (W.t27_may_open as (...a: number[]) => number)(
+    ((W.t27_may_open as (...a: number[]) => number)(
       int(step, 0, 255, 'may_open.step'),
       botKey ? 1 : 0,
       paidKey ? 1 : 0
-    ) !== 0
+    ) &
+      1) !==
+    0
   )
 }
 
 /** spec fn stays_open */
 export function staysOpen(step: number, paidKey: boolean): boolean {
   return (
-    (W.t27_stays_open as (...a: number[]) => number)(
+    ((W.t27_stays_open as (...a: number[]) => number)(
       int(step, 0, 255, 'stays_open.step'),
       paidKey ? 1 : 0
-    ) !== 0
+    ) &
+      1) !==
+    0
   )
 }
 
@@ -103,11 +107,13 @@ export function mintOk(
   hasSecret: boolean
 ): boolean {
   return (
-    (W.t27_mint_ok as (...a: number[]) => number)(
+    ((W.t27_mint_ok as (...a: number[]) => number)(
       int(step, 0, 255, 'mint_ok.step'),
       clubActive ? 1 : 0,
       hasSecret ? 1 : 0
-    ) !== 0
+    ) &
+      1) !==
+    0
   )
 }
 
@@ -117,7 +123,7 @@ export function keyDays(step: number, clubDaysLeft: number): number {
     (W.t27_key_days as (...a: number[]) => number)(
       int(step, 0, 255, 'key_days.step'),
       int(clubDaysLeft, 0, 65535, 'key_days.club_days_left')
-    ) >>> 0
+    ) & 0xffff
   )
 }
 
@@ -134,24 +140,28 @@ export function lessonEvent(doneInCourse: number): number {
   return (
     (W.t27_lesson_event as (...a: number[]) => number)(
       int(doneInCourse, 0, 255, 'lesson_event.done_in_course')
-    ) >>> 0
+    ) & 0xff
   )
 }
 
 /** spec fn tells_owner */
 export function tellsOwner(event: number, toldBefore: boolean): boolean {
   return (
-    (W.t27_tells_owner as (...a: number[]) => number)(
+    ((W.t27_tells_owner as (...a: number[]) => number)(
       int(event, 0, 255, 'tells_owner.event'),
       toldBefore ? 1 : 0
-    ) !== 0
+    ) &
+      1) !==
+    0
   )
 }
 
 /** spec fn may_report */
 export function mayReport(hasValidKey: boolean): boolean {
   return (
-    (W.t27_may_report as (...a: number[]) => number)(hasValidKey ? 1 : 0) !== 0
+    ((W.t27_may_report as (...a: number[]) => number)(hasValidKey ? 1 : 0) &
+      1) !==
+    0
   )
 }
 
