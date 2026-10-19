@@ -462,6 +462,31 @@ describe('the logic runs from the spec', () => {
     expect(() => pick(1.5)).toThrow(RangeError)
   })
 
+  it('t27-logic gives a param named by a reserved word a door that parses', () => {
+    // review-jam.t27: `jam_action(case: u8)`. Zig takes `case`; TypeScript does not.
+    const [act] = zigFns('pub fn jam_action(case: u8) u8 {')
+    expect(zigExport(act)).toBe(
+      'export fn t27_jam_action(case: u8) u8 { return jam_action(case); }'
+    )
+    const src = door(act)
+    expect(src).toContain('export function jamAction(case_: number): number')
+    expect(src).toContain("int(case_, 0, 255, 'jam_action.case')")
+    const out = ts.transpileModule([...TS_INT, src].join('\n'), {
+      reportDiagnostics: true,
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    })
+    expect(out.diagnostics?.map(d => d.messageText)).toEqual([])
+    const jamAction = new Function(
+      'W',
+      `${out.outputText.replace(/^export /m, '')}\nreturn jamAction`
+    )({ t27_jam_action: (c: number) => (c > 9 ? 9 : c) }) as (
+      c: number
+    ) => number
+    expect(jamAction(4)).toBe(4)
+    expect(jamAction(200)).toBe(9)
+    expect(() => jamAction(256)).toThrow(RangeError)
+  })
+
   it('host-imports: an import of the compiled logic alone binds the host', () => {
     const hostFiles = [
       {
