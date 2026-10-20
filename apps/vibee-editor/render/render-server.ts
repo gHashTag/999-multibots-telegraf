@@ -221,6 +221,7 @@ import {
   isContributorKeyPath,
   handleContributorKeys,
 } from './src/hive/contributor-keys-route'
+import { createHiveProxy, isHiveProxyPath } from './src/hive/proxy-route'
 import { isZaiRelayPath, handleZaiRelay, zaiRelayKey } from './src/zai-relay'
 import {
   isPayOutcomePath,
@@ -3635,6 +3636,8 @@ export function redactedForLog(url: string | undefined): string {
     '$1<secret-redacted>'
   )
 }
+
+const hiveProxy = createHiveProxy()
 
 // Simple HTTP server
 const server = createServer(async (req, res) => {
@@ -8924,6 +8927,13 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  // A signed-in person's client spends that person's stored keys over the
+  // Anthropic Messages protocol. Off unless HIVE_PROXY=on.
+  if (isHiveProxyPath(req.url?.split('?')[0] || '')) {
+    await hiveProxy(req, res)
+    return
   }
 
   // Personal credentials use a full app session or signed Telegram identity.
