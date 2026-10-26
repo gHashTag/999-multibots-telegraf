@@ -116,7 +116,6 @@
   "mirrored": [
     "apps/vibee-editor/packages/vibee-atoms/src/spec/token-wallet.t27",
     "apps/vibee-editor/player/src/spec/crm-first-screen.t27",
-    "apps/vibee-editor/render/src/spec/agent-provider-chain.t27",
     "apps/vibee-editor/render/src/spec/agent-spec-bank.t27",
     "apps/vibee-editor/render/src/spec/ball-board.t27",
     "apps/vibee-editor/render/src/spec/ball-grants.t27",

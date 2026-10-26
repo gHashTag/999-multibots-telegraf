@@ -12,7 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { streamModel } from './chat'
-import { glmPoolKeys } from './provider'
+import { forgetKeyRotationForTests, glmPoolKeys } from './provider'
 import { forgetProviderChoiceForTests } from './provider-choice'
 
 const sse = (text: string) =>
@@ -43,6 +43,9 @@ beforeEach(() => {
   vi.stubEnv('GLM_API_KEY', 'k0')
   vi.stubEnv('GLM_API_KEYS', 'k0, k1 , ,k2,k0')
   vi.stubEnv('AGENT_PROVIDER', 'zai')
+  // The cursor now survives the turn on purpose (a key that answered is
+  // where the next turn starts), so each test starts from a clean one.
+  forgetKeyRotationForTests()
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
@@ -51,6 +54,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   forgetProviderChoiceForTests()
+  forgetKeyRotationForTests()
 })
 
 describe('the key pool', () => {
@@ -120,17 +124,12 @@ describe('the key pool', () => {
       )
     )
     await expect(drain()).rejects.toThrow('Ни один провайдер')
-    // zai: k0,k1,k2. zai-lite: its own primary k3 first, then the shared
-    // pool -- a different first wall, so the key-group rule does not spare
-    // it, and its own pool is walked in full.
-    expect(seen).toEqual([
-      'Bearer k0',
-      'Bearer k1',
-      'Bearer k2',
-      'Bearer k3',
-      'Bearer k0',
-      'Bearer k1',
-      'Bearer k2',
-    ])
+    // zai: k0,k1,k2. zai-lite: its own primary k3 first -- a different first
+    // wall, so the key-group rule does not spare it. The SHARED pool after
+    // k3 is NOT re-asked: zai's turn refused k0,k1,k2 with 1302 seconds ago,
+    // and the per-turn key memory (chat.ts, keyWideRefused) steps over keys
+    // another route just proved limited instead of burning three doomed
+    // calls on them.
+    expect(seen).toEqual(['Bearer k0', 'Bearer k1', 'Bearer k2', 'Bearer k3'])
   })
 })

@@ -50,6 +50,7 @@ import {
   plainCompletion,
   rememberKey,
   sharedKeyReason,
+  vendorCode,
   type ProviderId,
 } from './provider'
 import {
@@ -2212,7 +2213,7 @@ export async function* streamModel(
              * proved key-wide-limited are stepped over, not re-asked.
              */
             // cyrillic-ok-next-line: pre-existing identifier
-            if (isKeyFailure(почему)) {
+            if (isKeyFailure(r.status, почему)) {
               // cyrillic-ok: pre-existing identifier
               rememberKey(p.id, keys[keyAt], false)
               const fresh = nextFreshKey(keyAt + 1)
@@ -2316,8 +2317,14 @@ export async function* streamModel(
               const почему = notAStream(p.id, r.status, whole) // cyrillic-ok: pre-existing identifier
               // Kie answers its own refusals inside a 200; a key-class code
               // there rotates the pool the same way a status would.
+              // The vendor's embedded code is the real status of a 200 that
+              // is really a refusal (notAStream's own rule, reused here so
+              // the spec's key_failure sees the same number).
+              const embedded = Number(vendorCode(whole))
+              const st =
+                embedded >= 400 && embedded <= 599 ? embedded : r.status
               // cyrillic-ok-next-line: pre-existing identifier
-              if (isKeyFailure(почему)) {
+              if (isKeyFailure(st, почему)) {
                 // cyrillic-ok: pre-existing identifier
                 rememberKey(p.id, keys[keyAt], false)
                 const fresh = nextFreshKey(keyAt + 1)
@@ -2405,7 +2412,7 @@ export async function* streamModel(
            * is never the key's fault.
            */
           // cyrillic-ok-next-line: pre-existing identifier
-          if (!timedOut && isKeyFailure(почему)) {
+          if (!timedOut && isKeyFailure(0, почему)) {
             // cyrillic-ok: pre-existing identifier
             rememberKey(p.id, keys[keyAt], false)
             const fresh = nextFreshKey(keyAt + 1)

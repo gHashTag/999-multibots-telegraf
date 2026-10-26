@@ -19,6 +19,7 @@
 
 import { chosenProvider } from './provider-choice'
 import * as SPEC from '../spec/agent-provider-chain.gen'
+import * as RULES from '../spec/agent-provider-chain.logic'
 
 export type ProviderId =
   | 'zai'
@@ -428,8 +429,8 @@ export function glmPoolKeys(primary: string): string[] {
  * the answer that would have been.
  */
 
-/** How many numbered sisters (_2 .. _9) are read for each variable. */
-export const KEY_POOL_SLOTS = 9 // t27-plumbing: how many numbered key variables exist on Railway, config not a rule
+/** How many numbered sisters (_2 .. _9) are read for each variable. Spec: KEY_POOL_SLOTS. */
+export const KEY_POOL_SLOTS: number = SPEC.KEY_POOL_SLOTS
 
 /** Keys inside one variable's value: commas, semicolons and spaces split. */
 function splitKeys(raw: string | undefined): string[] {
@@ -477,7 +478,7 @@ export function keyChain(id: ProviderId): string[] {
   const pool = providerKeys(id)
   if (pool.length < 2) return pool
   const at = keyCursor.get(id) ?? 0
-  const off = ((at % pool.length) + pool.length) % pool.length
+  const off = RULES.rotationOffset(at, pool.length)
   return [...pool.slice(off), ...pool.slice(0, off)]
 }
 
@@ -494,7 +495,7 @@ export function rememberKey(
   const pool = providerKeys(id)
   const at = pool.indexOf(key)
   if (at < 0) return
-  keyCursor.set(id, worked ? at : (at + 1) % pool.length)
+  keyCursor.set(id, RULES.nextCursor(pool.length, at, worked))
 }
 
 /** For tests: forget the rotation cursors. */
@@ -504,28 +505,14 @@ export function forgetKeyRotationForTests(): void {
 
 /**
  * A refusal that is THE KEY's fault -- the reason to try this route's next
- * key. Takes a ready reason line (diagnose()/notAStream() or a mid-stream
- * error text): 401 "ключ недействителен" // cyrillic-ok: quoted refusal
- * text, 402/1113 "на ключе нет средств" // cyrillic-ok: quoted refusal
- * text, z.ai code 1302 -- THIS key's rate limit (measured 2026-10-06: the
- * production key answered 1302 three out of three while three other
- * accounts' keys answered 200 on the same model), NVIDIA ResourceExhausted
- * "request limit reached" -- the account ceiling (16/16, 2026-09-13 and
- * 2026-10-26). 1305, a nameless 429, a timeout and a 404 are false here on
- * purpose -- see the rotation block above.
+ * key. The rule lives in the spec (agent-provider-chain.t27 v4, `key_failure`);
+ * this door only lowercases the line and hands the status through. `status`
+ * is the HTTP status, or 0 when there was none (a mid-stream throw), or the
+ * vendor's embedded code for a 200 that was really a refusal.
  */
-// t27-plumbing: classifies an already-produced refusal line for routing, it decides nothing by itself
-export function isKeyFailure(reason: string): boolean {
-  const b = (reason || '').toLowerCase()
-  return (
-    b.includes('ключ недействителен') ||
-    b.includes('на ключе нет средств') ||
-    b.includes('insufficient balance') ||
-    b.includes('requires more credits') ||
-    b.includes('code 1302') ||
-    b.includes('resourceexhausted') ||
-    b.includes('request limit reached')
-  )
+// t27-plumbing: a typed door to the spec's key_failure, the host adds no rule of its own
+export function isKeyFailure(status: number, reason: string): boolean {
+  return RULES.keyFailure(status, (reason || '').toLowerCase())
 }
 
 /**
@@ -680,32 +667,20 @@ function build(id: ProviderId, key: string): Provider {
  * single tool. The bot button is the owner's explicit pick and still wins;
  * any other head that cannot call tools (the variable, or the default order
  * once absent providers drop out) moves right behind the first provider that
- * can. A chain where nobody calls tools keeps its order. Mirrors the spec's
- * `demote_head`, `head_note` and `demoted_index`.
+ * can. A chain where nobody calls tools keeps its order. The rules run from
+ * the spec's own compiled bodies (agent-provider-chain.logic, `demote_head`,
+ * `head_note`, `demoted_index`); the re-exports keep the existing imports.
  */
-export function demoteHead(
-  fromBot: boolean,
-  headTools: boolean,
-  anyTools: boolean
-): boolean {
-  return !fromBot && !headTools && anyTools
-}
-
-export function headNote(
-  fromBot: boolean,
-  headTools: boolean,
-  anyTools: boolean
-): string {
-  if (headTools) return SPEC.NOTE_NONE
-  if (fromBot) return SPEC.NOTE_BOT_PICK
-  if (anyTools) return SPEC.NOTE_DEMOTED
-  return SPEC.NOTE_NO_TOOLS
-}
-
-/** `restIndex`: the first tools-capable provider's index without the head. */
-export function demotedIndex(restIndex: number): number {
-  return restIndex + 1
-}
+export {
+  demoteHead,
+  headNote,
+  demotedIndex,
+} from '../spec/agent-provider-chain.logic'
+import {
+  demoteHead,
+  headNote,
+  demotedIndex,
+} from '../spec/agent-provider-chain.logic'
 
 /**
  * Label providers that share a key on the same base (see `keyGroup`).

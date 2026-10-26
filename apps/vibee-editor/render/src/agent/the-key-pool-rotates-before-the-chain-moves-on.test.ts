@@ -127,28 +127,36 @@ describe('the pool behind one route', () => {
 
 describe("what counts as the KEY's wall", () => {
   it('the measured key-class refusals rotate; 1305, a bare 429 and a timeout do not', () => {
-    expect(isKeyFailure('zai: превышен лимит запросов (code 1302)')).toBe(true)
+    expect(isKeyFailure(429, 'zai: превышен лимит запросов (code 1302)')).toBe(
+      true
+    )
     expect(
       isKeyFailure(
+        401,
         'kie: ключ недействителен — перевыпустите и обновите переменную'
       )
     ).toBe(true)
     expect(
       isKeyFailure(
+        402,
         'reserve: на ключе нет средств — пополните баланс в кабинете провайдера'
       )
     ).toBe(true)
     expect(
       isKeyFailure(
+        0,
         'nemotron прислал ошибку в потоке: {"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}'
       )
     ).toBe(true)
-    expect(isKeyFailure('zai: превышен лимит запросов (code 1305)')).toBe(false)
-    expect(isKeyFailure('zai: превышен лимит запросов')).toBe(false)
-    expect(isKeyFailure('zai: молчал 60с (таймаут)')).toBe(false)
-    expect(isKeyFailure('zai: такой модели нет — проверьте AGENT_MODEL')).toBe(
+    expect(isKeyFailure(200, 'insufficient balance')).toBe(true)
+    expect(isKeyFailure(429, 'zai: превышен лимит запросов (code 1305)')).toBe(
       false
     )
+    expect(isKeyFailure(429, 'zai: превышен лимит запросов')).toBe(false)
+    expect(isKeyFailure(0, 'zai: молчал 60с (таймаут)')).toBe(false)
+    expect(
+      isKeyFailure(404, 'zai: такой модели нет — проверьте AGENT_MODEL')
+    ).toBe(false)
   })
 })
 

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import * as SPEC from './agent-provider-chain.gen'
 import {
+  contains,
+  keyFailure,
+  nextCursor,
+  rotationOffset,
+} from './agent-provider-chain.logic'
+import {
   RESERVE_MAX_TOKENS_DEFAULT,
   allProviders,
   demoteHead,
@@ -161,7 +167,7 @@ describe('agent-provider-chain.t27 against the host', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(3)
+    expect(SPEC.VERSION).toBe(4)
   })
 
   it('the reserve route is configured live; an answer from it is not claimed', () => {
@@ -253,5 +259,42 @@ describe('agent-provider-chain.t27 against the host', () => {
     await chooseProvider(null, 'reserve')
     expect(ids()).toEqual(['reserve', 'ollama'])
     expect(providerStatus().head_note).toBe(SPEC.NOTE_BOT_PICK)
+  })
+
+  it("a key's wall is 401, 402, this key's 1302 and the account ceiling, never 1305", () => {
+    // The spec's own vectors, run against the compiled logic the host calls.
+    expect(keyFailure(401, 'x')).toBe(true)
+    expect(keyFailure(402, 'x')).toBe(true)
+    expect(keyFailure(429, 'zai: limit exceeded (code 1302)')).toBe(true)
+    expect(
+      keyFailure(
+        0,
+        'resourceexhausted: worker local total request limit reached (16/16)'
+      )
+    ).toBe(true)
+    expect(keyFailure(200, 'requires more credits')).toBe(true)
+    expect(keyFailure(402, 'insufficient balance or no resource package')).toBe(
+      true
+    )
+    expect(keyFailure(429, 'zai: limit exceeded (code 1305)')).toBe(false)
+    expect(keyFailure(429, 'limit exceeded')).toBe(false)
+    expect(keyFailure(0, 'molchal 60 s')).toBe(false)
+    expect(keyFailure(404, 'no such model')).toBe(false)
+    expect(contains('abc', 'bc')).toBe(true)
+    expect(contains('abc', 'abc')).toBe(true)
+    expect(contains('abc', 'cb')).toBe(false)
+    expect(contains('', 'a')).toBe(false)
+  })
+
+  it('the pool turns through the end and a working key holds the cursor', () => {
+    expect(SPEC.KEY_POOL_SLOTS).toBe(9)
+    expect(rotationOffset(0, 3)).toBe(0)
+    expect(rotationOffset(4, 3)).toBe(1)
+    expect(rotationOffset(7, 0)).toBe(0)
+    expect(nextCursor(3, 0, false)).toBe(1)
+    expect(nextCursor(3, 2, false)).toBe(0)
+    expect(nextCursor(3, 1, true)).toBe(1)
+    expect(nextCursor(0, 0, false)).toBe(0)
+    expect(nextCursor(3, 5, true)).toBe(0)
   })
 })

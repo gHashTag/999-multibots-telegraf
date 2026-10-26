@@ -44,6 +44,17 @@
 // WHY declared, not measured: Kie's docs list function calling and streaming for these models;
 // this repository could not reach api.kie.ai from where v3 was written. Tools are declared, sight
 // and hearing are NOT declared (images keep going to nemotron) until a probe says otherwise.
+// WHY v4, the key pool rotates before the chain moves on (2026-10-26, 999 PR #4049): 16:09 UTC
+// a client's turn died with every provider at once -- zai 429 code 1305, nemotron
+// "ResourceExhausted: Worker local total request limit reached (16/16)" mid-stream, reserve and
+// kie on invalid keys, zai-lite out of funds -- while the owner's vendor consoles held more keys
+// than the one variable each route read. A route now carries a POOL of keys: the variable lists
+// them (GLM_API_KEY="k1,k2"), a plural sister adds a whole pool (GLM_API_KEYS), numbered sisters
+// add one each (GLM_API_KEY_2..KEY_POOL_SLOTS). The host reads the variables (plumbing); the
+// spec owns the rules: which refusals are THE KEY's wall (key_failure), how the pool turns
+// (rotation_offset, next_cursor). What deliberately rotates nothing: 1305 is the model busy for
+// everybody -- another key hits the same wall, and the neighbouring model stays the way round
+// it; a nameless 429, a timeout and a 404 are not the key's fault.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_provider_chain {
@@ -51,7 +62,7 @@ module automation::agent_provider_chain {
     pub const KIND : str = "automation";
     pub const ID : str = "agent-provider-chain";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 3;
+    pub const VERSION : u8 = 4;
 
     // ---- The chain -----------------------------------------------------------------------
     // Default order: the free zai, then Kie (v3), the other paid routes, the reserve, our own model last.
@@ -204,7 +215,7 @@ module automation::agent_provider_chain {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 3);
+        assert(VERSION == 4);
     }
 
     test "capabilities of the reserve model are the owner's declaration" {
@@ -283,6 +294,92 @@ module automation::agent_provider_chain {
         assert(!demote_head(false, false, false));
         assert(head_note(false, false, false) == NOTE_NO_TOOLS);
         assert(head_note(true, false, false) == NOTE_BOT_PICK);
+    }
+
+    // ---- v4: the key pool rotates before the chain moves on --------------------------------
+    // How many numbered sister variables (NAME_2 .. NAME_9) each key variable has.
+    pub const KEY_POOL_SLOTS : u8 = 9;
+
+    // Does the haystack hold the needle, byte by byte. The reason lines read here are the
+    // host's diagnose() output lowercased, or a vendor error text lowercased; the needles are
+    // ASCII on purpose -- the Russian phrases diagnose() emits always arrive together with
+    // their status, which is this fn's other parameter.
+    fn contains(s: []const u8, w: []const u8) -> bool {
+        if (w.len == 0 or s.len < w.len) { return false; }
+        var i : usize = 0;
+        while (i + w.len <= s.len) {
+            var k : usize = 0;
+            var same : bool = true;
+            while (k < w.len) {
+                if (s[i + k] != w[k]) { same = false; }
+                k = k + 1;
+            }
+            if (same) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // A refusal that is THE KEY's wall: the route asks its NEXT key before the chain moves to
+    // the next provider. `status` is the HTTP status, 0 when there was none (a mid-stream
+    // throw). Measured into these needles: 2026-10-06 the production key answered 1302 three
+    // of three while three other accounts' keys answered 200 on the same model; 2026-09-13 and
+    // 2026-10-26 NVIDIA named its account ceiling ResourceExhausted mid-stream, HTTP 200.
+    pub fn key_failure(status: u32, reason: []const u8) -> bool {
+        if (status == 401) { return true; }
+        if (status == 402) { return true; }
+        if (contains(reason, "code 1302")) { return true; }
+        if (contains(reason, "resourceexhausted")) { return true; }
+        if (contains(reason, "request limit reached")) { return true; }
+        if (contains(reason, "insufficient balance")) { return true; }
+        if (contains(reason, "requires more credits")) { return true; }
+        return false;
+    }
+
+    // Where a pool of `len` keys starts for a route whose cursor points at `cursor`: a cursor
+    // past the end (the key was removed on the dashboard) wraps by modulo instead of crashing.
+    pub fn rotation_offset(cursor: u8, len: u8) -> u8 {
+        if (len == 0) { return 0; }
+        return cursor % len;
+    }
+
+    // The cursor after a verdict on the key at index `at`: a key that answered holds the
+    // position, a key that fell hands it to its neighbour, through the end. A `at` outside the
+    // pool (the pool shrank) resets to the head.
+    pub fn next_cursor(len: u8, at: u8, worked: bool) -> u8 {
+        if (len == 0 or at >= len) { return 0; }
+        if (worked) { return at; }
+        if (at + 1 == len) { return 0; }
+        return at + 1;
+    }
+
+    test "a key's wall is 401, 402, this key's 1302 and the account ceiling, never 1305" {
+        assert(key_failure(401, "x"));
+        assert(key_failure(402, "x"));
+        assert(key_failure(429, "zai: limit exceeded (code 1302)"));
+        assert(key_failure(0, "resourceexhausted: worker local total request limit reached (16/16)"));
+        assert(key_failure(200, "requires more credits"));
+        assert(key_failure(402, "insufficient balance or no resource package"));
+        assert(!key_failure(429, "zai: limit exceeded (code 1305)"));
+        assert(!key_failure(429, "limit exceeded"));
+        assert(!key_failure(0, "molchal 60 s"));
+        assert(!key_failure(404, "no such model"));
+        assert(contains("abc", "bc"));
+        assert(contains("abc", "abc"));
+        assert(!contains("abc", "cb"));
+        assert(!contains("", "a"));
+    }
+
+    test "the pool turns through the end and a working key holds the cursor" {
+        assert(KEY_POOL_SLOTS == 9);
+        assert(rotation_offset(0, 3) == 0);
+        assert(rotation_offset(4, 3) == 1);
+        assert(rotation_offset(7, 0) == 0);
+        assert(next_cursor(3, 0, false) == 1);
+        assert(next_cursor(3, 2, false) == 0);
+        assert(next_cursor(3, 1, true) == 1);
+        assert(next_cursor(0, 0, false) == 0);
+        assert(next_cursor(3, 5, true) == 0);
     }
 }
 // phi^2 + 1/phi^2 = 3 | TRINITY
