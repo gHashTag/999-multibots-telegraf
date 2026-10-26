@@ -40,7 +40,8 @@ env:
 
 jobs:
   bot-farm:
-    if: vars.CI_ENABLED == 'true'
+    # Manual dispatch by the owner/admin; no CI_ENABLED gate (unset in this
+    # repo -- it would silently skip the job).
     runs-on: ubuntu-latest
     environment: production
     steps:
