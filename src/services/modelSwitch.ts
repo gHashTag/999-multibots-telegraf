@@ -12,7 +12,7 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
   ollama: 'наша (queen-ollama)',
   zai: 'платная (z.ai GLM)',
   kie: 'Kie (Gemini 2.5 Flash)',
-  'zai-lite': 'платная лёгкая (GLM 4.5)',
+  'zai-lite': 'платная лёгкая (GLM 4.5 Flash)',
   nemotron: 'NVIDIA Nemotron',
 }
 

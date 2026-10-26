@@ -2109,6 +2109,16 @@ export async function* streamModel(
       settled = true
       recordFailure(p.id, kind, why, Date.now(), probe)
     }
+    /*
+     * THE POOL BEFORE THE CHAIN. A z.ai refusal is this KEY's wall more
+     * often than the vendor's (KEY_WIDE_LIMIT_CODES in provider.ts), so a
+     * provider carrying GLM_API_KEYS asks its next key before the chain
+     * moves to the next provider. The breaker still hears ONE verdict per
+     * provider: the pool is exhausted first, so a key that fails fast costs
+     * one quick 4xx, not a skipped route.
+     */
+    const keys = p.keys && p.keys.length ? [...p.keys] : [p.key]
+    let keyAt = 0
 
     try {
       for (let attempt = 0; attempt <= RETRY_DROPPED_STREAM; attempt++) {
@@ -2153,7 +2163,7 @@ export async function* streamModel(
           const r = await fetch(`${p.base}/chat/completions`, {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${p.key}`,
+              Authorization: `Bearer ${keys[keyAt]}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
@@ -2163,6 +2173,20 @@ export async function* streamModel(
 
           if (!r.ok || !r.body) {
             const t = await r.text().catch(() => '')
+            /*
+             * The next key of THIS provider, before the next provider. The
+             * switch costs one quick 4xx and spends none of the
+             * dropped-stream retries below; `keys` is bounded, so this
+             * cannot loop.
+             */
+            if (keyAt + 1 < keys.length) {
+              keyAt += 1
+              attempt -= 1
+              console.warn(
+                `${RETRY_LOG_PREFIX} ${p.id}: ключ ${keyAt + 1}/${keys.length} после отказа предыдущего` // cyrillic-ok: log line
+              )
+              continue
+            }
             const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
             if (p.keyGroup && isKeyWideLimit(r.status, t)) {
               keyLimited.set(p.keyGroup, p.id)

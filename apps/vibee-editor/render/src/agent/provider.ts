@@ -84,6 +84,18 @@ export interface Provider {
   /** A small context: the seller's tools only, not all sixty-odd. */
   compact: boolean
   /**
+   * Every key this route may answer through, primary first, or just `key`.
+   * GLM_API_KEYS (comma-separated) feeds the rest. z.ai counts limits per
+   * key -- measured 2026-10-06: the production key answered 1302 three out
+   * of three while three other accounts' keys answered 200 on the same
+   * model -- and again 2026-10-26: glm-4.5-flash answered 200 on five pool
+   * keys while glm-5.3/glm-4.5 answered 1210/1113 on four of them. So when
+   * the primary key's wall is hit, the SAME route asks its next key before
+   * the chain moves on (chat.ts); the pool multiplies exactly the routes
+   * whose model the whole pool serves.
+   */
+  keys?: readonly string[]
+  /**
    * Ceiling on the answer, sent as `max_tokens`. Set for the reserve and Kie
    * routes only (spec: agent-provider-chain.t27 `ceiling_for`).
    *
@@ -347,15 +359,16 @@ const CATALOG: Record<
  * Поэтому петля перебирает их и собирает причины отказа по каждому.
  */
 /** Where a provider is available at all, key or not. */
-function available(id: ProviderId): { key: string } | null {
+function available(id: ProviderId): { key: string; keys: string[] } | null {
   const c = CATALOG[id]
-  if (id === 'ollama') return ollamaEnabled() ? { key: 'ollama' } : null
+  if (id === 'ollama')
+    return ollamaEnabled() ? { key: 'ollama', keys: ['ollama'] } : null
   if (id === 'reserve') {
     const r = reserveEnv()
-    return r ? { key: r.key } : null
+    return r ? { key: r.key, keys: [r.key] } : null
   }
   const key = keyFrom(c.env)
-  return key ? { key } : null
+  return key ? { key, keys: glmPoolKeys(key) } : null
 }
 
 /**
@@ -370,6 +383,22 @@ export function keyFrom(names: readonly string[]): string | undefined {
     if (v && v.trim()) return v
   }
   return undefined
+}
+
+/**
+ * The key pool behind a zai route: GLM_API_KEYS (comma-separated), the
+ * primary first, duplicates and blanks dropped. A blank variable, a trailing
+ * comma and a key that repeats the primary are all "the owner did not add a
+ * key", not an empty pool. Exported for tests; the values are secrets and
+ * are never logged.
+ */
+export function glmPoolKeys(primary: string): string[] {
+  const out = [primary]
+  for (const raw of (process.env.GLM_API_KEYS || '').split(',')) {
+    const k = raw.trim()
+    if (k && !out.includes(k)) out.push(k)
+  }
+  return out
 }
 
 /**
@@ -455,7 +484,7 @@ export function reserveMaxTokens(raw: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : RESERVE_MAX_TOKENS_DEFAULT
 }
 
-function build(id: ProviderId, key: string): Provider {
+function build(id: ProviderId, key: string, keys: string[]): Provider {
   const c = CATALOG[id]
   if (id === 'reserve') {
     const r = reserveEnv()!
@@ -464,6 +493,7 @@ function build(id: ProviderId, key: string): Provider {
       base: r.base,
       model: r.model,
       key: r.key,
+      keys: [r.key],
       thinking: c.thinking,
       tools: r.tools,
       vision: r.vision,
@@ -480,6 +510,7 @@ function build(id: ProviderId, key: string): Provider {
       base: endpointBase(undefined, `${SPEC.KIE_BASE_ROOT}/${model}/v1`),
       model,
       key,
+      keys: [key],
       thinking: c.thinking,
       tools: c.tools,
       vision: c.vision,
@@ -500,6 +531,7 @@ function build(id: ProviderId, key: string): Provider {
     base: c.base,
     model,
     key,
+    keys: id === 'ollama' ? undefined : keys,
     thinking: c.thinking,
     tools: c.tools,
     vision: c.vision,
@@ -589,7 +621,7 @@ export function providerChain(): { chain: Provider[]; note: string } {
   for (const id of providerOrder()) {
     const have = available(id)
     if (!have) continue
-    out.push(build(id, have.key))
+    out.push(build(id, have.key, have.keys))
   }
   markKeyGroups(out)
   const head = out[0]
