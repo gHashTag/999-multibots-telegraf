@@ -30,8 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
     libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools unzip \
     iverilog verilator yosys \
-    python3 util-linux \
+    python3 util-linux build-essential \
   && rm -rf /var/lib/apt/lists/*
+# build-essential: on arm64 some packages (utf-8-validate) ship no prebuild
+# and node-gyp compiles them from source; amd64 never reaches gyp.
 
 # The coding scientist's hands (src/agent/code-run.ts, code_run): Deno runs
 # TS/JS in a sandbox with every permission denied; python3 runs boxed by
