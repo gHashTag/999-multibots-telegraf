@@ -33,6 +33,15 @@ export interface Provider {
   base: string
   model: string
   key: string
+  /**
+   * ROTATION OF KEYS: the route's whole pool in rotation order, with `key`
+   * as its head. The pool is assembled from variables (providerKeys): a
+   * variable's value may list several keys separated by commas or
+   * semicolons, a plural sister variable (GLM_API_KEYS) adds a whole pool,
+   * and numbered sisters (GLM_API_KEY_2 .. _9) add one each. A one-key pool
+   * repeats `key` and everything behaves exactly as before.
+   */
+  keys?: readonly string[]
   /** Умеет ли отдавать поток размышления отдельным полем. */
   thinking: boolean
   /**
@@ -83,18 +92,6 @@ export interface Provider {
   context: number
   /** A small context: the seller's tools only, not all sixty-odd. */
   compact: boolean
-  /**
-   * Every key this route may answer through, primary first, or just `key`.
-   * GLM_API_KEYS (comma-separated) feeds the rest. z.ai counts limits per
-   * key -- measured 2026-10-06: the production key answered 1302 three out
-   * of three while three other accounts' keys answered 200 on the same
-   * model -- and again 2026-10-26: glm-4.5-flash answered 200 on five pool
-   * keys while glm-5.3/glm-4.5 answered 1210/1113 on four of them. So when
-   * the primary key's wall is hit, the SAME route asks its next key before
-   * the chain moves on (chat.ts); the pool multiplies exactly the routes
-   * whose model the whole pool serves.
-   */
-  keys?: readonly string[]
   /**
    * Ceiling on the answer, sent as `max_tokens`. Set for the reserve and Kie
    * routes only (spec: agent-provider-chain.t27 `ceiling_for`).
@@ -359,16 +356,15 @@ const CATALOG: Record<
  * Поэтому петля перебирает их и собирает причины отказа по каждому.
  */
 /** Where a provider is available at all, key or not. */
-function available(id: ProviderId): { key: string; keys: string[] } | null {
+function available(id: ProviderId): { key: string } | null {
   const c = CATALOG[id]
-  if (id === 'ollama')
-    return ollamaEnabled() ? { key: 'ollama', keys: ['ollama'] } : null
+  if (id === 'ollama') return ollamaEnabled() ? { key: 'ollama' } : null
   if (id === 'reserve') {
     const r = reserveEnv()
-    return r ? { key: r.key, keys: [r.key] } : null
+    return r ? { key: r.key } : null
   }
   const key = keyFrom(c.env)
-  return key ? { key, keys: glmPoolKeys(key) } : null
+  return key ? { key } : null
 }
 
 /**
@@ -386,19 +382,150 @@ export function keyFrom(names: readonly string[]): string | undefined {
 }
 
 /**
- * The key pool behind a zai route: GLM_API_KEYS (comma-separated), the
- * primary first, duplicates and blanks dropped. A blank variable, a trailing
- * comma and a key that repeats the primary are all "the owner did not add a
- * key", not an empty pool. Exported for tests; the values are secrets and
- * are never logged.
+ * The GLM-facing view of the pool (#4048): the primary first, then
+ * GLM_API_KEYS, blanks and duplicates dropped. providerKeys('zai') reads the
+ * same variable plus the numbered sisters; this narrower door stays because
+ * the operator's runbook names GLM_API_KEYS and its test pins the order.
  */
 export function glmPoolKeys(primary: string): string[] {
   const out = [primary]
-  for (const raw of (process.env.GLM_API_KEYS || '').split(',')) {
-    const k = raw.trim()
-    if (k && !out.includes(k)) out.push(k)
-  }
+  for (const k of splitKeys(process.env.GLM_API_KEYS || ''))
+    if (!out.includes(k)) out.push(k)
   return out
+}
+
+/**
+ * ROTATION OF KEYS.
+ *
+ * 2026-10-26 16:09 UTC, a live outage: every route ran out of its own
+ * resource at once -- zai 429 code 1305, nemotron "ResourceExhausted:
+ * Worker local total request limit reached (16/16)", reserve and kie
+ * "ключ недействителен" // cyrillic-ok: quoted refusal text, zai-lite "на
+ * ключе нет средств" // cyrillic-ok: quoted refusal text -- and the chain
+ * ended, while the owner's vendor consoles held more keys than the one
+ * variable each route read. Until this day a route read EXACTLY ONE key
+ * from one variable: restarting it meant reissuing the key by hand and
+ * rewriting a Railway variable while a person was waiting for an answer.
+ *
+ * A route now carries as many keys as the owner wrote:
+ *   -- the primary variable's value may list keys separated by commas,
+ *      semicolons or spaces (GLM_API_KEY="k1,k2,k3");
+ *   -- the plural sister variable adds a whole pool
+ *      (GLM_API_KEYS="k1,k2" -- the same as above);
+ *   -- numbered sisters add one each (GLM_API_KEY_2 .. GLM_API_KEY_9).
+ * A refusal that is THE KEY's fault -- this key's rate limit, an invalid
+ * key, no funds, NVIDIA's account ceiling -- moves the route to its next
+ * key (chat.ts) before the chain moves to the next provider. The cursor
+ * holds the last key that answered and lives in this process's memory: a
+ * restart returns to the first key, exactly like the breaker.
+ *
+ * WHAT DOES NOT ROTATE. 1305 is "the model is busy for everybody"
+ * (measured 2026-10-06): another key of the same route hits the same wall,
+ * and the way round it is the neighbouring model, as before. A nameless
+ * 429, a timeout and a 404 are not the key's fault: rotation would only
+ * pay for extra calls. isKeyFailure lists the measured cases only; an
+ * unmeasured one costs one quick extra call, a wrongly rotating one costs
+ * the answer that would have been.
+ */
+
+/** How many numbered sisters (_2 .. _9) are read for each variable. */
+export const KEY_POOL_SLOTS = 9 // t27-plumbing: how many numbered key variables exist on Railway, config not a rule
+
+/** Keys inside one variable's value: commas, semicolons and spaces split. */
+function splitKeys(raw: string | undefined): string[] {
+  return (raw || '')
+    .split(/[\s,;]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The route's whole pool in declaration order: each variable from `env`
+ * (its value may list several keys), then its plural sister NAME_KEYS,
+ * then the numbered sisters NAME_2 .. NAME_9. Duplicates and blanks are
+ * dropped. Key values are never logged.
+ */
+export function providerKeys(id: ProviderId): string[] {
+  const c = CATALOG[id]
+  const names: readonly string[] =
+    id === 'reserve' ? ['RESERVE_API_KEY'] : id === 'ollama' ? [] : c.env
+  const pool: string[] = []
+  const push = (k: string) => {
+    if (k && !pool.includes(k)) pool.push(k)
+  }
+  for (const name of names) {
+    for (const k of splitKeys(process.env[name])) push(k)
+    // The plural sister: GLM_API_KEY -> GLM_API_KEYS, KIE_AI_API_KEY ->
+    // KIE_AI_API_KEYS. A whole extra pool in one variable.
+    for (const k of splitKeys(process.env[name.replace(/KEY$/, 'KEYS')]))
+      push(k)
+    for (let i = 2; i <= KEY_POOL_SLOTS; i++)
+      for (const k of splitKeys(process.env[`${name}_${i}`])) push(k)
+  }
+  return pool
+}
+
+/** The rotation cursor: the pool index this route starts from. */
+const keyCursor = new Map<ProviderId, number>()
+
+/**
+ * The pool in rotation order: from the cursor, wrapping around. Fewer than
+ * two keys -- no rotation; a cursor past the pool's end (the key was
+ * removed on Railway) wraps by modulo instead of crashing.
+ */
+export function keyChain(id: ProviderId): string[] {
+  const pool = providerKeys(id)
+  if (pool.length < 2) return pool
+  const at = keyCursor.get(id) ?? 0
+  const off = ((at % pool.length) + pool.length) % pool.length
+  return [...pool.slice(off), ...pool.slice(0, off)]
+}
+
+/**
+ * The verdict on one key (chat.ts): success -- start from it next turn,
+ * a key-class refusal -- start past it. A key that is no longer in the
+ * pool (the variables changed) moves nothing.
+ */
+export function rememberKey(
+  id: ProviderId,
+  key: string,
+  worked: boolean
+): void {
+  const pool = providerKeys(id)
+  const at = pool.indexOf(key)
+  if (at < 0) return
+  keyCursor.set(id, worked ? at : (at + 1) % pool.length)
+}
+
+/** For tests: forget the rotation cursors. */
+export function forgetKeyRotationForTests(): void {
+  keyCursor.clear()
+}
+
+/**
+ * A refusal that is THE KEY's fault -- the reason to try this route's next
+ * key. Takes a ready reason line (diagnose()/notAStream() or a mid-stream
+ * error text): 401 "ключ недействителен" // cyrillic-ok: quoted refusal
+ * text, 402/1113 "на ключе нет средств" // cyrillic-ok: quoted refusal
+ * text, z.ai code 1302 -- THIS key's rate limit (measured 2026-10-06: the
+ * production key answered 1302 three out of three while three other
+ * accounts' keys answered 200 on the same model), NVIDIA ResourceExhausted
+ * "request limit reached" -- the account ceiling (16/16, 2026-09-13 and
+ * 2026-10-26). 1305, a nameless 429, a timeout and a 404 are false here on
+ * purpose -- see the rotation block above.
+ */
+// t27-plumbing: classifies an already-produced refusal line for routing, it decides nothing by itself
+export function isKeyFailure(reason: string): boolean {
+  const b = (reason || '').toLowerCase()
+  return (
+    b.includes('ключ недействителен') ||
+    b.includes('на ключе нет средств') ||
+    b.includes('insufficient balance') ||
+    b.includes('requires more credits') ||
+    b.includes('code 1302') ||
+    b.includes('resourceexhausted') ||
+    b.includes('request limit reached')
+  )
 }
 
 /**
@@ -484,16 +611,21 @@ export function reserveMaxTokens(raw: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : RESERVE_MAX_TOKENS_DEFAULT
 }
 
-function build(id: ProviderId, key: string, keys: string[]): Provider {
+function build(id: ProviderId, key: string): Provider {
   const c = CATALOG[id]
+  // The pool in rotation order; `key` (the first set variable) is only the
+  // fallback head when the pool is somehow empty. The cursor inside keyChain
+  // is what makes every other consumer of Provider.key (duet, media, voice)
+  // start from the key that answered last, not from a dead one.
+  const keys = keyChain(id)
   if (id === 'reserve') {
     const r = reserveEnv()!
     return {
       id,
       base: r.base,
       model: r.model,
-      key: r.key,
-      keys: [r.key],
+      key: keys[0] || r.key,
+      keys: keys.length ? keys : [r.key],
       thinking: c.thinking,
       tools: r.tools,
       vision: r.vision,
@@ -509,8 +641,8 @@ function build(id: ProviderId, key: string, keys: string[]): Provider {
       id,
       base: endpointBase(undefined, `${SPEC.KIE_BASE_ROOT}/${model}/v1`),
       model,
-      key,
-      keys: [key],
+      key: keys[0] || key,
+      keys: keys.length ? keys : [key],
       thinking: c.thinking,
       tools: c.tools,
       vision: c.vision,
@@ -530,8 +662,8 @@ function build(id: ProviderId, key: string, keys: string[]): Provider {
     id,
     base: c.base,
     model,
-    key,
-    keys: id === 'ollama' ? undefined : keys,
+    key: keys[0] || key,
+    keys: keys.length ? keys : [key],
     thinking: c.thinking,
     tools: c.tools,
     vision: c.vision,
@@ -621,7 +753,7 @@ export function providerChain(): { chain: Provider[]; note: string } {
   for (const id of providerOrder()) {
     const have = available(id)
     if (!have) continue
-    out.push(build(id, have.key, have.keys))
+    out.push(build(id, have.key))
   }
   markKeyGroups(out)
   const head = out[0]
