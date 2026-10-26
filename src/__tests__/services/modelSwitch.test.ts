@@ -177,7 +177,7 @@ describe('the words', () => {
     )
     const t = describeProvider({
       ...zaiHead,
-      answering: { id: 'zai-lite', model: 'glm-4.5' },
+      answering: { id: 'zai-lite', model: 'glm-4.5-flash' },
       breakers: [
         {
           id: 'zai',
@@ -188,7 +188,7 @@ describe('the words', () => {
       ],
     } as never)
     expect(t, 'the view named zai while zai-lite answered').toContain(
-      'Сейчас отвечает: платная лёгкая (GLM 4.5) · glm-4.5'
+      'Сейчас отвечает: платная лёгкая (GLM 4.5 Flash) · glm-4.5-flash'
     )
     expect(t).toContain('до 08:19 UTC')
     expect(t).toContain('timed out after 120 s')
