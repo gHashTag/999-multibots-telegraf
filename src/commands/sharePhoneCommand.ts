@@ -31,7 +31,10 @@ import { MINI_APP_URL } from '../navigation/config/miniApp.config'
  */
 export const sharePhoneCommand = new Composer<MyContext>()
 
-const БАЗА = 'https://vibee-render-production.up.railway.app'
+// Same render the rest of the bot calls; RENDER_BASE_URL moves both together.
+const БАЗА =
+  process.env.RENDER_BASE_URL ||
+  'https://vibee-render-production.up.railway.app'
 
 /**
  * THE WAY ONWARDS, NOT JUST A CONFIRMATION.
