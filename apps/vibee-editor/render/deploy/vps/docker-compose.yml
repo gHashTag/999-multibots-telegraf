@@ -1,0 +1,24 @@
+# vibee-render on the T27OS VPS: the same image Railway builds, under systemd.
+# Build context is the repo root's apps/vibee-editor (the render Dockerfile
+# depends on @vibee/atoms via file:../packages/vibee-atoms).
+services:
+  vibee-render:
+    build:
+      context: ../../..            # apps/vibee-editor
+      dockerfile: render/Dockerfile
+    image: vibee-render:local
+    container_name: vibee-render
+    env_file: /opt/vibee-render/.env
+    ports:
+      - "127.0.0.1:8090:8080"      # Caddy terminates TLS in front of this
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s           # first boot warms Chrome (same as Railway)
+    # Chrome + ffmpeg need room; the floor is in README.md. Do not raise these
+    # above what the host actually has -- an OOM kill mid-render is worse than
+    # a slow render.
+    mem_limit: 6g
