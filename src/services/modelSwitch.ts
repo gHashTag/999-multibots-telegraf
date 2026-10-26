@@ -4,7 +4,12 @@
  */
 import { RenderDidNotAnswer, RenderRefusedTheKey } from './renderTimeout'
 
-const BASE = 'https://vibee-render-production.up.railway.app'
+// The render the bot calls. RENDER_BASE_URL points it at any T27OS node
+// (the VPS, the Mac) without a code change; unset, it stays on Railway
+// until the cutover lands.
+const BASE =
+  process.env.RENDER_BASE_URL ||
+  'https://vibee-render-production.up.railway.app'
 const apiKey = () => process.env.RENDER_API_KEY || ''
 
 export type ProviderId = 'zai' | 'kie' | 'zai-lite' | 'nemotron' | 'ollama'
