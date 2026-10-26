@@ -1,0 +1,90 @@
+# Render cutover to the T27OS node (igor-house.duckdns.org/vibee/).
+# Owner order 2026-10-26: delete Railway from everywhere, run decentralized.
+# Two actions, run in this order:
+#   1. export-env    -- pulls /root/bot-farm/.env into a PRIVATE artifact so
+#                       the T27OS node (the Mac render) can be seeded with the
+#                       same secrets; the artifact inherits this PRIVATE repo's
+#                       access and expires in 1 day.
+#   2. cutover       -- sets RENDER_BASE_URL + GLM_API_KEYS in the bot env and
+#                       restarts the bot container. Rollback: run again with
+#                       rollback=true (unsets both, restarts).
+name: Render cutover to T27OS node
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'export-env | cutover'
+        required: true
+        type: choice
+        options:
+          - export-env
+          - cutover
+      glm_api_keys:
+        description: 'GLM_API_KEYS for the bot env (cutover only)'
+        required: false
+        type: string
+      rollback:
+        description: 'cutover: unset RENDER_BASE_URL/GLM_API_KEYS and restart'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  BOT_HOST: 212.86.115.30
+  BOT_PATH: /root/bot-farm
+  BOT_CONTAINER: 999-multibots
+
+jobs:
+  bot-farm:
+    if: vars.CI_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: SSH setup
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.BOT_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Export bot env to artifact
+        if: inputs.action == 'export-env'
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            root@${{ env.BOT_HOST }} 'cat ${{ env.BOT_PATH }}/.env' > bot-env.txt
+          wc -l bot-env.txt
+      - name: Upload bot env artifact
+        if: inputs.action == 'export-env'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-env
+          path: bot-env.txt
+          retention-days: 1
+
+      - name: Cutover -- point the bot at the T27OS render node
+        if: inputs.action == 'cutover' && inputs.rollback == false
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ env.BOT_HOST }} "
+            cd ${{ env.BOT_PATH }}
+            grep -q '^RENDER_BASE_URL=' .env \
+              && sed -i 's|^RENDER_BASE_URL=.*|RENDER_BASE_URL=https://igor-house.duckdns.org/vibee|' .env \
+              || echo 'RENDER_BASE_URL=https://igor-house.duckdns.org/vibee' >> .env
+            grep -q '^GLM_API_KEYS=' .env \
+              && sed -i 's|^GLM_API_KEYS=.*|GLM_API_KEYS=${{ inputs.glm_api_keys }}|' .env \
+              || echo 'GLM_API_KEYS=${{ inputs.glm_api_keys }}' >> .env
+            grep -c '^RENDER_BASE_URL=\|^GLM_API_KEYS=' .env
+            docker restart ${{ env.BOT_CONTAINER }}
+          "
+
+      - name: Rollback -- back to the Railway render
+        if: inputs.action == 'cutover' && inputs.rollback == true
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ env.BOT_HOST }} "
+            cd ${{ env.BOT_PATH }}
+            sed -i '/^RENDER_BASE_URL=/d; /^GLM_API_KEYS=/d' .env
+            docker restart ${{ env.BOT_CONTAINER }}
+          "
