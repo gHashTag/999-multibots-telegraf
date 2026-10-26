@@ -39,8 +39,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # tool says "not installed" and the agent must answer "не запускалось" --
 # code-run-in-the-image.test.ts. Deno is pinned and installed to a dir on PATH.
 ENV DENO_VERSION=v2.9.6 DENO_INSTALL=/usr/local
-RUN wget -qO /tmp/deno.zip \
-      "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" \
+# TARGETARCH is amd64 on Railway and arm64 on the Apple-Silicon T27OS nodes
+# (the owner's 2026-10-26 order: the render runs on our own machines, which
+# are arm64). Deno ships both; the map is Docker's arch -> Deno's spelling.
+ARG TARGETARCH
+RUN DENO_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo aarch64 || echo x86_64) && \
+    wget -qO /tmp/deno.zip \
+      "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-${DENO_ARCH}-unknown-linux-gnu.zip" \
   && unzip -o /tmp/deno.zip -d /usr/local/bin \
   && rm /tmp/deno.zip \
   && chmod +x /usr/local/bin/deno \
