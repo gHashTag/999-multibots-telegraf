@@ -44,9 +44,11 @@ import { asksForAPicture, noteOwed } from './crm-owed'
 import {
   allProviders,
   diagnose,
+  isKeyFailure,
   isKeyWideLimit,
   notAStream,
   plainCompletion,
+  rememberKey,
   sharedKeyReason,
   type ProviderId,
 } from './provider'
@@ -2073,6 +2075,15 @@ export async function* streamModel(
    * same refusal. Per turn only: the breaker keeps its own counts.
    */
   const keyLimited = new Map<string, ProviderId>()
+  /*
+   * The KEY-wide refusals of this turn, by key value (never logged). With
+   * pools the routes overlap only partly -- zai-lite carries its own key
+   * PLUS the shared GLM pool -- so a 1302 zai just took on glm-shared must
+   * stop zai-lite from burning a call on the same key as its SECOND key,
+   * even though the two routes no longer share a head and the keyGroup rule
+   * above does not fire.
+   */
+  const keyWideRefused = new Set<string>()
   providerLoop: for (const p of chain) {
     if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
     const limitedBy = p.keyGroup ? keyLimited.get(p.keyGroup) : undefined
@@ -2108,6 +2119,31 @@ export async function* streamModel(
     const fail = (kind: 'timeout' | 'error', why: string) => {
       settled = true
       recordFailure(p.id, kind, why, Date.now(), probe)
+    }
+    /*
+     * THE POOL BEFORE THE CHAIN (provider.ts, the key-rotation block). p.keys is the
+     * route's whole pool, rotated so that p.key -- its head -- is the key
+     * that answered last. A refusal that is THE KEY's wall (isKeyFailure:
+     * this key's rate limit 1302, an invalid key, no funds, NVIDIA's account
+     * ceiling) moves the route to its NEXT key before the chain moves to the
+     * next provider; 1305, a bare 429, a timeout and a 404 are not the key's
+     * wall and behave exactly as before. One key in the pool: the rotation
+     * checks below never fire and the turn is byte-for-byte the old one.
+     */
+    const keys = p.keys && p.keys.length ? [...p.keys] : [p.key]
+    let keyAt = 0
+    /*
+     * The next pool index that is not already key-wide-refused this turn.
+     * Skipped keys are remembered as fallen: another route's 1302 is as
+     * good as this route's own.
+     */
+    const nextFreshKey = (from: number) => {
+      let i = from
+      while (i < keys.length && keyWideRefused.has(keys[i])) {
+        rememberKey(p.id, keys[i], false)
+        i += 1
+      }
+      return i
     }
 
     try {
@@ -2153,7 +2189,7 @@ export async function* streamModel(
           const r = await fetch(`${p.base}/chat/completions`, {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${p.key}`,
+              Authorization: `Bearer ${keys[keyAt]}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
@@ -2164,8 +2200,30 @@ export async function* streamModel(
           if (!r.ok || !r.body) {
             const t = await r.text().catch(() => '')
             const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
-            if (p.keyGroup && isKeyWideLimit(r.status, t)) {
-              keyLimited.set(p.keyGroup, p.id)
+            if (isKeyWideLimit(r.status, t)) {
+              keyWideRefused.add(keys[keyAt])
+              if (p.keyGroup) keyLimited.set(p.keyGroup, p.id)
+            }
+            /*
+             * The next key of THIS route, before the next provider. The
+             * switch costs one quick 4xx and does not spend the
+             * dropped-stream budget below (attempt is wound back); keyAt
+             * only grows, so this cannot loop. Keys another route already
+             * proved key-wide-limited are stepped over, not re-asked.
+             */
+            // cyrillic-ok-next-line: pre-existing identifier
+            if (isKeyFailure(почему)) {
+              // cyrillic-ok: pre-existing identifier
+              rememberKey(p.id, keys[keyAt], false)
+              const fresh = nextFreshKey(keyAt + 1)
+              if (fresh < keys.length) {
+                keyAt = fresh
+                attempt -= 1
+                console.warn(
+                  `${RETRY_LOG_PREFIX} ${p.id}: ключ ${keyAt + 1}/${keys.length} после отказа предыдущего` // cyrillic-ok: log line
+                )
+                continue
+              }
             }
             skipped(почему) // cyrillic-ok: pre-existing identifier
             причины.push(почему) // cyrillic-ok: pre-existing identifier
@@ -2256,6 +2314,22 @@ export async function* streamModel(
             const m = plainCompletion(whole)
             if (!m) {
               const почему = notAStream(p.id, r.status, whole) // cyrillic-ok: pre-existing identifier
+              // Kie answers its own refusals inside a 200; a key-class code
+              // there rotates the pool the same way a status would.
+              // cyrillic-ok-next-line: pre-existing identifier
+              if (isKeyFailure(почему)) {
+                // cyrillic-ok: pre-existing identifier
+                rememberKey(p.id, keys[keyAt], false)
+                const fresh = nextFreshKey(keyAt + 1)
+                if (fresh < keys.length) {
+                  keyAt = fresh
+                  attempt -= 1
+                  console.warn(
+                    `${RETRY_LOG_PREFIX} ${p.id}: ключ ${keyAt + 1}/${keys.length} после отказа предыдущего` // cyrillic-ok: log line
+                  )
+                  continue
+                }
+              }
               skipped(почему) // cyrillic-ok: pre-existing identifier
               причины.push(почему) // cyrillic-ok: pre-existing identifier
               fail('error', почему) // cyrillic-ok: pre-existing identifier
@@ -2277,6 +2351,9 @@ export async function* streamModel(
           if (String(acc.content || '').trim() || acc.tool_calls?.length) {
             settled = true
             recordSuccess(p.id)
+            // This key answered: the next turn of every consumer starts
+            // from it (provider.ts keyCursor).
+            rememberKey(p.id, keys[keyAt], true)
           }
           const endedAt = Date.now()
           yield {
@@ -2319,6 +2396,27 @@ export async function* streamModel(
              */
             console.warn(`${RETRY_LOG_PREFIX} ${почему}`)
             continue
+          }
+          /*
+           * An error thrown MID-STREAM is how NVIDIA names its account
+           * ceiling ("ResourceExhausted: Worker local total request limit
+           * reached (16/16)", 2026-09-13 and 2026-10-26): the route's next
+           * key -- another account's key -- is the way round it. A timeout
+           * is never the key's fault.
+           */
+          // cyrillic-ok-next-line: pre-existing identifier
+          if (!timedOut && isKeyFailure(почему)) {
+            // cyrillic-ok: pre-existing identifier
+            rememberKey(p.id, keys[keyAt], false)
+            const fresh = nextFreshKey(keyAt + 1)
+            if (fresh < keys.length) {
+              keyAt = fresh
+              attempt -= 1
+              console.warn(
+                `${RETRY_LOG_PREFIX} ${p.id}: ключ ${keyAt + 1}/${keys.length} после отказа предыдущего` // cyrillic-ok: log line
+              )
+              continue
+            }
           }
           skipped(почему) // cyrillic-ok: pre-existing identifier
           причины.push(почему) // cyrillic-ok: pre-existing identifier
