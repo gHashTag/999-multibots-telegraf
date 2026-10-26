@@ -22,6 +22,7 @@ import {
   BREAKER_LOG_PREFIX,
   breakerSnapshot,
   forgetBreakersForTests,
+  forgetHealthForTests,
 } from './provider-breaker'
 import {
   chooseProvider,
@@ -150,6 +151,7 @@ beforeEach(() => {
   vi.stubEnv('OLLAMA_BASE_URL', '')
   vi.stubEnv('RAILWAY_SERVICE_QUEEN_OLLAMA_URL', '')
   vi.stubEnv('OLLAMA_ENABLED', '')
+  forgetHealthForTests()
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   log = vi.spyOn(console, 'log').mockImplementation(() => {})
 })

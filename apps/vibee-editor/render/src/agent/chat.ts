@@ -55,11 +55,14 @@ import {
 } from './provider'
 import {
   claimProbe,
+  fastestFirst,
   orderByBreaker,
   recordFailure,
+  recordFirstByte,
   recordSuccess,
   releaseProbe,
 } from './provider-breaker'
+import * as CHAIN_RULES from '../spec/agent-provider-chain.logic'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate, madeFileUrl } from './asset-links'
@@ -2060,9 +2063,21 @@ export async function* streamModel(
   const preferred = opts.prefer
     ? ordered.find(p => p.id === opts.prefer)
     : undefined
+  /*
+   * THE HEAD NEVER MOVES: chain[0] is the owner's pick or the configured
+   * order's survivor. The followers reorder by the breaker's rolling
+   * first-byte average (spec v5, fastest_first_swaps) -- a route measured
+   * slower by more than the hysteresis rides behind a faster one. Routes
+   * with no data keep their place. Parked routes were already moved last by
+   * the breaker and fastestFirst keeps that (health order applies inside the
+   * rest it is given).
+   */
   const chain = preferred
     ? [preferred, ...ordered.filter(p => p !== preferred)]
-    : ordered
+    : ordered.length
+      ? [ordered[0], ...fastestFirst(ordered.slice(1))]
+      : ordered
+  const headId = chain[0]?.id
 
   // Перебираем настроенных провайдеров: заданный ключ ещё не значит рабочий.
   // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
@@ -2134,6 +2149,16 @@ export async function* streamModel(
     const keys = p.keys && p.keys.length ? [...p.keys] : [p.key]
     let keyAt = 0
     /*
+     * THE HEAD KEEPS THE WHOLE SILENCE WINDOW; every follower gets half
+     * (spec v5, silence_budget). The measured outage minutes were the
+     * second and third route standing in line for the head's full quiet
+     * window -- a follower that goes quiet fails fast into the next route.
+     */
+    const silenceMs = CHAIN_RULES.silenceBudget(
+      PROVIDER_SILENCE_MS,
+      p.id === headId
+    )
+    /*
      * The next pool index that is not already key-wide-refused this turn.
      * Skipped keys are remembered as fallen: another route's 1302 is as
      * good as this route's own.
@@ -2169,7 +2194,7 @@ export async function* streamModel(
           silence = setTimeout(() => {
             deadline ??= 'silence'
             ac.abort()
-          }, PROVIDER_SILENCE_MS)
+          }, silenceMs)
         }
         const startedAt = Date.now()
         let firstByteAt = 0
@@ -2359,7 +2384,9 @@ export async function* streamModel(
             settled = true
             recordSuccess(p.id)
             // This key answered: the next turn of every consumer starts
-            // from it (provider.ts keyCursor).
+            // from it (provider.ts keyCursor). Its first byte feeds the
+            // rolling average the health order reads (spec v5, ema_next).
+            if (firstByteAt) recordFirstByte(p.id, firstByteAt - startedAt)
             rememberKey(p.id, keys[keyAt], true)
           }
           const endedAt = Date.now()
@@ -2378,7 +2405,7 @@ export async function* streamModel(
           const почему = !timedOut
             ? `${p.id}: ${String(e).slice(0, 140)}`
             : deadline === 'silence'
-              ? `${p.id}: молчал ${PROVIDER_SILENCE_MS / 1000}с (таймаут)` // cyrillic-ok: reason text
+              ? `${p.id}: молчал ${silenceMs / 1000}с (таймаут)` // cyrillic-ok: reason text
               : `${p.id}: не ответил за ${PROVIDER_CEILING_MS / 1000}с (таймаут)` // cyrillic-ok: reason text
           // Уже отдали текст — молчаливый перевод на другого провайдера склеил
           // бы два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.

@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import * as SPEC from './agent-provider-chain.gen'
 import {
   contains,
+  emaNext,
+  fastestFirstSwaps,
   keyFailure,
   nextCursor,
   rotationOffset,
+  silenceBudget,
 } from './agent-provider-chain.logic'
 import {
   RESERVE_MAX_TOKENS_DEFAULT,
@@ -167,7 +170,7 @@ describe('agent-provider-chain.t27 against the host', () => {
   })
 
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(4)
+    expect(SPEC.VERSION).toBe(5)
   })
 
   it('the reserve route is configured live; an answer from it is not claimed', () => {
@@ -296,5 +299,22 @@ describe('agent-provider-chain.t27 against the host', () => {
     expect(nextCursor(3, 1, true)).toBe(1)
     expect(nextCursor(0, 0, false)).toBe(0)
     expect(nextCursor(3, 5, true)).toBe(0)
+  })
+
+  it("a follower's silence budget is half, the head keeps the whole window", () => {
+    expect(SPEC.SILENCE_AFTER_HEAD_PCT).toBe(50)
+    expect(silenceBudget(60000, true)).toBe(60000)
+    expect(silenceBudget(60000, false)).toBe(30000)
+    expect(silenceBudget(0, false)).toBe(0)
+  })
+
+  it('the health order swaps only beyond the hysteresis and the average rolls', () => {
+    expect(SPEC.SWAP_HYSTERESIS_MS).toBe(1500)
+    expect(emaNext(1000, 2000)).toBe(1300)
+    expect(emaNext(0, 900)).toBe(270)
+    expect(fastestFirstSwaps(500, 3000)).toBe(true)
+    expect(fastestFirstSwaps(3000, 500)).toBe(false)
+    expect(fastestFirstSwaps(1000, 2000)).toBe(false)
+    expect(fastestFirstSwaps(2000, 2000)).toBe(false)
   })
 })

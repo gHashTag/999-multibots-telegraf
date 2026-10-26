@@ -7,7 +7,10 @@ import {
   keyFrom,
   vendorCode,
 } from './provider'
-import { forgetBreakersForTests } from './provider-breaker'
+import {
+  forgetBreakersForTests,
+  forgetHealthForTests,
+} from './provider-breaker'
 import { forgetProviderChoiceForTests } from './provider-choice'
 
 // The root vitest config sets KIE_AI_API_KEY for every test, which would put
@@ -15,6 +18,7 @@ import { forgetProviderChoiceForTests } from './provider-choice'
 // chains are the ones without it; kie has its own tests.
 beforeEach(() => {
   vi.stubEnv('KIE_AI_API_KEY', '')
+  forgetHealthForTests()
 })
 
 /**
