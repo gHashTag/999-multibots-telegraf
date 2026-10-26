@@ -55,6 +55,14 @@
 // (rotation_offset, next_cursor). What deliberately rotates nothing: 1305 is the model busy for
 // everybody -- another key hits the same wall, and the neighbouring model stays the way round
 // it; a nameless 429, a timeout and a 404 are not the key's fault.
+// WHY v5, the speed levers (2026-10-26, 999 PR after #4050): the measured outage minutes were
+// SILENCE -- nemotron held the 120 s ceiling and zai-lite 60 s of quiet while the chain stood in
+// line. Two rules: (1) silence_budget -- a route that is not the head of the chain gets half
+// the silence budget, so the second and later routes fail fast instead of burning minutes;
+// (2) fastest_first_swaps -- once a turn's chain has more than one route left, the breaker's
+// rolling first-byte EMA may reorder the REST of the chain (the head and the owner's pick never
+// move) when one route is faster than another by more than SWAP_HYSTERESIS_MS. ema_next is the
+// rolling average the breaker keeps: 70% old, 30% fresh, in integer math.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_provider_chain {
@@ -62,7 +70,7 @@ module automation::agent_provider_chain {
     pub const KIND : str = "automation";
     pub const ID : str = "agent-provider-chain";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- The chain -----------------------------------------------------------------------
     // Default order: the free zai, then Kie (v3), the other paid routes, the reserve, our own model last.
@@ -215,7 +223,7 @@ module automation::agent_provider_chain {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 
     test "capabilities of the reserve model are the owner's declaration" {
@@ -380,6 +388,52 @@ module automation::agent_provider_chain {
         assert(next_cursor(3, 1, true) == 1);
         assert(next_cursor(0, 0, false) == 0);
         assert(next_cursor(3, 5, true) == 0);
+    }
+
+    // ---- v5: the speed levers --------------------------------------------------------------
+    // (1) A route that is not the head of the chain gets this share of the silence budget:
+    // the measured outage minutes were silence, and the second route in line has no business
+    // burning the head's full quiet window.
+    pub const SILENCE_AFTER_HEAD_PCT : u8 = 50;
+    // (2) The rest of the chain reorders by the breaker's rolling first-byte average only when
+    // one route is faster than another by more than this -- a margin, so the order does not
+    // flap between two healthy routes that answer within a hundred milliseconds of each other.
+    pub const SWAP_HYSTERESIS_MS : u32 = 1500;
+
+    // The silence budget for one route: the head keeps the whole window, every follower gets
+    // the share above. The head's place is decided before this is asked (demote_head, the
+    // owner's pick); a follower that goes quiet fails fast into the next route.
+    pub fn silence_budget(budget: u32, is_head: bool) -> u32 {
+        if (is_head) { return budget; }
+        return budget * SILENCE_AFTER_HEAD_PCT / 100;
+    }
+
+    // The breaker's rolling first-byte average: 70% old, 30% fresh, integer math.
+    pub fn ema_next(prev: u32, sample: u32) -> u32 {
+        return (prev * 7 + sample * 3) / 10;
+    }
+
+    // May the health order swap two routes: only when `a` is faster than `b` by more than the
+    // hysteresis. Everything else keeps its place.
+    pub fn fastest_first_swaps(a: u32, b: u32) -> bool {
+        return a + SWAP_HYSTERESIS_MS < b;
+    }
+
+    test "a follower's silence budget is half, the head keeps the whole window" {
+        assert(SILENCE_AFTER_HEAD_PCT == 50);
+        assert(silence_budget(60000, true) == 60000);
+        assert(silence_budget(60000, false) == 30000);
+        assert(silence_budget(0, false) == 0);
+    }
+
+    test "the health order swaps only beyond the hysteresis and the average rolls" {
+        assert(SWAP_HYSTERESIS_MS == 1500);
+        assert(ema_next(1000, 2000) == 1300);
+        assert(ema_next(0, 900) == 270);
+        assert(fastest_first_swaps(500, 3000));
+        assert(!fastest_first_swaps(3000, 500));
+        assert(!fastest_first_swaps(1000, 2000));
+        assert(!fastest_first_swaps(2000, 2000));
     }
 }
 // phi^2 + 1/phi^2 = 3 | TRINITY
