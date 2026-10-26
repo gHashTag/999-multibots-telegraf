@@ -87,6 +87,24 @@ async function throughItsBot(
   return false
 }
 
+/**
+ * STRIP AGENT MARKUP (production, 26.10.2026): the owner's chat received a
+ * raw `<think>...</think>` reasoning block and a `<tool_call>` dump as a
+ * client-facing message -- the model's scaffolding leaked into the text a
+ * person reads. Every send passes through THIS one place, so the scaffolding
+ * is stripped here, once, for all composers.
+ */
+export function stripAgentMarkup(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/i, '') // an unclosed think block swallows the rest
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/<tool_call>[\s\S]*$/i, '')
+    .replace(/<\/?(think|tool_call)>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export async function sendToTelegram(
   telegramId: string,
   message: string,
@@ -106,6 +124,7 @@ export async function sendToTelegram(
     event?: EventKey
   }
 ): Promise<void> {
+  message = stripAgentMarkup(message)
   const sent = await throughItsBot(telegramId, t =>
     sendOnce(t, telegramId, message, replyMarkup, options)
   )
