@@ -139,9 +139,11 @@ export async function generateNeuroPhotoHybrid(
     explicitAspectRatio,
   })
 
-  // Проверка доступности провайдера
+  // Provider availability gate. One provider -- kie.ai (kie-only,
+  // 2026-10-02); fal and Replicate are closed, and probing them would
+  // silently route to the minimum of whoever still answers.
   const { isProviderAvailable } = await import('./provider-health-monitor')
-  if (!isProviderAvailable('fal.ai') && !isProviderAvailable('replicate')) {
+  if (!isProviderAvailable('kie')) {
     const is_ru = await isRussianFromState(ctx)
     await ctx.reply(
       is_ru

@@ -1,24 +1,19 @@
 /**
  * Tests for generateNeuroPhotoDirect service
- * Covers: Fal.ai integration, Replicate fallback, payment processing, idempotency
+ * Covers: kie.ai generation (the one provider, owner's kie-only rule
+ * 2026-10-02), payment processing, idempotency, refunds
  */
 
-import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import { ModeEnum } from '../../interfaces/modes'
 import type { MutableCtx } from '../helpers/mutableContext'
 
-// Mock all dependencies BEFORE importing the module under test
-vi.mock('@fal-ai/client', () => ({
-  fal: {
-    config: vi.fn(),
-    subscribe: vi.fn(),
-  },
-}))
+// Mock all dependencies BEFORE importing the module under test.
+// The fal/Replicate mocks that used to live here are gone with the providers
+// themselves: generation goes through kie.ai and nothing else.
 
-vi.mock('../../core/replicate', () => ({
-  replicate: {
-    run: vi.fn(),
-  },
+vi.mock('../../services/generateNeuroPhotoKie', () => ({
+  generateNeuroPhotoViaKie: vi.fn(),
 }))
 
 vi.mock('../../core/supabase', () => ({
@@ -70,10 +65,6 @@ vi.mock('../../helpers/pulse', () => ({
   sendMediaToPulse: vi.fn(),
 }))
 
-vi.mock('../../helpers/error/processApiResponse', () => ({
-  processApiResponse: vi.fn(),
-}))
-
 vi.mock('../../utils/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -84,8 +75,7 @@ vi.mock('../../utils/logger', () => ({
 }))
 
 // Import mocked modules
-import { fal } from '@fal-ai/client'
-import { replicate } from '../../core/replicate'
+import { generateNeuroPhotoViaKie } from '../../services/generateNeuroPhotoKie'
 import { getUserByTelegramId, savePromptDirect } from '../../core/supabase'
 import { getAspectRatio } from '../../core/supabase/ai'
 import { directPaymentProcessor } from '../../core/supabase/directPayment'
@@ -94,9 +84,10 @@ import { calculateModeCost } from '../../price/helpers/modelsCost'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
 import { saveFileLocally } from '../../helpers/saveFileLocally'
 import { sendMediaToPulse } from '../../helpers/pulse'
-import { processApiResponse } from '../../helpers/error/processApiResponse'
 import { generateNeuroPhotoDirect } from '../../services/generateNeuroPhotoDirect'
 import { MyContext } from '../../interfaces'
+
+const KIE_URL = 'https://kie.example/generated-image.jpg'
 
 describe('generateNeuroPhotoDirect', () => {
   let mockContext: MutableCtx
@@ -134,6 +125,7 @@ describe('generateNeuroPhotoDirect', () => {
     } as any
 
     // Setup default mock returns
+    ;(generateNeuroPhotoViaKie as Mock).mockResolvedValue(KIE_URL)
     ;(getBotByName as Mock).mockReturnValue({ bot: mockBot, error: null })
     ;(getUserByTelegramId as Mock).mockResolvedValue({
       id: 'user-uuid',
@@ -148,31 +140,10 @@ describe('generateNeuroPhotoDirect', () => {
     ;(saveFileLocally as Mock).mockResolvedValue('/local/path/image.jpg')
     ;(sendMediaToPulse as Mock).mockResolvedValue(undefined)
     ;(savePromptDirect as Mock).mockResolvedValue(undefined)
-
-    // Setup FAL_KEY env
-    process.env.FAL_KEY = 'test-fal-key'
   })
 
-  afterEach(() => {
-    delete process.env.FAL_KEY
-  })
-
-  describe('1. Успешная генерация через Fal.ai', () => {
-    it('должна генерировать изображение через Fal.ai с LoRA', async () => {
-      const mockFalResult = {
-        data: {
-          images: [
-            {
-              url: 'https://fal.media/generated-image.jpg',
-              width: 768,
-              height: 1365,
-            },
-          ],
-        },
-      }
-
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
+  describe('1. Успешная генерация через kie.ai', () => {
+    it('должна генерировать изображение через kie.ai с промптом и аспектом', async () => {
       const result = await generateNeuroPhotoDirect(
         'Beautiful sunset over mountains',
         'https://example.com/model.safetensors',
@@ -187,35 +158,18 @@ describe('generateNeuroPhotoDirect', () => {
       expect(result).toBeDefined()
       expect(result?.success).toBe(true)
       expect(result?.urls).toHaveLength(1)
-      expect(result?.urls?.[0]).toBe('https://fal.media/generated-image.jpg')
+      expect(result?.urls?.[0]).toBe(KIE_URL)
 
-      // Verify Fal.ai was called
-      expect(fal.config).toHaveBeenCalledWith({ credentials: 'test-fal-key' })
-      expect(fal.subscribe).toHaveBeenCalledWith(
-        'fal-ai/flux-lora',
-        expect.objectContaining({
-          input: expect.objectContaining({
-            prompt: expect.stringContaining('Beautiful sunset'),
-            num_images: 1,
-            loras: expect.arrayContaining([
-              expect.objectContaining({
-                scale: expect.any(Number),
-              }),
-            ]),
-          }),
-        })
+      // Verify kie.ai was called with the prompt and the resolved ratio
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledWith(
+        'Beautiful sunset over mountains',
+        '1:1'
       )
     })
 
-    it('должна обрабатывать разные форматы ответа Fal.ai', async () => {
-      // Формат 1: images напрямую
-      const mockFalResult1 = {
-        images: [{ url: 'https://fal.media/image1.jpg' }],
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult1)
-
-      const result1 = await generateNeuroPhotoDirect(
-        'Test prompt',
+    it('должна сохранять промпт с провайдером kie', async () => {
+      await generateNeuroPhotoDirect(
+        'Beautiful sunset over mountains',
         'https://example.com/model.safetensors',
         1,
         '144022504',
@@ -225,103 +179,26 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
-      expect(result1?.success).toBe(true)
-
-      // Формат 2: data.images
-      vi.clearAllMocks()
-      ;(getBotByName as Mock).mockReturnValue({ bot: mockBot, error: null })
-      ;(getUserByTelegramId as Mock).mockResolvedValue({
-        id: 'user-uuid',
-        telegram_id: '144022504',
-        level: 2,
-      })
-      ;(calculateModeCost as Mock).mockReturnValue({ stars: 7.5 })
-      ;(directPaymentProcessor as Mock).mockResolvedValue({ success: true })
-      ;(getAspectRatio as Mock).mockResolvedValue('1:1')
-      ;(saveFileLocally as Mock).mockResolvedValue('/local/path/image.jpg')
-      ;(sendMediaToPulse as Mock).mockResolvedValue(undefined)
-
-      const mockFalResult2 = {
-        data: {
-          images: [{ url: 'https://fal.media/image2.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult2)
-
-      const result2 = await generateNeuroPhotoDirect(
-        'Test prompt 2',
-        'https://example.com/model.safetensors',
-        1,
+      expect(savePromptDirect).toHaveBeenCalledWith(
+        'Beautiful sunset over mountains',
+        'kie',
+        ModeEnum.NeuroPhoto,
+        KIE_URL,
         '144022504',
-        mockContext as MyContext,
-        'test_bot',
-        null,
-        { disable_telegram_sending: true }
+        'success'
       )
-
-      expect(result2?.success).toBe(true)
     })
   })
 
-  describe('2. Fallback на Replicate', () => {
-    it('должна использовать Replicate если api="replicate"', async () => {
-      const contextWithReplicate = {
-        ...mockContext,
-        session: {
-          userModel: {
-            api: 'replicate',
-            model_url: 'owner/model:version',
-          },
-        },
-      } as any
-
-      const mockReplicateOutput = ['https://replicate.delivery/image.jpg']
-      ;(replicate.run as Mock).mockResolvedValue(mockReplicateOutput)
-      ;(processApiResponse as Mock).mockResolvedValue(
-        'https://replicate.delivery/image.jpg'
-      )
-
-      // Провайдер выбирается как `useFal = isFalModel || !!process.env.FAL_KEY`,
-      // поэтому при заданном FAL_KEY (он есть в общем тестовом окружении)
-      // сервис ушёл бы в FAL даже для replicate-модели. Ветку replicate
-      // проверяем, явно сняв ключ.
-      const savedFalKey = process.env.FAL_KEY
-      delete process.env.FAL_KEY
-
-      // userModel — ДЕВЯТЫЙ параметр функции («✅ Add userModel parameter for
-      // FAL support»), фоллбэка на ctx.session.userModel в коде нет: выбор
-      // провайдера идёт по `userModel?.api === 'fal'`. Раньше тест клал модель
-      // только в сессию, и она не читалась.
-      const result = await generateNeuroPhotoDirect(
-        'Test prompt',
-        'owner/model:version',
-        1,
-        '144022504',
-        contextWithReplicate,
-        'test_bot',
-        null,
-        { disable_telegram_sending: true },
-        { api: 'replicate', model_url: 'owner/model:version' }
-      )
-
-      if (savedFalKey !== undefined) process.env.FAL_KEY = savedFalKey
-
-      expect(result?.success).toBe(true)
-      expect(replicate.run).toHaveBeenCalled()
-    })
-
-    it('должна fallback на Replicate если Fal.ai вернул ошибку', async () => {
-      ;(fal.subscribe as Mock).mockRejectedValue(new Error('Fal.ai API Error'))
-
-      const mockReplicateOutput = ['https://replicate.delivery/fallback.jpg']
-      ;(replicate.run as Mock).mockResolvedValue(mockReplicateOutput)
-      ;(processApiResponse as Mock).mockResolvedValue(
-        'https://replicate.delivery/fallback.jpg'
+  describe('2. Один провайдер — kie-only, без фоллбэка', () => {
+    it('при ошибке kie.ai делает возврат и НЕ уходит в другой провайдер', async () => {
+      ;(generateNeuroPhotoViaKie as Mock).mockRejectedValue(
+        new Error('kie.ai neurophoto job failed')
       )
 
       const result = await generateNeuroPhotoDirect(
         'Test prompt',
-        'owner/model:version',
+        'https://example.com/model.safetensors',
         1,
         '144022504',
         mockContext as MyContext,
@@ -330,20 +207,47 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
+      // No image was delivered, so the run reports failure...
+      expect(result?.success).toBe(false)
+      expect(result?.data).toBe('API returned no images')
+
+      // ...the charge happened first, then the refund for the failed image
+      const paymentTypes = (directPaymentProcessor as Mock).mock.calls.map(
+        ([arg]) => arg.type
+      )
+      expect(paymentTypes).toContain('MONEY_OUTCOME')
+      expect(paymentTypes).toContain('REFUND')
+      const refundCall = (directPaymentProcessor as Mock).mock.calls.find(
+        ([arg]) => arg.type === 'REFUND'
+      )
+      expect(refundCall?.[0]).toMatchObject({
+        telegram_id: '144022504',
+        amount: 7.5,
+      })
+    })
+
+    it('userModel с api="fal" больше не ведёт на fal — генерация идёт через kie', async () => {
+      const result = await generateNeuroPhotoDirect(
+        'Test prompt',
+        'https://example.com/model.safetensors',
+        1,
+        '144022504',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        { disable_telegram_sending: true },
+        // The legacy fal-trained model used to swap in LoRA weights; kie.ai
+        // has no LoRA path, so it must be ignored, not routed to.
+        { api: 'fal', model_url: 'https://example.com/model.safetensors' }
+      )
+
       expect(result?.success).toBe(true)
-      expect(replicate.run).toHaveBeenCalled()
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('3. Обработка платежей', () => {
     it('должна списывать звезды за генерацию', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -387,13 +291,6 @@ describe('generateNeuroPhotoDirect', () => {
     })
 
     it('должна поддерживать bypass_payment_check', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -413,11 +310,6 @@ describe('generateNeuroPhotoDirect', () => {
     })
 
     it('НЕ пробрасывает устаревший session bypass (защита от 0-cost, #1335)', async () => {
-      const mockFalResult = {
-        data: { images: [{ url: 'https://fal.media/image.jpg' }] },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       // A stale flag left by the AvatarTransform lead magnet (never cleared on
       // cancel) must NOT bypass the balance check on a normal paid run.
       ;(mockContext as any).session.bypass_payment_check = true
@@ -467,13 +359,6 @@ describe('generateNeuroPhotoDirect', () => {
     })
 
     it('должна использовать numImages=1 если передано 0 или отрицательное', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -500,13 +385,6 @@ describe('generateNeuroPhotoDirect', () => {
 
   describe('5. Aspect Ratio', () => {
     it('должна использовать явный aspect ratio если передан', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -520,17 +398,14 @@ describe('generateNeuroPhotoDirect', () => {
 
       // Should not call getAspectRatio when explicit ratio provided
       expect(getAspectRatio).not.toHaveBeenCalled()
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledWith(
+        'Test prompt',
+        '16:9'
+      )
     })
 
     it('должна получать aspect ratio из БД если не передан', async () => {
       ;(getAspectRatio as Mock).mockResolvedValue('9:16')
-
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
 
       await generateNeuroPhotoDirect(
         'Test prompt',
@@ -544,17 +419,14 @@ describe('generateNeuroPhotoDirect', () => {
       )
 
       expect(getAspectRatio).toHaveBeenCalledWith(144022504)
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledWith(
+        'Test prompt',
+        '9:16'
+      )
     })
 
-    it('должна использовать 1:1 по умолчанию если БД вернула null', async () => {
+    it('должна использовать портретный дефолт если БД вернула null', async () => {
       ;(getAspectRatio as Mock).mockResolvedValue(null)
-
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
 
       const result = await generateNeuroPhotoDirect(
         'Test prompt',
@@ -567,19 +439,17 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
+      // DEFAULT_ASPECT_RATIO from @/config/aspectRatio is the portrait 9:16
       expect(result?.success).toBe(true)
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledWith(
+        'Test prompt',
+        '9:16'
+      )
     })
   })
 
   describe('6. Генерация нескольких изображений', () => {
     it('должна генерировать несколько изображений последовательно', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       const result = await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -593,7 +463,7 @@ describe('generateNeuroPhotoDirect', () => {
 
       expect(result?.success).toBe(true)
       expect(result?.urls).toHaveLength(3)
-      expect(fal.subscribe).toHaveBeenCalledTimes(3)
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledTimes(3)
     })
   })
 
@@ -616,7 +486,7 @@ describe('generateNeuroPhotoDirect', () => {
         1,
         '144022504',
         mockContext as MyContext,
-        'unknown_bot'
+        'test_bot'
       )
 
       expect(result?.success).toBe(true)
@@ -637,10 +507,9 @@ describe('generateNeuroPhotoDirect', () => {
       expect(result).toBeNull()
     })
 
-    it('должна возвращать null при критической ошибке API', async () => {
-      ;(fal.subscribe as Mock).mockRejectedValue(new Error('API unavailable'))
-      ;(replicate.run as Mock).mockRejectedValue(
-        new Error('Replicate unavailable')
+    it('при недоступном kie.ai возвращает неудачу с возвратом средств', async () => {
+      ;(generateNeuroPhotoViaKie as Mock).mockRejectedValue(
+        new Error('API unavailable')
       )
 
       const result = await generateNeuroPhotoDirect(
@@ -654,21 +523,15 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
-      // Should still return with success false or partial results
-      // depending on implementation
+      // No provider stands behind kie.ai (kie-only): every image failed,
+      // every image was refunded, the run reports failure.
       expect(result?.success).toBe(false)
+      expect(generateNeuroPhotoViaKie).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('8. Интеграция с Pulse Analytics', () => {
     it('должна отправлять данные в Pulse после генерации', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Beautiful landscape',
         'https://example.com/model.safetensors',
@@ -693,13 +556,6 @@ describe('generateNeuroPhotoDirect', () => {
 
   describe('9. Сохранение в сессию для upscaler', () => {
     it('должна сохранять URL и prompt в сессию', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       const contextWithSession = {
         ...mockContext,
         session: {
@@ -718,9 +574,7 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
-      expect(contextWithSession.session.lastNeuroPhotoImageUrl).toBe(
-        'https://fal.media/image.jpg'
-      )
+      expect(contextWithSession.session.lastNeuroPhotoImageUrl).toBe(KIE_URL)
       expect(contextWithSession.session.lastNeuroPhotoPrompt).toBe(
         'Test prompt for session'
       )
@@ -729,13 +583,6 @@ describe('generateNeuroPhotoDirect', () => {
 
   describe('10. Отправка сообщений в Telegram', () => {
     it('НЕ должна отправлять сообщения если disable_telegram_sending=true', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -752,13 +599,6 @@ describe('generateNeuroPhotoDirect', () => {
     })
 
     it('должна отправлять фото в Telegram по умолчанию', async () => {
-      const mockFalResult = {
-        data: {
-          images: [{ url: 'https://fal.media/image.jpg' }],
-        },
-      }
-      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
-
       await generateNeuroPhotoDirect(
         'Test prompt',
         'https://example.com/model.safetensors',
@@ -771,7 +611,7 @@ describe('generateNeuroPhotoDirect', () => {
       expect(mockTelegram.sendPhoto).toHaveBeenCalledWith(
         // Сервис передаёт telegram_id как получил его — строкой.
         '144022504',
-        expect.objectContaining({ url: 'https://fal.media/image.jpg' }),
+        expect.objectContaining({ url: KIE_URL }),
         expect.objectContaining({
           parse_mode: 'HTML',
         })

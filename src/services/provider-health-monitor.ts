@@ -1,6 +1,7 @@
 import { logger } from '@/utils/logger'
 import { resolveAdminChatId } from '@/helpers/adminChatId'
 import { telegramApiFor } from '@/services/telegramApi'
+import { KIE_JOBS } from '@/config/kie-jobs'
 
 /**
  * WHAT KIND OF FAILURE THIS IS -- BECAUSE THE TWO NEED DIFFERENT ANSWERS.
@@ -508,11 +509,81 @@ async function checkElevenLabs(): Promise<ProviderStatus> {
   }
 }
 
+/**
+ * kie.ai -- the provider every generated asset now goes through (owner's
+ * kie-only rule, 2026-10-02), so this probe gates NeuroPhoto directly.
+ *
+ * `/api/v1/chat/credit` is the one endpoint that answers without billing a
+ * job; probing with createTask would charge on every poll (grok-imagine bills
+ * even on an empty input). The balance number is in credits, where a
+ * nano-banana image costs ~4 -- the threshold below buys a couple of images,
+ * not a rounding error.
+ */
+async function checkKie(): Promise<ProviderStatus> {
+  const key = process.env.KIE_AI_API_KEY
+  if (!key)
+    return {
+      name: 'kie',
+      available: false,
+      reason: 'KIE_AI_API_KEY not set',
+      fault: 'standing',
+      lastCheck: Date.now(),
+    }
+
+  try {
+    const resp = await fetch(`${KIE_JOBS.BASE_URL}/api/v1/chat/credit`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(probeTimeoutMs()),
+    })
+    if (resp.status === 401)
+      return {
+        name: 'kie',
+        available: false,
+        reason: 'Invalid key',
+        fault: 'standing',
+        lastCheck: Date.now(),
+      }
+    if (!resp.ok)
+      return {
+        name: 'kie',
+        available: false,
+        reason: `HTTP ${resp.status}`,
+        fault: httpFault(resp.status),
+        lastCheck: Date.now(),
+      }
+    const data = await resp.json()
+    const credits = Number(data?.data)
+    if (!Number.isFinite(credits)) {
+      // An unreadable balance is not proof of a broken provider; it is no
+      // proof at all. Available, and the next probe reads it again.
+      return { name: 'kie', available: true, lastCheck: Date.now() }
+    }
+    if (credits < 10)
+      return {
+        name: 'kie',
+        available: false,
+        reason: `Balance nearly exhausted (${credits} credits)`,
+        fault: 'standing',
+        lastCheck: Date.now(),
+      }
+    return { name: 'kie', available: true, lastCheck: Date.now() }
+  } catch {
+    return {
+      name: 'kie',
+      available: false,
+      reason: 'API unreachable',
+      fault: 'transient',
+      lastCheck: Date.now(),
+    }
+  }
+}
+
 export async function checkAllProviders(): Promise<
   Record<string, ProviderStatus>
 > {
   const parked = parkedProviders()
   const probes: Array<[string, () => Promise<ProviderStatus>]> = [
+    ['kie', checkKie],
     ['fal.ai', checkFalAi],
     ['replicate', checkReplicate],
     ['zai', checkZai],
