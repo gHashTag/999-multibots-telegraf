@@ -13,11 +13,11 @@ touched or restarted.
 
 ## What runs
 
-| Part | How | Listens |
-| --- | --- | --- |
-| `t27ai-render-db.service` | `postgres:16-alpine`, 512 MB, own volume | docker network only |
-| `t27ai-render.service` | image `t27ai-render:local` (`render/Dockerfile`), 3 GB, 2 CPU | `127.0.0.1:8090` |
-| Caddy block | `caddy-t27ai-render.conf`, only `/health` and `/api/*` | `https://t27ai-130-17-9-230.sslip.io` |
+| Part                      | How                                                           | Listens                               |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| `t27ai-render-db.service` | `postgres:16-alpine`, 512 MB, own volume                      | docker network only                   |
+| `t27ai-render.service`    | image `t27ai-render:local` (`render/Dockerfile`), 3 GB, 2 CPU | `127.0.0.1:8090`                      |
+| Caddy block               | `caddy-t27ai-render.conf`, only `/health` and `/api/*`        | `https://t27ai-130-17-9-230.sslip.io` |
 
 The host has no `docker compose` plugin, so the units call `docker run`
 directly; nothing is installed on the host.
@@ -36,8 +36,8 @@ directly; nothing is installed on the host.
    not set instead of leaving it empty**, an empty value reads as "set").
 3. Image, with the host kept usable while it builds (classic builder honours
    the limits): `cd /opt/t27ai-render/src/apps/vibee-editor && DOCKER_BUILDKIT=0
-   nice -n 19 docker build --memory 3g --cpu-quota 200000 -f render/Dockerfile
-   -t t27ai-render:local .`
+nice -n 19 docker build --memory 3g --cpu-quota 200000 -f render/Dockerfile
+-t t27ai-render:local .`
 4. Units: copy `t27ai-render-db.service` and `t27ai-render.service` to
    `/etc/systemd/system/`, `systemctl daemon-reload`,
    `systemctl enable --now t27ai-render-db t27ai-render`.
@@ -63,15 +63,15 @@ block and reload. The volume `t27ai-pgdata` keeps the data until
 
 ## Secrets by name
 
-| Name | Where | Who |
-| --- | --- | --- |
-| `POSTGRES_PASSWORD` (+ user, db) | `db.env` | generated on the VPS, never shown |
-| `DATABASE_URL` | render `.env` | built on the VPS from the above |
-| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env` | generated on the VPS; changing it kills every issued key |
-| `RENDER_API_KEY` | render `.env` and `bot.env` | generated on the VPS; the same value on both sides |
-| `OWNER_TELEGRAM_ID` | render `.env` | owner |
-| `TELEGRAM_BOT_TOKEN` | render `.env` | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
-| `BOT_TOKEN_12` | `bot.env` | owner, from @BotFather, written on the VPS by the owner himself |
+| Name                                | Where                       | Who                                                                                                                           |
+| ----------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD` (+ user, db)    | `db.env`                    | generated on the VPS, never shown                                                                                             |
+| `DATABASE_URL`                      | render `.env`               | built on the VPS from the above                                                                                               |
+| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env`               | generated on the VPS; changing it kills every issued key                                                                      |
+| `RENDER_API_KEY`                    | render `.env` and `bot.env` | generated on the VPS; the same value on both sides                                                                            |
+| `OWNER_TELEGRAM_ID`                 | render `.env`               | owner                                                                                                                         |
+| `TELEGRAM_BOT_TOKEN`                | render `.env`               | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
+| `BOT_TOKEN_12`                      | `bot.env`                   | owner, from @BotFather, written on the VPS by the owner himself                                                               |
 
 ## Needs the owner (the bot)
 
@@ -92,7 +92,9 @@ host. Its sibling services read `RENDER_BASE_URL` first; the course door needs
 the same line, nothing else:
 
 ```ts
-const RENDER = process.env.RENDER_BASE_URL || 'https://vibee-render-production.up.railway.app'
+const RENDER =
+  process.env.RENDER_BASE_URL ||
+  'https://vibee-render-production.up.railway.app'
 ```
 
 The site's render address is generated from the course spec in trinity
