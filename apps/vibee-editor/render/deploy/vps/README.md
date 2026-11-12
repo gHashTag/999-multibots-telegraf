@@ -1,55 +1,99 @@
-# vibee-render on the T27OS VPS -- the migration kit
+# t27ai-render on the Fornex VPS
 
-The render service (`render/src/render-server.ts`) currently runs on Railway
-(`vibee-render-production.up.railway.app`). This kit moves it onto the
-project's own VPS under systemd + docker compose, with Caddy terminating TLS.
-Railway stays for the mini app.
+The render server (`render/render-server.ts`) and its Postgres, re-hosted from
+the dead Railway service `vibee-render` onto the VPS `331257.fornex.cloud`.
+It carries the course ladder (`POST/GET /api/course/key`,
+`POST /api/course/progress`) and the CRM tables behind it, and is what
+`@t27ai_bot` calls over `X-Api-Key`.
 
-## MEASURED HARDWARE FLOOR (2026-10-26)
+Everything here is additive and isolated: its own directory `/opt/t27ai-render`,
+its own docker network `t27ai-net`, its own volume `t27ai-pgdata`, two own
+systemd units, one own Caddy block. No other service on the host is read,
+touched or restarted.
 
-The current VPS (331257.fornex.cloud) does NOT meet it -- do not deploy there
-before the upgrade:
+## What runs
 
-| resource  | current VPS      | floor for this service                     |
-| --------- | ---------------- | ------------------------------------------ |
-| CPU       | 2 cores          | 4 cores (Remotion renders eat all of them) |
-| RAM       | 3.8 GB, 2.1 free | 8 GB (headless Chrome + ffmpeg per render) |
-| disk free | 14 GB (65% used) | 40 GB (the image alone is 5-8 GB: Chrome,  |
-|           |                  | ffmpeg, verilator, yosis, iverilog, deno)  |
+| Part | How | Listens |
+| --- | --- | --- |
+| `t27ai-render-db.service` | `postgres:16-alpine`, 512 MB, own volume | docker network only |
+| `t27ai-render.service` | image `t27ai-render:local` (`render/Dockerfile`), 3 GB, 2 CPU | `127.0.0.1:8090` |
+| Caddy block | `caddy-t27ai-render.conf`, only `/health` and `/api/*` | `https://t27ai-130-17-9-230.sslip.io` |
 
-The image is the SAME Dockerfile Railway builds (`render/Dockerfile`, build
-context `apps/vibee-editor`), so a machine that meets the floor runs exactly
-what production runs.
+The host has no `docker compose` plugin, so the units call `docker run`
+directly; nothing is installed on the host.
 
-## Deploy (one evening, after the upgrade)
+## Deploy
 
-1. Clone with a deploy key:
-   `gh repo deploy-key add` or a fine-grained token; then
-   `git clone git@github.com:gHashTag/999-multibots-telegraf.git /opt/vibee-render/repo`
-2. Secrets: copy the variable set from the Railway service (railway variables)
-   or Infisical into `/opt/vibee-render/.env` (chmod 600). `env.example` lists
-   every name the code reads; the only one that MUST change value is
-   `RAILWAY_SERVICE_QUEEN_OLLAMA_URL` -- that is Railway-internal DNS, so on
-   the VPS either expose queen-ollama or accept the chain without its ollama
-   leg (the agent answers; `OLLAMA_ENABLED` stays unset).
-3. `cd /opt/vibee-render/repo/apps/vibee-editor/render/deploy/vps`
-   `cp docker-compose.yml vibee-render.service caddy-vibee-render.conf /opt/vibee-render/`
-   `docker compose -f /opt/vibee-render/docker-compose.yml build`
-4. `cp vibee-render.service /etc/systemd/system/ && systemctl daemon-reload`
-   `systemctl enable --now vibee-render`
-5. Caddy: append `caddy-vibee-render.conf` to the Caddyfile, set the DNS
-   record (a duckdns name works -- see givel-tma precedent), reload Caddy.
-6. Healthcheck: `curl https://<name>.duckdns.org/health` (first boot warms
-   Chrome; allow 300 s, the same window Railway uses).
+1. Source (a clean tree, no `node_modules`), from a checkout of the commit to
+   ship; the build context is `apps/vibee-editor`. Send only what the image
+   copies (about 18 MB; the whole editor tree is ~110 MB and crawls over the
+   uplink):
+   `git archive HEAD apps/vibee-editor/packages apps/vibee-editor/render apps/vibee-editor/.dockerignore | ssh root@<vps> 'tar -x -C /opt/t27ai-render/src'`
+2. Secrets, written on the VPS, mode 0600, never in git:
+   `/opt/t27ai-render/db.env` (`POSTGRES_USER`, `POSTGRES_PASSWORD`,
+   `POSTGRES_DB`) and `/opt/t27ai-render/.env` (the minimum block at the top of
+   `env.example`; add other names only when needed and **delete a name you do
+   not set instead of leaving it empty**, an empty value reads as "set").
+3. Image, with the host kept usable while it builds (classic builder honours
+   the limits): `cd /opt/t27ai-render/src/apps/vibee-editor && DOCKER_BUILDKIT=0
+   nice -n 19 docker build --memory 3g --cpu-quota 200000 -f render/Dockerfile
+   -t t27ai-render:local .`
+4. Units: copy `t27ai-render-db.service` and `t27ai-render.service` to
+   `/etc/systemd/system/`, `systemctl daemon-reload`,
+   `systemctl enable --now t27ai-render-db t27ai-render`.
+5. Caddy: append `caddy-t27ai-render.conf` to `/etc/caddy/Caddyfile`,
+   `caddy validate --config /etc/caddy/Caddyfile`, then `systemctl reload caddy`.
+6. Check: `curl -s https://t27ai-130-17-9-230.sslip.io/health` is 200 from
+   outside, and `GET /api/course/key?k=x` answers `{"ok":false,...}` (never a
+   404 or a 502). The whole ladder, on the VPS with the key from `.env`
+   (never print it): `POST /api/course/key` with `X-Api-Key` and
+   `{"telegram_id":"<digits>","step":"bot","route":"<slug>"}` returns a key;
+   `GET /api/course/key?k=<key>` reads it back; `POST /api/course/progress`
+   with `{"key","course","lesson"}` files a lesson. Without the header the
+   mint answers `server_key_required`. A smoke test leaves rows in
+   `course_*` and `crm_*`: clear them before real traffic.
 
-## Cutover
-
-The bot points at the render through ONE variable: `RENDER_BASE_URL`-shaped
-BASE in `src/services/modelSwitch.ts` is read from the bot's env -- flip the
-bot's render URL to the VPS name, restart the bot process. Keep Railway warm
-for a day as the rollback path, then power the Railway service down.
+The first image build takes about 6 minutes on this host (apt layer first).
 
 ## Rollback
 
-Flip the bot's BASE back to `https://vibee-render-production.up.railway.app`
-and restart the bot. The VPS service keeps running; nothing else to undo.
+`systemctl disable --now t27ai-render t27ai-render-db`, then remove the Caddy
+block and reload. The volume `t27ai-pgdata` keeps the data until
+`docker volume rm`. Nothing else on the host depends on these units.
+
+## Secrets by name
+
+| Name | Where | Who |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` (+ user, db) | `db.env` | generated on the VPS, never shown |
+| `DATABASE_URL` | render `.env` | built on the VPS from the above |
+| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env` | generated on the VPS; changing it kills every issued key |
+| `RENDER_API_KEY` | render `.env` and `bot.env` | generated on the VPS; the same value on both sides |
+| `OWNER_TELEGRAM_ID` | render `.env` | owner |
+| `TELEGRAM_BOT_TOKEN` | render `.env` | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
+| `BOT_TOKEN_12` | `bot.env` | owner, from @BotFather, written on the VPS by the owner himself |
+
+## Needs the owner (the bot)
+
+Everything above makes the render, the course key and the CRM touches work.
+The bot process (`t27ai-bot`, the Telegraf monolith, root `Dockerfile`) is
+**not started by this kit** until these are settled:
+
+- a fresh `BOT_TOKEN_12` from @BotFather (the old tokens answer 401/404); the
+  owner writes it into `bot.env` on the VPS;
+- the monolith's data store: it reads Supabase through Infisical in
+  production and the Railway gateway it used is gone;
+- the one-line change below.
+
+## Parked (hand-written TypeScript, not in this PR)
+
+`src/services/courseAccess.ts` still calls the render at a hard-coded Railway
+host. Its sibling services read `RENDER_BASE_URL` first; the course door needs
+the same line, nothing else:
+
+```ts
+const RENDER = process.env.RENDER_BASE_URL || 'https://vibee-render-production.up.railway.app'
+```
+
+The site's render address is generated from the course spec in trinity
+(`renderBase`) and is a separate change there.

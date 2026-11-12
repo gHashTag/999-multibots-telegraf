@@ -1,0 +1,20 @@
+# /etc/systemd/system/t27ai-render-db.service
+# The render's own Postgres, isolated: a container on its own docker network,
+# no published port, its own volume. It shares nothing with any other project
+# on the host (the host's own Postgres on 127.0.0.1:5432 is not touched).
+# Credentials come from /opt/t27ai-render/db.env (mode 0600, never in git).
+[Unit]
+Description=t27ai-render Postgres (isolated container)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/docker network create t27ai-net
+ExecStartPre=-/usr/bin/docker rm -f t27ai-db
+ExecStart=/usr/bin/docker run --rm --init --name t27ai-db --network t27ai-net --env-file /opt/t27ai-render/db.env -v t27ai-pgdata:/var/lib/postgresql/data --memory 512m --cpus 1 postgres:16-alpine
+ExecStop=/usr/bin/docker stop -t 30 t27ai-db
+
+[Install]
+WantedBy=multi-user.target
