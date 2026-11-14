@@ -14,15 +14,17 @@ import {
   handleChat,
   isProxyPeer,
   systemPrompt,
+  REASON_NAMES,
   type ChatDeps,
   type ChatRequest,
 } from '../agent/course-chat'
 import { courseKeySecret, mintKey } from '../agent/course-access'
 
-// The page's contract of record, copied from trinity at this commit.
-const TRINITY_COMMIT = 'ed3f9d78c13769a87b7df17c1c3101289219faa0'
+// The page's contract of record, copied from trinity at this commit
+// (Trinity-S-AI-DNA/trinity#1815, courseChat.gen.ts blob 503141d4).
+const TRINITY_COMMIT = '47783b41f017c176c77591ede17f7fe4abdb7b25'
 const GEN_SHA256 =
-  'a01746b88765740aabebade6fba05d6f79687d9941b7ddc15fa1f4fb99b63c88'
+  'e174102f6dedcf51b5d0f5bdaeb58060dafbf2181f63fbee5ff968358ac1b477'
 
 const NOW = new Date('2026-11-14T10:00:00Z')
 const SIGNING = 'x'.repeat(40)
@@ -73,7 +75,8 @@ beforeEach(() => {
   forgetChatWindowsForTests()
   vi.stubEnv('SESSION_SIGNING_KEY', SIGNING)
   vi.stubEnv('GLM_API_KEY', 'glm-test-key')
-  vi.stubEnv('CHAT_GLOBAL_DAY', '1000')
+  // Unset: the spec's own CHAT_GLOBAL_DAY applies. The env var may only lower it.
+  vi.stubEnv('CHAT_GLOBAL_DAY', '')
 })
 
 afterEach(() => {
@@ -100,7 +103,20 @@ describe('the contract file', () => {
     expect(CHAT.CHAT_MSG_MAX).toBe(600)
     expect(CHAT.CHAT_TITLE_MAX).toBe(120)
     expect(CHAT.CHAT_ANSWER_MAX).toBe(1200)
+    expect(CHAT.CHAT_GLOBAL_DAY).toBe(500)
+    expect(CHAT.CHAT_TURNS_MAX).toBe(8)
+    expect(CHAT.CHAT_PAID_FALLBACK).toBe(0)
     expect([...CHAT.CHAT_COURSES]).toEqual(['vibecoding'])
+  })
+
+  it('names every reason the spec defines, busy included, the way the page reads it', () => {
+    const reasons = Object.entries(CHAT).filter(([k]) =>
+      k.startsWith('REASON_')
+    )
+    expect(reasons.length).toBe(9)
+    for (const [k, v] of reasons)
+      expect(REASON_NAMES[v as number]).toBe(k.slice(7).toLowerCase())
+    expect(REASON_NAMES[CHAT.REASON_BUSY]).toBe('busy')
   })
 })
 
@@ -334,23 +350,42 @@ describe('the key window', () => {
 })
 
 describe('the global daily cap', () => {
-  it('route answers 503 cap_unset and calls nothing without CHAT_GLOBAL_DAY', async () => {
-    for (const v of ['', '0', '-3', 'abc', '1.5']) {
+  it('the default is the spec constant: unset, junk or larger env values leave it alone', () => {
+    for (const v of ['', '0', '-3', 'abc', '1.5', '500', '501', '100000']) {
       vi.stubEnv('CHAT_GLOBAL_DAY', v)
-      expect(globalCap()).toBeNull()
-      const f = modelOk()
-      forgetChatWindowsForTests()
-      const out = await handleChat(
-        viaProxy('203.0.113.80'),
-        deps(good(), { fetch: f })
-      )
-      expect(out.status).toBe(503)
-      expect(out.body.detail).toBe('cap_unset')
-      expect(f).not.toHaveBeenCalled()
+      expect(globalCap()).toBe(CHAT.CHAT_GLOBAL_DAY)
+    }
+    // The env var may only LOWER the ceiling.
+    for (const v of ['1', '3', '499']) {
+      vi.stubEnv('CHAT_GLOBAL_DAY', v)
+      expect(globalCap()).toBe(Number(v))
     }
   })
 
-  it('refuses past the cap for every reader together, and resets on the next UTC day', async () => {
+  it('without any env the route answers up to the spec cap, then 503 busy with no model call', async () => {
+    const f = modelOk()
+    const from = (i: number) =>
+      viaProxy(`198.51.${Math.floor(i / 200)}.${(i % 200) + 1}`)
+    for (let i = 0; i < CHAT.CHAT_GLOBAL_DAY; i++)
+      expect(
+        (await handleChat(from(i), deps(good(), { fetch: f }))).status
+      ).toBe(200)
+    expect(f).toHaveBeenCalledTimes(CHAT.CHAT_GLOBAL_DAY)
+    const over = await handleChat(
+      from(CHAT.CHAT_GLOBAL_DAY),
+      deps(good(), { fetch: f })
+    )
+    expect(over.status).toBe(503)
+    expect(over.body).toEqual({
+      ok: false,
+      offline: true,
+      reason: 'busy',
+      detail: 'global',
+    })
+    expect(f).toHaveBeenCalledTimes(CHAT.CHAT_GLOBAL_DAY)
+  })
+
+  it('refuses past a lowered cap for every reader together with 503 busy, and resets on the next UTC day', async () => {
     vi.stubEnv('CHAT_GLOBAL_DAY', '3')
     const f = modelOk()
     let t = NOW.getTime()
@@ -368,8 +403,8 @@ describe('the global daily cap', () => {
       viaProxy('203.0.113.99'),
       deps(good(), { fetch: f, now: at })
     )
-    expect(over.status).toBe(429)
-    expect(over.body.detail).toBe('global')
+    expect(over.status).toBe(503)
+    expect(over.body).toMatchObject({ reason: 'busy', detail: 'global' })
     expect(f).toHaveBeenCalledTimes(3)
     t += 24 * 60 * 60 * 1000
     expect(
@@ -380,6 +415,234 @@ describe('the global daily cap', () => {
         )
       ).status
     ).toBe(200)
+  })
+})
+
+describe('the probe', () => {
+  const probe = (over: Record<string, unknown> = {}) => ({
+    course: 'vibecoding',
+    probe: true,
+    ...over,
+  })
+
+  it('answers 200 {ok, probe} with no model call and logs no text', async () => {
+    const f = modelOk()
+    const lines: string[] = []
+    const out = await handleChat(
+      viaProxy('203.0.113.120'),
+      deps(probe(), { fetch: f, log: l => lines.push(l) })
+    )
+    expect(out).toEqual({ status: 200, body: { ok: true, probe: true } })
+    expect(f).not.toHaveBeenCalled()
+    expect(lines).toEqual(['[course-chat] status=200 probe'])
+  })
+
+  it('touches no window: a hundred probes leave the address its whole hour', async () => {
+    const f = modelOk()
+    for (let i = 0; i < 100; i++)
+      await handleChat(viaProxy('203.0.113.121'), deps(probe(), { fetch: f }))
+    for (let i = 0; i < CHAT.CHAT_PER_IP_HOUR; i++)
+      expect(
+        (
+          await handleChat(
+            viaProxy('203.0.113.121'),
+            deps(good(), { fetch: f })
+          )
+        ).status
+      ).toBe(200)
+    expect(
+      (await handleChat(viaProxy('203.0.113.121'), deps(good(), { fetch: f })))
+        .status
+    ).toBe(429)
+    expect(f).toHaveBeenCalledTimes(CHAT.CHAT_PER_IP_HOUR)
+  })
+
+  it('counts nothing against the day: probes do not eat the shared cap', async () => {
+    vi.stubEnv('CHAT_GLOBAL_DAY', '3')
+    const f = modelOk()
+    for (let i = 0; i < 10; i++)
+      await handleChat(
+        viaProxy(`203.0.113.${130 + i}`),
+        deps(probe(), { fetch: f })
+      )
+    for (let i = 0; i < 3; i++)
+      expect(
+        (
+          await handleChat(
+            viaProxy(`203.0.113.${150 + i}`),
+            deps(good(), { fetch: f })
+          )
+        ).status
+      ).toBe(200)
+    expect(f).toHaveBeenCalledTimes(3)
+  })
+
+  it('a course outside the list is 404 even for a probe, with no model call', async () => {
+    const f = modelOk()
+    const out = await handleChat(
+      viaProxy('203.0.113.122'),
+      deps(probe({ course: 'other' }), { fetch: f })
+    )
+    expect(out.status).toBe(404)
+    expect(out.body).toMatchObject({ ok: false, offline: true, reason: 'off' })
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('without the free key a probe is 503 no_key, so the panel stays honest', async () => {
+    vi.stubEnv('GLM_API_KEY', '')
+    vi.stubEnv('KIE_AI_API_KEY', 'kie-paid-key')
+    const f = modelOk()
+    const out = await handleChat(
+      viaProxy('203.0.113.123'),
+      deps(probe(), { fetch: f })
+    )
+    expect(out.status).toBe(503)
+    expect(out.body).toMatchObject({ ok: false, offline: true })
+    expect(out.body.detail).toBe('no_key')
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('at the day cap a probe is 503 busy, and still counts nothing', async () => {
+    vi.stubEnv('CHAT_GLOBAL_DAY', '1')
+    const f = modelOk()
+    expect(
+      (await handleChat(viaProxy('203.0.113.124'), deps(good(), { fetch: f })))
+        .status
+    ).toBe(200)
+    for (let i = 0; i < 3; i++) {
+      const out = await handleChat(
+        viaProxy('203.0.113.125'),
+        deps(probe(), { fetch: f })
+      )
+      expect(out.status).toBe(503)
+      expect(out.body).toMatchObject({ reason: 'busy', detail: 'global' })
+    }
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('a probe that is not a boolean is 400; probe false is an ordinary message', async () => {
+    const f = modelOk()
+    for (const p of ['true', 1, null, {}])
+      expect(
+        (
+          await handleChat(
+            viaProxy('203.0.113.126'),
+            deps(good({ probe: p }), { fetch: f })
+          )
+        ).status
+      ).toBe(400)
+    expect(f).not.toHaveBeenCalled()
+    const out = await handleChat(
+      viaProxy('203.0.113.127'),
+      deps(good({ probe: false }), { fetch: f })
+    )
+    expect(out.status).toBe(200)
+    expect(out.body.answer).toBeTruthy()
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('only POST: a GET probe is 405', async () => {
+    const f = modelOk()
+    const out = await handleChat(
+      viaProxy('203.0.113.128', undefined, 'GET'),
+      deps(probe(), { fetch: f })
+    )
+    expect(out.status).toBe(405)
+    expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('the turn of the conversation', () => {
+  it('a turn at the cap is 429 limit, before any window, with no model call', async () => {
+    const f = modelOk()
+    const out = await handleChat(
+      viaProxy('203.0.113.140'),
+      deps(good({ turn: CHAT.CHAT_TURNS_MAX }), { fetch: f })
+    )
+    expect(out.status).toBe(429)
+    expect(out.body).toMatchObject({
+      ok: false,
+      offline: true,
+      reason: 'limit',
+    })
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('records nothing: refused turns leave the address and key windows whole', async () => {
+    const f = modelOk()
+    const k = mintKey(1, 'learner-turns', 30, NOW, courseKeySecret()!)
+    for (let i = 0; i < 50; i++)
+      expect(
+        (
+          await handleChat(
+            viaProxy('203.0.113.141'),
+            deps(good({ turn: CHAT.CHAT_TURNS_MAX + i, key: k }), { fetch: f })
+          )
+        ).status
+      ).toBe(429)
+    for (let i = 0; i < CHAT.CHAT_PER_IP_HOUR; i++)
+      expect(
+        (
+          await handleChat(
+            viaProxy('203.0.113.141'),
+            deps(good({ turn: 0, key: k }), { fetch: f })
+          )
+        ).status
+      ).toBe(200)
+    expect(f).toHaveBeenCalledTimes(CHAT.CHAT_PER_IP_HOUR)
+  })
+
+  it('the last turn below the cap answers; an absent turn counts as the first', async () => {
+    const f = modelOk()
+    expect(
+      (
+        await handleChat(
+          viaProxy('203.0.113.142'),
+          deps(good({ turn: CHAT.CHAT_TURNS_MAX - 1 }), { fetch: f })
+        )
+      ).status
+    ).toBe(200)
+    expect(
+      (await handleChat(viaProxy('203.0.113.143'), deps(good(), { fetch: f })))
+        .status
+    ).toBe(200)
+    expect(f).toHaveBeenCalledTimes(2)
+  })
+
+  it('a turn that is not a whole number from zero up is 400, with no model call', async () => {
+    const f = modelOk()
+    for (const t of ['3', null, 1.5, -1, true, [], {}])
+      expect(
+        (
+          await handleChat(
+            viaProxy('203.0.113.144'),
+            deps(good({ turn: t }), { fetch: f })
+          )
+        ).status
+      ).toBe(400)
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('keeps the spec order: a bad request or another course is answered before the turn cap', async () => {
+    const f = modelOk()
+    const late = CHAT.CHAT_TURNS_MAX + 5
+    expect(
+      (
+        await handleChat(
+          viaProxy('203.0.113.145'),
+          deps(good({ turn: late, message: 'a'.repeat(601) }), { fetch: f })
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (
+        await handleChat(
+          viaProxy('203.0.113.145'),
+          deps(good({ turn: late, course: 'other' }), { fetch: f })
+        )
+      ).status
+    ).toBe(404)
+    expect(f).not.toHaveBeenCalled()
   })
 })
 

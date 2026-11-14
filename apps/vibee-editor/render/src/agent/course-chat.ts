@@ -2,14 +2,18 @@
  * THE COURSE HELPER CHAT: POST /api/course/chat on the ladder unit.
  *
  * Contract of record: the page's spec (gHashTag trinity, apps/website
- * course-chat spec, gen at trinity commit ed3f9d78c) copied beside its gen-ts
- * in src/spec/course-chat.gen.ts. Every limit, size, reason code and prompt
- * clause below is a name from that gen file, never a retyped number; a test
- * pins the file's digest so a drift fails loudly.
+ * course-chat spec, gen at trinity commit 47783b41f, PR #1815) copied beside
+ * its gen-ts in src/spec/course-chat.gen.ts. Every limit, size, reason code and
+ * prompt clause below is a name from that gen file, never a retyped number; a
+ * test pins the file's digest so a drift fails loudly.
  *
- * Wire: request `{course, lesson, title, message, key?}`; answer
- * `{"ok":true,"answer":"..."}`, or `{"ok":false,"offline":true,"reason":"<name>"}`
- * with the reason names the page already understands.
+ * Wire: request `{course, lesson, title, message, turn, key?}`; probe
+ * `{course, probe: true}` -> `{"ok":true,"probe":true}` with no model call, no
+ * window hit and no count of the day; answer `{"ok":true,"answer":"..."}`, or
+ * `{"ok":false,"offline":true,"reason":"<name>"}` with the reason names the
+ * page already understands. Gate order is the spec's gate_reason: the request,
+ * the turn of the conversation, the address and key windows, then the shared
+ * daily cap (reason busy, status 503).
  *
  * What this route will NOT do, on purpose:
  *   - call a paid model. The chain is an explicit whitelist of the two free
@@ -19,8 +23,9 @@
  *     reverse proxy appended (the LAST entry) and only when the socket peer is
  *     the proxy's own side (loopback or a private address); otherwise the
  *     socket peer itself.
- *   - run without a ceiling. CHAT_GLOBAL_DAY (calls per UTC day, all readers)
- *     must be set by the owner; without it the route answers 503 cap_unset.
+ *   - run without a ceiling. The spec's CHAT_GLOBAL_DAY (calls per UTC day, all
+ *     readers) is the default; the env var of the same name can only LOWER it,
+ *     never raise it. At the cap the route answers 503 busy.
  *   - log a word a reader typed, or a key. Lines carry counts and a short key id.
  *
  * State is in memory (one ladder process); a restart forgives the windows,
@@ -67,7 +72,7 @@ const ANSWER_TOKENS = 600
 // t27-plumbing: memory bound on the in-process windows
 const SWEEP_AT = 5000
 
-/** The reason names, in the gen file's own order (REASON_NONE .. REASON_BAD_REQUEST). */
+/** The reason names, in the gen file's own order (REASON_NONE .. REASON_BUSY). */
 export const REASON_NAMES: Record<number, string> = {
   [CHAT.REASON_NONE]: 'none',
   [CHAT.REASON_UNREACHABLE]: 'unreachable',
@@ -77,6 +82,7 @@ export const REASON_NAMES: Record<number, string> = {
   [CHAT.REASON_LIMIT]: 'limit',
   [CHAT.REASON_OFF]: 'off',
   [CHAT.REASON_BAD_REQUEST]: 'bad_request',
+  [CHAT.REASON_BUSY]: 'busy',
 }
 
 /**
@@ -197,6 +203,18 @@ function requestReason(courseOn: boolean, title: number, msg: number): number {
   return CHAT.REASON_NONE
 }
 
+/** The spec's `turn_reason`: a thread that reached the turn cap stops with reason limit. */
+function turnReason(turn: number): number {
+  if (turn >= CHAT.CHAT_TURNS_MAX) return CHAT.REASON_LIMIT
+  return CHAT.REASON_NONE
+}
+
+/** The spec's `global_reason`: past the day's cap the answer is offline with reason busy. */
+function globalReason(globalCount: number, cap: number): number {
+  if (globalCount >= cap) return CHAT.REASON_BUSY
+  return CHAT.REASON_NONE
+}
+
 /** The spec's `system_prompt`: the lesson clause only when there is a title. */
 export function systemPrompt(course: string, title: string): string {
   return (
@@ -219,10 +237,26 @@ function offline(status: number, reason: number, detail?: string): ChatAnswer {
   }
 }
 
-/** The owner's daily ceiling for every reader together; null when unset or not a count. */
-export function globalCap(): number | null {
+/**
+ * The daily ceiling for every reader together: the spec's CHAT_GLOBAL_DAY, which
+ * the env var of the same name may only lower (a positive whole number below
+ * it). Unset, zero, negative, fractional or larger values leave the spec's own.
+ */
+export function globalCap(): number {
   const n = Number(process.env.CHAT_GLOBAL_DAY)
-  return Number.isInteger(n) && n > 0 ? n : null
+  return Number.isInteger(n) && n > 0 && n < CHAT.CHAT_GLOBAL_DAY
+    ? n
+    : CHAT.CHAT_GLOBAL_DAY
+}
+
+/** Calls made so far today (UTC), rolling the counter at midnight. */
+function dayCount(at: number): number {
+  const day = Math.floor(at / DAY_MS)
+  if (globalDay.day !== day) {
+    globalDay.day = day
+    globalDay.n = 0
+  }
+  return globalDay.n
 }
 
 function keyId(learnerId: string): string {
@@ -328,21 +362,45 @@ export async function handleChat(
     return done(offline(400, CHAT.REASON_BAD_REQUEST, 'bad_json'))
   }
   const course = typeof body.course === 'string' ? body.course : ''
+  const courseOn = (CHAT.CHAT_COURSES as readonly string[]).includes(course)
+
+  // The probe: the panel asks "are you there?" when it opens. It is answered
+  // from the route's own state, with no model call, no window hit and no count
+  // of the day; and it is honest: when a real message could not be answered
+  // (course off, no key, the day's cap reached) it says so with the same status.
+  if (body.probe !== undefined && typeof body.probe !== 'boolean')
+    return done(offline(400, CHAT.REASON_BAD_REQUEST, 'bad_fields'), ' probe')
+  if (body.probe === true) {
+    if (!courseOn) return done(offline(404, CHAT.REASON_OFF), ' probe')
+    if (!freeChain().length)
+      return done(offline(503, CHAT.REASON_OFF, 'no_key'), ' probe')
+    if (globalReason(dayCount(at), globalCap()) !== CHAT.REASON_NONE)
+      return done(offline(503, CHAT.REASON_BUSY, 'global'), ' probe')
+    return done({ status: 200, body: { ok: true, probe: true } }, ' probe')
+  }
+
   const title = typeof body.title === 'string' ? body.title : ''
   const message = typeof body.message === 'string' ? body.message : ''
+  // `turn` is how many questions were asked since the panel opened; absent
+  // counts as the first. Anything but a whole number from zero up is not a turn.
+  const turn = body.turn === undefined ? 0 : body.turn
   if (
     (body.title !== undefined && typeof body.title !== 'string') ||
-    typeof body.message !== 'string'
+    typeof body.message !== 'string' ||
+    typeof turn !== 'number' ||
+    !Number.isInteger(turn) ||
+    turn < 0
   )
     return done(offline(400, CHAT.REASON_BAD_REQUEST, 'bad_fields'))
 
-  const bad = requestReason(
-    (CHAT.CHAT_COURSES as readonly string[]).includes(course),
-    title.length,
-    message.length
-  )
+  const bad = requestReason(courseOn, title.length, message.length)
   if (bad === CHAT.REASON_OFF) return done(offline(404, bad))
   if (bad !== CHAT.REASON_NONE) return done(offline(400, bad))
+
+  // Before any window is touched: a thread past the turn cap costs nothing.
+  const turned = turnReason(turn)
+  if (turned !== CHAT.REASON_NONE)
+    return done(offline(429, turned, 'turns'), ` turn=${turn}`)
 
   // The key is counted only when it is a good one: a made-up key gets no
   // bucket of its own, so rotating garbage cannot dodge the address window.
@@ -364,23 +422,13 @@ export async function handleChat(
   record(ipHits, who, at)
   if (kid) record(keyHits, kid, at)
 
-  const cap = globalCap()
-  if (cap === null)
-    return done(offline(503, CHAT.REASON_OFF, 'cap_unset'), counts)
   const chain = freeChain()
   if (!chain.length)
     return done(offline(503, CHAT.REASON_OFF, 'no_key'), counts)
 
-  const day = Math.floor(at / DAY_MS)
-  if (globalDay.day !== day) {
-    globalDay.day = day
-    globalDay.n = 0
-  }
-  if (globalDay.n >= cap)
-    return done(
-      offline(429, CHAT.REASON_LIMIT, 'global'),
-      `${counts} day_n=${globalDay.n}`
-    )
+  const busy = globalReason(dayCount(at), globalCap())
+  if (busy !== CHAT.REASON_NONE)
+    return done(offline(503, busy, 'global'), `${counts} day_n=${globalDay.n}`)
   globalDay.n += 1
 
   const started = Date.now()
