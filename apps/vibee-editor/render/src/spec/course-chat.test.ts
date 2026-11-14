@@ -21,10 +21,10 @@ import {
 import { courseKeySecret, mintKey } from '../agent/course-access'
 
 // The page's contract of record, copied from trinity at this commit
-// (Trinity-S-AI-DNA/trinity#1886, courseChat.gen.ts at abfb0134542d23efbc3a2cd449446c9c4a619802).
-const TRINITY_COMMIT = '5d41aa314fc711e19b8a1702626e1e73a59008d6'
+// (Trinity-S-AI-DNA/trinity#1894, course-chat.gen.ts at 565867b0ddf3cc15c80df7f6d41f4be69c51c7d5).
+const TRINITY_COMMIT = '565867b0ddf3cc15c80df7f6d41f4be69c51c7d5'
 const GEN_SHA256 =
-  '53602e22a58656ddaeec719e268981dcf73f417ea20fcb1a71a2722090761d5c'
+  '2967e297411b692d28bd80fa22dd55a359e19c1607ad2d30011a66e5b5376666'
 
 const NOW = new Date('2026-11-14T10:00:00Z')
 const SIGNING = 'x'.repeat(40)
