@@ -21,6 +21,7 @@ import {
   SKILL_PREFIX,
   LEELA_TEMPLATE,
   CRM_CLIENT_TOOLS,
+  SETUP_IS_THE_OWNERS,
   schemaCheck,
 } from './src/agent/crm-client-setup-tool'
 import type { ToolContext } from './src/agent/tools'
@@ -372,7 +373,12 @@ describe('the bundled example package', () => {
     expect(setup).toBeTruthy()
     expect(read).toBeTruthy()
     const stranger = { telegramId: '1', pool: {} } as unknown as ToolContext
-    await expect(setup.handler({}, stranger)).rejects.toThrow()
+    // A non-owner is told the seller's door, not thrown at with the
+    // Telegram reader's text (crm-client-onboard.t27).
+    expect(await setup.handler({}, stranger)).toEqual({
+      done: false,
+      reason: SETUP_IS_THE_OWNERS,
+    })
     await expect(read.handler({}, undefined as never)).rejects.toThrow()
     const bad = await setup.handler({ telegram_id: 'abc', client: EXAMPLE }, {
       telegramId: OWNER,

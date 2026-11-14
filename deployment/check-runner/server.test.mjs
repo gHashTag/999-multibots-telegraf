@@ -195,9 +195,23 @@ describe('a run installs only the projects its suites use', () => {
   })
 
   it("the bot's suites install the four bot projects, as before", () => {
-    for (const s of ['render', 'player', 'root', 'guard', 'types'])
+    for (const s of [
+      'render',
+      'player',
+      'root',
+      'guard',
+      'types',
+      'player-lint',
+    ])
       assert.deepEqual(dirsFor([s]), BOT, s)
     assert.deepEqual(dirsFor(['render', 'root-types']), BOT)
+  })
+
+  it('player-lint runs the pre-push ratchet, where a missing eslint fails', () => {
+    assert.deepEqual(suiteCommands('player-lint', []), [
+      'PLAYER_LINT_REQUIRED=1 node scripts/player-lint-ratchet.cjs',
+    ])
+    assert.equal(refusal(['types', 'player-lint'], []), null)
   })
 
   it('apps/website installs and runs on Node 22', () => {
@@ -743,5 +757,17 @@ setTimeout(() => {}, 30000)
       await new Promise(r => server.close(r))
       rmSync(process.env.CHECK_WORK, { recursive: true, force: true })
     }
+  })
+})
+
+describe('the image reaps what a run leaves behind', () => {
+  it('tini is PID 1, so orphaned grandchildren never fill the process table', async () => {
+    const { readFileSync } = await import('node:fs')
+    const docker = readFileSync(
+      new URL('./Dockerfile', import.meta.url),
+      'utf8'
+    )
+    assert.match(docker, /^ENTRYPOINT \["\/usr\/bin\/tini", "--"\]$/m)
+    assert.match(docker, /install -y[^&]*\btini\b/)
   })
 })

@@ -1,0 +1,21 @@
+# /etc/systemd/system/t27ai-render.service
+# The render server (render/Dockerfile, the same image Railway built) for the
+# @t27ai_bot backend and the t27.ai course ladder. Loopback only: Caddy
+# terminates TLS in front of 127.0.0.1:8090.
+# Roll back with `systemctl disable --now t27ai-render t27ai-render-db`; no
+# other service on the host is touched.
+[Unit]
+Description=t27ai-render (render server for the @t27ai_bot backend)
+Requires=docker.service t27ai-render-db.service
+After=docker.service t27ai-render-db.service network-online.target
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/docker rm -f t27ai-render
+ExecStart=/usr/bin/docker run --rm --init --name t27ai-render --network t27ai-net --env-file /opt/t27ai-render/.env -e PORT=8080 -p 127.0.0.1:8090:8080 --memory 3g --cpus 2 --health-cmd "wget -qO- http://127.0.0.1:8080/health" --health-interval 30s --health-start-period 120s t27ai-render:local
+ExecStop=/usr/bin/docker stop -t 30 t27ai-render
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

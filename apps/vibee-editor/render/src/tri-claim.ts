@@ -28,6 +28,8 @@ import { createHash, createPublicKey, verify } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Address, beginCell, Dictionary } from '@ton/core'
 import { ensureTriWalletTables } from './tri-wallet'
+import * as BATCH from './spec/tri-claim-batch.gen'
+import { batchSize, messagesPerTx } from './spec/tri-claim-batch.logic'
 
 /** The "Trinity S3AI" OAuth App. A client id is public; device flow needs no secret. */
 export const TRI_GITHUB_CLIENT_ID = 'Ov23lin1tYAHrKx2IaDw'
@@ -587,6 +589,8 @@ export const TRI_GITHUB_POLL_PATH = '/api/tri/github/poll'
 export const TRI_PAYEE_PATH = '/api/tri/payee'
 export const TRI_CLAIMS_PATH = '/api/tri/claims'
 export const TRI_CLAIM_PATH = '/api/tri/claim'
+/** Many mint messages at once (spec automation/tri-claim-batch.t27). */
+export const TRI_CLAIM_BATCH_PATH = '/api/tri/claim/batch'
 
 const ROUTES: Record<string, string[]> = {
   [TRI_GITHUB_PATH]: ['GET', 'DELETE'],
@@ -595,6 +599,7 @@ const ROUTES: Record<string, string[]> = {
   [TRI_PAYEE_PATH]: ['GET'],
   [TRI_CLAIMS_PATH]: ['GET'],
   [TRI_CLAIM_PATH]: ['POST'],
+  [TRI_CLAIM_BATCH_PATH]: ['POST'],
 }
 
 export interface TriClaimDeps {
@@ -619,6 +624,84 @@ function send(
     'Cache-Control': cache,
   })
   res.end(JSON.stringify(body))
+}
+
+/** One earning's mint message, or why not. Shared by a claim and a batch. */
+type Built =
+  | {
+      ok: true
+      workId: string
+      message: { address: string; amount: string; payload: string }
+      attestation: {
+        payee: string
+        workId: string
+        amountMtri: string
+        epoch: number
+        signers: number[]
+      }
+    }
+  | {
+      ok: false
+      workId: string
+      status: number
+      code: string
+      refusals?: string[]
+    }
+
+async function buildClaim(
+  pool: Queryable,
+  outside: Outside,
+  minter: Awaited<ReturnType<Outside['minter']>>,
+  person: { who: string; github: string; wallet: string },
+  workId: string
+): Promise<Built> {
+  const found = await outside.queenEarning(workId)
+  if (!found) return { ok: false, workId, status: 404, code: 'earning_unknown' }
+  if (found.earner.github?.toLowerCase() !== person.github.toLowerCase())
+    return { ok: false, workId, status: 403, code: 'not_your_earning' }
+  if (found.earning.revokedAt)
+    return { ok: false, workId, status: 409, code: 'earning_revoked' }
+
+  const event = (outcome: string) =>
+    pool.query(
+      `INSERT INTO tri_claim_events (telegram_id, work_id, network, payee, outcome)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [person.who, workId, CLAIM_NETWORK, person.wallet, outcome]
+    )
+
+  const payee = Address.parseRaw(person.wallet)
+  const q = await assembleQuorum(
+    await outside.sign(workId),
+    { workId, payee, amountMtri: BigInt(found.triPerSpec) * 1000n },
+    minter
+  )
+  if (!q.ok) {
+    await event(q.code)
+    const status =
+      q.code === 'already_minted'
+        ? 409
+        : q.code === 'quorum_not_reached'
+          ? 503
+          : 422
+    return { ok: false, workId, status, code: q.code, refusals: q.refusals }
+  }
+  await event('built')
+  return {
+    ok: true,
+    workId,
+    message: {
+      address: minter.address.toString({ testOnly: true, bounceable: true }),
+      amount: MINT_VALUE_NANO.toString(),
+      payload: mintBody(q.att, q.sigs).toBoc().toString('base64'),
+    },
+    attestation: {
+      payee: payee.toString({ testOnly: true, bounceable: false }),
+      workId,
+      amountMtri: q.att.amountMtri.toString(),
+      epoch: q.att.epoch,
+      signers: [...q.sigs.keys()],
+    },
+  }
 }
 
 export async function handleTriClaim(
@@ -826,6 +909,9 @@ export async function handleTriClaim(
           network: CLAIM_NETWORK,
           status: STATUS,
           triPerSpec: of.triPerSpec,
+          // What "withdraw all" needs to plan (spec tri-claim-batch).
+          batchMax: BATCH.BATCH_MAX,
+          mintValueMilliton: BATCH.MINT_VALUE_MILLITON,
           earnings: of.earnings.map(e => ({
             ...e,
             requested: built.has(e.workId),
@@ -833,6 +919,77 @@ export async function handleTriClaim(
         },
         'claims_listed',
         { n: of.earnings.length }
+      )
+    }
+
+    if (path === TRI_CLAIM_BATCH_PATH) {
+      let asked: { workIds?: unknown; walletMax?: unknown }
+      try {
+        asked = JSON.parse((await deps.readBody(req, 16 * 1024)) || '{}')
+      } catch {
+        return answer(400, { error: 'body_malformed' }, 'body_malformed')
+      }
+      const ids = Array.isArray(asked.workIds)
+        ? [...new Set(asked.workIds.map(String))].filter(id => WORK_ID.test(id))
+        : []
+      if (!ids.length)
+        return answer(400, { error: 'work_id_malformed' }, 'work_id_malformed')
+      if (!github)
+        return answer(409, { error: 'github_unlinked' }, 'github_unlinked')
+      if (!wallet)
+        return answer(409, { error: 'wallet_unbound' }, 'wallet_unbound')
+      const take = ids.slice(0, batchSize(ids.length))
+      const walletMax = Number(asked.walletMax)
+      const perTx = messagesPerTx(
+        // t27-plumbing: an untrusted number brought into the spec fn's u32
+        Number.isInteger(walletMax) && walletMax >= 0 && walletMax <= 0xffffffff
+          ? walletMax
+          : 0
+      )
+      const minter = await outside.minter()
+      const results: Built[] = new Array(take.length)
+      // The signers are asked for SIGN_CONCURRENCY earnings at a time.
+      let next = 0
+      await Promise.all(
+        Array.from(
+          { length: Math.min(BATCH.SIGN_CONCURRENCY, take.length) },
+          async () => {
+            while (next < take.length) {
+              const i = next++
+              results[i] = await buildClaim(
+                pool,
+                outside,
+                minter,
+                { who, github: github.login, wallet },
+                take[i]
+              )
+            }
+          }
+        )
+      )
+      const messages = results.filter(
+        (r): r is Extract<Built, { ok: true }> => r.ok
+      )
+      const refused = results
+        .filter((r): r is Extract<Built, { ok: false }> => !r.ok)
+        .map(r => ({ workId: r.workId, code: r.code }))
+      return answer(
+        200,
+        {
+          network: CLAIM_NETWORK,
+          status: STATUS,
+          validUntil: Math.floor(now() / 1000) + BATCH.VALID_FOR_S,
+          perTx,
+          messages: messages.map(m => ({
+            workId: m.workId,
+            ...m.message,
+          })),
+          attestations: messages.map(m => m.attestation),
+          refused,
+          left: ids.length - take.length,
+        },
+        'batch_built',
+        { built: messages.length, refused: refused.length }
       )
     }
 
@@ -852,65 +1009,30 @@ export async function handleTriClaim(
     if (!wallet)
       return answer(409, { error: 'wallet_unbound' }, 'wallet_unbound')
 
-    const found = await outside.queenEarning(workId)
-    if (!found)
-      return answer(404, { error: 'earning_unknown' }, 'earning_unknown')
-    if (found.earner.github?.toLowerCase() !== github.login.toLowerCase())
-      return answer(403, { error: 'not_your_earning' }, 'not_your_earning')
-    if (found.earning.revokedAt)
-      return answer(409, { error: 'earning_revoked' }, 'earning_revoked')
-
-    const event = (outcome: string) =>
-      pool.query(
-        `INSERT INTO tri_claim_events (telegram_id, work_id, network, payee, outcome)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [who, workId, CLAIM_NETWORK, wallet, outcome]
-      )
-
-    const payee = Address.parseRaw(wallet)
-    const [answers, minter] = await Promise.all([
-      outside.sign(workId),
-      outside.minter(),
-    ])
-    const q = await assembleQuorum(
-      answers,
-      { workId, payee, amountMtri: BigInt(found.triPerSpec) * 1000n },
-      minter
+    const built = await buildClaim(
+      pool,
+      outside,
+      await outside.minter(),
+      { who, github: github.login, wallet },
+      workId
     )
-    if (!q.ok) {
-      await event(q.code)
-      const code =
-        q.code === 'already_minted'
-          ? 409
-          : q.code === 'quorum_not_reached'
-            ? 503
-            : 422
-      return answer(code, { error: q.code, refusals: q.refusals }, q.code, {
-        workId,
-      })
-    }
-    await event('built')
+    if (!built.ok)
+      return answer(
+        built.status,
+        built.refusals
+          ? { error: built.code, refusals: built.refusals }
+          : { error: built.code },
+        built.code,
+        { workId }
+      )
     return answer(
       200,
       {
         network: CLAIM_NETWORK,
         status: STATUS,
         validUntil: Math.floor(now() / 1000) + 300,
-        message: {
-          address: minter.address.toString({
-            testOnly: true,
-            bounceable: true,
-          }),
-          amount: MINT_VALUE_NANO.toString(),
-          payload: mintBody(q.att, q.sigs).toBoc().toString('base64'),
-        },
-        attestation: {
-          payee: payee.toString({ testOnly: true, bounceable: false }),
-          workId,
-          amountMtri: q.att.amountMtri.toString(),
-          epoch: q.att.epoch,
-          signers: [...q.sigs.keys()],
-        },
+        message: built.message,
+        attestation: built.attestation,
       },
       'built',
       { workId }

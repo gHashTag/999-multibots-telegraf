@@ -177,7 +177,7 @@ describe('the words', () => {
     )
     const t = describeProvider({
       ...zaiHead,
-      answering: { id: 'zai-lite', model: 'glm-4.5' },
+      answering: { id: 'zai-lite', model: 'glm-4.5-flash' },
       breakers: [
         {
           id: 'zai',
@@ -188,7 +188,7 @@ describe('the words', () => {
       ],
     } as never)
     expect(t, 'the view named zai while zai-lite answered').toContain(
-      'Сейчас отвечает: платная лёгкая (GLM 4.5) · glm-4.5'
+      'Сейчас отвечает: платная лёгкая (GLM 4.5 Flash) · glm-4.5-flash'
     )
     expect(t).toContain('до 08:19 UTC')
     expect(t).toContain('timed out after 120 s')
@@ -207,8 +207,10 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(src).toMatch(/bot\.command\('lead', requireAdmin\(\)/)
     expect(src).toMatch(/bot\.command\('sweep', requireAdmin\(\)/)
     const action = src.indexOf(
-      'bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/'
+      'bot.action(/^mdl:(zai|kie|zai-lite|nemotron|ollama)$/'
     )
+    // Spec agent-provider-chain v3 KIE_IN_BOT_PICKER: the Kie route has its button.
+    expect(src).toMatch(/'Kie',\s*'mdl:kie'/)
     expect(action).toBeGreaterThan(-1)
     const block = src.slice(action, action + 900)
     expect(block.indexOf('if (!ownerOnly(ctx)) return')).toBeGreaterThan(-1)

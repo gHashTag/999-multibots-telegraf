@@ -1,0 +1,345 @@
+[
+  {
+    "name": "a bot's line costs a database read",
+    "file": "src/navigation/topics/office.ts",
+    "from": "if (fromBot || isCommand) return false",
+    "to": "if (isCommand) return false",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a heard line is never cut",
+    "file": "src/navigation/topics/office.ts",
+    "from": "const text = chars.slice(0, heardChars(chars.length)).join('')",
+    "to": "const text = raw.trim()",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a room line names nobody",
+    "file": "src/navigation/topics/office.ts",
+    "from": "return namesSpeaker(room) && name ? `${name}: ${text}` : text",
+    "to": "return text",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a private turn carries the speaker",
+    "file": "src/services/trinityAgent.ts",
+    "from": "...(room && opts.speaker ? { speaker: opts.speaker } : {}),",
+    "to": "...(opts.speaker ? { speaker: opts.speaker } : {}),",
+    "tests": ["src/__tests__/services/theRoomNamesWhoAsked.test.ts"]
+  },
+  {
+    "name": "the render names a private line",
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "from": "if (!room || typeof speaker !== 'string') return content",
+    "to": "if (typeof speaker !== 'string') return content",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"]
+  },
+  {
+    "name": "the room gate drops the line unheard",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "hearInOffice(ctx, recordTurns)",
+    "to": "Promise.resolve(recordTurns)",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "the asked room turn names nobody",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "? { speaker: speakerName(ctx.from) }",
+    "to": "? {}",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "/catchup is not registered",
+    "file": "src/navigation/topics/office.ts",
+    "from": "bot.command('catchup', async ctx => {",
+    "to": "bot.command('catchup_off', async ctx => {",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a catch-up from no channel member",
+    "file": "src/navigation/topics/office.ts",
+    "from": "      ...(member ? { member } : {}),\n",
+    "to": "",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "an empty catch-up is silence",
+    "file": "src/navigation/topics/office.ts",
+    "from": "if (!chunks.length) throw new Error('empty answer')",
+    "to": "void 0",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a member hands a task to itself",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (kind === from) continue\n",
+    "to": "",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a silent failed hand-off",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (!text) throw new Error('empty answer')\n    for (const chunk",
+    "to": "    for (const chunk",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "the room answer is never offered to a colleague",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "await handOffInOffice(ctx, text, ochishcheno,",
+    "to": "void (ctx, text, ochishcheno,",
+    "tests": ["src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts"]
+  },
+  {
+    "name": "the topic's first message counts as a reply",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  if (message?.is_topic_message && r.message_id === message.message_thread_id)\n    return null\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "an owner named by @username cannot close",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "    (!!me.username && task.owner_name === `@${me.username}`)",
+    "to": "    false",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "/todos shows done tasks",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "AND NOT done ORDER BY id LIMIT $3",
+    "to": "ORDER BY id LIMIT $3",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "office tasks never registered",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "  registerOfficeTasks(bot)\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "/done finds a task already closed",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3 AND NOT done'",
+    "to": "WHERE id = $1 AND bot_username = $2 AND chat_id = $3'",
+    "tests": ["src/__tests__/navigation/officeTasks.test.ts"]
+  },
+  {
+    "name": "a catch-up never lists the tasks",
+    "file": "src/navigation/topics/office.ts",
+    "from": "    if (open && catchupListsTasks(open.count))\n",
+    "to": "    if (false)\n",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "a failing task list breaks the catch-up",
+    "file": "src/navigation/topics/office.ts",
+    "from": "await tasks(ctx).catch(() => null)",
+    "to": "await tasks(ctx)",
+    "tests": ["src/spec/bot-neuro-office.test.ts"]
+  },
+  {
+    "name": "the /catchup command passes no task list",
+    "file": "src/navigation/topics/office.ts",
+    "from": "      openTasks\n    )",
+    "to": "    )",
+    "tests": ["src/__tests__/navigation/officeEdges.test.ts"]
+  },
+  {
+    "name": "proposals outside an office",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "if (!mayPropose(await isOffice(ctx))) return 0",
+    "to": "if (!mayPropose(true)) return 0",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "every proposal gets a button",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "items: found.slice(0, proposalsKept(found.length))",
+    "to": "items: found",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a dropped marker stays in the words",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "    .replace(TODO_MARKER, '')\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a taken proposal is taken again",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "const taken = p.taken_at !== null && p.taken_at !== undefined",
+    "to": "const taken = false",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a bot's press counts",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "const presserIsBot = ctx.from?.is_bot === true",
+    "to": "const presserIsBot = false",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the race is not checked",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "WHERE id = $1 AND taken_at IS NULL RETURNING id",
+    "to": "WHERE id = $1 RETURNING id",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a proposal of another room is taken",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "FROM office_task_proposals WHERE id = $1 AND bot_username = $2 AND chat_id = $3",
+    "to": "FROM office_task_proposals WHERE id = $1 AND bot_username = $2",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the press is answered last",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  await ctx.answerCbQuery().catch(() => undefined)\n  const data",
+    "to": "  const data",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the pressed button stays",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": ".map((row: any[]) => row.filter(b => b?.callback_data !== data))",
+    "to": ".map((row: any[]) => row)",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the presser is not the author",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "      p.owner_name,\n      Number(ctx.from.id),",
+    "to": "      p.owner_name,\n      0,",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "the press is not registered",
+    "file": "src/navigation/topics/officeTasks.ts",
+    "from": "  bot.action(/^otp:\\d+$/, guard('take', takeProposal))\n",
+    "to": "",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "an office answer keeps its markers",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "            offered.text,\n",
+    "to": "            ответ.текст, // cyrillic-ok: field of ОтветАгента\n",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "a room gets no proposals",
+    "file": "src/navigation/registerCommands.ts",
+    "from": "await proposeTasks(ctx, offered.items)",
+    "to": "void offered.items",
+    "tests": ["src/__tests__/navigation/officeProposals.test.ts"]
+  },
+  {
+    "name": "no turn is taught the marker",
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "from": "        teamSection(opts, history) +\n        officeTaskSection(opts),",
+    "to": "        teamSection(opts, history),",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the route never marks an office",
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "from": "office: officeMember(body.member, gate.room),",
+    "to": "office: false,",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card shows every task",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "const shown = found.tasks.slice(0, cardTasksShown(found.open))",
+    "to": "const shown = found.tasks",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card reads closed tasks",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "WHERE chat_id = $1 AND NOT done",
+    "to": "WHERE chat_id = $1",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card counts only the shown",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "SELECT id, text, owner_name, count(*) OVER () AS open",
+    "to": "SELECT id, text, owner_name, 5 AS open",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the client card skips the office",
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "from": "    if (tasks) parts.push(tasks)\n",
+    "to": "",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the card reads a person as a group",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "if (!/^-\\d{5,20}$/.test(String(chatId))) return { tasks: [], open: 0 }",
+    "to": "",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the client's DM assigns",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "const clientDm = ctx?.surface === 'business'",
+    "to": "const clientDm = false",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "a stranger assigns",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "const seller = await deps.isSeller(ctx)",
+    "to": "const seller = true",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "any group counts as an office",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "const office = group ? await officeIn(pool, group.chat_id) : null",
+    "to": "const office = group ? { bot: 'x', thread: 1 } : null",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the post goes to the general topic",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "message_thread_id: office!.thread,",
+    "to": "",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "a refused post leaves its proposal",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "      .query('DELETE FROM office_task_proposals WHERE id = $1', [id])",
+    "to": "      .query('SELECT 1', [id])",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "bounds checked after reading",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "  if (!assignOk([...name].length, [...text].length))",
+    "to": "  if (false)",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the Agent's channel is not preferred",
+    "file": "apps/vibee-editor/render/src/agent/office-crm.ts",
+    "from": "ORDER BY (kind = 'agent') DESC, thread_id",
+    "to": "ORDER BY thread_id",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  },
+  {
+    "name": "the tool joins the compact kit",
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "from": "|crm_client_group|crm_office_task|",
+    "to": "|crm_client_group|",
+    "tests": ["apps/vibee-editor/render/src/spec/bot-office-crm.test.ts"]
+  }
+]

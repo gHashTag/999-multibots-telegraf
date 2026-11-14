@@ -349,3 +349,74 @@ describe('our eyes and the buyer', () => {
     expect(tried).toEqual([`tok:${SPEC.HOUSE_DELIVERY_BOT}`, 'tok:main'])
   })
 })
+
+describe('a photo per scene (crm-story-reel v31)', () => {
+  const A = 'https://ours/avatar-a.jpg'
+  const B = 'https://ours/avatar-b.jpg'
+  const C = 'https://ours/avatar-c.jpg'
+
+  it('opens on scene 1 own photo and cuts every other scene from ITS photo', async () => {
+    const { lookup, calls } = fakeTools()
+    const cuts: [string, number][] = []
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async (url: string, shot: number) => {
+        cuts.push([url, shot])
+        return `${url}#shot-${shot}`
+      }
+    ).handler(
+      {
+        image_url: SOURCE,
+        image_urls: [A, B, C],
+        scenes: [{ line: HOOK }, { line: 'Два.' }, { line: 'Три.' }], // cyrillic-ok: lines
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    expect(cuts).toEqual([
+      [B, SPEC.SHOT_CLOSE],
+      [C, SPEC.SHOT_MEDIUM],
+    ])
+    const faces = calls
+      .filter(c => c.name === 'lipsync_generate')
+      .map(c => c.args.image_url)
+      .sort()
+    expect(faces).toEqual(
+      [
+        A,
+        `${B}#shot-${SPEC.SHOT_CLOSE}`,
+        `${C}#shot-${SPEC.SHOT_MEDIUM}`,
+      ].sort()
+    )
+    expect(faces.some(f => f.startsWith(SOURCE))).toBe(false)
+  })
+
+  it('a scene with a setting is drawn from its own photo; a missing one falls back to the source', async () => {
+    const { lookup, calls } = fakeTools()
+    const r: any = await makeStoryReelTool(
+      lookup,
+      undefined,
+      undefined,
+      async (url: string, shot: number) => `${url}#shot-${shot}`
+    ).handler(
+      {
+        image_url: SOURCE,
+        image_urls: [A, B, ''],
+        scenes: [
+          { line: HOOK },
+          { line: 'Два.', setting: 'в кафе' }, // cyrillic-ok: a line and a setting
+          { line: 'Три.', setting: 'у моря' }, // cyrillic-ok: a line and a setting
+        ],
+      },
+      ctx
+    )
+    expect(r.done).toBe(true)
+    const drawn = calls
+      .filter(c => c.name === 'image_edit')
+      .map(c => c.args.image_url)
+      .sort()
+    expect(drawn).toEqual([B, SOURCE].sort())
+  })
+})

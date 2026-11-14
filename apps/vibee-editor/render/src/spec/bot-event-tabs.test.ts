@@ -7,13 +7,26 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as SPEC from './bot-event-tabs.gen'
+import { HOUSE_DELIVERY_BOT } from './crm-story-reel.gen'
 import {
   configureEventTabs,
   EVENT_TAB_SQL,
   eventThread,
   routesToTab,
   tabOfEvent,
+  triesServiceBot,
+  viaHouseBot,
 } from '../topic-event-tabs'
+
+/* The farm, as the sender sees it: the house's bot is known or it is not. */
+const farm = vi.hoisted(() => ({ house: '', asked: [] as string[] }))
+vi.mock('../agent/bot-farm', async importOriginal => ({
+  ...(await importOriginal<typeof import('../agent/bot-farm')>()),
+  tokenForBot: async (name: string) => {
+    farm.asked.push(name)
+    return farm.house ? { username: name, token: farm.house } : null
+  },
+}))
 
 describe('spec bot-event-tabs.t27', () => {
   it('an event lands in its tab only when the tab exists and no thread was named', () => {
@@ -31,8 +44,19 @@ describe('spec bot-event-tabs.t27', () => {
     expect(tabOfEvent('browser')).toBe('browser')
   })
 
+  it("the house hears the render from its own bot, the service's bot only as a fallback", () => {
+    expect(viaHouseBot(true, true)).toBe(true)
+    expect(viaHouseBot(true, false)).toBe(false)
+    expect(viaHouseBot(false, true)).toBe(false)
+    expect(viaHouseBot(false, false)).toBe(false)
+    expect(triesServiceBot(true, true)).toBe(false)
+    expect(triesServiceBot(true, false)).toBe(true)
+    expect(triesServiceBot(false, false)).toBe(true)
+    expect(triesServiceBot(false, true)).toBe(true)
+  })
+
   it("VERSION says what the header's last note says", () => {
-    expect(SPEC.VERSION).toBe(1)
+    expect(SPEC.VERSION).toBe(2)
   })
 })
 
@@ -64,6 +88,9 @@ function poolWith(kind: string) {
 afterEach(() => {
   configureEventTabs(null)
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  farm.house = ''
+  farm.asked.length = 0
 })
 
 describe("the render finds the person's tab", () => {
@@ -133,5 +160,56 @@ describe('the senders route their events', () => {
     expect(sends[0].body.message_thread_id).toBe(31)
     await notifyInBot(null, '555', 'No event', {}, fetch)
     expect(sends[1].body.message_thread_id).toBeUndefined()
+  })
+
+  it("the house's messages leave from its own bot; the service's bot is the fallback", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = '123:TEST' // secret-guard-ok: invented for this test
+    farm.house = '85:HOUSE' // secret-guard-ok: invented for this test
+    vi.stubEnv('OWNER_TELEGRAM_ID', '555')
+    configureEventTabs(() => poolWith('browser'))
+    let houseRefuses = false
+    const sent: { url: string; body: any }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: any) => {
+        if (String(url).endsWith('/getMe'))
+          return new Response(
+            JSON.stringify({ ok: true, result: { username: 'test_bot' } })
+          )
+        sent.push({ url: String(url), body: JSON.parse(String(init.body)) })
+        const refused = houseRefuses && String(url).includes('85:HOUSE')
+        return new Response(
+          JSON.stringify(
+            refused
+              ? { ok: false, description: "Forbidden: bot can't initiate" }
+              : { ok: true, result: {} }
+          ),
+          { status: refused ? 403 : 200 }
+        )
+      })
+    )
+    const { sendToTelegram } = await import('../auth/telegram-sender')
+    /* The owner: the house's bot, and the Navigator's tab in it. */
+    await sendToTelegram('555', 'May I?', undefined, { event: 'browser' })
+    expect(farm.asked).toEqual([HOUSE_DELIVERY_BOT])
+    expect(sent).toHaveLength(1)
+    expect(sent[0].url).toContain('/bot85:HOUSE/sendMessage')
+    expect(sent[0].body.message_thread_id).toBe(31)
+    /* Anybody else: the service's bot, and the farm is not even asked. */
+    await sendToTelegram('777', 'Hello')
+    expect(sent[1].url).toContain('/bot123:TEST/sendMessage')
+    expect(farm.asked).toHaveLength(1)
+    /* The house's bot refuses: the service's bot still delivers. */
+    houseRefuses = true
+    await sendToTelegram('555', 'Again')
+    expect(sent.slice(2).map(x => x.url.includes('85:HOUSE'))).toEqual([
+      true,
+      false,
+    ])
+    /* No house bot in the farm: the service's bot, as before v2. */
+    farm.house = ''
+    await sendToTelegram('555', 'Once more')
+    expect(sent[4].url).toContain('/bot123:TEST/sendMessage')
+    expect(sent).toHaveLength(5)
   })
 })

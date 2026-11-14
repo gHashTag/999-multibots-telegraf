@@ -295,6 +295,39 @@ describe('menuKeyboard', () => {
         })
       )
     })
+
+    /*
+     * THE CLUB, ON THE SCREEN ONBOARDING ENDS ON (2026-10-12).
+     *
+     * A newcomer never sees the /start greeting's club button: the greeting is
+     * the EXISTING-user branch, and the funnel of thirty days counted 56 new
+     * people against 1 club card. This follow-up is the last message of the
+     * whole onboarding chain, so the club must be the first row of its
+     * keyboard -- above the top-up, which the person can still reach one row
+     * down. The button opens the card (price first), never an invoice, the
+     * same as the greeting's door.
+     */
+    it('несёт кнопку клуба первой строкой под главным меню', async () => {
+      await showMainMenu(mockContext as MyContext)
+
+      const last = mockReply.mock.calls[mockReply.mock.calls.length - 1]
+      const keyboard = (
+        last[1] as {
+          reply_markup?: {
+            inline_keyboard?: Array<Array<{ callback_data?: string }>>
+          }
+        }
+      ).reply_markup?.inline_keyboard
+      expect(keyboard, 'the follow-up must carry a keyboard').toBeTruthy()
+      expect(
+        keyboard![0]?.[0]?.callback_data,
+        'the club must be the first row, above the top-up'
+      ).toBe('club_card')
+      expect(
+        JSON.stringify(keyboard),
+        'the standard top-up row stays underneath'
+      ).toContain('act:topup')
+    })
   })
 
   describe('showCategoryMenu()', () => {

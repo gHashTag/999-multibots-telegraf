@@ -359,10 +359,39 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/traffic/arrival',
   /*
+   * The t27 course ladder (src/agent/course-access.ts). t27.ai has no
+   * Telegram: GET checks a reader's key, POST /progress reports a lesson WITH
+   * that key, and the handler refuses a mint without the server key
+   * (hasServerKey), so nobody mints for another person by typing a number.
+   */
+  '/api/course/key',
+  '/api/course/progress',
+  /*
+   * The club bought on t27.ai in roubles (src/agent/course-checkout.ts). The
+   * buyer has no Telegram; Robokassa's notification carries its own MD5
+   * signature (Password#2), checked before anything is written; the return
+   * redirect goes only to t27.ai; the order poll needs the unguessable order
+   * id and shows the key only once the order is paid.
+   */
+  '/api/course/checkout',
+  '/api/course/checkout/return',
+  '/api/course/checkout/order',
+  '/api/course/checkout/result',
+  /*
    * A step on the welcome screen (the screen's heatmap), sent the same way
    * and bounded the same way: a closed list of steps, no person.
    */
   '/api/traffic/welcome',
+  /*
+   * The TRI wallet from a wallet's OWN browser (src/tri-wallet.ts, spec
+   * automation/tri-wallet-chains.t27). On a phone an EVM, Solana or TRON
+   * wallet lives outside Telegram, so the page it opens carries no person.
+   * /message only prints the text to sign (no database). /propose records an
+   * address the wallet signed for against a one-time nonce and binds nothing:
+   * the person confirms it in the mini app, behind the guard.
+   */
+  '/api/tri/wallet/message',
+  '/api/tri/wallet/propose',
 ])
 
 /*

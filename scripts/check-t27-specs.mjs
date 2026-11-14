@@ -29,6 +29,12 @@
  *   binding-titles every spec `test` title appears in that test, word for word
  *   host-imports   some host file imports the generated module (bound, not just kept)
  *   restated       a host file bound to the spec restates none of its values
+ *   logic-required a spec with fns runs from <id>.logic.ts (its compiled bodies),
+ *                  unless named in "mirrored" (debt that only shrinks)
+ *   logic-hash     <id>.logic.ts was compiled from exactly this spec
+ *   mirror         no host file retypes a spec fn: every one has a compiled
+ *                  body, the str ones too (#3941); a fn the logic file still
+ *                  names in __NOT_LOWERED__ is lowered, never retyped
  *   cited          every spec a code comment cites is bound, or named in the
  *                  manifest (scripts/t27-specs.json) as known debt
  *
@@ -45,6 +51,7 @@
  *   node scripts/check-t27-specs.mjs
  *   node scripts/check-t27-specs.mjs --t27 ../t27 [--run]
  */
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
@@ -157,6 +164,8 @@ export function checkSpec({
   test,
   hostFiles = [],
   ignore = '',
+  logic = null,
+  mirrored = false,
 }) {
   const bad = []
   const say = (law, what) => bad.push({ spec: file, law, what })
@@ -274,13 +283,28 @@ export function checkSpec({
   }
 
   const genName = `spec/${basename(file, '.t27')}.gen'`
-  const bound = hostFiles.filter(f => f.text.includes(genName))
+  // The compiled logic binds the host as surely as the constants do: it IS
+  // the spec's body (scripts/t27-logic.mjs).
+  const logicImport = `spec/${basename(file, '.t27')}.logic'`
+  // A host that runs on Node itself (deployment/ci-bridge, types stripped)
+  // names the module with its extension: spec/<id>.gen.ts'.
+  const withExt = name => name.replace(/'$/, ".ts'")
+  const bound = hostFiles.filter(f =>
+    [genName, logicImport, withExt(genName), withExt(logicImport)].some(n =>
+      f.text.includes(n)
+    )
+  )
   if (!bound.length)
     say('host-imports', 'no host file imports the generated module')
   // A file of this vertical: it imports the module or cites the spec.
   const cite = `${pathLine?.[1] ?? basename(file, '.t27')}.t27`
   for (const f of hostFiles) {
-    if (!f.text.includes(genName) && !f.text.includes(cite)) continue
+    if (
+      !f.text.includes(genName) &&
+      !f.text.includes(withExt(genName)) &&
+      !f.text.includes(cite)
+    )
+      continue
     for (const [, name, raw] of f.text.matchAll(
       /^export const (\w+)(?:\s*:\s*[^=]+)?\s*=\s*(.+)$/gm
     )) {
@@ -296,7 +320,58 @@ export function checkSpec({
       }
     }
   }
+  // THE LOGIC IS THE SPEC'S (owner, 2026-10-09: "logic in .t27 and in no
+  // other way"). A spec with fns runs from its compiled bodies
+  // (<id>.logic.ts, scripts/t27-logic.mjs); a hand-written mirror is debt
+  // named in scripts/t27-specs.json "mirrored", and that list only shrinks.
+  const fns = [...spec.matchAll(/^\s*(?:pub\s+)?fn (\w+)\(/gm)].map(m => m[1])
+  if (logic !== null) {
+    const recorded = /^\/\/ spec-sha256: ([0-9a-f]{64})$/m.exec(logic)?.[1]
+    const actual = createHash('sha256').update(spec).digest('hex')
+    if (recorded !== actual)
+      say(
+        'logic-hash',
+        `${basename(file, '.t27')}.logic.ts was compiled from another spec; regenerate: node scripts/t27-logic.mjs <t27> <kind/id> --out=<dir>`
+      )
+    if (mirrored)
+      say('ratchet', 'it runs from its logic now: remove it from "mirrored"')
+    const logicName = `spec/${basename(file, '.t27')}.logic'`
+    // No exemption (#3941). Until then a fn with a str in its signature had
+    // no compiled body, the logic file named it in __NOT_LOWERED__, and this
+    // law let the host keep its copy -- 12 rules of course-outreach ran from
+    // a copy the law could not see drift in. A str crosses the wasm boundary
+    // now; a fn still named there (a u64, a struct) is lowered by teaching
+    // scripts/t27-logic.mjs its type, not by retyping its body here.
+    const notLowered = notLoweredOf(logic)
+    for (const f of hostFiles) {
+      if (!f.text.includes(genName) && !f.text.includes(logicName)) continue
+      for (const fn of fns) {
+        const camel = fn.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
+        if (new RegExp(`\\bfunction ${camel}\\s*\\(`).test(f.text))
+          say(
+            'mirror',
+            notLowered.includes(fn)
+              ? `${f.path}: function ${camel} retypes spec fn ${fn}, which scripts/t27-logic.mjs does not lower yet; teach it the type, do not retype the body`
+              : `${f.path}: function ${camel} retypes spec fn ${fn}; import it from ${basename(file, '.t27')}.logic`
+          )
+      }
+    }
+  } else if (fns.length && !mirrored)
+    say(
+      'logic-required',
+      `${fns.length} fn(s) and no ${basename(file, '.t27')}.logic.ts: the rules run from the spec (node scripts/t27-logic.mjs), never from a hand-written copy`
+    )
   return bad
+}
+
+/** The spec fns a logic file says it could not lower (its __NOT_LOWERED__). */
+export function notLoweredOf(logic) {
+  // As generated (JSON, one line) or as prettier leaves it (quoted, wrapped).
+  const m =
+    /^export const __NOT_LOWERED__ = Object\.freeze\(\[([^\]]*)\]\)/m.exec(
+      logic ?? ''
+    )
+  return m ? [...m[1].matchAll(/['"](\w+)['"]/g)].map(n => n[1]) : []
 }
 
 // ---- the repository ---------------------------------------------------------------
@@ -334,6 +409,8 @@ function namingCode(root) {
         '.t27',
         '-e',
         ".gen'",
+        '-e',
+        ".gen.ts'",
         '--',
         '*.ts',
         '*.tsx',
@@ -351,7 +428,13 @@ function namingCode(root) {
 }
 
 /** Every vendored spec, and every law over it and over the citations. */
-export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
+export function checkRepo({
+  root = ROOT,
+  t27 = null,
+  run = false,
+  seal = null,
+  noSeal = false,
+} = {}) {
   const bad = []
   const manifest = readManifest(root)
   const ignore = existsSync(join(root, '.prettierignore'))
@@ -395,6 +478,8 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
           test: at(file.replace(/\.t27$/, '.test.ts')),
           hostFiles,
           ignore,
+          logic: at(file.replace(/\.t27$/, '.logic.ts')),
+          mirrored: (manifest.mirrored ?? []).includes(file),
         })
       )
       const path = /^\/\/ specs\/([a-z0-9_/-]+)\.t27\b/.exec(
@@ -430,12 +515,16 @@ export function checkRepo({ root = ROOT, t27 = null, run = false } = {}) {
         what: 'bound now: remove it from "unbound"',
       })
 
-  if (t27) bad.push(...checkAgainstT27({ root, t27, bound, manifest, run }))
+  if (t27)
+    bad.push(
+      ...checkAgainstT27({ root, t27, bound, manifest, run, seal, noSeal })
+    )
   return bad
 }
 
 /** The laws that need the t27 checkout: identity, the compiler, the ratchet. */
-function checkAgainstT27({ root, t27, bound, manifest, run }) {
+function checkAgainstT27({ root, t27, bound, manifest, run, seal, noSeal }) {
+  const seals = run && seal ? sealsOf(t27) : new Map()
   const bad = []
   if (!existsSync(join(t27, 'specs')))
     return [{ spec: t27, law: 'judge', what: 'not a t27 checkout' }]
@@ -477,7 +566,19 @@ function checkAgainstT27({ root, t27, bound, manifest, run }) {
         what: `t27c gen-ts failed: ${String(e.message).slice(0, 120)}`,
       })
     }
-    if (run) bad.push(...testReport(t27c, t27, theirs, file))
+    if (run) {
+      const answered =
+        Boolean(seal) &&
+        sealAnswers(
+          seals.get(`specs/${id}.t27`),
+          readFileSync(join(root, file)),
+          seal.standsIn
+        )
+      if (!seal || seal.compiles(noSeal, answered)) {
+        runTally.compiled++
+        bad.push(...testReport(t27c, t27, theirs, file))
+      } else runTally.sealed++
+    }
   }
   const ours = []
   const walk = d => {
@@ -537,6 +638,42 @@ export function readTestReport(out) {
   }
 }
 
+/*
+ * A SEAL ANSWERS FOR A RUN (spec automation/seal-stands-in, scripts/spec/).
+ * t27 keeps .trinity/seals/<module>.json for a spec: the sha256 of the bytes
+ * it sealed and the tests that ran on them. Measured 2026-10-09: 35 of the
+ * 48 vendored specs carried a seal for their exact bytes with passing tests,
+ * and `--run` compiled every one of them again (25 s). The decision is the
+ * spec's compiled logic; this reads the seals and hashes the file.
+ */
+export function sealsOf(t27) {
+  const dir = join(t27, '.trinity', 'seals')
+  const out = new Map()
+  if (!existsSync(dir)) return out
+  for (const n of readdirSync(dir).filter(x => x.endsWith('.json'))) {
+    try {
+      const s = JSON.parse(readFileSync(join(dir, n), 'utf8'))
+      if (s?.spec_path) out.set(s.spec_path, s)
+    } catch {
+      /* a seal that does not parse answers for nothing */
+    }
+  }
+  return out
+}
+
+export function sealAnswers(seal, bytes, standsIn) {
+  const hash = 'sha256:' + createHash('sha256').update(bytes).digest('hex')
+  return standsIn(
+    Boolean(seal) && seal.spec_hash === hash,
+    Number(seal?.tests?.total ?? 0),
+    Number(seal?.tests?.failed ?? 0),
+    Boolean(seal?.tests?.forced)
+  )
+}
+
+/* What the last --run did: compiled, or answered by a seal. */
+export const runTally = { compiled: 0, sealed: 0 }
+
 function testReport(t27c, t27, spec, file) {
   let out = ''
   try {
@@ -590,7 +727,22 @@ if (main) {
   const t27 = at >= 0 ? args[at + 1] : null
   let bad
   try {
-    bad = checkRepo({ t27, run: args.includes('--run') })
+    const run = args.includes('--run')
+    /* The seal's logic is TypeScript (spec automation/seal-stands-in): loaded
+     * only for --run, so the offline gate never depends on type stripping. */
+    let seal = null
+    if (run)
+      seal = await import('./spec/seal-stands-in.logic.ts').catch(e => {
+        console.error(
+          `t27 specs: seals not read (${String(e.message).slice(0, 80)}); compiling every spec`
+        )
+        return null
+      })
+    bad = checkRepo({ t27, run, seal, noSeal: args.includes('--no-seal') })
+    if (run)
+      console.error(
+        `t27 specs: --run compiled ${runTally.compiled}, ${runTally.sealed} answered by their seals${args.includes('--no-seal') ? ' (--no-seal)' : ''}`
+      )
   } catch (e) {
     console.error(`t27 specs: could not judge: ${e.message}`)
     process.exit(2)

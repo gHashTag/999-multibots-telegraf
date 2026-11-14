@@ -19,14 +19,30 @@
 
 import { chosenProvider } from './provider-choice'
 import * as SPEC from '../spec/agent-provider-chain.gen'
+import * as RULES from '../spec/agent-provider-chain.logic'
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'reserve' | 'ollama'
+export type ProviderId =
+  | 'zai'
+  | 'kie'
+  | 'zai-lite'
+  | 'nemotron'
+  | 'reserve'
+  | 'ollama'
 
 export interface Provider {
   id: ProviderId
   base: string
   model: string
   key: string
+  /**
+   * ROTATION OF KEYS: the route's whole pool in rotation order, with `key`
+   * as its head. The pool is assembled from variables (providerKeys): a
+   * variable's value may list several keys separated by commas or
+   * semicolons, a plural sister variable (GLM_API_KEYS) adds a whole pool,
+   * and numbered sisters (GLM_API_KEY_2 .. _9) add one each. A one-key pool
+   * repeats `key` and everything behaves exactly as before.
+   */
+  keys?: readonly string[]
   /** Умеет ли отдавать поток размышления отдельным полем. */
   thinking: boolean
   /**
@@ -78,8 +94,8 @@ export interface Provider {
   /** A small context: the seller's tools only, not all sixty-odd. */
   compact: boolean
   /**
-   * Ceiling on the answer, sent as `max_tokens`. Set for the reserve route
-   * only (spec: agent-provider-chain.t27 RESERVE_SENDS_MAX_TOKENS).
+   * Ceiling on the answer, sent as `max_tokens`. Set for the reserve and Kie
+   * routes only (spec: agent-provider-chain.t27 `ceiling_for`).
    *
    * Measured 2026-09-15 against OpenRouter: with no max_tokens the vendor
    * priced the model ceiling (16000) against the prepaid balance (2506
@@ -153,7 +169,8 @@ const CATALOG: Record<
     base: string
     /**
      * Where the key is read: the first variable in the list that is set.
-     * Empty for ollama (no key) and unused for reserve (reserveEnv).
+     * Empty for ollama (no key) and unused for reserve (reserveEnv). The
+     * kie base and model are set per process in build (kieModel).
      */
     env: readonly string[]
     model: string
@@ -190,6 +207,33 @@ const CATALOG: Record<
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
     vision: false,
     audio: false,
+    context: 128_000,
+  },
+  /**
+   * KIE -- the second leg (agent-provider-chain.t27 v3, 2026-10-09).
+   *
+   * The owner's turn that day ended in "no model provider answered": zai
+   * 1305, nemotron silent for the 120 s ceiling, zai-lite silent 60 s,
+   * reserve 402 -- three minutes and nothing. Kie is the vendor the project
+   * already pays for every image, video, song and voice, and it serves
+   * Gemini over an OpenAI-compatible /chat/completions at
+   * https://api.kie.ai/<model>/v1. So: the free zai first, then a funded
+   * route on a DIFFERENT vendor, before the two that burned the minutes.
+   *
+   * gemini-2.5-flash by default: Gemini 3 wants its thought signatures sent
+   * back on every tool round, and this loop does not carry them.
+   * KIE_CHAT_MODEL switches the model without a commit. Tools are declared
+   * by Kie's docs, not measured here; sight and hearing are not declared,
+   * so images keep going to nemotron.
+   */
+  kie: {
+    base: '',
+    env: [SPEC.KIE_ENV_KEY],
+    model: SPEC.KIE_MODEL_DEFAULT,
+    thinking: SPEC.KIE_THINKING,
+    tools: SPEC.KIE_TOOLS,
+    vision: SPEC.KIE_VISION,
+    audio: SPEC.KIE_AUDIO,
     context: 128_000,
   },
   /**
@@ -339,6 +383,139 @@ export function keyFrom(names: readonly string[]): string | undefined {
 }
 
 /**
+ * The GLM-facing view of the pool (#4048): the primary first, then
+ * GLM_API_KEYS, blanks and duplicates dropped. providerKeys('zai') reads the
+ * same variable plus the numbered sisters; this narrower door stays because
+ * the operator's runbook names GLM_API_KEYS and its test pins the order.
+ */
+export function glmPoolKeys(primary: string): string[] {
+  const out = [primary]
+  for (const k of splitKeys(process.env.GLM_API_KEYS || ''))
+    if (!out.includes(k)) out.push(k)
+  return out
+}
+
+/**
+ * ROTATION OF KEYS.
+ *
+ * 2026-10-26 16:09 UTC, a live outage: every route ran out of its own
+ * resource at once -- zai 429 code 1305, nemotron "ResourceExhausted:
+ * Worker local total request limit reached (16/16)", reserve and kie
+ * "ключ недействителен" // cyrillic-ok: quoted refusal text, zai-lite "на
+ * ключе нет средств" // cyrillic-ok: quoted refusal text -- and the chain
+ * ended, while the owner's vendor consoles held more keys than the one
+ * variable each route read. Until this day a route read EXACTLY ONE key
+ * from one variable: restarting it meant reissuing the key by hand and
+ * rewriting a Railway variable while a person was waiting for an answer.
+ *
+ * A route now carries as many keys as the owner wrote:
+ *   -- the primary variable's value may list keys separated by commas,
+ *      semicolons or spaces (GLM_API_KEY="k1,k2,k3");
+ *   -- the plural sister variable adds a whole pool
+ *      (GLM_API_KEYS="k1,k2" -- the same as above);
+ *   -- numbered sisters add one each (GLM_API_KEY_2 .. GLM_API_KEY_9).
+ * A refusal that is THE KEY's fault -- this key's rate limit, an invalid
+ * key, no funds, NVIDIA's account ceiling -- moves the route to its next
+ * key (chat.ts) before the chain moves to the next provider. The cursor
+ * holds the last key that answered and lives in this process's memory: a
+ * restart returns to the first key, exactly like the breaker.
+ *
+ * WHAT DOES NOT ROTATE. 1305 is "the model is busy for everybody"
+ * (measured 2026-10-06): another key of the same route hits the same wall,
+ * and the way round it is the neighbouring model, as before. A nameless
+ * 429, a timeout and a 404 are not the key's fault: rotation would only
+ * pay for extra calls. isKeyFailure lists the measured cases only; an
+ * unmeasured one costs one quick extra call, a wrongly rotating one costs
+ * the answer that would have been.
+ */
+
+/** How many numbered sisters (_2 .. _9) are read for each variable. Spec: KEY_POOL_SLOTS. */
+export const KEY_POOL_SLOTS: number = SPEC.KEY_POOL_SLOTS
+
+/** Keys inside one variable's value: commas, semicolons and spaces split. */
+function splitKeys(raw: string | undefined): string[] {
+  return (raw || '')
+    .split(/[\s,;]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The route's whole pool in declaration order: each variable from `env`
+ * (its value may list several keys), then its plural sister NAME_KEYS,
+ * then the numbered sisters NAME_2 .. NAME_9. Duplicates and blanks are
+ * dropped. Key values are never logged.
+ */
+export function providerKeys(id: ProviderId): string[] {
+  const c = CATALOG[id]
+  const names: readonly string[] =
+    id === 'reserve' ? ['RESERVE_API_KEY'] : id === 'ollama' ? [] : c.env
+  const pool: string[] = []
+  const push = (k: string) => {
+    if (k && !pool.includes(k)) pool.push(k)
+  }
+  for (const name of names) {
+    for (const k of splitKeys(process.env[name])) push(k)
+    // The plural sister: GLM_API_KEY -> GLM_API_KEYS, KIE_AI_API_KEY ->
+    // KIE_AI_API_KEYS. A whole extra pool in one variable.
+    for (const k of splitKeys(process.env[name.replace(/KEY$/, 'KEYS')]))
+      push(k)
+    for (let i = 2; i <= KEY_POOL_SLOTS; i++)
+      for (const k of splitKeys(process.env[`${name}_${i}`])) push(k)
+  }
+  return pool
+}
+
+/** The rotation cursor: the pool index this route starts from. */
+const keyCursor = new Map<ProviderId, number>()
+
+/**
+ * The pool in rotation order: from the cursor, wrapping around. Fewer than
+ * two keys -- no rotation; a cursor past the pool's end (the key was
+ * removed on Railway) wraps by modulo instead of crashing.
+ */
+export function keyChain(id: ProviderId): string[] {
+  const pool = providerKeys(id)
+  if (pool.length < 2) return pool
+  const at = keyCursor.get(id) ?? 0
+  const off = RULES.rotationOffset(at, pool.length)
+  return [...pool.slice(off), ...pool.slice(0, off)]
+}
+
+/**
+ * The verdict on one key (chat.ts): success -- start from it next turn,
+ * a key-class refusal -- start past it. A key that is no longer in the
+ * pool (the variables changed) moves nothing.
+ */
+export function rememberKey(
+  id: ProviderId,
+  key: string,
+  worked: boolean
+): void {
+  const pool = providerKeys(id)
+  const at = pool.indexOf(key)
+  if (at < 0) return
+  keyCursor.set(id, RULES.nextCursor(pool.length, at, worked))
+}
+
+/** For tests: forget the rotation cursors. */
+export function forgetKeyRotationForTests(): void {
+  keyCursor.clear()
+}
+
+/**
+ * A refusal that is THE KEY's fault -- the reason to try this route's next
+ * key. The rule lives in the spec (agent-provider-chain.t27 v4, `key_failure`);
+ * this door only lowercases the line and hands the status through. `status`
+ * is the HTTP status, or 0 when there was none (a mid-stream throw), or the
+ * vendor's embedded code for a 200 that was really a refusal.
+ */
+// t27-plumbing: a typed door to the spec's key_failure, the host adds no rule of its own
+export function isKeyFailure(status: number, reason: string): boolean {
+  return RULES.keyFailure(status, (reason || '').toLowerCase())
+}
+
+/**
  * The order providers are tried in: the paid ones first by default, our
  * own model last as the safety net. AGENT_PROVIDER moves any of them to
  * the front; the rest keep their order behind it. This is the WANTED order;
@@ -351,13 +528,7 @@ export function providerOrder(): ProviderId[] {
     process.env.AGENT_PROVIDER ||
     ''
   ).toLowerCase() as ProviderId
-  const DEFAULT_ORDER: ProviderId[] = [
-    'zai',
-    'zai-lite',
-    'nemotron',
-    'reserve',
-    'ollama',
-  ]
+  const DEFAULT_ORDER = SPEC.ORDER_DEFAULT.split(',') as ProviderId[]
   return DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
@@ -403,6 +574,17 @@ export function reserveEnv(): {
   }
 }
 
+/**
+ * The Kie chat model: KIE_CHAT_MODEL when set, else the spec's default. It is
+ * part of the PATH (api.kie.ai/<model>/v1), so AGENT_MODEL -- a GLM name --
+ * never renames it (spec KIE_TAKES_AGENT_MODEL = false).
+ */
+export function kieModel(): string {
+  return (
+    (process.env[SPEC.KIE_ENV_MODEL] || '').trim() || SPEC.KIE_MODEL_DEFAULT
+  )
+}
+
 /** Spec: agent-provider-chain.t27 RESERVE_MAX_TOKENS_DEFAULT. */
 export const RESERVE_MAX_TOKENS_DEFAULT = SPEC.RESERVE_MAX_TOKENS_DEFAULT
 
@@ -418,13 +600,19 @@ export function reserveMaxTokens(raw: string | undefined): number {
 
 function build(id: ProviderId, key: string): Provider {
   const c = CATALOG[id]
+  // The pool in rotation order; `key` (the first set variable) is only the
+  // fallback head when the pool is somehow empty. The cursor inside keyChain
+  // is what makes every other consumer of Provider.key (duet, media, voice)
+  // start from the key that answered last, not from a dead one.
+  const keys = keyChain(id)
   if (id === 'reserve') {
     const r = reserveEnv()!
     return {
       id,
       base: r.base,
       model: r.model,
-      key: r.key,
+      key: keys[0] || r.key,
+      keys: keys.length ? keys : [r.key],
       thinking: c.thinking,
       tools: r.tools,
       vision: r.vision,
@@ -432,6 +620,23 @@ function build(id: ProviderId, key: string): Provider {
       context: c.context,
       compact: c.context < COMPACT_BELOW,
       maxTokens: r.maxTokens,
+    }
+  }
+  if (id === 'kie') {
+    const model = kieModel()
+    return {
+      id,
+      base: endpointBase(undefined, `${SPEC.KIE_BASE_ROOT}/${model}/v1`),
+      model,
+      key: keys[0] || key,
+      keys: keys.length ? keys : [key],
+      thinking: c.thinking,
+      tools: c.tools,
+      vision: c.vision,
+      audio: c.audio,
+      context: c.context,
+      compact: c.context < COMPACT_BELOW,
+      maxTokens: SPEC.KIE_MAX_TOKENS,
     }
   }
   // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
@@ -444,7 +649,8 @@ function build(id: ProviderId, key: string): Provider {
     id,
     base: c.base,
     model,
-    key,
+    key: keys[0] || key,
+    keys: keys.length ? keys : [key],
     thinking: c.thinking,
     tools: c.tools,
     vision: c.vision,
@@ -461,32 +667,20 @@ function build(id: ProviderId, key: string): Provider {
  * single tool. The bot button is the owner's explicit pick and still wins;
  * any other head that cannot call tools (the variable, or the default order
  * once absent providers drop out) moves right behind the first provider that
- * can. A chain where nobody calls tools keeps its order. Mirrors the spec's
- * `demote_head`, `head_note` and `demoted_index`.
+ * can. A chain where nobody calls tools keeps its order. The rules run from
+ * the spec's own compiled bodies (agent-provider-chain.logic, `demote_head`,
+ * `head_note`, `demoted_index`); the re-exports keep the existing imports.
  */
-export function demoteHead(
-  fromBot: boolean,
-  headTools: boolean,
-  anyTools: boolean
-): boolean {
-  return !fromBot && !headTools && anyTools
-}
-
-export function headNote(
-  fromBot: boolean,
-  headTools: boolean,
-  anyTools: boolean
-): string {
-  if (headTools) return SPEC.NOTE_NONE
-  if (fromBot) return SPEC.NOTE_BOT_PICK
-  if (anyTools) return SPEC.NOTE_DEMOTED
-  return SPEC.NOTE_NO_TOOLS
-}
-
-/** `restIndex`: the first tools-capable provider's index without the head. */
-export function demotedIndex(restIndex: number): number {
-  return restIndex + 1
-}
+export {
+  demoteHead,
+  headNote,
+  demotedIndex,
+} from '../spec/agent-provider-chain.logic'
+import {
+  demoteHead,
+  headNote,
+  demotedIndex,
+} from '../spec/agent-provider-chain.logic'
 
 /**
  * Label providers that share a key on the same base (see `keyGroup`).
@@ -616,6 +810,42 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
     )
   }
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
+}
+
+/**
+ * The reason for a 200 whose body is not a stream. Kie answers its own
+ * errors this way -- HTTP 200 and `{"code":402,"msg":"..."}` -- so the code
+ * inside the body is the real status when it looks like one, and diagnose()
+ * names it as it names any other refusal (402: no funds, 401: bad key).
+ */
+export function notAStream(
+  id: ProviderId,
+  status: number,
+  body: string
+): string {
+  const code = Number(vendorCode(body))
+  return diagnose(id, code >= 400 && code <= 599 ? code : status, body)
+}
+
+/**
+ * One whole chat.completion in a body that was asked to stream, or null.
+ * The message is what a stream would have accumulated: text and tool calls.
+ */
+export function plainCompletion(
+  body: string
+): { content: string; tool_calls: unknown[] } | null {
+  let j: any
+  try {
+    j = JSON.parse(body)
+  } catch {
+    return null
+  }
+  const m = j?.choices?.[0]?.message
+  if (!m || typeof m !== 'object') return null
+  return {
+    content: typeof m.content === 'string' ? m.content : '',
+    tool_calls: Array.isArray(m.tool_calls) ? m.tool_calls : [],
+  }
 }
 
 export function resolveProvider(): Provider {

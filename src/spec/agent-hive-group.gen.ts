@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "agent-hive-group" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 3 satisfies number;
+export const VERSION = 4 satisfies number;
 export const MAX_BOT_DEPTH = 3 satisfies number;
 export const BOT_REPLY_COOLDOWN_MS = 5000 satisfies number;
 export const CLAIM_TTL_MS = 900000 satisfies number;
@@ -41,6 +41,20 @@ export const TOPIC_RECREATE_COOLDOWN_MS = 600000 satisfies number;
 export const SUMMARY_LOG_SIZE = 200 satisfies number;
 export const SUMMARY_DEFAULT = 50 satisfies number;
 // t27c gen-ts: fn summary_count was not emitted -- this backend lowers declarations, not bodies.
+export const DM_TAG = "#a2a" satisfies string;
+export const DM_ASK = 1 satisfies number;
+export const DM_ANSWER = 2 satisfies number;
+export const MAX_DM_HANDOFFS = 2 satisfies number;
+// t27c gen-ts: fn dm_heard was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn dm_runs_turn was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn dm_carries was not emitted -- this backend lowers declarations, not bodies.
+export const DM_ANSWER_WINDOW_MS = 1800000 satisfies number;
+// t27c gen-ts: fn dm_tag_ok was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn dm_handoffs_sent was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -60,7 +74,7 @@ export const SUMMARY_DEFAULT = 50 satisfies number;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "MAX_BOT_DEPTH", "BOT_REPLY_COOLDOWN_MS", "CLAIM_TTL_MS", "ALL_TAG", "BOT_USERNAME_PREFIX", "BOT_USERNAME_SUFFIX", "TYPING_REFRESH_MS", "ALL_FIRST_SPEAKERS", "FOLLOW_UP_WINDOW_MS", "STOP_WINDOW_MS", "MUTE_MS", "MAX_BRIEF_CHARS", "TOPIC_RECREATE_COOLDOWN_MS", "SUMMARY_LOG_SIZE", "SUMMARY_DEFAULT"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "MAX_BOT_DEPTH", "BOT_REPLY_COOLDOWN_MS", "CLAIM_TTL_MS", "ALL_TAG", "BOT_USERNAME_PREFIX", "BOT_USERNAME_SUFFIX", "TYPING_REFRESH_MS", "ALL_FIRST_SPEAKERS", "FOLLOW_UP_WINDOW_MS", "STOP_WINDOW_MS", "MUTE_MS", "MAX_BRIEF_CHARS", "TOPIC_RECREATE_COOLDOWN_MS", "SUMMARY_LOG_SIZE", "SUMMARY_DEFAULT", "DM_TAG", "DM_ASK", "DM_ANSWER", "MAX_DM_HANDOFFS", "DM_ANSWER_WINDOW_MS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

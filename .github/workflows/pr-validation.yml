@@ -14,7 +14,7 @@ jobs:
   validate-pr:
     name: 🚨 Validate PR Rules
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+    if: vars.CI_ENABLED == 'true' && (github.event.pull_request.draft == false)
     
     steps:
       # claude/ is what the Claude Code desktop app names its worktree
@@ -184,7 +184,7 @@ jobs:
   security-check:
     name: 🔒 Security Validation
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+    if: vars.CI_ENABLED == 'true' && (github.event.pull_request.draft == false)
     
     steps:
       - uses: actions/checkout@v4

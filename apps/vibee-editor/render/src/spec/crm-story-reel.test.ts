@@ -59,6 +59,11 @@ import {
 } from '../agent/lead-voice'
 import { isAppRoute } from '../app-links'
 import { renderFeedEntry } from '../render-feed-entry'
+import {
+  sceneFace,
+  sceneFacesFor,
+  sceneSource,
+} from '../agent/story-scene-faces'
 
 /**
  * THE STORY REEL IS WRITTEN IN t27 FIRST (owner, 2026-09-27: "t27 is our
@@ -1278,7 +1283,72 @@ describe("the spec's tests hold against the host", () => {
   it("VERSION says what the header's last note says", () => {
     // The spec's vector; scripts/check-t27-specs.mjs (law version-note)
     // holds the same for every spec of record.
-    expect(SPEC.VERSION).toBe(30)
+    expect(SPEC.VERSION).toBe(31)
+  })
+
+  it('each scene takes the next avatar, round and round', () => {
+    expect(SPEC.SCENE_FACES_FROM_AVATARS).toBe(true)
+    expect(sceneFace(0, 3)).toBe(0)
+    expect(sceneFace(1, 3)).toBe(1)
+    expect(sceneFace(2, 3)).toBe(2)
+    expect(sceneFace(3, 3)).toBe(0)
+    expect(sceneFace(5, 2)).toBe(1)
+    expect(sceneFace(4, 1)).toBe(0)
+    expect(sceneFace(2, 0)).toBe(0)
+    expect(SPEC.AVATARS_MAX).toBeGreaterThanOrEqual(SPEC.SCENES_MAX)
+    // The host's whole storyboard: three avatars over four scenes.
+    const A = ['https://x.io/a.jpg', 'https://x.io/b.jpg', 'https://x.io/c.jpg']
+    expect(
+      sceneFacesFor({
+        count: 4,
+        picks: [],
+        avatars: A,
+        face: A[0],
+        faceCustom: false,
+      })
+    ).toEqual([A[0], A[1], A[2], A[0]])
+  })
+
+  it("a scene's pick wins, then the reel's photo, then an avatar", () => {
+    expect(SPEC.SCENE_PHOTO_PICKED_BY_TAP).toBe(true)
+    expect(sceneSource(true, true, 3)).toBe(SPEC.SOURCE_PICKED)
+    expect(sceneSource(false, true, 3)).toBe(SPEC.SOURCE_REEL_FACE)
+    expect(sceneSource(false, false, 3)).toBe(SPEC.SOURCE_AVATAR)
+    expect(sceneSource(false, false, 0)).toBe(SPEC.SOURCE_NONE)
+    expect(sceneSource(true, false, 0)).toBe(SPEC.SOURCE_PICKED)
+    const A = ['https://x.io/a.jpg', 'https://x.io/b.jpg']
+    const OWN = 'https://x.io/own.jpg'
+    const PICK = 'https://x.io/pick.jpg'
+    // A pick for scene 2 only; the rest by the default.
+    expect(
+      sceneFacesFor({
+        count: 3,
+        picks: ['', PICK],
+        avatars: A,
+        face: A[0],
+        faceCustom: false,
+      })
+    ).toEqual([A[0], PICK, A[0]])
+    // The seller's one photo beats the avatars, not a scene's pick.
+    expect(
+      sceneFacesFor({
+        count: 3,
+        picks: ['', PICK],
+        avatars: A,
+        face: OWN,
+        faceCustom: true,
+      })
+    ).toEqual([OWN, PICK, OWN])
+    // No avatar at all: the reel's one face; a non-https pick is no pick.
+    expect(
+      sceneFacesFor({
+        count: 2,
+        picks: ['http://x.io/p.jpg'],
+        avatars: [],
+        face: OWN,
+        faceCustom: false,
+      })
+    ).toEqual([OWN, OWN])
   })
 
   it("a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink", async () => {

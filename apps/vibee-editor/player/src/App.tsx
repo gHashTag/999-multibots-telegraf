@@ -60,6 +60,7 @@ const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicy'))
 const TermsServicePage = lazy(() => import('@/pages/TermsService'))
 const LearnPage = lazy(() => import('@/pages/Learn'))
 const PairPage = lazy(() => import('@/pages/Pair'))
+const TriBindPage = lazy(() => import('@/pages/TriBind'))
 
 // Redirect /profile to /:username for current user
 // Экспортируется РАДИ ПРОВЕРОК: три ветки этой функции (имя есть / имя знает
@@ -416,6 +417,9 @@ function RouteTable() {
           answering with a bill. Declared before `/:username`, like /crm above,
           or a profile named "pair" would swallow it. */}
       <Route path="/pair" element={<PairPage />} />
+      {/* The TRI wallet from a wallet app's own browser: no person needed,
+          it only proposes (pages/TriBind.tsx). */}
+      <Route path="/tri/bind" element={<TriBindPage />} />
       <Route path="/:username" element={<ProfilePage />} />
     </Routes>
   )

@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+// The real price, read once at load (doMock below only reaches later dynamic
+// imports): the picture's price moved 2 -> 8 when it began covering Kie
+// (agent-media-kie.t27), and a number written here would move behind it.
+import { TOKEN_PRICES } from './src/agent/billing-shared'
 
 /*
  * Budget for a test that reaches ./tools or ./routes itself (#3750, #3764).
@@ -349,13 +353,17 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
   it('a person who cannot afford it gets no picture made, and a way forward', async () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
+    // One token short of the REAL price: a check against a stale price (the
+    // old 2) would let this through and draw the picture.
+    const price = TOKEN_PRICES.image_generate
+    expect(price).toBeGreaterThan(1)
     const r: any = await tool.handler(
       { chat: '@pilot_client', prompt: 'кот', ...PAID },
-      ctxWith(poolWith([{ balance: 1 }]))
+      ctxWith(poolWith([{ balance: price - 1 }]))
     )
     expect(r.delivered).toBe(false)
     expect(r.причина).toContain('crm_offer') // cyrillic-ok: public API field
-    expect(r.price).toBe(2)
+    expect(r.price).toBe(price)
     expect(calls.length).toBe(0)
   })
 
@@ -425,13 +433,13 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     expect(d.charge).toEqual({
       telegramId: LEAD,
       op: 'image_generate',
-      tokens: 2,
+      tokens: TOKEN_PRICES.image_generate,
     })
     expect(d.charge!.telegramId).not.toBe(OWNER)
     expect(d.display).toBe('Ольга (@pilot_client)')
     expect(d.what).toBe('Ваш котик готов!')
     expect(r.preview).toBe(PIC)
-    expect(r.price).toBe(2)
+    expect(r.price).toBe(TOKEN_PRICES.image_generate)
     expect(r.media).toEqual({ kind: 'photo', url: PIC })
   })
 

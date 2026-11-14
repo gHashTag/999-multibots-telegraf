@@ -42,6 +42,7 @@ import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
 import { ChatThreads } from '@/components/Chat/ChatThreads'
+import { TeamRow } from '@/components/Chat/TeamRow'
 import { SendCardView } from '@/components/Chat/SendCardView'
 import { marketplaceAgentById } from '../../../packages/vibee-atoms/src/agent-marketplace'
 import { useIsKeeper } from '@/hooks/useIsKeeper'
@@ -51,6 +52,8 @@ import { MyStoryWidget } from '@/components/Story/MyStoryWidget'
 import { AgentTemplates } from '@/components/Chat/AgentTemplates'
 import { AgentAside } from '@/components/Chat/AgentAside'
 import { ClientHelperPicker } from '@/components/Chat/ClientHelperPicker'
+import { PhotoActionChips } from '@/components/Chat/PhotoActionChips'
+import { lastPicture, photoRowShown } from '@/lib/photoActions'
 import { ConversationRail } from '@/components/Chat/ConversationRail'
 import { stopAgent, threadKeyOf } from '@/lib/agentStream'
 import {
@@ -536,6 +539,9 @@ function ChatThread({
     })
   }, [client, helper, store, t])
 
+  const imageAttached = attachments.some(a => a.kind === 'image')
+  const lastPic = useMemo(() => lastPicture(messages), [messages])
+
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
@@ -717,6 +723,9 @@ function ChatThread({
     <div className={`chat-page${client ? ' chat-page--client' : ''}`}>
       <Header />
       <ChatThreads current={client} />
+      {/* The person's team of agents, the same as the bot's tabs
+          (bot-agent-team.t27): each member's chat is its tab's conversation. */}
+      {splits && !marketplaceAgent ? <TeamRow current={conversation} /> : null}
       {/*
         THE CONVERSATION AND, FOR A CLIENT THREAD, THE CLIENT'S CARD BESIDE IT.
 
@@ -1164,6 +1173,23 @@ function ChatThread({
                 session={voice}
                 onClose={closeVoice}
                 onExpand={() => setVoiceSeparate(true)}
+              />
+            ) : null}
+            {photoRowShown(
+              client ? helper : marketplaceAgent,
+              imageAttached,
+              lastPic
+            ) ? (
+              /*
+               * ONE-TAP PHOTO ACTIONS FOR THE BLOGGER (photo-actions.t27):
+               * a poster without people, a studio frame, a video -- the whole
+               * ask and its photo in one press, right above the input.
+               */
+              <PhotoActionChips
+                imageAttached={imageAttached}
+                last={lastPic}
+                onSend={send}
+                disabled={uploading}
               />
             ) : null}
             <div className="chat-input-container">

@@ -60,12 +60,20 @@ function network(verify: Record<string, unknown> | 'down') {
       if (verify === 'down') throw new Error('ECONNRESET')
       return { status: 200, ok: true, json: async () => verify }
     }
+    if (u.pathname === '/api/course/key' && method === 'POST') {
+      // The hand-back to t27.ai after the first month (clubPayment.ts).
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({ ok: true, key: 'k.e.y', until: '2026-10-22' }),
+      }
+    }
     // Anything else -- /api/stars/credit above all -- is the defect.
     throw new Error(`a club charge must not reach ${method} ${u.pathname}`)
   })
 }
 
-function update(payload: string, recurring = false) {
+function update(payload: string, recurring = false, first = false) {
   return {
     from: { id: PAYER, username: 'a_member', language_code: 'ru' },
     chat: { id: PAYER, type: 'private' },
@@ -80,6 +88,7 @@ function update(payload: string, recurring = false) {
         telegram_payment_charge_id: CHARGE,
         provider_payment_charge_id: '',
         is_recurring: recurring || undefined,
+        is_first_recurring: first || undefined,
       },
     },
     telegram: { sendMessage: vi.fn(async () => undefined) },
@@ -93,11 +102,12 @@ let db: ReturnType<typeof strictEventsDb>
 async function pay(
   payload: string,
   verify: Record<string, unknown> | 'down',
-  recurring = false
+  recurring = false,
+  first = false
 ) {
   wire = []
   vi.stubGlobal('fetch', network(verify))
-  const ctx = update(payload, recurring)
+  const ctx = update(payload, recurring, first)
   const { handleSuccessfulPayment } = await import('@/handlers/paymentHandlers')
   await handleSuccessfulPayment(ctx as never)
   return { ctx, said: ctx.reply.mock.calls.map(c => String(c[0])).join('\n') }
@@ -136,6 +146,11 @@ describe('a club charge', () => {
         method: 'POST',
         key: KEY,
       },
+      {
+        url: 'https://t27ai-130-17-9-230.sslip.io/api/course/key',
+        method: 'POST',
+        key: KEY,
+      },
     ])
     expect(said).toContain('Добро пожаловать в клуб')
     expect(said).toContain('2571')
@@ -147,7 +162,9 @@ describe('a club charge', () => {
     // asking it about the id in the payload would find nothing to book.
     const { said } = await pay('club:10000:900000059', BOOKED)
     expect(
-      wire.map(w => new URL(w.url).searchParams.get('telegram_id'))
+      wire
+        .filter(w => w.url.includes('/api/club/verify'))
+        .map(w => new URL(w.url).searchParams.get('telegram_id'))
     ).toEqual([String(PAYER)])
     expect(said).toContain('Добро пожаловать в клуб')
   })
@@ -190,6 +207,45 @@ describe('a club charge', () => {
     })
     expect(said).toContain('Добро пожаловать в клуб')
     expect(said).not.toContain('начислено')
+  })
+})
+
+describe('after the first club month, the way back to t27.ai', () => {
+  const sent = (ctx: {
+    telegram: { sendMessage: { mock: { calls: any[] } } }
+  }) => ctx.telegram.sendMessage.mock.calls
+
+  it('sends one URL button to the course catalog, utm before the hash', async () => {
+    const { ctx } = await pay(`club:10000:${PAYER}`, BOOKED)
+    const calls = sent(ctx)
+    expect(calls).toHaveLength(1)
+    const [chat, text, extra] = calls[0]
+    expect(chat).toBe(String(PAYER))
+    expect(text).not.toContain('k.e.y')
+    const button = extra.reply_markup.inline_keyboard[0][0]
+    expect(button.text).toBe('Открыть курсы на t27.ai') // cyrillic-ok: UI copy under test
+    expect(button.url).toBe(
+      'https://t27.ai/?utm_source=telegram&utm_medium=bot&utm_campaign=club#/courses?unlock=k.e.y'
+    )
+  })
+
+  it('is sent for the first month of the subscription too (is_first_recurring)', async () => {
+    const { ctx } = await pay(`club:10000:${PAYER}`, BOOKED, true, true)
+    expect(sent(ctx)).toHaveLength(1)
+    expect(wire.map(w => new URL(w.url).pathname)).toContain('/api/course/key')
+  })
+
+  it('is not sent for a renewal', async () => {
+    const { ctx } = await pay(`club:10000:${PAYER}`, BOOKED, true)
+    expect(sent(ctx)).toHaveLength(0)
+    expect(wire.map(w => new URL(w.url).pathname)).not.toContain(
+      '/api/course/key'
+    )
+  })
+
+  it('is not sent while the booking is not visible: no key without a club', async () => {
+    const { ctx } = await pay(`club:10000:${PAYER}`, 'down')
+    expect(sent(ctx)).toHaveLength(0)
   })
 })
 

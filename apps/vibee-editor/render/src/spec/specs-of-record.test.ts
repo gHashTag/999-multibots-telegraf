@@ -1,12 +1,21 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import {
   checkRepo,
   checkSpec,
+  notLoweredOf,
   readTestReport,
   type Problem,
 } from '../../../../../scripts/check-t27-specs.mjs'
+import {
+  door,
+  lowers,
+  TS_INT,
+  zigExport,
+  zigFns,
+} from '../../../../../scripts/t27-logic.mjs'
 
 /**
  * EVERY VENDORED SPEC OBEYS THE LAWS (scripts/check-t27-specs.mjs).
@@ -34,6 +43,8 @@ const real = {
     },
   ],
   ignore: `${DIR}/*.gen.ts\n`,
+  // Still a hand-written mirror: named in scripts/t27-specs.json "mirrored".
+  mirrored: true,
 }
 const laws = (p: Problem[]) => [...new Set(p.map(x => x.law))]
 
@@ -81,6 +92,7 @@ describe('each law fails when it should', () => {
         },
       ],
       ignore: 'src/spec/*.gen.ts\n',
+      mirrored: true,
     }
     expect(checkSpec(tabs)).toEqual([])
     const gen = swap(tabs.gen, '[7322096, 16749490,', '[7322096, 9363846,')
@@ -221,5 +233,342 @@ describe('t27c test-report is read by its table, not its exit code', () => {
       fail: null,
       failed: [],
     })
+  })
+})
+
+/**
+ * THE LOGIC IS THE SPEC'S (owner, 2026-10-09: "write the logic in .t27 and in
+ * no other way"; "forbid new logic in the bot in other languages"). A spec
+ * with fns runs from its compiled bodies, <id>.logic.ts; a hand-written
+ * mirror is debt in "mirrored", which only shrinks and admits nobody new.
+ */
+describe('the logic runs from the spec', () => {
+  const office = {
+    file: `${DIR}/bot-office-crm.t27`,
+    spec: readFileSync(join(HERE, 'bot-office-crm.t27'), 'utf8'),
+    gen: readFileSync(join(HERE, 'bot-office-crm.gen.ts'), 'utf8'),
+    test: readFileSync(join(HERE, 'bot-office-crm.test.ts'), 'utf8'),
+    logic: readFileSync(join(HERE, 'bot-office-crm.logic.ts'), 'utf8'),
+    hostFiles: [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import * as SPEC from '../spec/bot-office-crm.gen'\nimport { mayAssign } from '../spec/bot-office-crm.logic'\n",
+      },
+    ],
+    ignore: `${DIR}/*.gen.ts\n`,
+  }
+
+  it('the office spec with its compiled logic is green (the controls start here)', () => {
+    expect(checkSpec(office)).toEqual([])
+  })
+
+  it('logic-required: a spec with fns and no compiled logic, not named as debt', () => {
+    expect(laws(checkSpec({ ...office, logic: null }))).toEqual([
+      'logic-required',
+    ])
+    expect(checkSpec({ ...office, logic: null, mirrored: true })).toEqual([])
+  })
+
+  it('logic-hash: the logic was compiled from another version of the spec', () => {
+    const spec = office.spec.replace(
+      'pub const CLIENT_CARD_TASKS_MAX : u32 = 5;',
+      'pub const CLIENT_CARD_TASKS_MAX : u32 = 5; '
+    )
+    expect(spec).not.toBe(office.spec)
+    expect(laws(checkSpec({ ...office, spec }))).toContain('logic-hash')
+  })
+
+  it('mirror: a host file of the vertical retypes a fn the spec compiles', () => {
+    const hostFiles = [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import * as SPEC from '../spec/bot-office-crm.gen'\nexport function mayAssign(a: boolean) {\n  return a\n}\n",
+      },
+    ]
+    const bad = checkSpec({ ...office, hostFiles })
+    expect(laws(bad)).toEqual(['mirror'])
+    expect(bad[0].what).toMatch(/may_assign/)
+  })
+
+  it('mirror: a hand copy of a str fn fails like any other (#3941)', () => {
+    // course-outreach v2: may_send takes a str, verdict returns one, number_ok
+    // takes a u32. Every one of them is compiled now, so none may be retyped.
+    const outreach = {
+      file: `${DIR}/course-outreach.t27`,
+      spec: readFileSync(join(HERE, 'course-outreach.t27'), 'utf8'),
+      gen: readFileSync(join(HERE, 'course-outreach.gen.ts'), 'utf8'),
+      test: readFileSync(join(HERE, 'course-outreach.test.ts'), 'utf8'),
+      logic: readFileSync(join(HERE, 'course-outreach.logic.ts'), 'utf8'),
+      ignore: `${DIR}/*.gen.ts\n`,
+    }
+    expect(notLoweredOf(outreach.logic)).toEqual([])
+    // As the script writes it, before prettier wraps it.
+    expect(
+      notLoweredOf('export const __NOT_LOWERED__ = Object.freeze(["a_b","c"])')
+    ).toEqual(['a_b', 'c'])
+    const host = (body: string) => [
+      {
+        path: 'apps/vibee-editor/render/src/agent/course-outreach.ts',
+        text: `import * as SPEC from '../spec/course-outreach.gen'\n${body}`,
+      },
+    ]
+    // The control starts green: the host names the compiled bodies.
+    expect(
+      checkSpec({
+        ...outreach,
+        hostFiles: host(
+          "export { maySend } from '../spec/course-outreach.logic'\n"
+        ),
+      })
+    ).toEqual([])
+    for (const [copy, fn] of [
+      ['export function maySend(a: unknown) {\n  return a\n}\n', 'may_send'],
+      [
+        "export function verdict(g: number, n: boolean) {\n  return n ? 'not' : 'unknown'\n}\n",
+        'verdict',
+      ],
+      [
+        'export function bioNext(f: number, r: number) {\n  return f\n}\n',
+        'bio_next',
+      ],
+      ['export function numberOk(n: number) {\n  return n\n}\n', 'number_ok'],
+    ]) {
+      const bad = checkSpec({ ...outreach, hostFiles: host(copy) })
+      expect(laws(bad)).toEqual(['mirror'])
+      expect(bad[0].what).toMatch(new RegExp(`spec fn ${fn}\\b`))
+    }
+    // __NOT_LOWERED__ exempts nothing any more: a fn the backend still could
+    // not lower is lowered, never retyped.
+    const unlowered = outreach.logic.replace(
+      /__NOT_LOWERED__ = [^\n]*/,
+      '__NOT_LOWERED__ = Object.freeze(["may_send"])'
+    )
+    const bad = checkSpec({
+      ...outreach,
+      logic: unlowered,
+      hostFiles: host('export function maySend(a: unknown) {\n  return a\n}\n'),
+    })
+    expect(laws(bad)).toEqual(['mirror'])
+    expect(bad[0].what).toMatch(/does not lower yet/)
+  })
+
+  it('t27-logic lowers a str fn: bytes in, (ptr, len) out', () => {
+    const fns = zigFns(
+      [
+        'fn verdict(groups: u8, negated: bool) []const u8 {',
+        'fn may_send(answer: []const u8) bool {',
+        'fn number_ok(n: u32) bool {',
+        'fn total(n: u64) u64 {',
+        'fn __t27_assert_fail(comptime fmt: []const u8, args: anytype) noreturn {',
+      ].join('\n')
+    )
+    expect(fns.map(f => [f.name, f.ret])).toEqual([
+      ['verdict', '[]const u8'],
+      ['may_send', 'bool'],
+      ['number_ok', 'bool'],
+      ['total', 'u64'],
+    ])
+    const [verdict, maySend, numberOk] = fns
+    // A str argument crosses as (ptr, len) and is rebuilt as a slice.
+    expect(zigExport(maySend)).toBe(
+      'export fn t27_may_send(answer__p: u32, answer__n: u32) bool { return may_send(t27__in(answer__p, answer__n)); }'
+    )
+    expect(door(maySend)).toContain('...str(answer, held, ')
+    expect(door(maySend)).toContain('strCall(held =>')
+    // A str result is written to the slot and read back.
+    expect(zigExport(verdict)).toBe(
+      'export fn t27_verdict(groups: u8, negated: bool) void { t27__out(verdict(groups, negated)); }'
+    )
+    expect(door(verdict)).toContain('return strOut()')
+    expect(door(verdict)).toContain('): string {')
+    // A fn without a str is exported exactly as before #3941.
+    expect(zigExport(numberOk)).toBe(
+      'export fn t27_number_ok(n: u32) bool { return number_ok(n); }'
+    )
+    expect(door(numberOk)).not.toContain('strCall')
+  })
+
+  it('t27-logic reads a pub fn as well as a private one', () => {
+    const fns = zigFns(
+      [
+        'pub fn decode_opcode(byte: u32) u32 {',
+        'fn has_imm(op: u32) bool {',
+      ].join('\n')
+    )
+    expect(fns.map(f => [f.name, f.ret])).toEqual([
+      ['decode_opcode', 'u32'],
+      ['has_imm', 'bool'],
+    ])
+    expect(zigExport(fns[0])).toBe(
+      'export fn t27_decode_opcode(byte: u32) u32 { return decode_opcode(byte); }'
+    )
+  })
+
+  // #4017: most specs/ml entry points take an `index: usize`. On wasm32 a
+  // usize is 32 bits, so it lowers exactly as u32 does.
+  const usizeFns = () =>
+    zigFns(
+      [
+        'pub fn softmax_at(a: f64, b: f64, c: f64, temperature: f64, index: usize) f64 {',
+        'fn pick(which: usize) usize {',
+      ].join('\n')
+    )
+
+  /**
+   * The door of `pick`, run against a real wasm32 module: `t27_pick(i32) i32`
+   * hands its argument back, the shape Zig gives `fn (usize) usize`.
+   */
+  const pickDoor = () => {
+    const name = [...'t27_pick'].map(c => c.charCodeAt(0))
+    const wasm = Uint8Array.from([
+      ...[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00],
+      ...[0x01, 0x06, 0x01, 0x60, 0x01, 0x7f, 0x01, 0x7f], // type (i32) -> i32
+      ...[0x03, 0x02, 0x01, 0x00], // one function of that type
+      ...[0x07, 2 + name.length + 2, 0x01, name.length, ...name, 0x00, 0x00],
+      ...[0x0a, 0x06, 0x01, 0x04, 0x00, 0x20, 0x00, 0x0b], // local.get 0
+    ])
+    const W = new WebAssembly.Instance(new WebAssembly.Module(wasm)).exports
+    const pick = usizeFns()[1]
+    const js = ts.transpileModule(
+      [...TS_INT, door(pick).replace(/^export /m, '')].join('\n'),
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+    ).outputText
+    return new Function('W', `${js}\nreturn pick`)(W) as (v: number) => number
+  }
+
+  it('t27-logic lowers a usize fn as a 32-bit integer (#4017)', () => {
+    const fns = usizeFns()
+    expect(fns.map(f => [f.name, f.ret, lowers(f)])).toEqual([
+      ['softmax_at', 'f64', true],
+      ['pick', 'usize', true],
+    ])
+    expect(zigExport(fns[0])).toBe(
+      'export fn t27_softmax_at(a: f64, b: f64, c: f64, temperature: f64, index: usize) f64 { return softmax_at(a, b, c, temperature, index); }'
+    )
+    expect(door(fns[0])).toContain(
+      "int(index, 0, 4294967295, 'softmax_at.index')"
+    )
+    const pick = pickDoor()
+    expect(pick(0)).toBe(0)
+    expect(pick(3)).toBe(3)
+    // The top of the range crosses as i32 -1 and comes back unsigned.
+    expect(pick(4294967295)).toBe(4294967295)
+  })
+
+  it('t27-logic refuses a usize the wasm32 type cannot hold', () => {
+    const pick = pickDoor()
+    expect(() => pick(-1)).toThrow(RangeError)
+    expect(() => pick(4294967296)).toThrow(RangeError)
+    expect(() => pick(1.5)).toThrow(RangeError)
+  })
+
+  it('t27-logic reads only the bits of a narrow result', () => {
+    // Zig 0.16 compiled review-jam's jam_is_queens_turn(0) to an i32 of 250:
+    // the low bit is false, the rest is noise. Each export here returns 506
+    // (0x1fa), or -6 for the signed ones, and each door must read its own type.
+    const names = ['t27_flag', 't27_byte', 't27_word', 't27_tiny', 't27_short']
+    const bodies = [
+      [0x41, 0xfa, 0x03], // i32.const 506
+      [0x41, 0xfa, 0x03],
+      [0x41, 0xfa, 0x03],
+      [0x41, 0x7a], // i32.const -6
+      [0x41, 0x7a],
+    ]
+    const exp = names.flatMap((n, i) => [
+      n.length,
+      ...[...n].map(c => c.charCodeAt(0)),
+      0x00,
+      i,
+    ])
+    const code = bodies.flatMap(b => [b.length + 2, 0x00, ...b, 0x0b])
+    const wasm = Uint8Array.from([
+      ...[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00],
+      ...[0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7f], // type () -> i32
+      ...[0x03, 0x06, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00],
+      ...[0x07, exp.length + 1, names.length, ...exp],
+      ...[0x0a, code.length + 1, bodies.length, ...code],
+    ])
+    const W = new WebAssembly.Instance(new WebAssembly.Module(wasm)).exports
+    const fns = zigFns(
+      [
+        'pub fn flag() bool {',
+        'pub fn byte() u8 {',
+        'pub fn word() u16 {',
+        'pub fn tiny() i8 {',
+        'pub fn short() i16 {',
+      ].join('\n')
+    )
+    const js = ts.transpileModule(
+      fns.map(f => door(f).replace(/^export /m, '')).join('\n'),
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+    ).outputText
+    const got = new Function(
+      'W',
+      `${js}\nreturn [flag(), byte(), word(), tiny(), short()]`
+    )(W)
+    expect(got).toEqual([false, 250, 506, -6, -6])
+  })
+
+  it('t27-logic gives a param named by a reserved word a door that parses', () => {
+    // review-jam.t27: `jam_action(case: u8)`. Zig takes `case`; TypeScript does not.
+    const [act] = zigFns('pub fn jam_action(case: u8) u8 {')
+    expect(zigExport(act)).toBe(
+      'export fn t27_jam_action(case: u8) u8 { return jam_action(case); }'
+    )
+    const src = door(act)
+    expect(src).toContain('export function jamAction(case_: number): number')
+    expect(src).toContain("int(case_, 0, 255, 'jam_action.case')")
+    const out = ts.transpileModule([...TS_INT, src].join('\n'), {
+      reportDiagnostics: true,
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    })
+    expect(out.diagnostics?.map(d => d.messageText)).toEqual([])
+    const jamAction = new Function(
+      'W',
+      `${out.outputText.replace(/^export /m, '')}\nreturn jamAction`
+    )({ t27_jam_action: (c: number) => (c > 9 ? 9 : c) }) as (
+      c: number
+    ) => number
+    expect(jamAction(4)).toBe(4)
+    expect(jamAction(200)).toBe(9)
+    expect(() => jamAction(256)).toThrow(RangeError)
+  })
+
+  it('host-imports: an import of the compiled logic alone binds the host', () => {
+    const hostFiles = [
+      {
+        path: 'apps/vibee-editor/render/src/agent/office-crm.ts',
+        text: "import { mayAssign } from '../spec/bot-office-crm.logic'\n",
+      },
+    ]
+    expect(checkSpec({ ...office, hostFiles })).toEqual([])
+    expect(laws(checkSpec({ ...office, hostFiles: [] }))).toContain(
+      'host-imports'
+    )
+  })
+
+  it('ratchet: a spec that runs from its logic is still named as debt', () => {
+    expect(laws(checkSpec({ ...office, mirrored: true }))).toEqual(['ratchet'])
+  })
+
+  it('the debt only shrinks: no more mirrored specs than on 2026-10-09', () => {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(HERE, '..', '..', '..', '..', '..', 'scripts', 't27-specs.json'),
+        'utf8'
+      )
+    )
+    expect(manifest.mirrored.length).toBeLessThanOrEqual(36)
+    expect(new Set(manifest.mirrored).size).toBe(manifest.mirrored.length)
+  })
+
+  it('the compiled logic is the spec: its own test vectors hold on the wasm', async () => {
+    const L = await import('./bot-office-crm.logic')
+    expect(L.mayAssign(true, false, true, true)).toBe(true)
+    expect(L.mayAssign(true, true, true, true)).toBe(false)
+    expect(L.cardTasksShown(6)).toBe(5)
+    expect(L.__NOT_LOWERED__).toEqual([])
+    expect(() => L.cardTasksShown(-1)).toThrow(RangeError)
+    expect(() => L.assignOk(1.5, 2)).toThrow(RangeError)
   })
 })

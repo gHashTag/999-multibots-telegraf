@@ -23,13 +23,19 @@
 // deleted: a thread that is really gone costs one refused call, one the server only called
 // missing goes away, so a person never sees the same tab twice. The tab's memory is keyed by
 // its kind (bot-agent-memory.t27), so the conversation survives the new thread.
+// v5 (2026-10-08): the owner saw an emoji inside an emoji. A topic without its own icon is
+// drawn as a coloured circle holding the first character of its name, and every tab's name
+// began with its emoji, so the emoji sat inside the icon and again beside it. A tab's name
+// is words only; its emoji becomes the topic icon when Telegram's topic icon set has it, set
+// after the topic is made, so a refused icon never costs the tab. A stored tab under the
+// old name is renamed once (retitle) and gets its icon then.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::bot_topic_tabs {
     pub const KIND : str = "automation";
     pub const ID : str = "bot-topic-tabs";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 4;
+    pub const VERSION : u8 = 5;
 
     // ---- the table, in the order of the tab column ----
 
@@ -40,8 +46,10 @@ module automation::bot_topic_tabs {
     // person's browser, the one who builds the person's own bot, the one who keeps the
     // balance and the club, and the Queen of the hive.
     pub const TAB_TITLES_EN : [6]str = ["Agent", "Director", "Navigator", "Builder", "Treasurer", "Queen"];
-    // Unicode code points of the emoji that opens each title:
-    // robot face, clapper board, globe Europe-Africa, hammer and wrench, money bag, honeybee.
+    // Unicode code points of each tab's emoji: robot face, clapper board, globe
+    // Europe-Africa, hammer and wrench, money bag, honeybee. Since v5 the emoji is the
+    // topic's icon and the labels of the buttons that name a member, never the start of a
+    // topic's name.
     pub const TAB_EMOJI : [6]u32 = [129302, 127916, 127757, 128736, 128176, 128029];
     pub const TAB_COLORS : [6]u32 = [7322096, 16749490, 9367192, 16766590, 16478047, 13338331];
     // The mini-app screen each tab's first message opens (host appLinks.ts APP_ROUTES).
@@ -155,6 +163,28 @@ module automation::bot_topic_tabs {
     // tab already carrying the current title is never edited.
     fn retitle(stored_is_current: bool) -> bool {
         return !stored_is_current;
+    }
+
+    // ---- the icon (v5) ----
+
+    // Telegram draws a topic with no icon of its own as a circle in its colour holding the
+    // first character of the name: a name that opens with an emoji shows that emoji twice.
+    pub const NAME_CARRIES_EMOJI : bool = false;
+
+    // A topic name is fine when it does not open with an emoji.
+    fn name_ok(opens_with_emoji: bool) -> bool {
+        return !opens_with_emoji || NAME_CARRIES_EMOJI;
+    }
+
+    // The icon is set by a second call after the topic exists: a topic made with an icon
+    // Telegram refuses is not made at all, and a tab is worth more than its icon.
+    pub const ICON_AFTER_CREATE : bool = true;
+
+    // The tab's emoji is set as the icon only on a topic that exists and only when
+    // getForumTopicIconStickers lists that emoji; otherwise the coloured circle stays,
+    // holding the first letter of the name.
+    fn sets_icon(topic_exists: bool, in_icon_set: bool) -> bool {
+        return topic_exists && in_icon_set;
     }
 
     // A rename Telegram refuses, whatever it says, keeps the tab and its old name: only the
@@ -297,8 +327,22 @@ module automation::bot_topic_tabs {
         assert(!clears_old(false, false));
     }
 
+    test "a tab's name never opens with an emoji, or the emoji is drawn again inside the icon" {
+        assert(!NAME_CARRIES_EMOJI);
+        assert(!name_ok(true));
+        assert(name_ok(false));
+    }
+
+    test "the emoji is the icon only of a made topic and only when Telegram's icon set has it" {
+        assert(ICON_AFTER_CREATE);
+        assert(sets_icon(true, true));
+        assert(!sets_icon(true, false));
+        assert(!sets_icon(false, true));
+        assert(!sets_icon(false, false));
+    }
+
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 4);
+        assert(VERSION == 5);
     }
 }
 

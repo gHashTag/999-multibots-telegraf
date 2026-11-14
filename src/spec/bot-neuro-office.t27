@@ -1,0 +1,376 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/bot-neuro-office.t27 -- the neuro-office: live people and the team of agents in one group.
+// Host: 999-multibots-telegraf src/navigation/topics/office.ts (/office, who answers in the
+// group) and apps/vibee-editor/render/src/agent/routes.ts (the member a room turn speaks as).
+// Trace: owner 2026-10-08 "the team members must be in these channels -- that is the point
+// of the neuro-office -- live people and agents". A private chat holds one person, so the
+// office is a forum group: the team's channels (topics) where people and agents work together.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: room contract. The channels are the team's tabs (bot-topic-tabs.t27, made in
+// the group by the same engine); who speaks is bot-agent-team.t27 speaker. The group rule of
+// groupAddressing.ts stands: in a room the bot speaks only when spoken to.
+// v1 (2026-10-08): opening an office, the whole team in it, when an agent answers among
+// people, the member a channel speaks as, no pay buttons in a room.
+// v2 (2026-10-08): the agent hears the room. A person's message that is not addressed to the
+// agent is kept in the room's memory and never answered, so "Director, do what Anna said"
+// has something to go on (ChatGPT group chats and channel agents read the whole thread and
+// speak only when asked). Every person's line in a room names who said it, the name cut to
+// 64 characters. Only in an
+// office: a plain group the bot sits in is not heard.
+// v3 (2026-10-08): /catchup. A person back in the office asks what was said and decided
+// while they were away; the agent answers from the room's memory -- decisions, open
+// questions, who owes what, by name (Teams Facilitator, Slack recaps). Only in an office:
+// elsewhere the room's memory is not the team's.
+// v4 (2026-10-08): hand-off. An agent hands a task to a colleague the way a person calls
+// one: a line of its answer opens with the colleague's name ("Treasurer, count the budget").
+// The bot then asks that colleague once, in the person's name, and the colleague answers in
+// the room under its own name. One hand-off per person's message, so two agents cannot
+// pass a task back and forth.
+// v5 (2026-10-08): the office keeps its tasks. /todo puts a task on the room's list with an
+// owner -- the person replied to, else the one named, else the sender -- /todos shows the
+// open ones, /done closes one. Only its owner, its author or an admin closes it (Teams
+// Facilitator keeps action items; a group chat forgets them).
+// v6 (2026-10-08): /catchup shows the open tasks too. After the agent's summary of the room,
+// the open tasks of /todo follow with their owners, so a person back in the office asks
+// once; an empty list adds nothing.
+// v7 (2026-10-09): the agent proposes tasks, a person confirms. When an answer in an office
+// gives a person work ("Anna takes the mockup"), the agent marks it, and the bot puts a
+// button per proposal under the answer -- at most 3, a person's name only (a team member
+// is handed a task by v4, not given one). An answer alone never makes a task: a person in
+// the room presses, within 24 hours, once; the presser is the task's author (Teams
+// Facilitator proposes action items, people accept them).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::bot_neuro_office {
+    pub const KIND : str = "automation";
+    pub const ID : str = "bot-neuro-office";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 7;
+
+    // ---- opening an office ----
+
+    // /office turns a group into an office: a forum (topics on), the bot an admin that may
+    // manage topics, and the command sent by an admin of the group. Anything less is told
+    // what is missing, and nothing is made.
+    fn may_open_office(is_forum: bool, bot_manages_topics: bool, sender_is_admin: bool) -> bool {
+        return is_forum && bot_manages_topics && sender_is_admin;
+    }
+
+    // An office holds the whole team at once: every member has its channel there, because
+    // the people in the room did not each hire them.
+    pub const OFFICE_TEAM_SIZE : u32 = 6;
+
+    // ---- who answers among people ----
+
+    // People in the office talk to each other; an agent answers only when spoken to: a reply
+    // to the bot, the bot named by @username, a command -- or, in an office and nowhere else,
+    // a message that opens with a member's name ("Treasurer, ...").
+    fn answers(reply_to_bot: bool, mentioned: bool, command: bool, office: bool, member_named_first: bool) -> bool {
+        return reply_to_bot || mentioned || command || (office && member_named_first);
+    }
+
+    // In an office channel the channel's member speaks; a member named first takes the turn
+    // (bot-agent-team.t27 speaker). Outside the team's channels, the Agent.
+    fn channel_speaker(channel_known: bool, channel: u32) -> u32 {
+        if channel_known { return channel; }
+        return 0;
+    }
+
+    // ---- money ----
+
+    // No pay buttons in a room: a top-up is one person's, and a button in a group is pressed
+    // by whoever is there. The Treasurer's tab in each person's private chat keeps them.
+    pub const ROOM_PAY_BUTTONS : bool = false;
+    fn pay_buttons_in(room: bool) -> bool {
+        return !room || ROOM_PAY_BUTTONS;
+    }
+
+    // ---- hearing the room (v2) ----
+
+    // In an office the agent keeps what people say to each other, so a turn asked later
+    // knows the conversation it is part of. It keeps it and says nothing: hearing is not
+    // answering (answers above still decides that).
+    pub const HEARS_PEOPLE : bool = true;
+
+    // A line is heard when it is in an office, nobody addressed the agent with it, a person
+    // (not a bot) wrote it, and it is no command.
+    fn hears(office: bool, addressed: bool, from_bot: bool, is_command: bool) -> bool {
+        return HEARS_PEOPLE && office && !addressed && !from_bot && !is_command;
+    }
+
+    // A heard line is kept up to this many characters; the rest is cut, so a pasted log
+    // cannot push the conversation out of the agent's window.
+    pub const HEARD_MAX_CHARS : u32 = 1000;
+
+    fn heard_chars(chars: u32) -> u32 {
+        if chars > HEARD_MAX_CHARS { return HEARD_MAX_CHARS; }
+        return chars;
+    }
+
+    // Several people share one room memory, so every person's line there -- heard or asked
+    // -- names who said it ("Anna: ..."). A private chat holds one person and names nobody.
+    pub const ROOM_LINE_NAMES_SPEAKER : bool = true;
+
+    fn names_speaker(room: bool) -> bool {
+        return room && ROOM_LINE_NAMES_SPEAKER;
+    }
+
+    // A speaker's name is a label, not a message: it is cut to this many characters before
+    // it names a line, so a name cannot carry a paragraph into the room's memory.
+    pub const SPEAKER_NAME_MAX_CHARS : u32 = 64;
+
+    fn speaker_chars(chars: u32) -> u32 {
+        if chars > SPEAKER_NAME_MAX_CHARS { return SPEAKER_NAME_MAX_CHARS; }
+        return chars;
+    }
+
+    // ---- catching up (v3) ----
+
+    // /catchup is answered only in an office; in any other group or a private chat it says
+    // where it works and asks the agent nothing.
+    pub const CATCHUP_ONLY_IN_OFFICE : bool = true;
+
+    fn may_catch_up(office: bool) -> bool {
+        return office || !CATCHUP_ONLY_IN_OFFICE;
+    }
+
+    // A catch-up names three things, in this order: what was decided, what is still open, and
+    // who took what on. Fewer is a recap nobody can act on.
+    pub const CATCHUP_PARTS : u32 = 3;
+
+    // ---- hand-off between members (v4) ----
+
+    // How many hand-offs one person's message may start. A colleague's answer to a hand-off
+    // is never handed on: depth 1 is the last.
+    pub const HANDOFF_DEPTH_MAX : u32 = 1;
+
+    // A hand-off happens in an office, below the depth bound, when a line of the answer opens
+    // with a colleague's name -- never with the answering member's own.
+    fn hands_off(office: bool, depth: u32, names_colleague: bool, colleague_is_self: bool) -> bool {
+        return office && depth < HANDOFF_DEPTH_MAX && names_colleague && !colleague_is_self;
+    }
+
+    // The colleague's turn is asked as the person who wrote: their tools, their wallet, their
+    // rights. An agent never spends in its own name (agent-hive-group.t27, the same law).
+    pub const HANDOFF_IN_PERSONS_NAME : bool = true;
+
+    // ---- the office's tasks (v5) ----
+
+    // Tasks are kept in an office only; elsewhere /todo says where it works.
+    fn may_track(office: bool) -> bool {
+        return office;
+    }
+
+    // A task is one line of work, cut to this many characters.
+    pub const TASK_TEXT_MAX_CHARS : u32 = 300;
+
+    fn task_chars(chars: u32) -> u32 {
+        if chars > TASK_TEXT_MAX_CHARS { return TASK_TEXT_MAX_CHARS; }
+        return chars;
+    }
+
+    // Who owns a new task: the person the /todo replies to (0), else the person it names (1),
+    // else the sender (2). A reply is the clearest "you", so it wins.
+    pub const OWNER_FROM_REPLY : u32 = 0;
+    pub const OWNER_FROM_MENTION : u32 = 1;
+    pub const OWNER_FROM_SENDER : u32 = 2;
+
+    fn owner_source(has_reply: bool, has_mention: bool) -> u32 {
+        if has_reply { return OWNER_FROM_REPLY; }
+        if has_mention { return OWNER_FROM_MENTION; }
+        return OWNER_FROM_SENDER;
+    }
+
+    // A task is closed by its owner, its author or an admin of the group -- nobody else.
+    fn may_close(is_owner: bool, is_author: bool, is_admin: bool) -> bool {
+        return is_owner || is_author || is_admin;
+    }
+
+    // /todos shows at most this many open tasks, oldest first.
+    pub const OPEN_TASKS_SHOWN_MAX : u32 = 20;
+
+    // ---- the catch-up lists the tasks (v6) ----
+
+    pub const CATCHUP_SHOWS_TASKS : bool = true;
+
+    // The open tasks follow the summary when there are any.
+    fn catchup_lists_tasks(open_tasks: u32) -> bool {
+        return CATCHUP_SHOWS_TASKS && open_tasks > 0;
+    }
+
+    // ---- the agent proposes tasks (v7) ----
+
+    // An answer is words; a task is a promise somebody made. The agent may propose one, a
+    // person makes it a task by pressing.
+    pub const AGENT_TASK_NEEDS_PRESS : bool = true;
+    fn task_from_answer(pressed: bool) -> bool {
+        return pressed || !AGENT_TASK_NEEDS_PRESS;
+    }
+
+    // Proposals are made in an office only, like the tasks they become.
+    fn may_propose(office: bool) -> bool {
+        return office;
+    }
+
+    // A proposal names a person (up to SPEAKER_NAME_MAX_CHARS) and the work (up to
+    // TASK_TEXT_MAX_CHARS). A member of the team is not a person: an agent is handed work
+    // by v4 hands_off, never given a task.
+    fn proposal_ok(name_chars: u32, text_chars: u32, names_member: bool) -> bool {
+        return name_chars > 0 && name_chars <= SPEAKER_NAME_MAX_CHARS
+            && text_chars > 0 && text_chars <= TASK_TEXT_MAX_CHARS
+            && !names_member;
+    }
+
+    // At most this many buttons under one answer; the rest of the proposals are dropped.
+    pub const PROPOSALS_PER_ANSWER_MAX : u32 = 3;
+    fn proposals_kept(proposed: u32) -> u32 {
+        if proposed > PROPOSALS_PER_ANSWER_MAX { return PROPOSALS_PER_ANSWER_MAX; }
+        return proposed;
+    }
+
+    // A press takes a proposal: a person (never a bot), within the day, and only once --
+    // a second press finds it taken.
+    pub const PROPOSAL_TTL_HOURS : u32 = 24;
+    fn may_take(age_hours: u32, taken: bool, presser_is_bot: bool) -> bool {
+        return age_hours < PROPOSAL_TTL_HOURS && !taken && !presser_is_bot;
+    }
+
+    // ---- tests ----
+
+    test "an office opens only in a forum, with the bot managing topics, at an admin's word" {
+        assert(may_open_office(true, true, true));
+        assert(!may_open_office(false, true, true));
+        assert(!may_open_office(true, false, true));
+        assert(!may_open_office(true, true, false));
+        assert(OFFICE_TEAM_SIZE == 6);
+    }
+
+    test "among people an agent answers only when spoken to; a member's name counts in an office only" {
+        assert(answers(true, false, false, false, false));
+        assert(answers(false, true, false, false, false));
+        assert(answers(false, false, true, false, false));
+        assert(answers(false, false, false, true, true));
+        assert(!answers(false, false, false, false, true));
+        assert(!answers(false, false, false, true, false));
+        assert(!answers(false, false, false, false, false));
+    }
+
+    test "a channel speaks as its member, anywhere else as the Agent" {
+        assert(channel_speaker(true, 4) == 4);
+        assert(channel_speaker(false, 4) == 0);
+        assert(channel_speaker(true, 0) == 0);
+    }
+
+    test "no pay buttons in a room" {
+        assert(!ROOM_PAY_BUTTONS);
+        assert(!pay_buttons_in(true));
+        assert(pay_buttons_in(false));
+    }
+
+    test "in an office the agent hears what people say to each other, and only that" {
+        assert(HEARS_PEOPLE);
+        assert(hears(true, false, false, false));
+        assert(!hears(false, false, false, false));
+        assert(!hears(true, true, false, false));
+        assert(!hears(true, false, true, false));
+        assert(!hears(true, false, false, true));
+    }
+
+    test "a heard line is kept up to a thousand characters" {
+        assert(HEARD_MAX_CHARS == 1000);
+        assert(heard_chars(999) == 999);
+        assert(heard_chars(1000) == 1000);
+        assert(heard_chars(1001) == 1000);
+        assert(heard_chars(0) == 0);
+    }
+
+    test "a person's line in a room names who said it; a private chat names nobody" {
+        assert(names_speaker(true));
+        assert(!names_speaker(false));
+        assert(SPEAKER_NAME_MAX_CHARS == 64);
+        assert(speaker_chars(64) == 64);
+        assert(speaker_chars(65) == 64);
+        assert(speaker_chars(3) == 3);
+    }
+
+    test "a catch-up is asked only in an office, and names decisions, open questions and owners" {
+        assert(CATCHUP_ONLY_IN_OFFICE);
+        assert(may_catch_up(true));
+        assert(!may_catch_up(false));
+        assert(CATCHUP_PARTS == 3);
+    }
+
+    test "an agent hands a task to a colleague once, in an office, never to itself" {
+        assert(HANDOFF_DEPTH_MAX == 1);
+        assert(hands_off(true, 0, true, false));
+        assert(!hands_off(true, 1, true, false));
+        assert(!hands_off(false, 0, true, false));
+        assert(!hands_off(true, 0, false, false));
+        assert(!hands_off(true, 0, true, true));
+        assert(HANDOFF_IN_PERSONS_NAME);
+    }
+
+    test "the office keeps tasks with an owner, and only owner, author or admin closes one" {
+        assert(may_track(true));
+        assert(!may_track(false));
+        assert(TASK_TEXT_MAX_CHARS == 300);
+        assert(task_chars(300) == 300);
+        assert(task_chars(301) == 300);
+        assert(owner_source(true, true) == OWNER_FROM_REPLY);
+        assert(owner_source(false, true) == OWNER_FROM_MENTION);
+        assert(owner_source(false, false) == OWNER_FROM_SENDER);
+        assert(may_close(true, false, false));
+        assert(may_close(false, true, false));
+        assert(may_close(false, false, true));
+        assert(!may_close(false, false, false));
+        assert(OPEN_TASKS_SHOWN_MAX == 20);
+    }
+
+    test "a catch-up lists the open tasks after the summary, and nothing when there are none" {
+        assert(CATCHUP_SHOWS_TASKS);
+        assert(catchup_lists_tasks(1));
+        assert(catchup_lists_tasks(20));
+        assert(!catchup_lists_tasks(0));
+    }
+
+    test "the agent proposes a task, and only a person's press makes it one" {
+        assert(AGENT_TASK_NEEDS_PRESS);
+        assert(!task_from_answer(false));
+        assert(task_from_answer(true));
+        assert(may_propose(true));
+        assert(!may_propose(false));
+    }
+
+    test "a proposal names a person and the work, within the bounds, never a team member" {
+        assert(proposal_ok(4, 20, false));
+        assert(proposal_ok(64, 300, false));
+        assert(!proposal_ok(65, 20, false));
+        assert(!proposal_ok(4, 301, false));
+        assert(!proposal_ok(0, 20, false));
+        assert(!proposal_ok(4, 0, false));
+        assert(!proposal_ok(4, 20, true));
+    }
+
+    test "at most three proposals under one answer" {
+        assert(PROPOSALS_PER_ANSWER_MAX == 3);
+        assert(proposals_kept(2) == 2);
+        assert(proposals_kept(3) == 3);
+        assert(proposals_kept(4) == 3);
+        assert(proposals_kept(0) == 0);
+    }
+
+    test "a press takes a proposal once, within the day, never a bot's press" {
+        assert(PROPOSAL_TTL_HOURS == 24);
+        assert(may_take(0, false, false));
+        assert(may_take(23, false, false));
+        assert(!may_take(24, false, false));
+        assert(!may_take(1, true, false));
+        assert(!may_take(1, false, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 7);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

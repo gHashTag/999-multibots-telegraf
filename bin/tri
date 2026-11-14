@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri vision-bench [--sizes 448,768] [--image URL --expect "11:30,500"]  читает ли зрение рендера текст на картинке и за сколько мс (своё зрение, слот занят?)
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
+  tri office [--mutants]  нейроофис одной командой: законы спек, тесты офиса, с --mutants все мутанты списка (выживший = код 1)
   tri loop       с чего начинать виток: где я, что занято, что не сделано (TRI_LOOP=agents — цикл агентов)
   tri agents [--dry] [--no-record] [ids…]  приёмка агентов на владельце; итог уходит на карточки рынка
   tri logins     в какие сети браузер владельца уже вошёл (#2962), без значений cookies
@@ -131,6 +132,7 @@ tri — оболочка Trinity S³AI
   tri full-run [render|player|both]             полный прогон с путём, где он шёл (RUN), итогами и падениями; красно, если путь не тот
   tri busy < логи                               идёт ли в рендере задача рилса или ход агента (пары started/ended); код 1 — сливать рано
   tri gate                                      таблица локальных ворот для PR из того, что реально прогнано на ЭТОМ дереве; иное — stale
+  tri snapshot-diff [ref]                       что забудет снимок test-gate после --save: по файлам ушло/пришло, LOSS там, где ушло больше (пропущенный тест ≠ удалённый)
   tri gate forget <имя> [почему]                снять с учёта проверку, которую больше не запустят под этим именем (переименована) — иначе она вечно stale
   tri image-gate                                ворота образа плеера как при деплое (tsc + scripts/test-gate.mjs); запись в tri gate
   tri tail [N] -- <команда>                     последние N строк И код САМОЙ команды (не tail); одна строка в кавычках — bash с pipefail; весь вывод — .git/tri-tail.log
@@ -206,6 +208,7 @@ tri — оболочка Trinity S³AI
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
+  tri bridge-preflight  хватает ли ОБЛАЧНОМУ контейнеру сети и секретов для моста: какие адреса закрыты, каких имён нет (значения не печатает)
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
   tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
@@ -234,6 +237,8 @@ tri — оболочка Trinity S³AI
   tri work-report <PR> [repo]  примет ли шлюз trinity отчёт о работе: head_sha и валидатор
   tri a2a "<задача>" [--surface s] [--fresh]  дать задачу агенту владельца и смотреть, как он справится
   tri remote-check [render|player|root] [-- файлы]  проверки в облаке (Railway), а не на Mac
+  tri ci [PR...]               что Railway сказал о PR: отметка railway/checks (ci-bridge)
+  tri ci --recheck <PR>        прогнать голову PR заново (комментарий /recheck)
   tri remote-check [--repo DIR] website -- check:ИМЯ  проверки сайта trinity там же
   tri remote-check mutants|spec -- x.mutants.json|x.t27  мутанты и контроли спеки там же (2 = не измерено)
   tri bench                    балл агента: находит ли он кнопки на страницах из боя
@@ -918,6 +923,7 @@ case "${1:-}" in
   a2a) shift; bash "$ROOT/bin/helpers/a2a.sh" "$ROOT" "$@" ;;
   schema-drift) shift; bash "$ROOT/bin/helpers/schema-baseline.sh" "$ROOT" "$@" ;;
   remote-check) shift; bash "$ROOT/bin/helpers/remote-check.sh" "$ROOT" "$@" ;;
+  ci) shift; bash "$ROOT/bin/helpers/ci.sh" "$@" ;;
   bench) shift; bash "$ROOT/bin/helpers/bench.sh" "$ROOT" "$@" ;;
   lesson) shift; bash "$ROOT/bin/helpers/lesson.sh" "$ROOT" "$@" ;;
   deployed) shift; bash "$ROOT/bin/helpers/deployed.sh" "$ROOT" "$@" ;;
@@ -927,6 +933,7 @@ case "${1:-}" in
   flaky)  shift; bash "$ROOT/bin/helpers/flaky.sh" "$ROOT" "$@" ;;
   main-guard) shift; bash "$ROOT/bin/helpers/main-guard.sh" "$ROOT" "$@" ;;
   eyes)   shift; bash "$ROOT/bin/helpers/eyes.sh" "$ROOT" "$@" ;;
+  snapshot-diff) shift; node "$ROOT/bin/helpers/snapshot-diff.mjs" "$ROOT" "$@" ;;
   drift)
     # Merged is not shipped. 0 clear, 1 an anomaly (named), 2 could not look.
     shift; node "$ROOT/scripts/railway-drift.mjs" "$@" ;;
@@ -1252,6 +1259,37 @@ PYEOF
       console.log("\n— цена по шкале:", p.токенов, "токенов =", p.звёзд, "⭐️");
     ' -- "$NAME" "$TOK" "$NOTE")
     ;;
+  bridge-preflight)
+    # ЧТО НУЖНО МОСТУ В ОБЛАКЕ (2026-10-09). На Mac мост берёт токены ботов и
+    # ключ агента через `railway variables`; облачному контейнеру Claude Code
+    # нужны три вещи, и без любой из них мост «не измерен», а не «зелёный»:
+    #   сеть  -- окружение пускает к четырём адресам ниже (Allowed domains);
+    #            правка политики действует на НОВЫЙ контейнер, не на текущий;
+    #   секрет -- RAILWAY_TOKEN (токен проекта 999): из него мост сам читает
+    #            ключи, как на Mac; или AGENT_KEY для одной двери /mcp;
+    #   CLI   -- railway (npm i -g @railway/cli: реестр npm открыт всегда).
+    # Значения секретов не печатаются: только «задан / нет».
+    hosts="vibee-render-production.up.railway.app api.telegram.org api.kie.ai backboard.railway.com"
+    bad=0
+    echo "сеть:"
+    for h in $hosts; do
+      code=$(curl -s -o /dev/null -m 10 -w "%{http_code}" "https://$h/" 2>/dev/null)
+      if [ "$code" = "000" ]; then echo "  ✗ $h — закрыт (Allowed domains окружения, затем НОВАЯ сессия)"; bad=1
+      else echo "  ✓ $h ($code)"; fi
+    done
+    echo "секреты (только имена):"
+    for v in RAILWAY_TOKEN AGENT_KEY; do
+      if [ -n "${!v:-}" ]; then echo "  ✓ $v задан"; else echo "  · $v нет"; fi
+    done
+    if [ -z "${RAILWAY_TOKEN:-}" ] && [ -z "${AGENT_KEY:-}" ]; then
+      echo "  ✗ нужен RAILWAY_TOKEN (или AGENT_KEY) в Secrets окружения"; bad=1
+    fi
+    if command -v railway >/dev/null 2>&1; then echo "cli: ✓ railway"
+    elif [ -n "${RAILWAY_TOKEN:-}" ]; then echo "cli: ✗ railway нет — npm i -g @railway/cli"; bad=1
+    else echo "cli: · railway нет (нужен вместе с RAILWAY_TOKEN)"; fi
+    [ "$bad" = 0 ] && echo "мост готов: tri bridge 144022504 435572800" || echo "мост НЕ измерим из этого контейнера: см. ✗ выше"
+    exit "$bad"
+    ;;
   bridge)
     # РАДУЖНЫЙ МОСТ: вся ферма и обе стороны за один проход, параллельно.
     #
@@ -1275,6 +1313,26 @@ PYEOF
     bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/bridge.cjs" "$@"
+    ;;
+
+  office)
+    # THE NEURO-OFFICE IN ONE COMMAND (epic #3896, spec bot-neuro-office.t27).
+    # The spec laws, every office suite, and with --mutants every mutant of
+    # src/spec/bot-neuro-office.mutants.json (a survivor is exit 1). Local
+    # only: nothing is sent, nothing is spent. Loop memory and the weak-point
+    # table: .claude/loop-state/office-loop.md.
+    shift
+    cd "$ROOT" || exit 2
+    node scripts/check-t27-specs.mjs || exit 1
+    OFFICE_TESTS="src/spec/bot-neuro-office.test.ts src/__tests__/navigation/officeTasks.test.ts src/__tests__/navigation/officeProposals.test.ts apps/vibee-editor/render/src/spec/bot-office-crm.test.ts src/__tests__/navigation/officeEdges.test.ts src/__tests__/bot/aRoomTurnCarriesTheRoom.test.ts src/__tests__/services/theRoomNamesWhoAsked.test.ts src/__tests__/bot/everyMemberAnswers.test.ts apps/vibee-editor/render/src/spec/bot-agent-team.test.ts"
+    # shellcheck disable=SC2086
+    npx vitest run $OFFICE_TESTS || exit 1
+    if [ "${1:-}" = "--mutants" ]; then
+      # Every mutant names its own tests ("tests"), so the base command is the
+      # spec's binding alone: the whole suite per mutant took ~2.5 min each
+      # (62 mutants, 2.5 h); this takes ~7 s each (2026-10-09).
+      python3 "$ROOT/bin/helpers/mutants.py" src/spec/bot-neuro-office.mutants.json -- npx vitest run src/spec/bot-neuro-office.test.ts || exit 1
+    fi
     ;;
 
   pack)

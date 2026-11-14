@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/photo-actions.t27 -- one-tap photo actions above the input of the mini-app
+// agent chat when the specialist is the Blogger: a client's photo becomes a poster, a studio
+// portrait, a video in one press.
+// Host: 999-multibots-telegraf apps/vibee-editor/player/src/components/Chat/PhotoActionChips.tsx
+//       (the chips and their prompts, the host's copy) and pages/Chat.tsx (where they show); the
+//       render tools named here do the work (image_upscale, image_remove_background, image_edit,
+//       video_generate, lipsync_generate).
+// Trace: owner 2026-10-09, a client thread with the Blogger: "make the buttons for working with a
+//       photo, like in our bot". Every poster that evening was typed out again ("same style, no
+//       face, 9:16, the text from the poster"), and the agent lost the source photo between turns.
+//       A chip carries the photo and the whole ask in one press.
+// WHY the prompt text is the host's: interface words stay in the host (language.ts); the spec
+//       holds which actions exist, which tool each one is for, and when the row shows.
+// Generated: t27c gen-ts and scripts/t27-logic.mjs, vendored into player/src/spec/.
+// Claim status: player contract, unit-tested; the row seen on a phone is `tri shot`'s to show.
+// v1 (2026-10-09): eight actions, shown in Blogger mode when a photo is attached or the last
+//       answer holds a picture; a press sends at once with the photo; posters are 9:16.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::photo_actions {
+    pub const KIND : str = "automation";
+    pub const ID : str = "photo-actions";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const ACTION_IDS : str = "poster_plain,poster_face,studio,variant,upscale,remove_bg,video,lipsync";
+    pub const ACTION_TOOLS : str = "image_edit,image_edit,image_edit,image_edit,image_upscale,image_remove_background,video_generate,lipsync_generate";
+    pub const ACTION_COUNT : u8 = 8;
+    pub const AGENT : str = "blogger";
+    pub const ASPECT : str = "9:16";
+    pub const ASPECT_W : u8 = 9;
+    pub const ASPECT_H : u8 = 16;
+    // The press sends the prepared ask at once; the tool's own charge applies, as if typed.
+    pub const PRESS_SENDS_AT_ONCE : bool = true;
+    // The row stands right above the input, not in a side panel.
+    pub const CHIPS_ABOVE_INPUT : bool = true;
+
+    // The row shows for the Blogger when there is a photo to act on.
+    fn show_chips(blogger: bool, image_attached: bool, last_answer_image: bool) -> bool {
+        return blogger && (image_attached || last_answer_image);
+    }
+
+    // Which photo a press acts on: 1 = the one attached now, 2 = the last picture in the chat,
+    // 0 = none (the press is not offered).
+    fn source_of(image_attached: bool, last_answer_image: bool) -> u8 {
+        if image_attached { return 1; }
+        if last_answer_image { return 2; }
+        return 0;
+    }
+
+    test "the row shows for the Blogger with a photo, never without one or for another agent" {
+        assert(show_chips(true, true, false));
+        assert(show_chips(true, false, true));
+        assert(!show_chips(true, false, false));
+        assert(!show_chips(false, true, true));
+    }
+
+    test "a press acts on the attached photo first, then the last picture" {
+        assert(source_of(true, true) == 1);
+        assert(source_of(false, true) == 2);
+        assert(source_of(false, false) == 0);
+    }
+
+    // A poster for a phone screen is taller than it is wide.
+    fn vertical(w: u8, h: u8) -> bool {
+        return h > w;
+    }
+
+    test "eight actions, each with its tool, posters vertical" {
+        assert(vertical(ASPECT_W, ASPECT_H));
+        assert(!vertical(16, 9));
+        assert(!vertical(1, 1));
+        assert(ACTION_COUNT == 8);
+        assert(PRESS_SENDS_AT_ONCE);
+        assert(CHIPS_ABOVE_INPUT);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

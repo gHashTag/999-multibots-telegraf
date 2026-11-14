@@ -254,6 +254,21 @@ import {
   nameTopicQuietly,
   registerTabsCommand,
 } from './topics/wire'
+import { moneyHere } from './topics/team'
+import {
+  namedInOffice,
+  officeChannelKind,
+  hearInOffice,
+  handOffInOffice,
+  namesSpeaker,
+  speakerName,
+  registerOfficeCommand,
+} from './topics/office'
+import {
+  officeProposals,
+  proposeTasks,
+  registerOfficeTasks,
+} from './topics/officeTasks'
 import { askNextStory, reelIntent, storyReply } from '@/services/storyReel'
 import {
   agentPackageIntent,
@@ -261,6 +276,13 @@ import {
   notifyTeamOfPackageOrder,
   placePackageOrder,
 } from '@/services/agentPackageOrder'
+import {
+  courseIntent,
+  courseKeyReply,
+  requestCourseKey,
+  wantedCourses,
+  type CourseIntent,
+} from '@/services/courseAccess'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -1498,9 +1520,16 @@ If not, continue on your own and click the "I myself" button`
            * server refused a draft; the real message still goes out below.
            */
           draft = startAnswerDraft(ctx)
+          // In an office, the member whose channel this is (bot-neuro-office.t27).
+          const member = inRoom ? await officeChannelKind(ctx) : undefined
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
             ...(personNote ? { personNote } : {}),
             ...(inRoom ? { room: inRoom } : {}),
+            ...(member ? { member } : {}),
+            // The room's memory names who asked (bot-neuro-office.t27 v2).
+            ...(inRoom && namesSpeaker(true)
+              ? { speaker: speakerName(ctx.from) }
+              : {}),
             ...(conversation ? { conversation } : {}),
             // "sending a photo…" while a picture tool runs (#3665)
             onTool: name => стоп.setAction(actionForTool(name)), // cyrillic-ok: pre-existing identifier
@@ -1630,13 +1659,20 @@ If not, continue on your own and click the "I myself" button`
           // and the next (helpers/appLinks.ts); this bot's own client, so its
           // own Bot API host. Cached for minutes, never throws.
           void refreshMainWebApp(ctx.telegram, ctx.botInfo?.username)
+          // Task markers are not words: stripped everywhere, offered as
+          // buttons in an office only (bot-neuro-office.t27 v7).
+          const offered = officeProposals(
+            ответ.текст // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
+          )
           const { text: ochishcheno, markup } = buttonsForAnswer(
-            ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
+            offered.text,
             isRuOtvet,
             // The seller's hub under every owner answer, one tap away.
             {
               app: ctx.chat?.type === 'private',
               bot: ctx.botInfo,
+              // Pay buttons only in the Treasurer's tab (bot-agent-team.t27 v2).
+              money: await moneyHere(ctx),
               ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
               ctx.chat?.type === 'private'
                 ? { tail: hubRows() }
@@ -1654,7 +1690,20 @@ If not, continue on your own and click the "I myself" button`
            * parts, the loop above sends nothing, and returning here was
            * silence. Such a turn falls through to the empty-answer line below.
            */
-          if (chasti.length > 0) return
+          if (chasti.length > 0) {
+            // A colleague named first on a line of the answer takes the task,
+            // once (bot-neuro-office.t27 v4 hands_off).
+            if (turnWhere.room) {
+              // The agent's proposed tasks, a button each; a press makes one.
+              await proposeTasks(ctx, offered.items)
+              const agent = await import('@/services/trinityAgent')
+              const askColleague = agent.спроситьАгента // cyrillic-ok: pre-existing export
+              await handOffInOffice(ctx, text, ochishcheno, (id, t, o) =>
+                askColleague(id, t, o)
+              )
+            }
+            return
+          }
         }
         /*
          * A draft card with no words around it IS the answer: recipient, text
@@ -1681,6 +1730,19 @@ If not, continue on your own and click the "I myself" button`
           }
         )
       } catch (err: any) {
+        /*
+         * TOO MANY OF THIS PERSON'S TURNS WAITING (bot-agent-team.t27 v2
+         * may_wait): said, never dropped -- the earlier ones are being
+         * answered one by one.
+         */
+        if (err?.name === 'PersonQueueFull') {
+          await ctx.reply(
+            isRussianFromState(ctx)
+              ? 'Я ещё отвечаю на ваши прошлые сообщения в других вкладках. Пришлите это чуть позже.' // cyrillic-ok: user-facing copy
+              : 'I am still answering your earlier messages in other tabs. Please send this a little later.'
+          )
+          return
+        }
         /*
          * THE PERSON PRESSED STOP (bot-agent-stream.t27 after_stop). What was
          * written so far is the answer; with nothing written, one line saying
@@ -1729,6 +1791,7 @@ If not, continue on your own and click the "I myself" button`
       const missButtons = {
         app: ctx.chat?.type === 'private',
         bot: ctx.botInfo,
+        money: await moneyHere(ctx),
         ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
         ctx.chat?.type === 'private'
           ? { tail: hubRows() }
@@ -1985,8 +2048,13 @@ If not, continue on your own and click the "I myself" button`
        *
        * A private chat is unaffected: one person writing to the bot alone is
        * addressing it by definition. See groupAddressing.ts for what counts.
+       * In an office (bot-neuro-office.t27), a member named first counts too.
        */
-      if (!isAddressedToUs(ctx)) {
+      if (!isAddressedToUs(ctx) && !(await namedInOffice(ctx))) {
+        // In an office the line is heard, never answered (bot-neuro-office.t27 v2).
+        void import('@/services/trinityAgent').then(({ recordTurns }) =>
+          hearInOffice(ctx, recordTurns)
+        )
         void tellOwnersTheRoomIsSilent(ctx, ADMIN_IDS_ARRAY)
         return next()
       }
@@ -3114,6 +3182,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let wantsReel = false
       /** The agent package ordered from the mini app (?start=agentpkg_<id>). */
       let orderedPackage: string | null = null
+      /** A t27.ai reader's course step (?start=course_<bot|paid>_<route>). */
+      let courseStep: CourseIntent | null = null
       let inlineService: ServiceCard | undefined
       let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
@@ -3224,6 +3294,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // makes it in the background and sends it back to this chat.
             wantsReel = true
             logger.info('Story reel deep-link', { telegramId })
+          } else if (courseIntent(startParam)) {
+            // t27.ai's course ladder: the bot step or the club step.
+            courseStep = courseIntent(startParam)
+            logger.info('Course deep-link', { telegramId, step: courseStep })
           } else if (agentPackageIntent(startParam)) {
             // A package card's "Order" press: a request for the team.
             orderedPackage = agentPackageIntent(startParam)
@@ -3284,6 +3358,40 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         )
       }
 
+      /*
+       * THE COURSE KEY IS HANDED OVER BEFORE ANYTHING ELSE, for the same
+       * reason as the order above: a new reader goes through CreateUserScene
+       * next. The render decides (spec automation/course-access.t27), files
+       * the reader in the owner's CRM and tells the owner; this only carries
+       * the press and the answer. No club -> the club card, so a press never
+       * dead-ends.
+       */
+      if (courseStep && ctx.from) {
+        const outcome = await requestCourseKey(ctx.from, courseStep)
+        const reply = courseKeyReply(
+          isRussianFromState(ctx),
+          courseStep,
+          outcome
+        )
+        await ctx.reply(
+          reply.text,
+          reply.button
+            ? Markup.inlineKeyboard([
+                [Markup.button.url(reply.button.label, reply.button.url)],
+              ])
+            : undefined
+        )
+        if (outcome.kind === 'no_club') {
+          wantsClub = true
+          ctx.session.clubDeepLink = true
+          // The charge lands at the cashier bot, whose session is not this
+          // one: the course is kept per person, and handed back after paying.
+          await wantedCourses()
+            .set(String(ctx.from.id), courseStep.route)
+            .catch(() => undefined)
+        }
+      }
+
       if (!userDetails.isExist) {
         if (orderedPackage) ctx.session.agentPackageOrdered = true
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
@@ -3292,6 +3400,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (orderedPackage) {
         // Answered above; a greeting on top would bury the confirmation.
         orderedPackage = null
+      } else if (courseStep && !wantsClub) {
+        // Answered above with the key; a greeting on top would bury it.
+        courseStep = null
       } else if (wantsApp) {
         ctx.session.appDeepLink = undefined
         await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))
@@ -3379,7 +3490,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         })()
       }
       // The fixed tabs, once per person, when the bot has topics on.
-      void ensureTabsQuietly(ctx)
+      void ensureTabsQuietly(ctx, {}, wantsApp)
     } catch (error) {
       console.log(
         '🔴 [DEBUG /start] ERROR:',
@@ -3400,6 +3511,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   })
 
   registerTabsCommand(bot)
+  // The neuro-office: people and the team in one forum group (bot-neuro-office.t27).
+  registerOfficeCommand(bot)
+  // The office's tasks: /todo, /todos, /done (bot-neuro-office.t27 v5).
+  registerOfficeTasks(bot)
 
   // Команда /help
   bot.command('help', async ctx => {
@@ -3873,7 +3988,11 @@ async function runAgentTurnFor(ctx: MyContext, text: string): Promise<void> {
     const { text: clean, markup } = buttonsForAnswer(
       answer.текст, // cyrillic-ok: field of ОтветАгента
       isRu,
-      { app: ctx.chat?.type === 'private', bot: ctx.botInfo }
+      {
+        app: ctx.chat?.type === 'private',
+        bot: ctx.botInfo,
+        money: await moneyHere(ctx),
+      }
     )
     const parts = разбитьДлинное(clean) // cyrillic-ok: pre-existing export
     if (!parts.length) {
@@ -4021,6 +4140,12 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
         Markup.button.callback(
           (current === 'zai-lite' ? '✅ ' : '') + 'GLM lite',
           'mdl:zai-lite'
+        ),
+      ],
+      [
+        Markup.button.callback(
+          (current === 'kie' ? '✅ ' : '') + 'Kie',
+          'mdl:kie'
         ),
       ],
       ...hubRows(),
@@ -4466,10 +4591,15 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     await showModel(ctx)
   })
 
-  bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/, async ctx => {
+  bot.action(/^mdl:(zai|kie|zai-lite|nemotron|ollama)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     if (!ownerOnly(ctx)) return
-    const id = ctx.match[1] as 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
+    const id = ctx.match[1] as
+      | 'zai'
+      | 'kie'
+      | 'zai-lite'
+      | 'nemotron'
+      | 'ollama'
     try {
       const { chooseProvider, describeProvider } = await import(
         '@/services/modelSwitch'

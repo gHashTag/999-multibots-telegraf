@@ -594,27 +594,122 @@ export async function clickAt(
 }
 
 /**
- * Types into whatever has focus, character by character, as a person would.
+ * Types into whatever has focus. One socket round-trip for a plain field,
+ * one per character for anything that needs real key events.
+ *
+ * WHY TWO ROADS. Every CDP call crosses an ocean (edge sin1 -> render sfo,
+ * ~230 ms warm, `tri road`), so a per-character loop makes a 30-character
+ * message a ~7 s wait -- the slowness a person feels. A plain
+ * <input>/<textarea> does not need key events: setting its value through the
+ * prototype setter and firing one `input` event is the shape React and other
+ * frameworks listen for, and it lands in a single round-trip. The set is
+ * VERIFIED in that same call -- the field must have grown by the typed length
+ * -- and if the editor swallowed it whole (an empty field that stayed empty)
+ * the per-character road runs instead. Nothing is ever typed twice: the
+ * fallback fires only when the set changed nothing.
  *
  * A LINE BREAK IS A KEY ONLY WHERE ENTER IS SAFE (2026-10-03). A "\n" char
  * event is dropped by X's composer, so the blog desk's thread came out as
  * one line, title glued to the summary. "\r" is what the Enter key types,
  * and X's composer breaks the line on it (measured in the pod). It stays
  * opt-in: in a chat box Enter SENDS, and an approved comment must not leave
- * half-typed.
+ * half-typed. Any text with a newline, or with Enter-for-newline asked, takes
+ * the per-character road so that rule still holds -- and so does a rich
+ * editor (contenteditable), which is where X's composer lives: its documented
+ * per-character behaviour is untouched.
+ *
+ * `page` is injectable so the decision can be unit-tested without a pod.
  */
 export async function typeText(
   endpoint: string,
   targetId: string,
   text: string,
+  opts: { enterForNewline?: boolean } = {},
+  page: typeof onPage = onPage
+): Promise<void> {
+  await page(endpoint, targetId, call => typeWith(call, text, opts))
+}
+
+/** A plain field took the value and grew by exactly the typed length. */
+const SET_OK = 'ok'
+/** A plain field but the set changed nothing: the per-character road. */
+const SET_IGNORED = 'ignored'
+/** Not a plain field (contenteditable, read-only, none focused): keys. */
+const SET_NOT_NATIVE = 'not-native'
+
+/**
+ * The decision, with an injectable `call` so a socket is not needed to test
+ * it. Newline or Enter-for-newline always goes by key events (see the header);
+ * otherwise try the one-hop value set and fall back to keys only when a plain
+ * field ignored it outright.
+ */
+export async function typeWith(
+  call: Call,
+  text: string,
   opts: { enterForNewline?: boolean } = {}
 ): Promise<void> {
-  await onPage(endpoint, targetId, async call => {
-    for (const ch of text) {
-      const key = ch === '\n' && opts.enterForNewline ? '\r' : ch
-      await call('Input.dispatchKeyEvent', { type: 'char', text: key })
-    }
+  if (!text) return
+  const enterForNewline = opts.enterForNewline === true
+  if (enterForNewline || text.includes('\n')) {
+    await typeByKeys(call, text, enterForNewline)
+    return
+  }
+  const set = await setFocusedValue(call, text)
+  if (set === SET_OK) return
+  await typeByKeys(call, text, false)
+}
+
+/**
+ * Append `text` to the focused <input>/<textarea> through the prototype value
+ * setter and one bubbling `input` event -- the shape frameworks watch. Runs
+ * entirely in the page, so the text is JSON-escaped into the expression and
+ * never leaves as a key event. Returns which road the result allows:
+ *   - not a plain field, or none focused     -> not-native (keys)
+ *   - grew by the full length, or clamped     -> ok (a per-char retype could
+ *     do no better against a maxlength, and would double-type)
+ *   - a non-empty set that grew nothing       -> ignored (keys, clean)
+ */
+async function setFocusedValue(call: Call, text: string): Promise<string> {
+  const expr = `(function (t) {
+    var el = document.activeElement
+    if (!el) return 'not-native'
+    var tag = el.tagName
+    if ((tag !== 'INPUT' && tag !== 'TEXTAREA') ||
+        el.isContentEditable || el.readOnly || el.disabled) return 'not-native'
+    var proto = tag === 'TEXTAREA'
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype
+    var desc = Object.getOwnPropertyDescriptor(proto, 'value')
+    var setter = desc && desc.set
+    if (typeof setter !== 'function') return 'not-native'
+    var before = (el.value || '').length
+    setter.call(el, (el.value || '') + t)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    var grew = (el.value || '').length - before
+    if (grew === 0 && t.length > 0) return 'ignored'
+    // A field with maxlength keeps grew < t.length: the browser clamped, the
+    // same characters a person's keystrokes would have (the surplus never
+    // lands either way), so this is 'ok', not a partial that needs retyping.
+    return 'ok'
+  })(${JSON.stringify(text)})`
+  const out = await call('Runtime.evaluate', {
+    expression: expr,
+    returnByValue: true,
   })
+  const value = (out.result as { value?: unknown } | undefined)?.value
+  return value === SET_OK || value === SET_IGNORED ? value : SET_NOT_NATIVE
+}
+
+/** One `Input.dispatchKeyEvent` per character, as a person would type. */
+async function typeByKeys(
+  call: Call,
+  text: string,
+  enterForNewline: boolean
+): Promise<void> {
+  for (const ch of text) {
+    const key = ch === '\n' && enterForNewline ? '\r' : ch
+    await call('Input.dispatchKeyEvent', { type: 'char', text: key })
+  }
 }
 
 export async function screenshot(

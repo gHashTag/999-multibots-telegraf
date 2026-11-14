@@ -1,4 +1,4 @@
-import { Markup } from 'telegraf'
+import { Markup, type Telegram } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
@@ -11,6 +11,7 @@ import {
 } from '@/services/clubMembership'
 import { actionButton } from '@/navigation/helpers/actionButtons'
 import { buildMiniAppUrl } from '@/navigation/config/miniApp.config'
+import { courseHandBack } from '@/services/courseAccess'
 
 /**
  * A CLUB CHARGE ARRIVED AT THE BOT. THE RENDER BOOKS IT; THE BOT ONLY SAYS SO.
@@ -39,8 +40,10 @@ export async function handleClubPayment(
     chargeId: string
     totalAmount: number
     recurring?: boolean
+    /** Telegram's `is_first_recurring`: the first month of a subscription. */
+    firstRecurring?: boolean
   },
-  opts: ClubCallOptions = {}
+  opts: ClubCallOptions & { handBack?: HandBackOptions } = {}
 ): Promise<boolean> {
   const club = parseClubPayload(payment.payload)
   if (!club) return false
@@ -48,15 +51,21 @@ export async function handleClubPayment(
   const isRu = isRussianFromState(ctx)
   // The payer is who the render books, whoever the link was minted for.
   const payer = String(ctx.from?.id ?? club.telegramId)
+  /*
+   * Telegram marks EVERY subscription charge `is_recurring`, the first one
+   * too, and only the first `is_first_recurring`. A renewal is the former
+   * without the latter.
+   */
+  const renewal = payment.recurring === true && payment.firstRecurring !== true
   void track(ctx as any, 'club_paid', {
     stars: payment.totalAmount,
-    renewal: payment.recurring === true,
+    renewal,
     charge: payment.chargeId,
   })
   logger.info('[club] charge received', {
     telegramId: payer,
     stars: payment.totalAmount,
-    renewal: payment.recurring === true,
+    renewal,
   })
 
   const keyboard = Markup.inlineKeyboard([
@@ -102,6 +111,7 @@ export async function handleClubPayment(
         lines[0] + (lines[1] ? ' ' + lines[1] : '') + lines[2],
         keyboard
       )
+      if (!renewal) await handBackToTheSite(ctx, payer, isRu, opts.handBack)
       return true
     }
     logger.warn('[club] charge not yet visible to the cashier', {
@@ -119,4 +129,94 @@ export async function handleClubPayment(
     keyboard
   )
   return true
+}
+
+/** The bot t27.ai links to; the hand-back is said from it. */
+export const MAIN_BOT = 't27ai_bot'
+
+type SendMessage = (
+  chatId: string,
+  text: string,
+  extra?: Parameters<Telegram['sendMessage']>[2]
+) => Promise<unknown>
+
+export interface HandBackOptions
+  extends NonNullable<Parameters<typeof courseHandBack>[2]> {
+  /** The main bot's sender; by default its live instance from the registry. */
+  mainBotSend?: SendMessage | null
+}
+
+async function mainBotSender(
+  ctx: MyContext,
+  opts: HandBackOptions
+): Promise<SendMessage | null> {
+  if (opts.mainBotSend !== undefined) return opts.mainBotSend
+  if (ctx.botInfo?.username === MAIN_BOT) return null // ctx.telegram is it
+  try {
+    const { getBotByName } = await import('@/core/bot')
+    const bot = getBotByName(MAIN_BOT).bot
+    return bot
+      ? (id, text, extra) => bot.telegram.sendMessage(id, text, extra)
+      : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * THE CLUB IS PAID: HAND THE READER BACK TO T27.AI.
+ *
+ * Owner, 2026-10-13: he joined the club from t27.ai, paid in the bot, and was
+ * left with no way to sign in on the site. So after the first booked payment
+ * (never a renewal) the bot mints the paid key through the same render call
+ * the site's button uses -- for the course the reader wanted, remembered when
+ * the press found no club, or the catalog -- and sends one URL button.
+ *
+ * Said from the main bot, where the reader came from; from the bot the charge
+ * arrived at when the main one is not running here or cannot write to him.
+ * A failure is logged, never thrown: the club is already paid and announced.
+ */
+export async function handBackToTheSite(
+  ctx: MyContext,
+  payer: string,
+  isRu: boolean,
+  opts: HandBackOptions = {}
+): Promise<void> {
+  try {
+    const back = await courseHandBack(
+      {
+        id: payer,
+        first_name: ctx.from?.first_name,
+        last_name: ctx.from?.last_name,
+        username: ctx.from?.username,
+      },
+      isRu,
+      opts
+    )
+    if (!back) {
+      logger.warn('[club] no course key to hand back', { telegramId: payer })
+      return
+    }
+    const extra = Markup.inlineKeyboard([
+      [Markup.button.url(back.button.label, back.button.url)],
+    ])
+    const main = await mainBotSender(ctx, opts)
+    if (main) {
+      try {
+        await main(payer, back.text, extra)
+        return
+      } catch (e) {
+        logger.warn('[club] main bot could not hand back; using this bot', {
+          telegramId: payer,
+          error: String(e),
+        })
+      }
+    }
+    await ctx.telegram.sendMessage(payer, back.text, extra)
+  } catch (e) {
+    logger.warn('[club] course hand-back failed', {
+      telegramId: payer,
+      error: String(e),
+    })
+  }
 }

@@ -92,8 +92,19 @@ function flatten(v: unknown): string {
   }
 }
 
+/**
+ * Where a link to one of OUR files ends: right after its extension
+ * (agent-claims-honest.t27 v2, OUR_LINK_ENDS_AT_EXTENSION). A model writes
+ * `**url**`, `url»`, `url—это афиша`; the bare-URL pattern takes the glued
+ * characters along, and the gate then struck a real file as invented.
+ */
+const FILE_END =
+  /\.(?:png|jpe?g|webp|gif|mp4|mov|webm|mp3|ogg|oga|wav|m4a|pdf)(?=[^A-Za-z0-9]|$)/i
+
 function trimEnd(u: string): string {
-  return u.replace(/[.,;:!?]+$/, '')
+  const bare = u.replace(/[.,;:!?]+$/, '')
+  const m = FILE_END.exec(bare)
+  return m && isAssetUrl(bare) ? bare.slice(0, m.index + m[0].length) : bare
 }
 
 /**
@@ -194,4 +205,19 @@ export function createLinkGate(given: unknown): LinkGate {
       for (const u of assetUrlsIn(text)) allowed.add(u)
     },
   }
+}
+
+/**
+ * The file a maker tool's answer names as made, or null: a top-level `url` of
+ * ours on an answer that does not say it failed (`done: false`, or the same
+ * field in the Russian answer shape set false). A listing of files already
+ * there has no top-level url and is not a made file (agent-claims-honest.t27
+ * v2, FILE_MAKERS).
+ */
+export function madeFileUrl(v: unknown): string | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Record<string, unknown>
+  if (r.done === false || r['сделано'] === false) return null // cyrillic-ok: the tools' answer field
+  const url = typeof r.url === 'string' ? trimEnd(r.url) : ''
+  return url && isAssetUrl(url) ? url : null
 }

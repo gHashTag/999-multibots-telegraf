@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { systemPrompt } from './src/agent/chat'
-import { TOKEN_PRICES } from './src/agent/billing-shared'
+import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
+import * as MEDIA_SPEC from './src/spec/agent-media-kie.gen'
 import { ПАКЕТЫ, ценаТокенов } from './src/agent/token-packs' // cyrillic-ok: pre-existing names
 
 /**
@@ -21,7 +22,12 @@ describe('the client in the owner DM (surface business)', () => {
 
   it('names the service prices from TOKEN_PRICES', () => {
     expect(p).toContain(`картинка ${TOKEN_PRICES.image_generate}`)
-    expect(p).toContain(`видео ${TOKEN_PRICES.video_generate}`)
+    // The agent's clip is ordered on Kie (agent-media-kie.t27) and charged
+    // priceForModel of that model, so the prompt names that number.
+    expect(p).toContain(
+      `видео ${priceForModel('video_generate', MEDIA_SPEC.AGENT_VIDEO_MODEL)}`
+    )
+    expect(p).toContain(`песня ${TOKEN_PRICES.music_generate}`)
     expect(p).toContain(`озвучка ${TOKEN_PRICES.audio_generate}`)
     expect(p.includes('картинка 1,')).toBe(false)
   })

@@ -10,6 +10,8 @@ import {
   TABS,
   ensureTabs,
   nameFreshTopic,
+  nameOk,
+  setsIcon,
   prepareTabsTable,
   setTopicTabsDbForTests,
   topicsEnabled,
@@ -349,7 +351,10 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
   const tabsCommand = () => {
     let handler: any
     registerTabsCommand({
-      command: (_: string, h: any) => (handler = h),
+      command: (name: string, h: any) => {
+        if (name === 'tabs') handler = h
+      },
+      action: () => undefined,
     } as any)
     return (tg: any) =>
       handler({
@@ -368,7 +373,7 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     const before = db.rows.map(r => [r.kind, r.thread_id])
     await tabsCommand()(tg)
     expect(tg.made()).toHaveLength(TABS.length + 1)
-    expect(tg.made().at(-1)![1].name).toBe(TABS[2].en)
+    expect(tg.made().at(-1)![1].name).toBe(TABS[2].topicEn)
     const after = new Map(db.rows.map(r => [r.kind, r.thread_id]))
     for (const [kind, thread] of before)
       if (kind !== TABS[2].kind) expect(after.get(kind)).toBe(thread)
@@ -461,8 +466,8 @@ describe('review of #3544: /tabs, two /start, an explicit null thread, no read p
     const tg = telegram()
     await ensureTabs(tg, 'b', 777, false)
     const names = tg.made().map(c => c[1].name)
-    expect(names).toContain(TABS[0].en)
-    expect(names).not.toContain(TABS[1].en)
+    expect(names).toContain(TABS[0].topicEn)
+    expect(names).not.toContain(TABS[1].topicEn)
     expect(names).toHaveLength(TABS.length - 1)
   })
 
@@ -573,7 +578,7 @@ describe('review follow-ups: a slow maker, the naming window, the probe', () => 
     const api = {
       calls: tg.calls,
       async callApi(method: string, payload: any) {
-        if (method === 'createForumTopic' && payload.name === TABS[0].en) {
+        if (method === 'createForumTopic' && payload.name === TABS[0].topicEn) {
           const mine = n++
           tg.calls.push([method, payload])
           await (mine === 0 ? heldA : heldB)
@@ -606,7 +611,7 @@ describe('review follow-ups: a slow maker, the naming window, the probe', () => 
       tid: 777,
       thread_id: -5,
       kind: TABS[3].kind,
-      title: TABS[3].en,
+      title: TABS[3].topicEn,
       created_at: new Date(),
     })
     const tg = telegram()
@@ -763,6 +768,23 @@ describe('v3: a tab made under an older title is renamed to its agent', () => {
       '💰 Казначей', // cyrillic-ok: tab titles are interface text
       '🐝 Королева', // cyrillic-ok: tab titles are interface text
     ])
+    // spec v5: the topic's own name is words only; the emoji is its icon.
+    expect(TABS.map(t => t.topicEn)).toEqual([
+      'Agent',
+      'Director',
+      'Navigator',
+      'Builder',
+      'Treasurer',
+      'Queen',
+    ])
+    expect(TABS.map(t => t.topicRu)).toEqual([
+      'Агент', // cyrillic-ok: tab titles are interface text
+      'Режиссёр', // cyrillic-ok: tab titles are interface text
+      'Штурман', // cyrillic-ok: tab titles are interface text
+      'Конструктор', // cyrillic-ok: tab titles are interface text
+      'Казначей', // cyrillic-ok: tab titles are interface text
+      'Королева', // cyrillic-ok: tab titles are interface text
+    ])
   })
 
   it('renames an old-titled tab once, in place, and then leaves it alone', async () => {
@@ -774,13 +796,13 @@ describe('v3: a tab made under an older title is renamed to its agent', () => {
     expect(api.made()).toEqual([])
     expect(api.renames().map(c => [c[1].message_thread_id, c[1].name])).toEqual(
       [
-        [threads.get('reels'), '🎬 Director'],
-        [threads.get('hive'), '🐝 Queen'],
+        [threads.get('reels'), 'Director'],
+        [threads.get('hive'), 'Queen'],
       ]
     )
     // Same threads, current titles: the tab and its history stay.
     for (const r of db.rows) expect(r.thread_id).toBe(threads.get(r.kind))
-    expect(db.rows.find(r => r.kind === 'reels')!.title).toBe('🎬 Director')
+    expect(db.rows.find(r => r.kind === 'reels')!.title).toBe('Director')
 
     api.calls.length = 0
     await ensureTabs(api, 'b', 777, false)
@@ -798,7 +820,7 @@ describe('v3: a tab made under an older title is renamed to its agent', () => {
     const api = tg({ refuse: 'TOPIC_NOT_MODIFIED' })
     await madeUnderV2(api, { browser: '🌍 Browser' })
     await ensureTabs(api, 'b', 777, false)
-    expect(db.rows.find(r => r.kind === 'browser')!.title).toBe('🌍 Navigator')
+    expect(db.rows.find(r => r.kind === 'browser')!.title).toBe('Navigator')
   })
 
   it('v4: a rename that says "thread not found" keeps the tab -- never a second one', async () => {
@@ -822,5 +844,150 @@ describe('v3: a tab made under an older title is renamed to its agent', () => {
     expect(await ensureTabs(api, 'b', 777, false)).toEqual([])
     expect(api.made()).toEqual([])
     expect(db.rows.find(r => r.kind === 'mybot')!.title).toBe('🛠 My bot')
+  })
+})
+
+describe('v5: the emoji is the icon, never the start of the name', () => {
+  let db: ReturnType<typeof memoryDb>
+  beforeEach(() => {
+    db = memoryDb()
+    setTopicTabsDbForTests(db)
+  })
+
+  /**
+   * A Telegram whose topic icon set lists `listed` emoji (custom id = 'id:'
+   * plus the emoji); `refuseIcon` refuses every icon edit.
+   */
+  const tg = (listed: string[], refuseIcon = false) => {
+    let next = 300
+    const calls: any[] = []
+    return {
+      calls,
+      made: () => calls.filter(c => c[0] === 'createForumTopic'),
+      icons: () =>
+        calls
+          .filter(
+            c => c[0] === 'editForumTopic' && 'icon_custom_emoji_id' in c[1]
+          )
+          .map(c => [c[1].message_thread_id, c[1].icon_custom_emoji_id]),
+      async callApi(method: string, payload: any) {
+        calls.push([method, payload])
+        if (method === 'getForumTopicIconStickers')
+          // Telegram lists some emoji with a variation selector.
+          return listed.map(e => ({
+            emoji: `${e}\uFE0F`,
+            custom_emoji_id: `id:${e}`,
+          }))
+        if (method === 'createForumTopic')
+          return { message_thread_id: next++, name: payload.name }
+        if (
+          method === 'editForumTopic' &&
+          'icon_custom_emoji_id' in payload &&
+          refuseIcon
+        ) {
+          const e: any = new Error('400: Bad Request: TOPIC_ICON_INVALID')
+          e.response = { description: 'Bad Request: TOPIC_ICON_INVALID' }
+          throw e
+        }
+        return true
+      },
+    }
+  }
+  const emojiOf = (kind: string) => TABS.find(t => t.kind === kind)!.emoji
+
+  it('a made tab is named in words and given its emoji as the icon after it exists', async () => {
+    const api = tg(TABS.map(t => t.emoji))
+    expect(await ensureTabs(api as any, 'b', 777, true)).toHaveLength(
+      TABS.length
+    )
+    for (const c of api.made()) {
+      expect(nameOk(/^\p{Extended_Pictographic}/u.test(c[1].name))).toBe(true)
+      expect(c[1]).not.toHaveProperty('icon_custom_emoji_id')
+    }
+    const threads = new Map(db.rows.map(r => [r.kind, r.thread_id]))
+    expect(api.icons()).toEqual(
+      TABS.map(t => [threads.get(t.kind), `id:${t.emoji}`])
+    )
+    // every icon edit comes after the create of its own topic
+    // topics get threads 300, 301, ... in the order they are made
+    const creates = api.calls
+      .map((c, i) => [c[0], i] as const)
+      .filter(([m]) => m === 'createForumTopic')
+      .map(([, i]) => i)
+    for (const [thread] of api.icons()) {
+      const iconAt = api.calls.findIndex(
+        c => c[0] === 'editForumTopic' && c[1].message_thread_id === thread
+      )
+      expect(creates[thread - 300]).toBeLessThan(iconAt)
+    }
+    // the set is read once per process, not once per tab
+    expect(
+      api.calls.filter(c => c[0] === 'getForumTopicIconStickers')
+    ).toHaveLength(1)
+  })
+
+  it('an emoji the icon set does not list leaves the coloured circle, and the tab is made', async () => {
+    const api = tg([emojiOf('agent')])
+    expect(await ensureTabs(api as any, 'b', 777, false)).toHaveLength(
+      TABS.length
+    )
+    expect(api.icons().map(i => i[1])).toEqual([`id:${emojiOf('agent')}`])
+  })
+
+  it('a refused icon never costs the tab', async () => {
+    const api = tg(
+      TABS.map(t => t.emoji),
+      true
+    )
+    expect(await ensureTabs(api as any, 'b', 777, false)).toHaveLength(
+      TABS.length
+    )
+    expect(db.rows.filter(r => r.thread_id > 0)).toHaveLength(TABS.length)
+    expect(api.calls.filter(c => c[0] === 'deleteForumTopic')).toEqual([])
+  })
+
+  it('a tab stored under its old emoji name is renamed to words once and gets its icon', async () => {
+    const api = tg(TABS.map(t => t.emoji))
+    await ensureTabs(api as any, 'b', 777, false)
+    for (const r of db.rows) r.title = TABS.find(t => t.kind === r.kind)!.en
+    api.calls.length = 0
+    expect(await ensureTabs(api as any, 'b', 777, false)).toEqual([])
+    expect(api.made()).toEqual([])
+    expect(
+      api.calls
+        .filter(c => c[0] === 'editForumTopic' && 'name' in c[1])
+        .map(c => c[1].name)
+    ).toEqual(TABS.map(t => t.topicEn))
+    expect(api.icons()).toHaveLength(TABS.length)
+    api.calls.length = 0
+    await ensureTabs(api as any, 'b', 777, false)
+    expect(api.calls.filter(c => c[0] === 'editForumTopic')).toEqual([])
+  })
+
+  it('an icon set Telegram failed to give is read again next time', async () => {
+    const api = tg(TABS.map(t => t.emoji))
+    let fail = true
+    const flaky = {
+      calls: api.calls,
+      async callApi(method: string, payload: any) {
+        if (method === 'getForumTopicIconStickers' && fail) {
+          fail = false
+          api.calls.push([method, payload])
+          throw new Error('502: Bad Gateway')
+        }
+        return api.callApi(method, payload)
+      },
+    }
+    await ensureTabs(flaky as any, 'b', 777, false)
+    // the first tab asked while Telegram failed: no icon; every later one has it
+    expect(api.icons().map(i => i[1])).toEqual(
+      TABS.slice(1).map(t => `id:${t.emoji}`)
+    )
+  })
+
+  it('setsIcon: only a topic that exists, only an emoji Telegram lists', () => {
+    expect(setsIcon(true, true)).toBe(true)
+    expect(setsIcon(true, false)).toBe(false)
+    expect(setsIcon(false, true)).toBe(false)
   })
 })

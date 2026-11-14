@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { SKIP_LOG_PREFIX, streamModel } from './chat'
 import {
   allProviders,
@@ -7,8 +7,19 @@ import {
   keyFrom,
   vendorCode,
 } from './provider'
-import { forgetBreakersForTests } from './provider-breaker'
+import {
+  forgetBreakersForTests,
+  forgetHealthForTests,
+} from './provider-breaker'
 import { forgetProviderChoiceForTests } from './provider-choice'
+
+// The root vitest config sets KIE_AI_API_KEY for every test, which would put
+// the Kie model leg (agent-provider-chain v3) into each chain below. These
+// chains are the ones without it; kie has its own tests.
+beforeEach(() => {
+  vi.stubEnv('KIE_AI_API_KEY', '')
+  forgetHealthForTests()
+})
 
 /**
  * ZAI-LITE READS ITS OWN KEY, WHEN THERE IS ONE.

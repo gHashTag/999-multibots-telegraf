@@ -1,0 +1,45 @@
+[
+  {
+    "name": "an unlisted voice model is ordered",
+    "file": "src/agent/tools.ts",
+    "from": "          (NEURO.TTS_MODELS as readonly string[]).includes(namedTts)",
+    "to": "          true"
+  },
+  {
+    "name": "a clone takes the Kie model",
+    "file": "src/agent/tools.ts",
+    "from": "      const ttsModel = ttsModelApplies(!!cloneVoice)",
+    "to": "      const ttsModel = ttsModelApplies(false)"
+  },
+  {
+    "name": "the named model is ignored",
+    "file": "src/agent/tools.ts",
+    "from": "        ? namedTts || NEURO.TTS_DEFAULT_MODEL",
+    "to": "        ? NEURO.TTS_DEFAULT_MODEL"
+  },
+  {
+    "name": "one flat unit whatever the length",
+    "file": "src/agent/tools.ts",
+    "from": "        тысячиЗнаковКОплате(args.text) // cyrillic-ok: existing export",
+    "to": "        1 // cyrillic-ok: existing export"
+  },
+  {
+    "name": "the route is not told the model",
+    "file": "src/agent/tools.ts",
+    "from": "          ...(ttsModel ? { model: ttsModel } : {}),",
+    "to": ""
+  },
+  {
+    "name": "the units rule is not the spec's",
+    "file": "src/agent/billing-shared.ts",
+    "from": "  return speechUnits(длина) // cyrillic-ok: existing local",
+    "to": "  return Math.max(1, Math.floor(длина / 1000)) // cyrillic-ok: existing local",
+    "tests": ["src/agent/billing-prices.test.ts"]
+  },
+  {
+    "name": "the prompt drops what Kie does not sell",
+    "file": "src/agent/chat.ts",
+    "from": "  ${NEURO.NOT_ON_KIE_NOTE}\n",
+    "to": "\n"
+  }
+]

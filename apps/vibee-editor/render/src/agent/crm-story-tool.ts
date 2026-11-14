@@ -26,6 +26,7 @@ import type { AgentTool, ToolContext } from './tools'
 import {
   storyTopicIdeas,
   keepStoryFace,
+  keepSceneFaces,
   missingFor,
   nextLink,
   peekNextPlanItem,
@@ -66,6 +67,12 @@ import {
 } from './story-reel-templates'
 import { requireSeller } from './telegram-tools'
 import { bindClientGroup, clientGroupFor } from './crm-client-group'
+import { avatarHistory } from './crm-avatars'
+import { leadUsername } from './client-face'
+import { sceneFacesFor } from './story-scene-faces'
+
+/** How long the panel waits for her photo history before showing what it has. */
+const AVATAR_READ_WAIT_MS = 12_000 // t27-plumbing: a network wait on the seller's session, not a rule
 
 export const NOT_THIS_CLIENT =
   'в разговоре за клиента рилс делается только ему самому' // cyrillic-ok: tool result copy
@@ -168,6 +175,12 @@ export function makeCrmStoryTool(o: {
           description:
             'своё фото для рилсов клиента вместо аватарки (https); пустая строка — снова аватарка',
         },
+        scene_faces: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'фото для каждой сцены по порядку (https); пустая строка — по умолчанию, её аватарка', // cyrillic-ok: tool description
+        },
         to: {
           type: 'string',
           description:
@@ -202,6 +215,39 @@ export function makeCrmStoryTool(o: {
           await face.handler({ lead_id: lead }, ctx).catch(() => null)
           s = await storySettingsOf(ctx.pool, lead, seller)
         }
+      }
+      /*
+       * ALL HER PROFILE PHOTOS, read once (crm-story-reel v31): a photo per
+       * scene, not one avatar three times. Bounded: a slow session leaves the
+       * panel with what it has, and the next open tries again.
+       */
+      if (s && !s.avatarsRead && args.start !== true) {
+        const read = (o.deps(ctx).avatarHistory ?? avatarHistory)(
+          ctx,
+          {
+            id: lead,
+            username: await leadUsername(ctx, lead).catch(() => null),
+          },
+          REEL.AVATARS_MAX
+        ).catch(() => [] as string[])
+        const got = await Promise.race([
+          read,
+          new Promise<null>(r =>
+            setTimeout(() => r(null), AVATAR_READ_WAIT_MS)
+          ),
+        ])
+        if (got) s = await storySettingsOf(ctx.pool, lead, seller)
+      }
+      // The seller's photo for one scene, picked by a tap on its tile (v31).
+      if (s && Array.isArray(args.scene_faces)) {
+        const k = await keepSceneFaces(
+          ctx.pool as never,
+          seller,
+          lead,
+          args.scene_faces
+        )
+        if (k.why) return { ready: false, started: false, why: k.why }
+        s = await storySettingsOf(ctx.pool, lead, seller)
       }
       // The seller's own photo over her avatar, kept for her next reels.
       if (s && typeof args.face_url === 'string') {
@@ -324,6 +370,20 @@ export function makeCrmStoryTool(o: {
                 face: s.faceUrl || undefined,
                 face_custom: s.faceCustom,
                 avatar: s.avatarUrl || undefined,
+                // Every profile photo, and the photo of each scene up to the
+                // most a reel takes (v31, sceneFacesFor); the panel shows
+                // the first N.
+                avatars: s.avatars,
+                scene_faces: sceneFacesFor({
+                  count: REEL.SCENES_MAX,
+                  picks: s.scenePicks,
+                  avatars: s.avatars,
+                  face: s.faceUrl,
+                  faceCustom: s.faceCustom,
+                }),
+                scene_picked: Array.from({ length: REEL.SCENES_MAX }, (_, i) =>
+                  Boolean(s!.scenePicks[i])
+                ),
                 voice: s.hasVoice,
                 // Her clone speaks new lines; without it -- or while its
                 // provider refuses (spec v5) -- her own voice notes are

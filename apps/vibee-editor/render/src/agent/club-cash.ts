@@ -63,7 +63,9 @@ import {
   clubTokensPerPeriod,
   ensureClubTables,
   grantDay,
+  tellOwnerClubPaid,
   type Credit,
+  type TellOwner,
 } from './club-membership'
 import { isOwnerOrKeeper } from './telegram-tools'
 import type { AgentTool } from './tools'
@@ -209,7 +211,8 @@ export async function recordCashClubMonth(
   pool: Queryable,
   input: CashMonthInput,
   credit: Credit,
-  now: Date = new Date()
+  now: Date = new Date(),
+  tellOwner?: TellOwner
 ): Promise<CashMonth> {
   const tid = String(input.telegramId ?? '').trim()
   if (!/^\d{5,15}$/.test(tid)) {
@@ -382,6 +385,12 @@ export async function recordCashClubMonth(
       } catch {
         // The period row is the record that matters; the journal is a courtesy.
       }
+      // Only after the INSERT created the row: once per recorded month.
+      await tellOwnerClubPaid(
+        pool,
+        { telegramId: tid, stars: 0, until: until.toISOString(), via: 'cash' },
+        tellOwner
+      )
       return done('now', tokens, c)
     }
     // Somebody else wrote this very month a moment ago: fall through to the

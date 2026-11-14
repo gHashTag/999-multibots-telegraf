@@ -195,7 +195,7 @@ describe('TriClaimCard', () => {
       return LINKED
     })
     await mount()
-    await act(async () => button(/Withdraw|Вывести/).click()) // cyrillic-ok: the RU copy is checked too
+    await act(async () => button(/^(Withdraw|Вывести)$/).click()) // cyrillic-ok: the RU copy is checked too
     await flush()
     const ui = latest()
     // Connected without a proof request: the payee is already bound.
@@ -217,7 +217,7 @@ describe('TriClaimCard', () => {
   it('cannot Withdraw without a bound wallet, and says why the server refused', async () => {
     apiFetch.mockResolvedValue({ ...LINKED, wallet: null })
     await mount()
-    expect(button(/Withdraw|Вывести/).disabled).toBe(true) // cyrillic-ok: the RU copy is checked too
+    expect(button(/^(Withdraw|Вывести)$/).disabled).toBe(true) // cyrillic-ok: the RU copy is checked too
 
     apiFetch.mockImplementation(async (url: string) => {
       if (url.endsWith('/api/tri/claim'))
@@ -230,10 +230,174 @@ describe('TriClaimCard', () => {
     await act(async () => root.unmount())
     root = createRoot(host)
     await mount()
-    await act(async () => button(/Withdraw|Вывести/).click()) // cyrillic-ok: the RU copy is checked too
+    await act(async () => button(/^(Withdraw|Вывести)$/).click()) // cyrillic-ok: the RU copy is checked too
     await flush()
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(
       /already been minted|уже выпущены/ // cyrillic-ok: the ru UI string under test
     )
+  })
+})
+
+describe('TriClaimCard: withdraw all (spec tri-claim-batch)', () => {
+  let host: HTMLDivElement
+  let root: Root
+  const at = (d: string, id: string, revoked = false) => ({
+    ...EARNING,
+    workId: id.repeat(64),
+    acceptedAt: d,
+    revokedAt: revoked ? '2026-10-01T00:00:00Z' : null,
+  })
+  const MANY = {
+    ...LINKED,
+    batchMax: 16,
+    mintValueMilliton: 100,
+    earnings: [
+      at('2026-10-03T00:00:00Z', 'c'),
+      at('2026-10-01T00:00:00Z', 'a'),
+      at('2026-10-02T00:00:00Z', 'b', true),
+      at('2026-10-02T00:00:00Z', 'd'),
+    ],
+  }
+  const msg = (workId: string) => ({
+    workId,
+    address: 'kQBtPS1b...',
+    amount: '100000000',
+    payload: `p-${workId[0]}`,
+  })
+
+  beforeEach(() => {
+    apiFetch.mockReset()
+    host = document.createElement('div')
+    document.body.appendChild(host)
+    root = createRoot(host)
+  })
+  afterEach(() => {
+    act(() => root.unmount())
+    host.remove()
+  })
+
+  const mount = async () => {
+    await act(async () => {
+      root.render(
+        <Provider store={createStore()}>
+          <TriClaimCard isOwn />
+        </Provider>
+      )
+    })
+    await flush()
+  }
+  const connect = async (maxMessages?: number) => {
+    const ui = latest() as FakeTonConnect & { wallet?: unknown }
+    ui.connected = true
+    ui.wallet = {
+      device: {
+        features:
+          maxMessages === undefined
+            ? ['SendTransaction']
+            : [{ name: 'SendTransaction', maxMessages }],
+      },
+    }
+    await act(async () => ui.statusCb?.({ account: { address: '0:11' } }))
+    for (let i = 0; i < 4; i++) await flush()
+    return ui
+  }
+
+  it('says how many and how much TON before the press', async () => {
+    apiFetch.mockResolvedValue(MANY)
+    await mount()
+    const all = host.querySelector('[data-testid="tri-claim-all"]')
+    expect(all?.textContent).toContain('Withdraw all (3)')
+    expect(all?.textContent).toContain('about 0.3 TON')
+  })
+
+  it('sends every pending earning oldest first, as many per transaction as the wallet allows', async () => {
+    const asked: unknown[] = []
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/tri/claim/batch')) {
+        const body = JSON.parse(String(init?.body))
+        asked.push(body)
+        return {
+          network: '-3',
+          status: LINKED.status,
+          validUntil: 1_790_000_300,
+          perTx: body.walletMax,
+          messages: body.workIds.map(msg),
+          refused: [],
+          left: 0,
+        }
+      }
+      return MANY
+    })
+    // One TonConnectUI per page outlives a test: read only this test's sends.
+    const before = latest()?.sent.length ?? 0
+    await mount()
+    await act(async () =>
+      (
+        host.querySelector(
+          '[data-testid="tri-claim-all"] button'
+        ) as HTMLButtonElement
+      ).click()
+    )
+    await flush()
+    const ui = await connect(2)
+    // Revoked "b" left out; "a" (10-01) before "d" (10-02) before "c" (10-03).
+    expect(asked).toEqual([
+      { workIds: ['a', 'd', 'c'].map(x => x.repeat(64)), walletMax: 2 },
+    ])
+    expect(
+      (ui.sent.slice(before) as { messages: { payload: string }[] }[]).map(tx =>
+        tx.messages.map(m => m.payload)
+      )
+    ).toEqual([['p-a', 'p-d'], ['p-c']])
+    // The messages are exactly TON Connect's: no workId leaks to the wallet.
+    expect(
+      Object.keys(
+        (ui.sent[before] as { messages: object[] }).messages[0]
+      ).sort()
+    ).toEqual(['address', 'amount', 'payload'])
+    expect(host.textContent).toContain('Sent 3 of 3')
+    expect(ui.disconnect).toHaveBeenCalled()
+  })
+
+  it('counts an already-minted earning as done and stops when the wallet is cancelled', async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/tri/claim/batch')) {
+        const ids = JSON.parse(String(init?.body)).workIds as string[]
+        return {
+          network: '-3',
+          status: LINKED.status,
+          validUntil: 1_790_000_300,
+          perTx: 4,
+          messages: ids.slice(1).map(msg),
+          refused: [{ workId: ids[0], code: 'already_minted' }],
+          left: 0,
+        }
+      }
+      return MANY
+    })
+    await mount()
+    await act(async () =>
+      (
+        host.querySelector(
+          '[data-testid="tri-claim-all"] button'
+        ) as HTMLButtonElement
+      ).click()
+    )
+    await flush()
+    const ui = latest() as FakeTonConnect & {
+      sendTransaction: (tx: unknown) => Promise<unknown>
+    }
+    const real = ui.sendTransaction
+    ui.sendTransaction = async () => {
+      throw new Error('Reject request')
+    }
+    await connect()
+    ui.sendTransaction = real
+    // The minted one counts; the cancelled transaction ends the run quietly.
+    expect(host.textContent).toContain('Sent 1 of 3')
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+    expect(
+      apiFetch.mock.calls.filter(([u]) => u.endsWith('/claim/batch'))
+    ).toHaveLength(1)
   })
 })

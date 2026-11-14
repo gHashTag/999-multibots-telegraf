@@ -15,7 +15,15 @@
  * Nothing is mocked out of `hive/roles.ts`. The rule under test IS that rule,
  * and a test that stubs it would prove only that the stub agrees with itself.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  onTestFinished,
+} from 'vitest'
 
 const KEEPER = '100000001'
 const OWNER = '200000002'
@@ -420,6 +428,16 @@ describe('the owner sees their own board', () => {
   })
 
   it('counts a payment as a client, and says so in the money column', async () => {
+    /*
+     * The fixtures' own clock. Their last touch is 2026-09-1x; on the wall
+     * clock a payer quiet for WINBACK_QUIET_DAYS (30) became "winback" on
+     * 2026-10-11 and the test went red with no code change -- a date bomb.
+     */
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T00:00:00Z'))
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     vi.unstubAllGlobals()
     stubFetch({ payers: ['500000002'] })
     const out = await call(

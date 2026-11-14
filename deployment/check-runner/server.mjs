@@ -241,6 +241,13 @@ export function suiteCommands(suite, files) {
     case 'render-types':
       return ['node scripts/check-render-types.cjs']
     /*
+     * The pre-push player lint ratchet. 2026-10-09 two new player lint errors
+     * reached main through API merges, which run no hooks, and the ratchet
+     * then refused every push of a branch at main (999 #3969).
+     */
+    case 'player-lint':
+      return ['PLAYER_LINT_REQUIRED=1 node scripts/player-lint-ratchet.cjs']
+    /*
      * gHashTag/trinity's site: one command per npm script, in order. The
      * names are checked by refusal() first; checked again here, so a name
      * that never passed it can still never reach the shell.

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   NETWORKS,
   loginsOf,
@@ -347,8 +347,21 @@ describe('the desk writes the verdict down', () => {
 })
 
 describe('browser_logins says it, and says where to sign in again', () => {
-  beforeEach(() => resetRefusalsCache())
-  afterEach(() => setLoginsIoForTests())
+  /*
+   * The clock is the fixtures' own (NOW, 2026-10-03). On the wall clock this
+   * test expired on 2026-10-10: a refusal stamped NOW is history after
+   * REFUSAL_TTL_MS (a week), and "refused" read "signed_in" -- a date bomb,
+   * not a change in the code (found by bun run verify on 2026-10-11).
+   */
+  beforeEach(() => {
+    resetRefusalsCache()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW + 3600_000)
+  })
+  afterEach(() => {
+    setLoginsIoForTests()
+    vi.useRealTimers()
+  })
 
   it('the pod holds the cookie, the desk was refused: refused + the door', async () => {
     const q = table()

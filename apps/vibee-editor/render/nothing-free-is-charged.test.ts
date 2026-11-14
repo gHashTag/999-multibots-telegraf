@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { TOKEN_PRICES } from './src/agent/billing-shared'
+import { TOKEN_PRICES, priceForModel } from './src/agent/billing-shared'
+import * as MEDIA_SPEC from './src/spec/agent-media-kie.gen'
 import { pricingSummary } from './src/agent/pricing'
 
 /**
@@ -53,9 +54,13 @@ describe('what charges is quoted', () => {
     const listed = new Map(paid().map(r => [r.функция, r.токенов])) // cyrillic-ok: field names
     for (const op of new Set(charged)) {
       expect(listed.has(op), `${op}: charged and not quoted`).toBe(true)
-      expect(listed.get(op), `${op}: quoted at the wrong price`).toBe(
-        TOKEN_PRICES[op]
-      )
+      // A video is charged priceForModel of the agent's Kie clip
+      // (agent-media-kie.t27), not the old flat price.
+      const price =
+        op === 'video_generate'
+          ? priceForModel(op, MEDIA_SPEC.AGENT_VIDEO_MODEL)
+          : TOKEN_PRICES[op]
+      expect(listed.get(op), `${op}: quoted at the wrong price`).toBe(price)
     }
   })
 })

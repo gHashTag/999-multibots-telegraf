@@ -31,7 +31,9 @@ import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
+import { SPEC_BANK_TOOLS } from './spec-bank-tools'
 import { JOB_TOOLS } from './job-tools'
+import { COURSE_OUTREACH_TOOLS } from './course-outreach-tool'
 import { MAIL_TOOLS } from './mail-tools'
 import { SOCIAL_TOOLS } from './social-tools'
 import { MAIL_PUSH_TOOLS } from './mail-push'
@@ -51,7 +53,22 @@ import {
   imageChainShortNote,
   watermarkOf,
 } from '../image-chain'
-import { imageModelRefusal, videoModelRefusal } from './flat-price-model'
+import { imageModelRefusal } from './flat-price-model'
+import * as MEDIA from '../spec/agent-media-kie.gen'
+import * as NEURO from '../spec/agent-neuro-kie.gen'
+import { realPrompt, videoOrder } from './agent-media'
+import { createSong, songState } from '../kie-music'
+import {
+  musicKeepsWaiting,
+  ttsModelApplies,
+  ttsNamedOk,
+} from '../spec/agent-neuro-kie.logic'
+import {
+  editUsesGpt25,
+  kieImageOrder,
+  SOURCE_TOOLS,
+  sourceRefusal,
+} from './agent-neuro'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -84,6 +101,7 @@ import {
 } from './image-health'
 import {
   clientFace,
+  leadUsername,
   sentPhotosFromLibrary,
   NO_PERSON_PREFIX,
   PORTRAIT_IDENTITY_PREFIX,
@@ -206,6 +224,14 @@ export interface ToolContext {
    * not a failure -- see late-picture.ts.
    */
   imageWaitMs?: number
+  /**
+   * The conversation thread this turn writes its answer to, and whether the
+   * turn is kept at all. Set only by the chat route. A picture that finishes
+   * after the answer is posted there (agent-claims-honest.t27 v2,
+   * late_file_posted) -- never into a turn nobody keeps.
+   */
+  thread?: string
+  ephemeral?: boolean
   /**
    * THE CLIENT THIS TURN MAKES PICTURES FOR (a duet's buyer, a client
    * thread's client). Set only by code. While it is set, a picture of a
@@ -443,6 +469,41 @@ export async function profilePhotoViaSession(
   )
 }
 
+/**
+ * EVERY profile photo of a person, newest first, up to `limit` (crm-story-reel
+ * v31): Telegram keeps the history, and a story reel takes one per scene.
+ * photos.GetUserPhotos through the same session and the same resolve-retry
+ * as the single photo above; [] when the session cannot see any.
+ */
+export async function profilePhotosViaSession(
+  c: any,
+  lead: { id: string; username?: string | null },
+  limit: number
+): Promise<Buffer[]> {
+  if (!c?.invoke || !c?.downloadMedia) return []
+  const target = lead.username
+    ? `@${String(lead.username).replace(/^@/, '')}`
+    : String(lead.id)
+  const { Api } = await import('telegram')
+  return resolvingPeer(c, target, async () => {
+    const userId = await c.getInputEntity(target)
+    const r = await c.invoke(
+      new Api.photos.GetUserPhotos({
+        userId,
+        offset: 0,
+        maxId: BigInt(0) as never,
+        limit,
+      })
+    )
+    const out: Buffer[] = []
+    for (const photo of (r?.photos ?? []).slice(0, limit)) {
+      const bytes = await c.downloadMedia(photo, {}).catch(() => undefined)
+      if (Buffer.isBuffer(bytes) && bytes.length > 0) out.push(bytes)
+    }
+    return out
+  })
+}
+
 export async function leadAvatarUrl(
   ctx: any,
   lead: { id: string; username?: string | null }
@@ -485,10 +546,23 @@ function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
  * picture must be stored exactly the way an on-time one is: one copy of the
  * steps, not two that drift.
  */
+/** What kind of file is kept: a picture by default, a song for music. */
+export interface KeptKind {
+  type: string
+  ext: string
+  mime: string
+}
+const PICTURE: KeptKind = {
+  type: 'generated_image',
+  ext: 'png',
+  mime: 'image/png',
+}
+
 export async function keepGeneratedImage(
   ctx: ToolContext,
   providerUrl: string,
-  note: string
+  note: string,
+  kind: KeptKind = PICTURE
 ): Promise<
   | {
       ok: true
@@ -512,8 +586,8 @@ export async function keepGeneratedImage(
     const up = await selfFetch(`${selfBase()}/upload`, {
       method: 'POST',
       headers: {
-        'Content-Type': got.headers.get('content-type') || 'image/png',
-        'X-Filename': `agent-edit-${Date.now()}.png`,
+        'Content-Type': got.headers.get('content-type') || kind.mime,
+        'X-Filename': `agent-edit-${Date.now()}.${kind.ext}`,
       },
       body: new Uint8Array(bytes),
     })
@@ -540,9 +614,14 @@ export async function keepGeneratedImage(
     try {
       const row = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
-         VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+         VALUES ($4, '', $1, '', $2, $3, 'agent')
          RETURNING id`,
-        [ctx.telegramId, upData.directUrl, String(note).slice(0, 500)]
+        [
+          ctx.telegramId,
+          upData.directUrl,
+          String(note).slice(0, 500),
+          kind.type,
+        ]
       )
       assetId = row.rows[0]?.id ?? null
     } catch (e) {
@@ -610,9 +689,7 @@ import {
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
   priceForModel,
-  replicateVideoSeconds,
-  replicateClipModel,
-  replicateClipTokens,
+  тысячиЗнаковКОплате, // cyrillic-ok: existing export
 } from './billing-shared'
 
 // The start gift: specs/automation/token-wallet.t27 START_TOKENS.
@@ -1254,11 +1331,13 @@ import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { registerChargingTools } from './tool-charges'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
+import { CRM_ONBOARD_TOOLS } from './crm-client-onboard'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_AVATAR_TOOLS } from './crm-avatars'
 import { CRM_MOVE_STATS_TOOLS } from './crm-move-stats'
 import { CRM_MAP_TOOLS } from './crm-map'
 import { CRM_CLIENT_GROUP_TOOLS } from './crm-client-group'
+import { OFFICE_CRM_TOOLS } from './office-crm'
 import { CRM_CLIENT_TIMELINE_TOOLS } from './crm-client-timeline'
 import { CRM_REVENUE_TOOLS } from './crm-revenue-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
@@ -1301,6 +1380,7 @@ import {
 } from './telegram-tools'
 import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
+import { onLateOutcome } from './late-file'
 import { confirmFirst, factsIn, unconfirmedFacts } from './printed-facts'
 import {
   backgroundPrompt,
@@ -1939,7 +2019,16 @@ export const TOOLS: AgentTool[] = [
       const named = args.model ? String(args.model) : ''
       // The model decides the tariff, so it is settled BEFORE any charge. An
       // unknown name is refused here rather than paid for and refused by Kie.
-      const model = forClient
+      // For anybody else GPT Image 2.5 too, unless another model was named
+      // (agent-neuro-kie.t27 edit_uses_gpt25; owner, 2026-10-09: "by
+      // default use gpt 2.5 and 9:16").
+      const gpt25 =
+        forClient ||
+        editUsesGpt25(
+          isGptImage25Edit(named),
+          !!named && !isGptImage25Edit(named)
+        )
+      const model = gpt25
         ? isGptImage25Edit(named)
           ? named
           : LEAD_MAGNET_MODEL
@@ -1992,9 +2081,14 @@ export const TOOLS: AgentTool[] = [
         ? 'указанный файл'
         : 'аватарка из Telegram'
       if (ctx.faceOf) {
+        // The username too: a bare id is found only among the owner's last
+        // 200 dialogs (tg-proposals resolvingPeer); @username always is.
         const face = await clientFace(
           ctx,
-          { id: String(ctx.faceOf) },
+          {
+            id: String(ctx.faceOf),
+            username: await leadUsername(ctx, String(ctx.faceOf)),
+          },
           { avatar: leadAvatarUrl, sentPhotos: sentPhotosFromLibrary },
           { photoUrl: args.image_url ? String(args.image_url) : null }
         )
@@ -2038,7 +2132,9 @@ export const TOOLS: AgentTool[] = [
         // The charge helper reports its refusal under a Russian key; this is
         // the file's long-standing convention and not worth churning here.
         return { done: false, reason: charge['причина'] } // cyrillic-ok
-      const aspectRatio = args.aspect_ratio ? String(args.aspect_ratio) : '9:16'
+      const aspectRatio = args.aspect_ratio
+        ? String(args.aspect_ratio)
+        : NEURO.EDIT_DEFAULT_ASPECT
       const scene = String(args.prompt)
       const prompt =
         forClient && !scene.startsWith(PORTRAIT_IDENTITY_PREFIX)
@@ -2080,20 +2176,21 @@ export const TOOLS: AgentTool[] = [
             return kept.ok ? kept.url : ''
           },
         })
-          .then(async out => {
-            if (out.state === 'ready') return
-            // Keyed by the task: a story job that notices the same picture
-            // never came, after a redeploy, gives nothing back a second time.
-            await refundTokens(
-              ctx,
-              op,
-              out.state === 'failed'
-                ? 'провайдер отказал после хода'
-                : 'провайдер не закончил за время наблюдения',
-              charge['потрачено'],
-              lateRefundRef(taskId)
-            )
-          })
+          .then(out =>
+            onLateOutcome(ctx, out, async () => {
+              // Keyed by the task: a story job that notices the same picture
+              // never came, after a redeploy, gives nothing back a second time.
+              await refundTokens(
+                ctx,
+                op,
+                out.state === 'failed'
+                  ? 'провайдер отказал после хода'
+                  : 'провайдер не закончил за время наблюдения',
+                charge['потрачено'],
+                lateRefundRef(taskId)
+              )
+            })
+          )
           .catch(() => undefined)
         return {
           done: false,
@@ -2192,7 +2289,13 @@ export const TOOLS: AgentTool[] = [
       // The model is settled BEFORE the charge: this tool is sold at one
       // price, and the route sends a `kie/...` name to a provider that price
       // does not cover (src/agent/flat-price-model.ts).
-      const refused = imageModelRefusal(args.model)
+      // A Kie picture model by name is sold at ITS price, named before the
+      // press (agent-neuro-kie.t27 may_order_image); any other name is
+      // settled by the flat price's own list.
+      const kie = kieImageOrder(args.model)
+      if (kie && 'refused' in kie)
+        return { сделано: false, причина: kie.refused } // cyrillic-ok: the tool's own response fields
+      const refused = kie ? null : imageModelRefusal(args.model)
       if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       // A date, time or price nobody confirmed is not printed (#3661) --
       // in the drawn title either (#3729).
@@ -2224,7 +2327,11 @@ export const TOOLS: AgentTool[] = [
             'Скажи человеку честно и предложи собрать ролик из уже готовых файлов (my_assets).',
         }
       }
-      const charge = await spendTokens(ctx, 'image_generate')
+      const charge = await spendTokens(
+        ctx,
+        'image_generate',
+        kie ? kie.model : undefined
+      )
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       /*
        * FOR A CLIENT, TEXT-TO-IMAGE HAS NOBODY IN IT (client-face.ts).
@@ -2245,7 +2352,7 @@ export const TOOLS: AgentTool[] = [
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: clientPrompt + backgroundPrompt(String(args.prompt), printed),
-          model: args.model,
+          model: kie ? kie.model : args.model,
           width: args.width,
           height: args.height,
         }),
@@ -2452,6 +2559,7 @@ export const TOOLS: AgentTool[] = [
           description:
             'id или @username клиента, чей клон сделан crm_voice_clone: говорить ЕГО голосом',
         },
+        model: { type: 'string', description: NEURO.TTS_MODEL_HELP },
       },
       required: ['text'],
       additionalProperties: false,
@@ -2574,15 +2682,27 @@ export const TOOLS: AgentTool[] = [
           'своего голоса нет: укажи voice_id или сначала сделай свой клон (crm_voice_clone) и передай for_lead со своим id — чужим голосом не озвучиваю'
         return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
       }
-      const charge = await spendTokens(ctx, 'audio_generate')
-      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
-      const base = selfBase()
+      /*
+       * A KIE VOICE MODEL BY NAME (agent-neuro-kie v2): a name that is not
+       * one of the spec's rows is refused before the charge.
+       */
+      const namedTts = typeof args.model === 'string' ? args.model.trim() : ''
+      if (
+        !ttsNamedOk(
+          namedTts !== '',
+          (NEURO.TTS_MODELS as readonly string[]).includes(namedTts)
+        )
+      ) {
+        const why = `модель голоса ${namedTts.slice(0, 80)} не из списка: ${NEURO.TTS_MODELS.join(', ')}. Ничего не списано.` // cyrillic-ok: the tool's answer
+        return { сделано: false, причина: why } // cyrillic-ok: the tools’ answer fields
+      }
       /*
        * THE OWNER SPEAKS WITH THE OWNER'S VOICE even while ElevenLabs is
        * down (its env var holds the key's identifier, not the key): the
        * MiniMax clone on Replicate, the one the content factory uses. Only
        * for the house -- the owner's own voice is not a library voice to
-       * lend -- and only when no clone of the owner came back above.
+       * lend -- and only when no clone of the owner came back above. Decided
+       * before the charge: whether a clone speaks decides what is charged.
        */
       if (
         !args.voice_id &&
@@ -2594,6 +2714,23 @@ export const TOOLS: AgentTool[] = [
         cloneVoice = OWNER_MINIMAX_CLONE
         голосВладельца = true // cyrillic-ok: existing local
       }
+      /*
+       * A preset voice speaks on the named Kie model, else the spec's
+       * default; a clone takes no Kie model (Kie has no cloning) and is
+       * charged the tool's own price. Either way per started 1000
+       * characters, as the app's route charges (speech_units).
+       */
+      const ttsModel = ttsModelApplies(!!cloneVoice)
+        ? namedTts || NEURO.TTS_DEFAULT_MODEL
+        : undefined
+      const charge = await spendTokens(
+        ctx,
+        'audio_generate',
+        ttsModel,
+        тысячиЗнаковКОплате(args.text) // cyrillic-ok: existing export
+      )
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tools’ answer fields
+      const base = selfBase()
       /*
        * THE OWNER'S REEL SPEAKS IN THE OWNER'S VOICE (owner, 2026-10-03:
        * "why doesn't the reel the bot sends me use my voice?"). The clone
@@ -2673,6 +2810,7 @@ export const TOOLS: AgentTool[] = [
           // The bot is spoken as one word, "Trinity" (minimax-voices.ts).
           text: spokenBrand(String(args.text)),
           voice_id: voiceId,
+          ...(ttsModel ? { model: ttsModel } : {}),
           ...(cloneVoice ? { clone_voice: cloneVoice } : {}),
         }),
       })
@@ -2725,56 +2863,63 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'video_generate',
     description:
-      `Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 720p): 5 с — ${replicateClipTokens(5)} ток., 10 с — ${replicateClipTokens(10)}. ` +
-      'Ролик сразу перекладывается в наше S3. Если вернулась ошибка — скажи человеку честно ' +
-      'и собери ролик из картинок через reel_render.',
+      `Видеоролик по описанию на Kie (по умолчанию ${MEDIA.AGENT_VIDEO_MODEL.slice(4)}, фотореалистично). ` + // cyrillic-ok: tool description for the model
+      'Стиль — только если человек его назвал. Файл сразу в S3.', // cyrillic-ok: tool description for the model
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'что происходит в кадре' },
+        prompt: { type: 'string', description: 'что происходит в кадре' }, // cyrillic-ok: tool description for the model
         model: {
           type: 'string',
-          description:
-            'например kling-v1-6 std/pro — если не уверен, не указывай',
+          description: 'kie/<модель> или пусто', // cyrillic-ok: tool description for the model
         },
-        duration: { type: 'integer', description: 'длительность в секундах' },
-        aspect_ratio: { type: 'string', description: 'например 9:16' },
+        duration: { type: 'integer', description: 'секунды: 6 или 10' }, // cyrillic-ok: tool description for the model
+        aspect_ratio: { type: 'string', description: 'например 9:16' }, // cyrillic-ok: tool description for the model
+        style: {
+          type: 'string',
+          description:
+            'только если человек назвал стиль: cartoon, anime, oil painting…', // cyrillic-ok: tool description for the model
+        },
+        image_url: {
+          type: 'string',
+          description: 'картинка, из которой сделать ролик (Kie kling)', // cyrillic-ok: tool description for the model
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      // Settled before the charge, as in image_generate: a `kie/...` name
-      // would buy a per-model-priced clip at this tool's one price.
-      const refused = videoModelRefusal(args.model)
-      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      // What is ordered and how it is charged, decided before the charge
+      // (agent-media.ts, from the spec's compiled rules).
+      const order = videoOrder(args.model, args.duration, args.image_url)
+      if ('refused' in order) return { сделано: false, причина: order.refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
         }
       }
-      /*
-       * THE CLIP IS PRICED BY ITS LENGTH, and the route is asked for exactly
-       * that length. This used to charge one flat 40 for a 5- or 10-second
-       * clip that costs $0.18 or $0.36 at the provider; now both the charge
-       * and the order read `replicateVideoSeconds` of the same argument.
-       */
-      const clipSeconds = replicateVideoSeconds(args.duration)
+      // Priced by the SAME priceForModel the app's press uses, for the same
+      // units the route orders: the agent and the app cannot charge two
+      // numbers for one clip.
       const charge = await spendTokens(
         ctx,
         'video_generate',
-        replicateClipModel(clipSeconds)
+        order.model,
+        order.units
       )
-      if (!charge.ok) return { сделано: false, причина: charge.причина }
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
       const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: String(args.prompt),
-          model: args.model,
-          duration: clipSeconds,
-          aspect_ratio: args.aspect_ratio,
+          prompt: realPrompt(String(args.prompt), args.style),
+          model: order.model,
+          duration: order.seconds,
+          aspect_ratio: args.aspect_ratio ?? '9:16',
+          ...(typeof args.image_url === 'string'
+            ? { image_url: args.image_url }
+            : {}),
         }),
       })
       const genData: any = await gen.json().catch(() => null)
@@ -2782,12 +2927,12 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'video_generate',
-          'провайдер не выполнил работу',
+          'провайдер не выполнил работу', // cyrillic-ok: refund reason
           charge['потрачено']
         )
         return {
           сделано: false, // cyrillic-ok: the tools’ answer fields
-          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
+          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`, // cyrillic-ok: the tool's answer
         }
       }
       const r = await ctx.pool.query(
@@ -2803,6 +2948,7 @@ export const TOOLS: AgentTool[] = [
           сделано: true, // cyrillic-ok: the tool's own response field
           url: genData.url,
           id: r.rows[0]?.id,
+          model: order.model,
         },
         charge['потрачено']
       )
@@ -4251,6 +4397,7 @@ TOOLS.push(...CRM_AGENT_LINK_TOOLS)
 TOOLS.push(...CRM_DUET_TOOLS)
 // The client package: owner installs SOUL draft / skills / profile / plan, the seller reads the profile (crm-client-setup-tool.ts).
 TOOLS.push(...CRM_CLIENT_TOOLS)
+TOOLS.push(...CRM_ONBOARD_TOOLS)
 // The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
 TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...CRM_AVATAR_TOOLS)
@@ -4259,6 +4406,260 @@ TOOLS.push(...CRM_MOVE_STATS_TOOLS)
 TOOLS.push(...CRM_MAP_TOOLS)
 // A client's group (crm-client-group.ts): posts there are tg_send cards.
 TOOLS.push(...CRM_CLIENT_GROUP_TOOLS)
+// The owner assigns a task into the client's office (bot-office-crm.t27 v2).
+TOOLS.push(...OFFICE_CRM_TOOLS)
+/*
+ * KIE NEURO-FUNCTIONS FROM A SOURCE PICTURE (agent-neuro-kie.t27, #3924).
+ * Every tool is a row of the spec's table; this one runner, written once,
+ * makes each of them: refuse without a source, charge the row's Kie price,
+ * ask the route, keep the picture in our S3, refund what failed.
+ */
+function sourceTool(row: (typeof SOURCE_TOOLS)[number]): AgentTool {
+  return {
+    name: row.name,
+    description: row.help,
+    parameters: {
+      type: 'object',
+      properties: {
+        image_url: { type: 'string', description: 'source picture, https' },
+      },
+      required: ['image_url'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const refused = sourceRefusal(args.image_url)
+      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
+        }
+      const charge = await spendTokens(ctx, 'image_generate', row.model)
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
+      const gen = await selfFetch(`${selfBase()}/api/generate/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: row.model,
+          prompt: row.name,
+          image_url: String(args.image_url),
+        }),
+      })
+      const genData: any = await gen.json().catch(() => null)
+      const kept =
+        gen.ok && typeof genData?.url === 'string'
+          ? await keepGeneratedImage(ctx, genData.url, row.name)
+          : null
+      if (!kept || !kept.ok) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу', // cyrillic-ok: refund reason
+          charge['потрачено']
+        )
+        const why = String(
+          genData?.error || (kept && !kept.ok ? kept.reason : '')
+        ).slice(0, 300)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `не получилось: HTTP ${gen.status} ${why}`, // cyrillic-ok: the tool's answer
+        }
+      }
+      return withTokens(
+        ctx,
+        'image_generate',
+        { сделано: true, url: kept.url, id: kept.assetId, model: row.model }, // cyrillic-ok: the tool's own response field
+        charge['потрачено']
+      )
+    },
+  }
+}
+TOOLS.push(...SOURCE_TOOLS.map(sourceTool))
+
+/*
+ * MUSIC ON KIE SUNO (agent-neuro-kie.t27, #3924). The tools are the spec's
+ * rows; a turn waits at most MUSIC_WAIT_SECONDS (music_keeps_waiting), then
+ * says the song is still writing and music_status fetches it later. The task
+ * is recorded with its owner and the sum charged, so a song goes only to who
+ * ordered it and a failure is refunded exactly once.
+ */
+const MUSIC_TASKS_TABLE = `CREATE TABLE IF NOT EXISTS agent_music_tasks (
+  task_id text PRIMARY KEY,
+  telegram_id text NOT NULL,
+  spent integer NOT NULL,
+  state text NOT NULL DEFAULT 'writing',
+  url text,
+  created_at timestamptz NOT NULL DEFAULT now()
+)`
+let musicPollMs = 10_000
+/** Tests only: how long one wait between two reads of the song lasts. */
+export function setMusicPollMsForTests(ms: number): void {
+  musicPollMs = ms
+}
+const SONG: KeptKind = {
+  type: 'generated_audio',
+  ext: 'mp3',
+  mime: 'audio/mpeg',
+}
+
+/** Settle a song's state once: keep it, or refund it, or say it is writing. */
+async function settleSong(
+  ctx: ToolContext,
+  taskId: string,
+  // The charge's measured sum, read back from the task row (as a render's
+  // owed tokens are): music_status settles minutes later, in another turn.
+  owed: number,
+  state: Awaited<ReturnType<typeof songState>>
+): Promise<Record<string, unknown>> {
+  if (state.state === 'writing')
+    return {
+      сделано: false, // cyrillic-ok: the tools' answer fields
+      pending: true,
+      task_id: taskId,
+      причина: `песня ещё пишется — спроси music_status {task_id: "${taskId}"} через минуту`, // cyrillic-ok: the tool's answer
+    }
+  if (state.state === 'failed') {
+    const won = await ctx.pool.query(
+      `UPDATE agent_music_tasks SET state = 'failed' WHERE task_id = $1 AND state = 'writing' RETURNING task_id`,
+      [taskId]
+    )
+    if (won.rows.length)
+      await refundTokens(ctx, 'music_generate', 'песня не сложилась', owed) // cyrillic-ok: refund reason
+    return {
+      сделано: false, // cyrillic-ok: the tools' answer fields
+      причина: `песня не сложилась: ${state.reason}; деньги возвращены`, // cyrillic-ok: the tool's answer
+    }
+  }
+  const kept = await keepGeneratedImage(
+    ctx,
+    state.audioUrl,
+    `song ${taskId}`,
+    SONG
+  )
+  const url = kept.ok ? kept.url : state.audioUrl
+  await ctx.pool.query(
+    `UPDATE agent_music_tasks SET state = 'done', url = $2 WHERE task_id = $1`,
+    [taskId, url]
+  )
+  return { сделано: true, url, task_id: taskId } // cyrillic-ok: the tool's own response field
+}
+
+TOOLS.push(
+  {
+    name: NEURO.MUSIC_TOOL_NAME,
+    description: NEURO.MUSIC_HELP,
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'what the song is about, mood, genre',
+        },
+        instrumental: { type: 'boolean', description: 'no vocals' },
+        style: { type: 'string', description: 'genre or style, if named' },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const prompt = String(args.prompt ?? '').trim()
+      if (!prompt)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: 'нужно описание песни. Ничего не списано.', // cyrillic-ok: the tool's answer
+        }
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`, // cyrillic-ok: the tool's answer
+        }
+      const charge = await spendTokens(ctx, 'music_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина } // cyrillic-ok: the tool's own response fields
+      const spent = Number(charge['потрачено'] ?? 0) // cyrillic-ok: the charge's field
+      const made = await createSong({
+        prompt,
+        instrumental: args.instrumental === true,
+        model: NEURO.SUNO_MODEL,
+        style: typeof args.style === 'string' ? args.style : undefined,
+      }).catch((e: unknown) => ({
+        ok: false as const,
+        reason: String(e).slice(0, 200),
+      }))
+      if (!made.ok) {
+        await refundTokens(
+          ctx,
+          'music_generate',
+          'песня не запустилась', // cyrillic-ok: refund reason
+          charge['потрачено'] // cyrillic-ok: the charge's field
+        )
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: `песня не запустилась: ${made.reason}; деньги возвращены`, // cyrillic-ok: the tool's answer
+        }
+      }
+      await ctx.pool.query(MUSIC_TASKS_TABLE)
+      await ctx.pool.query(
+        `INSERT INTO agent_music_tasks (task_id, telegram_id, spent) VALUES ($1, $2, $3) ON CONFLICT (task_id) DO NOTHING`,
+        [made.taskId, String(ctx.telegramId), spent]
+      )
+      let waited = 0
+      let state = await songState(made.taskId).catch(
+        () => ({ state: 'writing' }) as const
+      )
+      while (
+        musicKeepsWaiting(
+          waited,
+          state.state === 'ready' || state.state === 'failed'
+        )
+      ) {
+        await new Promise(r => setTimeout(r, musicPollMs))
+        waited += Math.max(1, Math.round(musicPollMs / 1000))
+        state = await songState(made.taskId).catch(
+          () => ({ state: 'writing' }) as const
+        )
+      }
+      return withTokens(
+        ctx,
+        'music_generate',
+        await settleSong(ctx, made.taskId, spent, state),
+        spent
+      )
+    },
+  },
+  {
+    name: NEURO.MUSIC_STATUS_TOOL_NAME,
+    description: NEURO.MUSIC_STATUS_HELP,
+    parameters: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'from music_generate' },
+      },
+      required: ['task_id'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const taskId = String(args.task_id ?? '').trim()
+      await ctx.pool.query(MUSIC_TASKS_TABLE)
+      const r = await ctx.pool.query(
+        `SELECT task_id, spent, state, url FROM agent_music_tasks WHERE task_id = $1 AND telegram_id = $2`,
+        [taskId, String(ctx.telegramId)]
+      )
+      const row = r.rows[0]
+      if (!row) return { сделано: false, причина: 'такой песни у тебя нет' } // cyrillic-ok: the tool's answer
+      if (row.state === 'done')
+        return { сделано: true, url: row.url, task_id: taskId } // cyrillic-ok: the tool's own response field
+      if (row.state === 'failed')
+        return {
+          сделано: false, // cyrillic-ok: the tools' answer fields
+          причина: 'песня не сложилась; деньги уже возвращены', // cyrillic-ok: the tool's answer
+        }
+      const state = await songState(taskId).catch(
+        () => ({ state: 'writing' }) as const
+      )
+      return settleSong(ctx, taskId, Number(row.spent), state)
+    },
+  }
+)
 // The client card's feed and summary (crm-client-timeline.ts): a screen.
 TOOLS.push(...CRM_CLIENT_TIMELINE_TOOLS)
 // The CRM screen's revenue strip (crm-revenue-tool.ts): a screen.
@@ -4317,12 +4718,20 @@ TOOLS.push(...INNGEST_TOOLS)
  * only tools whose RESULT is text a stranger wrote.
  */
 TOOLS.push(...WEB_TOOLS)
+// Every agent reads the whole bank of .t27 specs (agent-spec-bank.t27).
+TOOLS.push(...SPEC_BANK_TOOLS)
 /*
  * The job desk (job-tools.ts): who among the person's own contacts is
  * hiring, decided by what they WROTE and never by a name. Reading only --
  * writing to one of them is a send like any other and waits for the press.
  */
 TOOLS.push(...JOB_TOOLS)
+/*
+ * The course for the programmers among the owner's contacts
+ * (course-outreach-tool.ts, spec course-outreach.t27): found by their own
+ * words, tagged in the CRM, one draft each, sent only on the owner's press.
+ */
+TOOLS.push(...COURSE_OUTREACH_TOOLS)
 TOOLS.push(...MAIL_TOOLS)
 TOOLS.push(...SOCIAL_TOOLS)
 /*
@@ -4474,9 +4883,10 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
  * background job now (story-template.ts), which needs no other tool in the kit, but the three schemas are ~930
  * tokens (crm_story_reel alone ~550; measured 2026-09-27) against a kit at 7214 of its 7240 (provider.test.ts). A DM seller on a 16k model gives the portrait;
  * the reel is asked of the owner's full-size agent. Moving that line is the owner's call, not a refactor's.
+ * `crm_client_onboard` (2026-10-09, ~250 tokens) is the seller's onboarding in the mini app's full-size agent.
  */
 export const COMPACT_TOOLS_EXCLUDED =
-  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue)$/
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue|crm_drop|crm_outcomes|crm_client_avatars|crm_room_people|crm_move_stats|crm_map|crm_client_group|crm_office_task|crm_voice_clone|crm_story_reel|my_story_reel|crm_client_timeline|crm_revenue|crm_client_onboard)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

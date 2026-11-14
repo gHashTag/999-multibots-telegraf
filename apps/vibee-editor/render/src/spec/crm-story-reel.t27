@@ -260,6 +260,13 @@
 // when the style matches (carry_stills); clips only when the stills are carried AND the voice
 // mode matches (carry_clips) -- a clip is a still that speaks. A failed job that never recorded
 // its voice mode carries no clips: an unknown voice cannot be said to match.
+// v31 (2026-10-09): a photo per scene. The owner's storyboard showed the same avatar three times:
+// every scene was drawn from one face. Telegram keeps a person's profile photos as a history, so
+// all of them (up to AVATARS_MAX) are fetched once, and scene i takes avatar i mod n by default
+// (scene_face). A photo the seller picks for one scene -- by a tap on that scene's tile, which
+// opens a viewer of her photos -- wins for that scene; the seller's one photo for the whole reel
+// (faceCustom) still wins over the avatars; with no avatar at all the reel's one face is used
+// (scene_source).
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::crm_story_reel {
@@ -267,7 +274,7 @@ module automation::crm_story_reel {
     pub const KIND : str = "automation";
     pub const ID : str = "crm-story-reel";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 30;
+    pub const VERSION : u8 = 31;
 
     // ---- Who qualifies ------------------------------------------------------------------
     // Both halves, nothing else. A profile only overrides the look, the call and who pays.
@@ -1681,7 +1688,52 @@ module automation::crm_story_reel {
     }
 
     test "VERSION says what the header's last note says" {
-        assert(VERSION == 30);
+        assert(VERSION == 31);
+    }
+
+    // ---- v31: a photo per scene -----------------------------------------------------------
+    pub const AVATARS_MAX : u8 = 6;  // profile photos fetched per client, newest first
+    pub const SCENE_FACES_FROM_AVATARS : bool = true;
+    pub const SCENE_PHOTO_PICKED_BY_TAP : bool = true;  // a tap on a scene tile opens the photo viewer
+    pub const SOURCE_NONE : u8 = 0;
+    pub const SOURCE_PICKED : u8 = 1;
+    pub const SOURCE_REEL_FACE : u8 = 2;
+    pub const SOURCE_AVATAR : u8 = 3;
+
+    // Which avatar scene i takes when nothing was picked: i mod n.
+    fn scene_face(i: u8, n_avatars: u8) -> u8 {
+        if n_avatars == 0 { return 0; }
+        return i % n_avatars;
+    }
+
+    // Where scene i's photo comes from: the seller's pick for that scene, else the seller's one
+    // photo for the whole reel, else an avatar, else the reel's one face (an avatar-less client).
+    fn scene_source(picked: bool, reel_face_custom: bool, n_avatars: u8) -> u8 {
+        if picked { return SOURCE_PICKED; }
+        if reel_face_custom { return SOURCE_REEL_FACE; }
+        if n_avatars > 0 { return SOURCE_AVATAR; }
+        return SOURCE_NONE;
+    }
+
+    test "each scene takes the next avatar, round and round" {
+        assert(SCENE_FACES_FROM_AVATARS);
+        assert(scene_face(0, 3) == 0);
+        assert(scene_face(1, 3) == 1);
+        assert(scene_face(2, 3) == 2);
+        assert(scene_face(3, 3) == 0);
+        assert(scene_face(5, 2) == 1);
+        assert(scene_face(4, 1) == 0);
+        assert(scene_face(2, 0) == 0);
+        assert(AVATARS_MAX >= SCENES_MAX);
+    }
+
+    test "a scene's pick wins, then the reel's photo, then an avatar" {
+        assert(SCENE_PHOTO_PICKED_BY_TAP);
+        assert(scene_source(true, true, 3) == SOURCE_PICKED);
+        assert(scene_source(false, true, 3) == SOURCE_REEL_FACE);
+        assert(scene_source(false, false, 3) == SOURCE_AVATAR);
+        assert(scene_source(false, false, 0) == SOURCE_NONE);
+        assert(scene_source(true, false, 0) == SOURCE_PICKED);
     }
 
     test "a client's end card is never drawn in the house's gold: a colour nobody gave is white or black ink" {

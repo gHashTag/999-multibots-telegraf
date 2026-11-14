@@ -1,0 +1,140 @@
+# t27ai-render on the Fornex VPS
+
+The render server (`render/render-server.ts`) and its Postgres, re-hosted from
+the dead Railway service `vibee-render` onto the VPS `331257.fornex.cloud`.
+It carries the course ladder (`POST/GET /api/course/key`,
+`POST /api/course/progress`) and the CRM tables behind it, and is what
+`@t27ai_bot` calls over `X-Api-Key`.
+
+Everything here is additive and isolated: its own directory `/opt/t27ai-render`,
+its own docker network `t27ai-net`, its own volume `t27ai-pgdata`, two own
+systemd units, one own Caddy block. No other service on the host is read,
+touched or restarted.
+
+## What runs
+
+| Part                      | How                                                           | Listens                               |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| `t27ai-render-db.service` | `postgres:16-alpine`, 512 MB, own volume                      | docker network only                   |
+| `t27ai-render.service`    | image `t27ai-render:local` (`render/Dockerfile`), 3 GB, 2 CPU | `127.0.0.1:8090`                      |
+| Caddy block               | `caddy-t27ai-render.conf`, only `/health` and `/api/*`        | `https://t27ai-130-17-9-230.sslip.io` |
+
+The host has no `docker compose` plugin, so the units call `docker run`
+directly; nothing is installed on the host.
+
+## The ladder unit, beside the render
+
+On 2026-11-12 another session rebuilt `t27ai-render` into a per-user browser
+pod build (docker socket, `BROWSER_POD_*`) that has no course routes. That
+build keeps port 8090 and is not touched here. The course ladder runs as a
+second unit next to it:
+
+| Part                     | How                                                                           | Listens          |
+| ------------------------ | ----------------------------------------------------------------------------- | ---------------- |
+| `t27ai-ladder.service`   | image `t27ai-ladder:local` built from `origin/main`, 1.5 GB, 1 CPU, no socket | `127.0.0.1:8091` |
+| `/opt/t27ai-ladder/.env` | mode 0600: `DATABASE_URL`, `SESSION_SIGNING_KEY`, `RENDER_API_KEY`            | not a listener   |
+| Caddy handle `@ladder`   | `/api/course/*` only, placed before `@render`; the rest stays on 8090         | same vhost       |
+
+The ladder shares the Postgres of `t27ai-render-db` over `t27ai-net` and the
+same three names as the render, so a key minted by either server verifies on
+both. Deploy it like the steps below, with `/opt/t27ai-ladder/src` as the
+source directory, `-t t27ai-ladder:local` and `t27ai-ladder.service`. Roll it
+back with `systemctl disable --now t27ai-ladder` and the previous Caddyfile
+copy (`/etc/caddy/Caddyfile.bak-<date>-ladder`).
+
+## Deploy
+
+1. Source (a clean tree, no `node_modules`), from a checkout of the commit to
+   ship; the build context is `apps/vibee-editor`. Send only what the image
+   copies (about 18 MB; the whole editor tree is ~110 MB and crawls over the
+   uplink):
+   `git archive HEAD apps/vibee-editor/packages apps/vibee-editor/render apps/vibee-editor/.dockerignore | ssh root@<vps> 'tar -x -C /opt/t27ai-render/src'`
+2. Secrets, written on the VPS, mode 0600, never in git:
+   `/opt/t27ai-render/db.env` (`POSTGRES_USER`, `POSTGRES_PASSWORD`,
+   `POSTGRES_DB`) and `/opt/t27ai-render/.env` (the minimum block at the top of
+   `env.example`; add other names only when needed and **delete a name you do
+   not set instead of leaving it empty**, an empty value reads as "set").
+3. Image, with the host kept usable while it builds (classic builder honours
+   the limits): `cd /opt/t27ai-render/src/apps/vibee-editor && DOCKER_BUILDKIT=0
+nice -n 19 docker build --memory 3g --cpu-quota 200000 -f render/Dockerfile
+-t t27ai-render:local .`
+4. Units: copy `t27ai-render-db.service` and `t27ai-render.service` to
+   `/etc/systemd/system/`, `systemctl daemon-reload`,
+   `systemctl enable --now t27ai-render-db t27ai-render`.
+5. Caddy: append `caddy-t27ai-render.conf` to `/etc/caddy/Caddyfile`,
+   `caddy validate --config /etc/caddy/Caddyfile`, then `systemctl reload caddy`.
+6. Check: `curl -s https://t27ai-130-17-9-230.sslip.io/health` is 200 from
+   outside, and `GET /api/course/key?k=x` answers `{"ok":false,...}` (never a
+   404 or a 502). The whole ladder, on the VPS with the key from `.env`
+   (never print it): `POST /api/course/key` with `X-Api-Key` and
+   `{"telegram_id":"<digits>","step":"bot","route":"<slug>"}` returns a key;
+   `GET /api/course/key?k=<key>` reads it back; `POST /api/course/progress`
+   with `{"key","course","lesson"}` files a lesson. Without the header the
+   mint answers `server_key_required`. A smoke test leaves rows in
+   `course_*` and `crm_*`: clear them before real traffic.
+
+The first image build takes about 6 minutes on this host (apt layer first).
+
+## Rollback
+
+`systemctl disable --now t27ai-render t27ai-render-db`, then remove the Caddy
+block and reload. The volume `t27ai-pgdata` keeps the data until
+`docker volume rm`. Nothing else on the host depends on these units.
+
+## Secrets by name
+
+| Name                                | Where                           | Who                                                                                                                           |
+| ----------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD` (+ user, db)    | `db.env`                        | generated on the VPS, never shown                                                                                             |
+| `DATABASE_URL`                      | render `.env`                   | built on the VPS from the above                                                                                               |
+| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env`                   | generated on the VPS; changing it kills every issued key                                                                      |
+| `RENDER_API_KEY`                    | render `.env`, `render-key.env` | generated on the VPS; the same value on both sides (the bot's copy is `/opt/t27ai-bot/render-key.env`)                        |
+| `OWNER_TELEGRAM_ID`                 | render `.env`                   | owner                                                                                                                         |
+| `TELEGRAM_BOT_TOKEN`                | render `.env`                   | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
+| `BOT_TOKEN_12`                      | `bot.env`                       | owner, from @BotFather, written on the VPS by the owner himself                                                               |
+
+## The bot unit (`t27ai-bot`, @t27ai_bot)
+
+The Telegraf monolith (root `Dockerfile`), a third unit beside `t27ai-render`
+(8090) and `t27ai-ladder` (8091). It is installed **disabled** and starts only
+when the owner has written the token. The course door reads
+`RENDER_BASE_URL` since #4075; the unit sets it to the **ladder**
+(`http://t27ai-ladder:8080`), because the render on 8090 has no `/api/course/*`.
+
+What is staged on the VPS, none of it started:
+
+- `/opt/t27ai-bot/src`: a trimmed `git archive` of main (`src`, `scripts`,
+  `package*.json`, `Dockerfile`, `tsconfig*.json`); image `t27ai-bot:local`,
+  built in the background with the render build's caps
+  (`DOCKER_BUILDKIT=0 nice -n 19 docker build --memory 3g --cpu-quota 200000`);
+- a separate database and role `t27ai_bot` on `t27ai-db` (no superuser, 20
+  connections), created with `docker exec` and no restart or reconfiguration;
+  `DATABASE_URL` lives in `/opt/t27ai-bot/db.env` (0600), the password
+  generated on the VPS and never shown;
+- `/opt/t27ai-bot/render-key.env` (0600): `RENDER_API_KEY`, copied on the VPS
+  from the ladder's `.env`, never shown, so the owner writes no key;
+- `/etc/systemd/system/t27ai-bot.service` (this directory), 1 GB, 1 CPU, 512
+  pids, `127.0.0.1:8092`, health on `/health`.
+
+The one start command, once `/opt/t27ai-render/bot.env` holds the single line
+`BOT_TOKEN_12=...` (names in `bot.env.example`; the unit refuses to start while
+that line is empty or the file is missing):
+
+```
+systemctl enable --now t27ai-bot
+```
+
+Rollback: `systemctl disable --now t27ai-bot`.
+
+### What is not staged
+
+- **The token** (`BOT_TOKEN_12`, fresh from @BotFather): the owner only.
+- **The monolith's data layer.** `@supabase/supabase-js` speaks REST
+  (`/rest/v1`, `/storage/v1`), not SQL: a bare Postgres database is not
+  enough. The Railway gateway (`apps/supabase-gateway`: PostgREST, storage-api,
+  MinIO, an nginx prefix strip) is gone, and the new database is empty (no
+  schema, no data). Until a PostgREST front and the schema are decided, the bot
+  starts and answers `/health`, but every query that reaches the store fails.
+  The course door itself does not need it: it asks the ladder.
+- The site's `renderBase` (trinity spec `course-access.t27`) is a separate
+  change in that repo.

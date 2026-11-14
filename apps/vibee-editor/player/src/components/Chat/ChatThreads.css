@@ -147,3 +147,14 @@ img.agent-face-img {
   object-fit: cover;
   padding: 0;
 }
+
+/* The team row (TeamRow.tsx): a member not yet hired wears a dashed circle. */
+.chat-threads__dot.is-hire .chat-threads__circle {
+  border-style: dashed;
+  opacity: 0.75;
+}
+.chat-threads__dot.is-hire {
+  background: none;
+  border: none;
+  cursor: pointer;
+}

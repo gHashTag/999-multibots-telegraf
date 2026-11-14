@@ -45,6 +45,12 @@ function fail(msg) {
   process.exit(1)
 }
 
+/*
+ * On the Railway runner a skip would read as green: nothing linted, exit 0.
+ * There the player is always installed, so a missing eslint is a failure.
+ */
+if (!fs.existsSync(BIN) && process.env.PLAYER_LINT_REQUIRED === '1')
+  fail('player lint: eslint is not installed in the player, nothing was linted')
 if (!fs.existsSync(BIN)) {
   console.log('player lint: eslint не установлен в плеере — пропускаю') // cyrillic-ok: operator copy
   process.exit(0)

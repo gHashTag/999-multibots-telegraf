@@ -550,6 +550,15 @@ const en: Translations = {
   'picker.filter.paid': 'Paid',
   'picker.filter.leads': 'Not yet bought',
   'chat.queue.title': 'Waiting to be sent',
+  'chat.photo.title': 'Photo actions',
+  'chat.photo.poster_plain': '🪧 Poster, no people',
+  'chat.photo.poster_face': '🪧 Poster with the face',
+  'chat.photo.studio': '📸 Studio',
+  'chat.photo.variant': '🔁 Another version',
+  'chat.photo.upscale': '⬆️ Sharper',
+  'chat.photo.remove_bg': '✂️ No background',
+  'chat.photo.video': '🎬 Bring to life',
+  'chat.photo.lipsync': '🗣 Talking video',
   'chat.queue.remove': 'Remove from the queue',
   'chat.queue.hint': 'Sent in order as soon as the agent finishes answering',
   'aiFill.short': 'AI',
@@ -729,6 +738,17 @@ const en: Translations = {
   'crm.client.story.photo.own': 'Photo: your own',
   'crm.client.story.photo.avatarSelf': 'Photo: your avatar',
   'crm.client.story.photo.replace': '📷 Replace photo',
+  'crm.client.story.scene.title': 'Scene {n}',
+  'crm.client.story.scene.open': 'Scene {n}: choose its photo',
+  'crm.client.story.scene.pick': 'Choose the photo for this scene',
+  'crm.client.story.scene.option': 'Photo {n}',
+  'crm.client.story.scene.upload': 'Upload',
+  'crm.client.story.scene.back': '↺ As by default',
+  'crm.client.story.scene.picked': 'Your pick',
+  'crm.client.story.scene.default': 'By default',
+  'crm.client.story.scene.hint':
+    'Tap a scene to choose its photo · client avatars: {n}',
+  'crm.client.story.scene.resetAll': '↺ Back to the avatars',
   'crm.client.story.photo.reset': '↺ Back to avatar',
   'crm.client.story.photo.uploading': 'Uploading…',
   'crm.client.story.photo.failed': 'The photo did not upload, try another',
@@ -841,6 +861,8 @@ const en: Translations = {
   'crm.client.chat.title': 'Conversation about client {id}',
   // The row of conversations above the chat (components/Chat/ChatThreads.tsx).
   'chat.threads.label': 'Conversations',
+  'chat.team.label': 'Your team of agents',
+  'chat.team.hire': 'Call {name} into the team',
   'chat.threads.agent': 'Agent',
   'chat.threads.all': 'All',
   'chat.threads.allTitle': 'All clients: search and pages',
@@ -994,7 +1016,7 @@ const en: Translations = {
   // The TRI payout wallet, own profile only (components/Profile/TriWalletCard.tsx)
   'tri.wallet.title': '💎 TRI wallet',
   'tri.wallet.note':
-    "The TON address your TRI is paid to, proved by your wallet's own signature. TRI exists on TON testnet only; there is no mainnet TRI yet.",
+    "Where your TRI is paid, on every chain you hold: TON, EVM (Ethereum, Base, BNB Chain, Polygon, Arbitrum and the rest), Solana and TRON, each proved by the wallet's own signature. TRI is paid on TON testnet only today; on the other chains it arrives once the bridge is live.",
   'tri.wallet.bind': 'Bind a TON wallet',
   'tri.wallet.rebind': 'Bind another TON wallet',
   'tri.wallet.unbind': 'Unbind',
@@ -1011,6 +1033,36 @@ const en: Translations = {
   'tri.wallet.err.noproof':
     'The wallet connected without signing the proof, so nothing was bound.',
   'tri.wallet.err.generic': 'The wallet could not be bound. Try again.',
+  'tri.wallet.err.signature':
+    'The signature did not match this address. Sign again in the same wallet.',
+  'tri.wallet.err.proposal':
+    'There is nothing to confirm any more. Start again.',
+  'tri.wallet.chain.evm': 'EVM, every EVM chain',
+  'tri.wallet.bind.evm': 'Bind an EVM wallet',
+  'tri.wallet.bind.solana': 'Bind a Solana wallet',
+  'tri.wallet.bind.tron': 'Bind a TRON wallet',
+  'tri.wallet.paid': 'TRI is paid here',
+  'tri.wallet.bridge': 'TRI arrives here once the bridge is live',
+  'tri.wallet.open.note':
+    'Telegram has no {chain} wallet inside it. Open the page in your wallet app, sign there, then come back here and confirm.',
+  'tri.wallet.open.copy': 'Copy link',
+  'tri.wallet.open.copied': 'Copied',
+  'tri.wallet.open.waiting':
+    "Waiting for the wallet's signature -- this updates by itself",
+  'tri.wallet.proposal': 'A {chain} wallet signed: {address}',
+  'tri.wallet.proposal.confirm': 'Yes, this is my wallet',
+  'tri.wallet.proposal.note':
+    'Not yours? Do not confirm it; the request expires by itself.',
+  // The wallet app's own browser (pages/TriBind.tsx)
+  'tri.bind.title': 'Bind your {chain} wallet to TRI',
+  'tri.bind.note':
+    'Signing moves no coins and grants no spending rights. Your wallet shows the exact text before you sign.',
+  'tri.bind.sign': 'Connect and sign',
+  'tri.bind.done':
+    'Signed. Go back to Telegram and press "Yes, this is my wallet".',
+  'tri.bind.nowallet':
+    "No {chain} wallet in this browser. Open this page in your wallet app's browser.",
+  'tri.bind.broken': 'This link is incomplete. Start again from your profile.',
   // Claiming TRI for accepted specs, own profile only (components/Profile/TriClaimCard.tsx)
   'tri.claim.title': '🪙 TRI for accepted specs',
   'tri.claim.status':
@@ -1023,6 +1075,10 @@ const en: Translations = {
   'tri.claim.github.as': 'GitHub: @{login}',
   'tri.claim.github.unlink': 'Unlink',
   'tri.claim.needWallet': 'Bind a TON testnet wallet above to withdraw.',
+  'tri.claim.all': 'Withdraw all ({n})',
+  'tri.claim.all.note':
+    'Each spec carries 0.1 testnet TON to the minter, about {ton} TON in all; the minter returns what the mint does not use. Your wallet asks once per batch.',
+  'tri.claim.all.progress': 'Sent {done} of {total}',
   'tri.claim.empty': 'No accepted specs are credited to this account yet.',
   'tri.claim.withdraw': 'Withdraw',
   'tri.claim.working': 'Waiting for the wallet…',
@@ -3620,6 +3676,15 @@ const ru: Translations = {
   'picker.filter.paid': 'Оплатили',
   'picker.filter.leads': 'Ещё не купили',
   'chat.queue.title': 'Ждут отправки',
+  'chat.photo.title': 'Действия с фото',
+  'chat.photo.poster_plain': '🪧 Афиша без людей',
+  'chat.photo.poster_face': '🪧 Афиша с лицом',
+  'chat.photo.studio': '📸 Студия',
+  'chat.photo.variant': '🔁 Ещё вариант',
+  'chat.photo.upscale': '⬆️ Чётче',
+  'chat.photo.remove_bg': '✂️ Без фона',
+  'chat.photo.video': '🎬 Оживить',
+  'chat.photo.lipsync': '🗣 Говорящее видео',
   'chat.queue.remove': 'Убрать из очереди',
   'chat.queue.hint': 'Уйдут по порядку, как только агент закончит ответ',
   'aiFill.short': 'ИИ',
@@ -3795,6 +3860,17 @@ const ru: Translations = {
   'crm.client.story.photo.own': 'Фото: своё',
   'crm.client.story.photo.avatarSelf': 'Фото: ваша аватарка',
   'crm.client.story.photo.replace': '📷 Заменить фото',
+  'crm.client.story.scene.title': 'Кадр {n}',
+  'crm.client.story.scene.open': 'Кадр {n}: выбрать фото',
+  'crm.client.story.scene.pick': 'Выберите фото для этого кадра',
+  'crm.client.story.scene.option': 'Фото {n}',
+  'crm.client.story.scene.upload': 'Загрузить',
+  'crm.client.story.scene.back': '↺ Как по умолчанию',
+  'crm.client.story.scene.picked': 'Ваш выбор',
+  'crm.client.story.scene.default': 'По умолчанию',
+  'crm.client.story.scene.hint':
+    'Нажмите на кадр, чтобы выбрать фото · аватарок клиента: {n}',
+  'crm.client.story.scene.resetAll': '↺ Вернуть аватарки',
   'crm.client.story.photo.reset': '↺ Вернуть аватарку',
   'crm.client.story.photo.uploading': 'Загружаю…',
   'crm.client.story.photo.failed': 'Фото не загрузилось, попробуйте другое',
@@ -3905,6 +3981,8 @@ const ru: Translations = {
   'crm.client.messages.them': 'клиент',
   'crm.client.chat.title': 'Разговор о клиенте {id}',
   'chat.threads.label': 'Разговоры',
+  'chat.team.label': 'Ваша команда агентов',
+  'chat.team.hire': 'Позвать в команду: {name}',
   'chat.threads.agent': 'Агент',
   'chat.threads.all': 'Все',
   'chat.threads.allTitle': 'Все клиенты: поиск и страницы',
@@ -4046,7 +4124,7 @@ const ru: Translations = {
   'meta.card.waiting': 'Ждём подтверждения от {name} — строка обновится сама',
   'tri.wallet.title': '💎 Кошелёк TRI',
   'tri.wallet.note':
-    'TON-адрес, на который приходят ваши TRI, подтверждённый подписью самого кошелька. TRI пока есть только в тестовой сети TON; в основной сети его ещё нет.',
+    'Куда приходят ваши TRI, во всех сетях, где у вас есть кошелёк: TON, EVM (Ethereum, Base, BNB Chain, Polygon, Arbitrum и остальные), Solana и TRON. Каждый адрес подтверждён подписью самого кошелька. Сейчас TRI выплачиваются только в тестовой сети TON; в остальные сети они придут, когда заработает мост.',
   'tri.wallet.bind': 'Привязать TON-кошелёк',
   'tri.wallet.rebind': 'Привязать другой TON-кошелёк',
   'tri.wallet.unbind': 'Отвязать',
@@ -4064,6 +4142,32 @@ const ru: Translations = {
   'tri.wallet.err.noproof':
     'Кошелёк подключился, но не подписал подтверждение, поэтому ничего не привязано.',
   'tri.wallet.err.generic': 'Не удалось привязать кошелёк. Попробуйте ещё раз.',
+  'tri.wallet.err.signature':
+    'Подпись не совпала с адресом. Подпишите ещё раз в том же кошельке.',
+  'tri.wallet.err.proposal': 'Подтверждать уже нечего. Начните заново.',
+  'tri.wallet.chain.evm': 'EVM, все EVM-сети',
+  'tri.wallet.bind.evm': 'Привязать EVM-кошелёк',
+  'tri.wallet.bind.solana': 'Привязать Solana-кошелёк',
+  'tri.wallet.bind.tron': 'Привязать TRON-кошелёк',
+  'tri.wallet.paid': 'Сюда приходят TRI',
+  'tri.wallet.bridge': 'TRI придут сюда, когда заработает мост',
+  'tri.wallet.open.note':
+    'Внутри Telegram нет {chain}-кошелька. Откройте страницу в приложении кошелька, подпишите там, затем вернитесь сюда и подтвердите.',
+  'tri.wallet.open.copy': 'Скопировать ссылку',
+  'tri.wallet.open.copied': 'Скопировано',
+  'tri.wallet.open.waiting': 'Ждём подпись кошелька — строка обновится сама',
+  'tri.wallet.proposal': '{chain}-кошелёк подписал: {address}',
+  'tri.wallet.proposal.confirm': 'Да, это мой кошелёк',
+  'tri.wallet.proposal.note': 'Не ваш? Не подтверждайте: запрос истечёт сам.',
+  'tri.bind.title': 'Привязать {chain}-кошелёк к TRI',
+  'tri.bind.note':
+    'Подпись не двигает монеты и не даёт права тратить. Кошелёк покажет точный текст до подписи.',
+  'tri.bind.sign': 'Подключить и подписать',
+  'tri.bind.done':
+    'Подписано. Вернитесь в Telegram и нажмите «Да, это мой кошелёк».',
+  'tri.bind.nowallet':
+    'В этом браузере нет {chain}-кошелька. Откройте эту страницу в браузере приложения кошелька.',
+  'tri.bind.broken': 'Ссылка неполная. Начните заново из профиля.',
   'tri.claim.title': '🪙 TRI за принятые спеки',
   'tri.claim.status':
     'Только тестовая сеть TON. V1, кворум подписантов, НЕ trustless: независимые аттесторы проверяют каждую спеку и подписывают выпуск; отправляет его ваш кошелёк и платит газ.',
@@ -4076,6 +4180,10 @@ const ru: Translations = {
   'tri.claim.github.unlink': 'Отвязать',
   'tri.claim.needWallet':
     'Чтобы вывести, привяжите выше TON-кошелёк тестовой сети.',
+  'tri.claim.all': 'Вывести всё ({n})',
+  'tri.claim.all.note':
+    'Каждая спека несёт минтеру 0,1 TON тестовой сети, всего около {ton} TON; лишнее минтер возвращает. Кошелёк спросит один раз на пачку.',
+  'tri.claim.all.progress': 'Отправлено {done} из {total}',
   'tri.claim.empty': 'На этот аккаунт пока не засчитано ни одной спеки.',
   'tri.claim.withdraw': 'Вывести',
   'tri.claim.working': 'Ждём кошелёк…',

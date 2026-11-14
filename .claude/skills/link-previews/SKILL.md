@@ -75,7 +75,10 @@ gh api "repos/gHashTag/ghashtag.github.io/commits?path=og-image.png&per_page=10"
   `LESSON_ROUTE + id + "/"`, то есть `https://t27.ai/learn/<id>/`. Старые
   карточки с `#/course/<id>` читаются как та же страница урока.
 - **Блог-десктоп рендера** (`blog-share.ts` `staticArticleUrl`):
-  `#/blog/<slug>` → `/blog/<slug>/`.
+  `#/blog/<slug>` → `/blog/<slug>/`. Автопост в Telegram-канал (спека
+  blog-share v6, `blog-share-wiring.ts` `telegramChannel`) прогоняет ссылку
+  через него ещё раз перед `sendMessage` и держит превью включённым; тест
+  `every-blog-post-goes-out-by-itself.test.ts` проверяет, что `#/` не уходит.
 
 **Уже выложенный пост с плохой карточкой** не перерисовать: X держит её по
 своему кэшу. Нужно выложить заново со статическим адресом. Сам адрес страницы

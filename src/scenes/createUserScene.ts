@@ -158,12 +158,20 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     // 🎁 WELCOME AVATAR GENERATION: Analyze avatar and generate free portrait
     // Only use actual Telegram avatar (not Supabase fallback) for face detection
     try {
-      // Lead magnet (Welcome Avatar): a free SeeDream-4.5 hero portrait from the
-      // new user's Telegram photo, enabled by owner request. It skips the user's
+      // Lead magnet (Welcome Avatar): a free hero portrait from the new
+      // user's Telegram photo, enabled by owner request. It skips the user's
       // balance (is_welcome_gift) but the provider call costs the owner; when the
       // AI provider budget is exhausted the generation fails and the subscriber
       // sends a friendly fallback message, so this degrades gracefully.
-      const LEAD_MAGNET_ENABLED = true
+      //
+      // OFF by default since 2026-10-12 (owner): the kie.ai balance was at
+      // zero, every registration spent owner money on a portrait, and each
+      // "Credits insufficient" failure paged the owner's phone twice. The
+      // default is deliberately OFF, not ON: Railway variables have drifted
+      // between projects before, and a lost variable must never silently
+      // re-enable an owner-paid gift. To turn it back on, set
+      // WELCOME_GIFT_ENABLED=true (with the provider account funded).
+      const LEAD_MAGNET_ENABLED = process.env.WELCOME_GIFT_ENABLED === 'true'
 
       if (LEAD_MAGNET_ENABLED && telegramAvatarUrl) {
         logger.info(

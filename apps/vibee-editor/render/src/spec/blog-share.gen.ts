@@ -6,7 +6,7 @@
 export const KIND = "automation" satisfies string;
 export const ID = "blog-share" satisfies string;
 export const REPO = "999-multibots-telegraf" satisfies string;
-export const VERSION = 4 satisfies number;
+export const VERSION = 6 satisfies number;
 export const TICK_MS = 300000 satisfies number;
 export const ASK_EVERY_MS = 72000000 satisfies number;
 export const ANSWER_WAIT_MS = 86400000 satisfies number;
@@ -36,6 +36,43 @@ export const RUN_LIVE = true satisfies boolean;
 // t27c gen-ts: fn network_used was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_profile_look_ms was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn last_look_ms was not emitted -- this backend lowers declarations, not bodies.
+export const RELEASE_REPO = "gHashTag/t27" satisfies string;
+export const RELEASE_FRESH_MS = 259200000 satisfies number;
+export const RELEASE_SKIPS_PACE = true satisfies boolean;
+// t27c gen-ts: fn release_offerable was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn may_ask_release was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn release_first was not emitted -- this backend lowers declarations, not bodies.
+export const AUTOPOST_SWITCH = "BLOG_AUTOPOST" satisfies string;
+export const AUTO_ASKS = false satisfies boolean;
+export const AUTO_PER_TICK = 1 satisfies number;
+export const AUTO_PER_DAY = 8 satisfies number;
+export const AUTO_DAY_MS = 86400000 satisfies number;
+export const BACKLOG_PER_SLOT = 1 satisfies number;
+export const BACKLOG_PER_DAY = 2 satisfies number;
+export const BACKLOG_SLOT_1_S = 21600 satisfies number;
+export const BACKLOG_SLOT_2_S = 50400 satisfies number;
+export const BACKLOG_SLOT_WIDTH_S = 3600 satisfies number;
+export const TELEGRAM = "telegram" satisfies string;
+export const CUTOFF_CLEARED_WHEN_OFF = true satisfies boolean;
+// t27c gen-ts: fn autopost_on was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn question_offers_articles was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn is_new was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn auto_offerable was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn backlog_offerable was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn backlog_slot was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn auto_take was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn backlog_take was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn backlog_source was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_carries was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn network_step was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn telegram_posted was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
@@ -52,7 +89,7 @@ export const RUN_LIVE = true satisfies boolean;
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TICK_MS", "ASK_EVERY_MS", "ANSWER_WAIT_MS", "ASK_NEEDS_YES", "FIRST_SETTLE_MS", "LOOK_EVERY_MS", "LOOKS", "AFTER_CLICK_SETTLE_MS", "PROFILE_SETTLE_MS", "PROFILE_LOOK_EVERY_MS", "PROFILE_LOOKS", "MATCH_CHARS", "FRESH_MS", "RUN_LIVE"] as const;
+export const __DECL_ORDER__ = ["KIND", "ID", "REPO", "VERSION", "TICK_MS", "ASK_EVERY_MS", "ANSWER_WAIT_MS", "ASK_NEEDS_YES", "FIRST_SETTLE_MS", "LOOK_EVERY_MS", "LOOKS", "AFTER_CLICK_SETTLE_MS", "PROFILE_SETTLE_MS", "PROFILE_LOOK_EVERY_MS", "PROFILE_LOOKS", "MATCH_CHARS", "FRESH_MS", "RUN_LIVE", "RELEASE_REPO", "RELEASE_FRESH_MS", "RELEASE_SKIPS_PACE", "AUTOPOST_SWITCH", "AUTO_ASKS", "AUTO_PER_TICK", "AUTO_PER_DAY", "AUTO_DAY_MS", "BACKLOG_PER_SLOT", "BACKLOG_PER_DAY", "BACKLOG_SLOT_1_S", "BACKLOG_SLOT_2_S", "BACKLOG_SLOT_WIDTH_S", "TELEGRAM", "CUTOFF_CLEARED_WHEN_OFF"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not

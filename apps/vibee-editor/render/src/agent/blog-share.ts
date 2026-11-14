@@ -21,6 +21,7 @@
 import { tagged, type Channel } from './utm'
 import type { Queryable } from '../browser/sessions'
 import * as SPEC from '../spec/blog-share.gen'
+import * as L from '../spec/blog-share.logic'
 
 export const RSS_URL = process.env.BLOG_RSS_URL || 'https://t27.ai/rss.xml'
 /*
@@ -49,6 +50,8 @@ export interface Article {
   evidence?: string
   /* The feed's pubDate in epoch ms, absent when the feed gives none. */
   published?: number
+  /* A release of ours rather than a blog article (spec v5). */
+  kind?: 'release'
 }
 
 const tag = (xml: string, name: string): string => {
@@ -301,10 +304,8 @@ export function questionFor(
     subreddit === null
       ? 'LinkedIn, X, Threads, Instagram и Facebook' // cyrillic-ok: shown to the owner
       : `LinkedIn, X, Threads, Instagram, Facebook и r/${subreddit}` // cyrillic-ok: shown to the owner
-  return (
-    `Опубликовать статью блога в ${where}: ` + // cyrillic-ok: shown to the owner
-    `«${a.title}» (${a.link})`
-  )
+  const what = a.kind === 'release' ? 'релиз' : 'статью блога' // cyrillic-ok: shown to the owner
+  return `Опубликовать ${what} в ${where}: «${a.title}» (${a.link})` // cyrillic-ok: shown to the owner
 }
 
 /**
@@ -345,10 +346,17 @@ export function queueOrder(text: string, slugs: readonly string[]): string[] {
  */
 export const FRESH_MS = SPEC.FRESH_MS
 
-/** The spec's is_fresh: the edge (exactly FRESH_MS old) is still fresh. Pure. */
-export function isFresh(ageMs: number): boolean {
-  return ageMs <= FRESH_MS
+/**
+ * An age as the spec's u32 takes it: a negative age (a date in the future)
+ * is 0, an unknown one (NaN) and one past u32 read as the oldest there is.
+ */
+export function ageU32(ageMs: number): number {
+  if (Number.isNaN(ageMs)) return 0xffffffff
+  return Math.min(0xffffffff, Math.max(0, Math.floor(ageMs)))
 }
+
+/** The spec's is_fresh (compiled): the edge (exactly FRESH_MS old) is still fresh. */
+export const isFresh = (ageMs: number) => L.isFresh(ageU32(ageMs))
 
 /**
  * The next article to offer: the newest offerable one published within
@@ -376,6 +384,138 @@ export function nextArticle(
   return offerable[0] ? { article: offerable[0], queued: false } : undefined
 }
 
+/*
+ * RELEASES GO OUT TOO (spec v5). Owner, 2026-10-09: "set it up so that
+ * releases are published on X"; asked how, they chose at once, with their
+ * yes. A release whose pipeline finished is asked about without the daily
+ * pace and before every article, only the newest of each tool, and posted
+ * the way an article is: thread, receipt, profile check.
+ */
+export const RELEASES_URL = `https://api.github.com/repos/${SPEC.RELEASE_REPO}/releases?per_page=10`
+
+/** The fields of GitHub's release object the desk reads. */
+export interface GhRelease {
+  tag_name: string
+  name?: string | null
+  body?: string | null
+  html_url: string
+  draft: boolean
+  prerelease: boolean
+  published_at?: string | null
+  assets?: Array<{ name: string }>
+}
+
+/** Our tags (t27c-v0.5.2, t27b-v0.1.0): the tool and version, or null. Pure. */
+export function releaseOf(
+  tag: string
+): { tool: string; version: string } | null {
+  const m = /^(t27c|t27b)-v(\d+\.\d+\.\d+)$/.exec(tag)
+  return m ? { tool: m[1], version: m[2] } : null
+}
+
+/** A release's row and card slug, in the card route's alphabet. Pure. */
+export function releaseSlug(tag: string): string {
+  return `release-${tag.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+}
+
+/** The title a release slug stands for ("t27c 0.5.2 released"), else null. Pure. */
+export function releaseTitleOfSlug(slug: string): string | null {
+  const m = /^release-(t27c|t27b)-v(\d+)-(\d+)-(\d+)$/.exec(slug)
+  return m ? `${m[1]} ${m[2]}.${m[3]}.${m[4]} released` : null
+}
+
+/**
+ * What a release says about itself: its name's subtitle, else its first prose
+ * paragraph, else how many changes GitHub's generated notes list. Pure.
+ */
+export function releaseSummary(r: GhRelease): string {
+  const sub = /\s(?:—|--)\s+(.+)$/.exec(r.name ?? '')?.[1]
+  if (sub) return sub.trim()
+  const body = r.body ?? ''
+  const prose = body
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .find(p => p && !/^[#*|>-]/.test(p))
+  if (prose) return prose.replace(/\s+/g, ' ')
+  const changes = body.split('\n').filter(l => /^[*-] /.test(l)).length
+  return changes ? `${changes} changes since the previous release.` : ''
+}
+
+/** A release, carried as the desk carries an article. Pure. */
+export function releaseArticle(r: GhRelease): Article {
+  const slug = releaseSlug(r.tag_name)
+  const out: Article = {
+    slug,
+    title: releaseTitleOfSlug(slug) ?? r.tag_name,
+    link: r.html_url,
+    summary: releaseSummary(r),
+    kind: 'release',
+  }
+  const published = Date.parse(r.published_at ?? '')
+  if (Number.isFinite(published)) out.published = published
+  return out
+}
+
+/** The spec's release_offerable (compiled); an unknown age is the oldest. */
+export const releaseOfferable = (
+  ourTag: boolean,
+  draft: boolean,
+  prerelease: boolean,
+  pipelineDone: boolean,
+  ageMs: number,
+  askedBefore: boolean,
+  newestOfTool: boolean
+) =>
+  L.releaseOfferable(
+    ourTag,
+    draft,
+    prerelease,
+    pipelineDone,
+    ageU32(ageMs),
+    askedBefore,
+    newestOfTool
+  )
+
+/*
+ * The spec's may_ask_release (the pace holds articles back, not releases) and
+ * release_first, compiled.
+ */
+export const { mayAskRelease, releaseFirst } = L
+
+/**
+ * The release to ask about, from GitHub's list (newest first): the newest
+ * offerable one. `done` is asked only of a release every other rule lets
+ * through; a pipeline that cannot be read is not finished.
+ */
+export async function nextRelease(
+  list: readonly GhRelease[],
+  asked: ReadonlySet<string>,
+  nowMs: number,
+  done: (r: GhRelease) => Promise<boolean>
+): Promise<Article | undefined> {
+  const toolsSeen = new Set<string>()
+  const offerable: Article[] = []
+  for (const r of list) {
+    const ours = releaseOf(r.tag_name)
+    const out = !r.draft && !r.prerelease
+    const newest = !!ours && out && !toolsSeen.has(ours.tool)
+    if (ours && out) toolsSeen.add(ours.tool)
+    const rule = (finished: boolean) =>
+      releaseOfferable(
+        !!ours,
+        r.draft,
+        r.prerelease,
+        finished,
+        nowMs - Date.parse(r.published_at ?? ''),
+        asked.has(releaseSlug(r.tag_name)),
+        newest
+      )
+    if (rule(true) && rule(await done(r).catch(() => false)))
+      offerable.push(releaseArticle(r))
+  }
+  return releaseFirst(offerable.length) ? offerable[0] : undefined
+}
+
 let ready = false
 export async function ensureBlogShares(q: Queryable): Promise<void> {
   if (ready) return
@@ -401,14 +541,26 @@ export function resetBlogSharesForTests(): void {
  * page moved. Now only a post SEEN on the owner's own profile counts (the
  * spec's `published_somewhere`, v2).
  */
-export function publishedSomewhere(result: Record<string, string>): boolean {
-  if ('error' in result) return false
-  return Object.values(result).some(
-    v =>
-      String(v).includes(SEEN_ON_PROFILE) ||
-      /* An API post came back with its own id: a receipt (meta-connect.ts). */
-      String(v).startsWith('опубликовано через API') // cyrillic-ok: meta-connect.ts VIA_API
+export const publishedSomewhere = (result: Record<string, string>) =>
+  L.publishedSomewhere(
+    'error' in result,
+    Math.min(
+      255,
+      Object.values(result).filter(
+        v =>
+          String(v).includes(SEEN_ON_PROFILE) ||
+          /* An API post came back with its own id: a receipt (meta-connect.ts). */
+          String(v).startsWith('опубликовано через API') // cyrillic-ok: meta-connect.ts VIA_API
+      ).length
+    )
   )
+
+/**
+ * One network's line as a ledger state (spec v6 network_carries reads it):
+ * the same words that decide a whole run's outcome, applied to one line.
+ */
+export function lineState(line: string): 'posted' | 'unconfirmed' | 'failed' {
+  return outcomeOf({ line })
 }
 
 /* Pressed, or a thread sent: the words publishEverywhere writes for a press. */
@@ -470,29 +622,29 @@ function safeParse(text: string): unknown {
 
 export type Answer = 'pending' | 'allowed' | 'denied' | 'expired'
 
-/** The spec's `still_waiting`: pending and younger than the approval's lifetime. */
-export function stillWaiting(answer: Answer, ageMs: number): boolean {
-  return answer === 'pending' && ageMs < ANSWER_WAIT_MS
-}
+/** The spec's `still_waiting` (compiled): pending and younger than the approval's lifetime. */
+export const stillWaiting = (answer: Answer, ageMs: number) =>
+  L.stillWaiting(answer, ageU32(ageMs))
 
-/** The spec's `may_ask`: never asked, or the last question is a pace old. */
-export function mayAsk(lastAskedMs: number, nowMs: number): boolean {
-  return !lastAskedMs || nowMs - lastAskedMs >= ASK_EVERY_MS
-}
-
-/** The spec's `posts`: only a yes posts. */
-export function posts(answer: Answer): boolean {
-  return answer === 'allowed'
-}
-
-/**
- * The spec's `decline_is_real`: only a person's "no". Twelve rows were once
- * closed as declined while their approval was still pending (tri blog-share
- * reoffer, #3279); an expiry is silence and is told as such.
+/*
+ * The spec's rules, compiled from blog-share.t27 (never retyped here):
+ * `may_ask` (never asked, or the last question is a pace old), `posts` (only
+ * a yes posts), `decline_is_real` (only a person's "no" -- twelve rows were
+ * once closed as declined while their approval was still pending, tri
+ * blog-share reoffer, #3279; an expiry is silence and is told as such),
+ * `counted` and `unconfirmed` (the profile check: the page left the form AND
+ * the profile shows it; pressed and not seen), and v6's
+ * `question_offers_articles` and `autopost_on`.
  */
-export function declineIsReal(answer: Answer): boolean {
-  return answer === 'denied'
-}
+export const {
+  mayAsk,
+  posts,
+  declineIsReal,
+  counted,
+  unconfirmed,
+  questionOffersArticles,
+  autopostOn,
+} = L
 
 export interface ShareDeps {
   pool: Queryable
@@ -509,11 +661,26 @@ export interface ShareDeps {
    * Absent: the newest article goes next, as before spec v3.
    */
   queue?: () => Promise<string>
+  /**
+   * Autopost is on (spec v6, BLOG_AUTOPOST=1): articles are posted by
+   * blog-autopost.ts and never asked about; open questions and releases
+   * keep their yes. Absent or false: v5.
+   */
+  autopost?: boolean
+  /**
+   * Releases of SPEC.RELEASE_REPO, newest first, and whether one's pipeline
+   * finished (spec v5). Absent: articles only, as before v5.
+   */
+  releases?: {
+    list: () => Promise<GhRelease[]>
+    done: (r: GhRelease) => Promise<boolean>
+  }
 }
 
 /**
  * One tick. First the open question, if any: a yes posts, a no or silence
- * closes it. Then, at most once a day, the next article not offered yet --
+ * closes it. Then a finished release of ours, at once (spec v5). Then, at
+ * most once a day, the next article not offered yet --
  * the owner's queue first, else the newest -- becomes a question. Returns
  * what it did, for the log.
  */
@@ -573,11 +740,32 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
     return `${row.slug}: ${outcome}`
   }
 
+  /* A finished release goes before every article and skips the pace (v5). */
+  if (d.releases && mayAskRelease(Boolean(open[0]))) {
+    const r = d.releases
+    const { rows: seen } = await d.pool.query(`SELECT slug FROM blog_shares`)
+    const asked = new Set((seen as Array<{ slug: string }>).map(x => x.slug))
+    const release = await r
+      .list()
+      .then(list => nextRelease(list, asked, d.now(), r.done))
+      .catch(() => undefined)
+    if (release) {
+      await askAbout(d, release)
+      return `asked about ${release.slug} (a release)`
+    }
+  }
+
+  /* Autopost posts the articles itself; only releases are still asked (v6). */
+  if (!questionOffersArticles(Boolean(d.autopost)))
+    return 'autopost: articles are posted, not asked about'
+
+  /* Questions only: a row autopost wrote has no approval and sets no pace. */
   const { rows: last } = await d.pool.query(
-    `SELECT extract(epoch from max(asked_at)) * 1000 AS at FROM blog_shares`
+    `SELECT extract(epoch from max(asked_at)) * 1000 AS at FROM blog_shares WHERE approval_id IS NOT NULL`
   )
   const lastAt = Number((last[0] as { at?: unknown } | undefined)?.at) || 0
-  if (!mayAsk(lastAt, d.now())) return 'asked today already'
+  if (!mayAsk(lastAt > 0, ageU32(d.now() - lastAt)))
+    return 'asked today already'
 
   const articles = parseRss(await d.fetchRss())
   if (!articles.length) return 'the feed is empty'
@@ -592,17 +780,22 @@ export async function blogShareTick(d: ShareDeps): Promise<string> {
   const pick = nextArticle(articles, known, queue, d.now())
   if (!pick) return 'every article was offered already'
   const next = pick.article
-  const id = await d.ask(questionFor(next))
-  await d.pool.query(
-    `INSERT INTO blog_shares (slug, state, approval_id, detail) VALUES ($1, 'asked', $2, $3::jsonb)
-     ON CONFLICT (slug) DO NOTHING`,
-    [next.slug, id, JSON.stringify(next)]
-  )
+  await askAbout(d, next)
   return pick.queued
     ? `asked about ${next.slug} (the owner's queue)`
     : queueText === null
       ? `asked about ${next.slug} (newest: the queue could not be read)`
       : `asked about ${next.slug}`
+}
+
+/** The question goes to the owner, and its row remembers what it was about. */
+async function askAbout(d: ShareDeps, a: Article): Promise<void> {
+  const id = await d.ask(questionFor(a))
+  await d.pool.query(
+    `INSERT INTO blog_shares (slug, state, approval_id, detail) VALUES ($1, 'asked', $2, $3::jsonb)
+     ON CONFLICT (slug) DO NOTHING`,
+    [a.slug, id, JSON.stringify(a)]
+  )
 }
 
 /**
@@ -615,9 +808,10 @@ export const LEFT_THE_FORM = 'страница ушла с формы' // cyrill
 
 export function receiptOf(before: string, after: string): string {
   if (!before || !after) return 'не подтверждено: адрес не прочитан' // cyrillic-ok: told to the owner
-  return before === after
-    ? 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
-    : LEFT_THE_FORM
+  /* The spec's left_the_form, compiled. */
+  return L.leftTheForm(before, after)
+    ? LEFT_THE_FORM
+    : 'не подтверждено: страница не сменилась' // cyrillic-ok: told to the owner
 }
 
 /**
@@ -677,16 +871,6 @@ export function needleOf(a: Article): string {
 /** Is the post on this page? An empty needle is never "seen". Pure. */
 export function seenOn(pageText: string, needle: string): boolean {
   return needle.length > 0 && normalizeForMatch(pageText).includes(needle)
-}
-
-/** The spec's `counted`: the page left the form AND the profile shows it. */
-export function counted(left: boolean, seen: boolean): boolean {
-  return left && seen
-}
-
-/** The spec's `unconfirmed`: pressed and not seen. */
-export function unconfirmed(pressed: boolean, seen: boolean): boolean {
-  return pressed && !seen
 }
 
 /**

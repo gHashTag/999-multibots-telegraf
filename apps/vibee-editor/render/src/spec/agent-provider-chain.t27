@@ -31,6 +31,38 @@
 // keeps its order -- a model that talks beats silence -- and is flagged.
 // Same rule elsewhere (checked 2026-10-06): OpenRouter routes a request carrying `tools` only to
 // endpoints that support them; LiteLLM leaves it to the caller (supports_function_calling).
+// WHY v3, a Kie route right after zai (2026-10-09): the owner's turn ended in "no model provider
+// answered" -- zai 429 code 1305 (free flash overloaded), nemotron silent for the 120 s ceiling,
+// zai-lite silent for 60 s, reserve 402 (no funds on the key). Three minutes, no answer. The
+// owner: "turn it on through kie". Kie is the vendor the project already pays for every image,
+// video, song and voice (KIE_AI_API_KEY, funded), and it serves Gemini over an OpenAI-compatible
+// /chat/completions at https://api.kie.ai/<model>/v1. So the second leg is Kie: the free zai
+// first, then a funded route on a different vendor before the two that burned the three minutes.
+// WHY gemini-2.5-flash and not Gemini 3: Google's OpenAI-compatibility docs say Gemini 3 needs its
+// thought signatures sent back on every function-calling round; this host does not carry them, so
+// a second tool round would be refused. The model is one variable away (KIE_CHAT_MODEL).
+// WHY declared, not measured: Kie's docs list function calling and streaming for these models;
+// this repository could not reach api.kie.ai from where v3 was written. Tools are declared, sight
+// and hearing are NOT declared (images keep going to nemotron) until a probe says otherwise.
+// WHY v4, the key pool rotates before the chain moves on (2026-10-26, 999 PR #4049): 16:09 UTC
+// a client's turn died with every provider at once -- zai 429 code 1305, nemotron
+// "ResourceExhausted: Worker local total request limit reached (16/16)" mid-stream, reserve and
+// kie on invalid keys, zai-lite out of funds -- while the owner's vendor consoles held more keys
+// than the one variable each route read. A route now carries a POOL of keys: the variable lists
+// them (GLM_API_KEY="k1,k2"), a plural sister adds a whole pool (GLM_API_KEYS), numbered sisters
+// add one each (GLM_API_KEY_2..KEY_POOL_SLOTS). The host reads the variables (plumbing); the
+// spec owns the rules: which refusals are THE KEY's wall (key_failure), how the pool turns
+// (rotation_offset, next_cursor). What deliberately rotates nothing: 1305 is the model busy for
+// everybody -- another key hits the same wall, and the neighbouring model stays the way round
+// it; a nameless 429, a timeout and a 404 are not the key's fault.
+// WHY v5, the speed levers (2026-10-26, 999 PR after #4050): the measured outage minutes were
+// SILENCE -- nemotron held the 120 s ceiling and zai-lite 60 s of quiet while the chain stood in
+// line. Two rules: (1) silence_budget -- a route that is not the head of the chain gets half
+// the silence budget, so the second and later routes fail fast instead of burning minutes;
+// (2) fastest_first_swaps -- once a turn's chain has more than one route left, the breaker's
+// rolling first-byte EMA may reorder the REST of the chain (the head and the owner's pick never
+// move) when one route is faster than another by more than SWAP_HYSTERESIS_MS. ema_next is the
+// rolling average the breaker keeps: 70% old, 30% fresh, in integer math.
 // phi^2 + 1/phi^2 = 3 | TRINITY
 
 module automation::agent_provider_chain {
@@ -38,12 +70,12 @@ module automation::agent_provider_chain {
     pub const KIND : str = "automation";
     pub const ID : str = "agent-provider-chain";
     pub const REPO : str = "999-multibots-telegraf";
-    pub const VERSION : u8 = 2;
+    pub const VERSION : u8 = 5;
 
     // ---- The chain -----------------------------------------------------------------------
-    // Default order: paid routes first, the reserve after them, our own model last.
-    pub const ORDER_DEFAULT : str = "zai,zai-lite,nemotron,reserve,ollama";
-    pub const PROVIDERS : u8 = 5;
+    // Default order: the free zai, then Kie (v3), the other paid routes, the reserve, our own model last.
+    pub const ORDER_DEFAULT : str = "zai,kie,zai-lite,nemotron,reserve,ollama";
+    pub const PROVIDERS : u8 = 6;
     pub const OWNER_PICK_GOES_FIRST : bool = true;  // the bot button (or AGENT_PROVIDER) moves one id to the front, the rest keep order
     // v2: the head of the AVAILABLE chain must call tools unless the bot button put it there.
     pub const DEPLOY_HEAD_NEEDS_TOOLS : bool = true;
@@ -54,6 +86,30 @@ module automation::agent_provider_chain {
     pub const NOTE_NO_TOOLS : str = "no provider in the chain calls tools";
     pub const NOTE_NONE : str = "";
     pub const EVERY_CONFIGURED_PROVIDER_IS_TRIED : bool = true;  // a key that is set is not a key that works; reasons are collected per id
+
+    // ---- v3: the Kie route -----------------------------------------------------------------
+    pub const KIE_ID : str = "kie";
+    pub const KIE_ENV_KEY : str = "KIE_AI_API_KEY";  // the same key every Kie media call reads; set: the route is present
+    pub const KIE_ENV_MODEL : str = "KIE_CHAT_MODEL";  // blank: the default model
+    pub const KIE_MODEL_DEFAULT : str = "gemini-2.5-flash";
+    pub const KIE_BASE_ROOT : str = "https://api.kie.ai";  // the base is <root>/<model>/v1; /chat/completions is appended by the loop
+    pub const KIE_AFTER : str = "zai";
+    pub const KIE_BEFORE : str = "zai-lite";
+    pub const KIE_TOOLS : bool = true;  // declared by Kie's docs, not measured here
+    pub const KIE_VISION : bool = false;  // not declared until measured: images stay with nemotron
+    pub const KIE_AUDIO : bool = false;
+    pub const KIE_THINKING : bool = false;  // no `thinking` block is sent to Kie
+    pub const KIE_TAKES_AGENT_MODEL : bool = false;  // AGENT_MODEL names a GLM model; it never renames the Kie path
+    pub const KIE_SENDS_MAX_TOKENS : bool = true;  // prepaid credits: a bounded answer, the reserve's lesson of 2026-09-15
+    pub const KIE_MAX_TOKENS : u32 = 8192;  // flash thinks inside max_tokens; 1024 would leave the answer empty
+    pub const KIE_CAPABILITIES_DECLARED_NOT_MEASURED : bool = true;
+    pub const KIE_ANSWERED_LIVE : bool = false;  // flipped by a live probe, never by a commit
+    pub const KIE_IN_BOT_PICKER : bool = true;
+
+    // The Kie route exists when its key is set; the model falls back to the default.
+    fn kie_available(key: bool) -> bool {
+        return key;
+    }
 
     // ---- The reserve route ---------------------------------------------------------------
     pub const RESERVE_ID : str = "reserve";
@@ -113,10 +169,11 @@ module automation::agent_provider_chain {
     // Where a provider sits in the default chain, 0-based.
     fn default_position(id: str) -> u8 {
         if id == "zai" { return 0; }
-        if id == "zai-lite" { return 1; }
-        if id == "nemotron" { return 2; }
-        if id == "reserve" { return 3; }
-        return 4;
+        if id == "kie" { return 1; }
+        if id == "zai-lite" { return 2; }
+        if id == "nemotron" { return 3; }
+        if id == "reserve" { return 4; }
+        return 5;
     }
 
     test "the reserve route needs all three variables and sits after nemotron" {
@@ -126,7 +183,47 @@ module automation::agent_provider_chain {
         assert(!reserve_available(false, true, true));
         assert(default_position("reserve") == default_position("nemotron") + 1);
         assert(default_position("ollama") == default_position("reserve") + 1);
-        assert(PROVIDERS == 5);
+        assert(PROVIDERS == 6);
+    }
+
+    test "kie stands right after the free zai and before the routes that timed out" {
+        assert(default_position(KIE_AFTER) == 0);
+        assert(default_position(KIE_ID) == default_position(KIE_AFTER) + 1);
+        assert(default_position(KIE_BEFORE) == default_position(KIE_ID) + 1);
+        assert(default_position("nemotron") > default_position(KIE_ID));
+        assert(default_position("reserve") > default_position(KIE_ID));
+        assert(kie_available(true));
+        assert(!kie_available(false));
+        assert(KIE_IN_BOT_PICKER);
+    }
+
+    // The max_tokens a provider is sent; 0 means the field is not sent at all.
+    fn ceiling_for(id: str) -> u32 {
+        if id == KIE_ID { return KIE_MAX_TOKENS; }
+        if id == RESERVE_ID { return RESERVE_MAX_TOKENS_DEFAULT; }
+        return 0;
+    }
+
+    test "kie calls tools by declaration, looks at nothing, and answers within a bound" {
+        assert(ceiling_for("kie") == 8192);
+        assert(ceiling_for("reserve") == 1024);
+        assert(ceiling_for("zai") == 0);
+        assert(ceiling_for("zai-lite") == 0);
+        assert(ceiling_for("nemotron") == 0);
+        assert(KIE_CAPABILITIES_DECLARED_NOT_MEASURED);
+        assert(!KIE_ANSWERED_LIVE);
+        assert(KIE_TOOLS);
+        assert(!KIE_VISION);
+        assert(!KIE_AUDIO);
+        assert(!KIE_THINKING);
+        assert(!KIE_TAKES_AGENT_MODEL);
+        assert(KIE_SENDS_MAX_TOKENS);
+        assert(KIE_MAX_TOKENS > RESERVE_MAX_TOKENS_DEFAULT);
+        assert(KIE_MAX_TOKENS == 8192);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 5);
     }
 
     test "capabilities of the reserve model are the owner's declaration" {
@@ -205,6 +302,138 @@ module automation::agent_provider_chain {
         assert(!demote_head(false, false, false));
         assert(head_note(false, false, false) == NOTE_NO_TOOLS);
         assert(head_note(true, false, false) == NOTE_BOT_PICK);
+    }
+
+    // ---- v4: the key pool rotates before the chain moves on --------------------------------
+    // How many numbered sister variables (NAME_2 .. NAME_9) each key variable has.
+    pub const KEY_POOL_SLOTS : u8 = 9;
+
+    // Does the haystack hold the needle, byte by byte. The reason lines read here are the
+    // host's diagnose() output lowercased, or a vendor error text lowercased; the needles are
+    // ASCII on purpose -- the Russian phrases diagnose() emits always arrive together with
+    // their status, which is this fn's other parameter.
+    fn contains(s: []const u8, w: []const u8) -> bool {
+        if (w.len == 0 or s.len < w.len) { return false; }
+        var i : usize = 0;
+        while (i + w.len <= s.len) {
+            var k : usize = 0;
+            var same : bool = true;
+            while (k < w.len) {
+                if (s[i + k] != w[k]) { same = false; }
+                k = k + 1;
+            }
+            if (same) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // A refusal that is THE KEY's wall: the route asks its NEXT key before the chain moves to
+    // the next provider. `status` is the HTTP status, 0 when there was none (a mid-stream
+    // throw). Measured into these needles: 2026-10-06 the production key answered 1302 three
+    // of three while three other accounts' keys answered 200 on the same model; 2026-09-13 and
+    // 2026-10-26 NVIDIA named its account ceiling ResourceExhausted mid-stream, HTTP 200.
+    pub fn key_failure(status: u32, reason: []const u8) -> bool {
+        if (status == 401) { return true; }
+        if (status == 402) { return true; }
+        if (contains(reason, "code 1302")) { return true; }
+        if (contains(reason, "resourceexhausted")) { return true; }
+        if (contains(reason, "request limit reached")) { return true; }
+        if (contains(reason, "insufficient balance")) { return true; }
+        if (contains(reason, "requires more credits")) { return true; }
+        return false;
+    }
+
+    // Where a pool of `len` keys starts for a route whose cursor points at `cursor`: a cursor
+    // past the end (the key was removed on the dashboard) wraps by modulo instead of crashing.
+    pub fn rotation_offset(cursor: u8, len: u8) -> u8 {
+        if (len == 0) { return 0; }
+        return cursor % len;
+    }
+
+    // The cursor after a verdict on the key at index `at`: a key that answered holds the
+    // position, a key that fell hands it to its neighbour, through the end. A `at` outside the
+    // pool (the pool shrank) resets to the head.
+    pub fn next_cursor(len: u8, at: u8, worked: bool) -> u8 {
+        if (len == 0 or at >= len) { return 0; }
+        if (worked) { return at; }
+        if (at + 1 == len) { return 0; }
+        return at + 1;
+    }
+
+    test "a key's wall is 401, 402, this key's 1302 and the account ceiling, never 1305" {
+        assert(key_failure(401, "x"));
+        assert(key_failure(402, "x"));
+        assert(key_failure(429, "zai: limit exceeded (code 1302)"));
+        assert(key_failure(0, "resourceexhausted: worker local total request limit reached (16/16)"));
+        assert(key_failure(200, "requires more credits"));
+        assert(key_failure(402, "insufficient balance or no resource package"));
+        assert(!key_failure(429, "zai: limit exceeded (code 1305)"));
+        assert(!key_failure(429, "limit exceeded"));
+        assert(!key_failure(0, "molchal 60 s"));
+        assert(!key_failure(404, "no such model"));
+        assert(contains("abc", "bc"));
+        assert(contains("abc", "abc"));
+        assert(!contains("abc", "cb"));
+        assert(!contains("", "a"));
+    }
+
+    test "the pool turns through the end and a working key holds the cursor" {
+        assert(KEY_POOL_SLOTS == 9);
+        assert(rotation_offset(0, 3) == 0);
+        assert(rotation_offset(4, 3) == 1);
+        assert(rotation_offset(7, 0) == 0);
+        assert(next_cursor(3, 0, false) == 1);
+        assert(next_cursor(3, 2, false) == 0);
+        assert(next_cursor(3, 1, true) == 1);
+        assert(next_cursor(0, 0, false) == 0);
+        assert(next_cursor(3, 5, true) == 0);
+    }
+
+    // ---- v5: the speed levers --------------------------------------------------------------
+    // (1) A route that is not the head of the chain gets this share of the silence budget:
+    // the measured outage minutes were silence, and the second route in line has no business
+    // burning the head's full quiet window.
+    pub const SILENCE_AFTER_HEAD_PCT : u8 = 50;
+    // (2) The rest of the chain reorders by the breaker's rolling first-byte average only when
+    // one route is faster than another by more than this -- a margin, so the order does not
+    // flap between two healthy routes that answer within a hundred milliseconds of each other.
+    pub const SWAP_HYSTERESIS_MS : u32 = 1500;
+
+    // The silence budget for one route: the head keeps the whole window, every follower gets
+    // the share above. The head's place is decided before this is asked (demote_head, the
+    // owner's pick); a follower that goes quiet fails fast into the next route.
+    pub fn silence_budget(budget: u32, is_head: bool) -> u32 {
+        if (is_head) { return budget; }
+        return budget * SILENCE_AFTER_HEAD_PCT / 100;
+    }
+
+    // The breaker's rolling first-byte average: 70% old, 30% fresh, integer math.
+    pub fn ema_next(prev: u32, sample: u32) -> u32 {
+        return (prev * 7 + sample * 3) / 10;
+    }
+
+    // May the health order swap two routes: only when `a` is faster than `b` by more than the
+    // hysteresis. Everything else keeps its place.
+    pub fn fastest_first_swaps(a: u32, b: u32) -> bool {
+        return a + SWAP_HYSTERESIS_MS < b;
+    }
+
+    test "a follower's silence budget is half, the head keeps the whole window" {
+        assert(SILENCE_AFTER_HEAD_PCT == 50);
+        assert(silence_budget(60000, true) == 60000);
+        assert(silence_budget(60000, false) == 30000);
+        assert(silence_budget(0, false) == 0);
+    }
+
+    test "the health order swaps only beyond the hysteresis and the average rolls" {
+        assert(SWAP_HYSTERESIS_MS == 1500);
+        assert(ema_next(1000, 2000) == 1300);
+        assert(ema_next(0, 900) == 270);
+        assert(fastest_first_swaps(500, 3000));
+        assert(!fastest_first_swaps(3000, 500));
+        assert(!fastest_first_swaps(1000, 2000));
+        assert(!fastest_first_swaps(2000, 2000));
     }
 }
 // phi^2 + 1/phi^2 = 3 | TRINITY

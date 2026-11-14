@@ -209,3 +209,51 @@ export function breakerSnapshot(): Array<{
 export function forgetBreakersForTests(): void {
   entries.clear()
 }
+
+/*
+ * THE ROLLING FIRST-BYTE AVERAGE, in the breaker because the breaker already
+ * owns what the chain remembers between turns. Fed by chat.ts on every
+ * success (spec agent-provider-chain.t27 v5, ema_next: 70% old, 30% fresh,
+ * integer math). In-memory, per process, like the breaker itself.
+ */
+import { emaNext, fastestFirstSwaps } from '../spec/agent-provider-chain.logic'
+
+const health = new Map<string, number>()
+
+/** The route's rolling first-byte average, or null with no data yet. */
+export function healthOf(id: string): number | null {
+  const v = health.get(id)
+  return v === undefined ? null : v
+}
+
+/** A route gave its first byte after `ms` of waiting: fold it into the average. */
+export function recordFirstByte(id: string, ms: number): void {
+  const prev = health.get(id)
+  health.set(id, prev === undefined ? ms : emaNext(prev, ms))
+}
+
+/** For tests: forget the health averages. */
+export function forgetHealthForTests(): void {
+  health.clear()
+}
+
+/**
+ * THE REST OF THE CHAIN IN HEALTH ORDER. The head -- and the owner's pick,
+ * which chat.ts puts at the head -- never moves; the followers reorder only
+ * when BOTH routes are measured and the spec's fastest_first_swaps sees one
+ * faster than another by more than SWAP_HYSTERESIS_MS. A route with no data
+ * keeps its configured place: never-tried is not known-slow (a reserve the
+ * owner just pointed the variables at must not wait behind every route).
+ */
+export function fastestFirst<T extends { id: string }>(
+  rest: readonly T[]
+): T[] {
+  return [...rest].sort((a, b) => {
+    const ha = health.get(a.id)
+    const hb = health.get(b.id)
+    if (ha === undefined || hb === undefined) return 0
+    if (fastestFirstSwaps(ha, hb)) return -1
+    if (fastestFirstSwaps(hb, ha)) return 1
+    return 0
+  })
+}

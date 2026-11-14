@@ -1,0 +1,45 @@
+# t27ai-bot -- @t27ai_bot, the Telegraf monolith (root Dockerfile image), beside
+# t27ai-render and t27ai-ladder. Installed DISABLED: it starts only after the
+# owner has written the bot token into /opt/t27ai-render/bot.env (see README,
+# "The bot unit"). The token never appears in this file, in git or in a log.
+#
+# Three env files, so the owner's file stays the owner's and he writes one line:
+#   /opt/t27ai-render/bot.env      BOT_TOKEN_12 (the owner writes it, 0600)
+#   /opt/t27ai-bot/db.env          DATABASE_URL of the bot's own database (0600)
+#   /opt/t27ai-bot/render-key.env  RENDER_API_KEY, the ladder's server key,
+#                                  copied on the VPS, never shown (0600)
+# render-key.env is last, so it wins over a stale key in bot.env.
+# RENDER_BASE_URL points the course door at the LADDER unit, not at the
+# t27ai-render on 8090 (that image has no /api/course/*). It is set here, after
+# the env files, so a stale value in bot.env cannot win.
+[Unit]
+Description=t27ai-bot (@t27ai_bot, Telegraf monolith, beside t27ai-render)
+Requires=docker.service t27ai-render-db.service
+Wants=t27ai-ladder.service
+After=docker.service t27ai-render-db.service t27ai-ladder.service network-online.target
+
+[Service]
+Restart=always
+RestartSec=15
+# Fail loud, not silent, while the token is not there yet: grep -q prints
+# nothing, so the value is never shown.
+ExecStartPre=/usr/bin/grep -q '^BOT_TOKEN_12=.' /opt/t27ai-render/bot.env
+ExecStartPre=-/usr/bin/docker rm -f t27ai-bot
+ExecStart=/usr/bin/docker run --rm --init --name t27ai-bot \
+  --network t27ai-net \
+  --env-file /opt/t27ai-render/bot.env \
+  --env-file /opt/t27ai-bot/db.env \
+  --env-file /opt/t27ai-bot/render-key.env \
+  -e RENDER_BASE_URL=http://t27ai-ladder:8080 \
+  -e NODE_ENV=production \
+  -e API_PORT=3000 \
+  -p 127.0.0.1:8092:3000 \
+  --memory 1024m --memory-swap 1024m --cpus 1 --pids-limit 512 \
+  --health-cmd "node -e 'fetch(`http://127.0.0.1:3000/health`).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))'" \
+  --health-interval 30s --health-start-period 90s \
+  t27ai-bot:local
+ExecStop=/usr/bin/docker stop -t 30 t27ai-bot
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

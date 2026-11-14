@@ -79,6 +79,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentTeam,
   handleAgentConversations,
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
@@ -101,6 +102,8 @@ import {
   clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
+import { isCoursePath, handleCourse } from './src/agent/course-access'
+import { isCheckoutPath, handleCheckout } from './src/agent/course-checkout'
 import {
   isAgentPackageSalePath,
   handleAgentPackageSale,
@@ -536,7 +539,7 @@ import {
   CLUB_ONLY_STATUS,
   mayViewProfile,
 } from './src/club/profile-visibility'
-import { clubAccessFor } from './src/agent/club-membership'
+import { clubAccessFor, clubStatus } from './src/agent/club-membership'
 import {
   serveShelfRequest,
   createShelfVideo,
@@ -2962,14 +2965,21 @@ setTimeout(
  * timer restarted by every deploy often never fired at all. The pace (once
  * a day) lives in blog_shares.asked_at, not here.
  * Off unless BLOG_SHARE_ENABLED=1. The interval is the spec's TICK_MS
- * (specs/automation/blog-share.t27).
+ * (specs/automation/blog-share.t27). With BLOG_AUTOPOST=1 too (spec v6,
+ * src/agent/blog-autopost.ts) articles go out without a question: new ones
+ * at once, the backlog at 06:00 and 14:00 UTC, the Telegram channel among
+ * the networks; the owner gets a receipt.
  */
 setInterval(() => {
   void (async () => {
     try {
       const { runBlogShare } = await import('./src/agent/blog-share-wiring')
       const said = await runBlogShare(getPool() as any)
-      if (said !== 'off' && said !== 'asked today already')
+      if (
+        said !== 'off' &&
+        said !== 'asked today already' &&
+        said !== 'autopost: articles are posted, not asked about'
+      )
         console.log(`[blog-share] ${said}`)
     } catch (e) {
       console.error('[blog-share] failed:', String(e).slice(0, 300))
@@ -8999,6 +9009,63 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /*
+   * The ladder to the t27 courses (src/agent/course-access.ts, spec
+   * automation/course-access.t27): the bot mints a reader's key with the
+   * server key, t27.ai checks it and reports finished lessons with it; every
+   * reader past the bot is filed in the owner's CRM and the owner is told.
+   */
+  /*
+   * The club bought on t27.ai in roubles by a reader without Telegram
+   * (src/agent/course-checkout.ts): an order, Robokassa's ResultUrl2
+   * notification, the way back to the course page, and the site's poll for
+   * the paid key. Off unless CLUB_RUB_PRICE and the Robokassa values are set.
+   * The same club in TON (src/agent/course-checkout-ton.ts) is on when the
+   * bot's TON_WALLET_ADDRESS is set and a fresh TON/USD rate is at hand; its
+   * order poll reads toncenter.
+   */
+  if (isCheckoutPath(req.url?.split('?')[0] || '')) {
+    const out = await handleCheckout(req as any, {
+      getPool: async () => (await getPool()) as any,
+      readBody: r => readBody(r as any),
+    })
+    if (out.location) {
+      res.writeHead(302, { Location: out.location })
+      res.end()
+    } else if (out.text !== undefined) {
+      res.writeHead(out.status, {
+        'Content-Type': 'text/plain; charset=utf-8',
+      })
+      res.end(out.text)
+    } else {
+      res.writeHead(out.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(out.body ?? {}))
+    }
+    return
+  }
+
+  if (isCoursePath(req.url?.split('?')[0] || '')) {
+    const out = await handleCourse(req, {
+      getPool: async () => (await getPool()) as any,
+      isServer: r => hasServerKey(r as any),
+      readBody: r => readBody(r as any),
+      // The club exactly as handleClub reads it: paid months and free passes.
+      club: async id => {
+        const pool = (await getPool()) as any
+        const s = await clubStatus(
+          pool,
+          id,
+          new Date(),
+          await clubAccessFor(id, clubGrantSource())
+        )
+        return { active: s.active, daysLeft: s.days_left }
+      },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   // The agent packages' Stars till: the launch, then the monthly
   // subscription, booked from the same cashier's ledger (agent-package-sale.ts).
   if (isAgentPackageSalePath(req.url?.split('?')[0] || '')) {
@@ -9313,6 +9380,12 @@ const server = createServer(async (req, res) => {
       getPool,
       personOf: personIdentity,
       readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+      // The public doors' budget is per caller; the same address the traffic
+      // counter uses (forgeable, so it slows a spray and nothing more).
+      callerOf: r =>
+        String(r.headers['x-forwarded-for'] || '')
+          .split(',')[0]
+          .trim() || String(r.socket?.remoteAddress || ''),
       proofDomain: process.env.TRI_PROOF_DOMAIN || 'app.t27.ai', // app-link-ok: a ton_proof domain, not a link
     })
   )
@@ -9483,6 +9556,21 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleCardMove(req, res, String(who))
+    return
+  }
+
+  /*
+   * /api/agent/team -- the person's team of agents in the mini-app
+   * (bot-agent-team.t27): the members, and a hire that makes the bot tab.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/team') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    await handleAgentTeam(req, res, String(who), getPool)
     return
   }
 
