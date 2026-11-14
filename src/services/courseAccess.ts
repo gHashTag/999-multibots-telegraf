@@ -61,6 +61,40 @@ export function courseIntent(payload: string | undefined): CourseIntent | null {
   return m ? { step: m[1] as 'bot' | 'paid', route: m[2] } : null
 }
 
+/**
+ * How long a course press waits on the data layer (Supabase, the session
+ * Redis) after it has already been answered.
+ */
+export const COURSE_DATA_TIMEOUT_MS = 4_000 // t27-plumbing: a wait bound on a store call, not a rule of the ladder
+
+export type Bounded<T> = { done: true; value: T } | { done: false }
+
+/**
+ * A data-layer call that may not hold a course press. Resolves `{ done: true }`
+ * with the value, or `{ done: false }` when the call is slower than `ms` or
+ * rejects. Never throws; a late rejection is swallowed by the race, and the
+ * timer never outlives the call.
+ */
+export async function boundedDataCall<T>(
+  work: Promise<T>,
+  ms: number = COURSE_DATA_TIMEOUT_MS
+): Promise<Bounded<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work.then(value => ({ done: true as const, value })),
+      new Promise<{ done: false }>(resolve => {
+        timer = setTimeout(() => resolve({ done: false }), ms)
+      }),
+    ])
+  } catch (e) {
+    logger.warn('Course press: data call failed', { error: String(e) })
+    return { done: false }
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export type CourseKeyOutcome =
   | { kind: 'key'; url: string; until: string }
   | { kind: 'no_club' }

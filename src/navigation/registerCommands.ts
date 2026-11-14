@@ -277,6 +277,7 @@ import {
   placePackageOrder,
 } from '@/services/agentPackageOrder'
 import {
+  boundedDataCall,
   courseIntent,
   courseKeyReply,
   requestCourseKey,
@@ -3330,9 +3331,62 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       await ctx.scene.leave()
       console.log('🔴 [DEBUG /start] Scene left. Checking user...')
 
+      /*
+       * THE COURSE KEY IS HANDED OVER BEFORE ANYTHING ELSE, and before the
+       * data layer is asked a thing: a new reader goes through
+       * CreateUserScene next, and a press must be answered even when the
+       * database is slow or off. The render decides (spec
+       * automation/course-access.t27), files the reader in the owner's CRM and
+       * tells the owner; this only carries the press and the answer. No club
+       * -> the club card, so a press never dead-ends.
+       */
+      if (courseStep && ctx.from) {
+        const outcome = await requestCourseKey(ctx.from, courseStep)
+        const reply = courseKeyReply(
+          isRussianFromState(ctx),
+          courseStep,
+          outcome
+        )
+        await ctx.reply(
+          reply.text,
+          reply.button
+            ? Markup.inlineKeyboard([
+                [Markup.button.url(reply.button.label, reply.button.url)],
+              ])
+            : undefined
+        )
+        if (outcome.kind === 'no_club') {
+          wantsClub = true
+          ctx.session.clubDeepLink = true
+          // The charge lands at the cashier bot, whose session is not this
+          // one: the course is kept per person, and handed back after paying.
+          // Bounded: the store may be slow, and the press is already answered.
+          await boundedDataCall(
+            wantedCourses().set(String(ctx.from.id), courseStep.route)
+          )
+        }
+      }
+
       // Check if user exists
       const { getUserDetailsSubscription } = await import('@/core/supabase')
-      const userDetails = await getUserDetailsSubscription(telegramId)
+      /*
+       * On a course press the lookup is bounded: the press is answered above,
+       * and a slow or failing store must not bury the key under an error or
+       * hang the chat. The reader presses again; nothing else is decided here.
+       */
+      const lookedUp = courseStep
+        ? await boundedDataCall(getUserDetailsSubscription(telegramId))
+        : {
+            done: true as const,
+            value: await getUserDetailsSubscription(telegramId),
+          }
+      if (!lookedUp.done) {
+        logger.warn('Course press: user lookup did not answer in time', {
+          telegramId,
+        })
+        return
+      }
+      const userDetails = lookedUp.value
 
       console.log('🔴 [DEBUG /start] userExists:', userDetails.isExist)
 
@@ -3356,40 +3410,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         await ctx.reply(
           agentPackageOrderReply(isRussianFromState(ctx), outcome)
         )
-      }
-
-      /*
-       * THE COURSE KEY IS HANDED OVER BEFORE ANYTHING ELSE, for the same
-       * reason as the order above: a new reader goes through CreateUserScene
-       * next. The render decides (spec automation/course-access.t27), files
-       * the reader in the owner's CRM and tells the owner; this only carries
-       * the press and the answer. No club -> the club card, so a press never
-       * dead-ends.
-       */
-      if (courseStep && ctx.from) {
-        const outcome = await requestCourseKey(ctx.from, courseStep)
-        const reply = courseKeyReply(
-          isRussianFromState(ctx),
-          courseStep,
-          outcome
-        )
-        await ctx.reply(
-          reply.text,
-          reply.button
-            ? Markup.inlineKeyboard([
-                [Markup.button.url(reply.button.label, reply.button.url)],
-              ])
-            : undefined
-        )
-        if (outcome.kind === 'no_club') {
-          wantsClub = true
-          ctx.session.clubDeepLink = true
-          // The charge lands at the cashier bot, whose session is not this
-          // one: the course is kept per person, and handed back after paying.
-          await wantedCourses()
-            .set(String(ctx.from.id), courseStep.route)
-            .catch(() => undefined)
-        }
       }
 
       if (!userDetails.isExist) {
