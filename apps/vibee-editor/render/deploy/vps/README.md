@@ -22,6 +22,26 @@ touched or restarted.
 The host has no `docker compose` plugin, so the units call `docker run`
 directly; nothing is installed on the host.
 
+## The ladder unit, beside the render
+
+On 2026-11-12 another session rebuilt `t27ai-render` into a per-user browser
+pod build (docker socket, `BROWSER_POD_*`) that has no course routes. That
+build keeps port 8090 and is not touched here. The course ladder runs as a
+second unit next to it:
+
+| Part                     | How                                                                           | Listens          |
+| ------------------------ | ----------------------------------------------------------------------------- | ---------------- |
+| `t27ai-ladder.service`   | image `t27ai-ladder:local` built from `origin/main`, 1.5 GB, 1 CPU, no socket | `127.0.0.1:8091` |
+| `/opt/t27ai-ladder/.env` | mode 0600: `DATABASE_URL`, `SESSION_SIGNING_KEY`, `RENDER_API_KEY`            | not a listener   |
+| Caddy handle `@ladder`   | `/api/course/*` only, placed before `@render`; the rest stays on 8090         | same vhost       |
+
+The ladder shares the Postgres of `t27ai-render-db` over `t27ai-net` and the
+same three names as the render, so a key minted by either server verifies on
+both. Deploy it like the steps below, with `/opt/t27ai-ladder/src` as the
+source directory, `-t t27ai-ladder:local` and `t27ai-ladder.service`. Roll it
+back with `systemctl disable --now t27ai-ladder` and the previous Caddyfile
+copy (`/etc/caddy/Caddyfile.bak-<date>-ladder`).
+
 ## Deploy
 
 1. Source (a clean tree, no `node_modules`), from a checkout of the commit to

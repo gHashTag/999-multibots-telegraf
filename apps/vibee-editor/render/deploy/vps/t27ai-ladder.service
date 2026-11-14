@@ -1,0 +1,24 @@
+# /etc/systemd/system/t27ai-ladder.service
+# The course ladder: the same render image, built from origin/main into its own
+# tag, serving only /api/course/* (Caddy routes that path here). It sits beside
+# t27ai-render (port 8090) and never touches it: own directory /opt/t27ai-ladder,
+# own env file, own image t27ai-ladder:local, own container name, own port,
+# hard memory and CPU caps, no docker socket. It shares the Postgres of
+# t27ai-render-db over the docker network t27ai-net.
+# Roll back with `systemctl disable --now t27ai-ladder` and restore the Caddy
+# copy; nothing else on the host depends on this unit.
+[Unit]
+Description=t27ai-ladder (course ladder render, beside t27ai-render)
+Requires=docker.service t27ai-render-db.service
+After=docker.service t27ai-render-db.service network-online.target
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/docker rm -f t27ai-ladder
+ExecStart=/usr/bin/docker run --rm --init --name t27ai-ladder --network t27ai-net --env-file /opt/t27ai-ladder/.env -e PORT=8080 -p 127.0.0.1:8091:8080 --memory 1536m --memory-swap 1536m --cpus 1 --pids-limit 512 --health-cmd "wget -qO- http://127.0.0.1:8080/health" --health-interval 30s --health-start-period 120s t27ai-ladder:local
+ExecStop=/usr/bin/docker stop -t 30 t27ai-ladder
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
