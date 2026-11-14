@@ -103,6 +103,12 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import { isCoursePath, handleCourse } from './src/agent/course-access'
+import {
+  CHAT_BODY_MAX,
+  chatCorsHeaders,
+  handleChat,
+} from './src/agent/course-chat'
+import { CHAT_ROUTE } from './src/spec/course-chat.gen'
 import { isCheckoutPath, handleCheckout } from './src/agent/course-checkout'
 import {
   isAgentPackageSalePath,
@@ -3674,6 +3680,16 @@ const server = createServer(async (req, res) => {
   // exactly these paths the answer names the origin and allows credentials.
   // Every other origin and path keeps the answer above.
   applyAuthCors(req, res)
+  // The course helper chat answers for the page's own origin only
+  // (src/agent/course-chat.ts): the `*` above is replaced on this path.
+  const chatCors = chatCorsHeaders(
+    req.url?.split('?')[0] || '',
+    req.headers.origin
+  )
+  if (chatCors)
+    for (const [name, value] of Object.entries(chatCors))
+      if (value === null) res.removeHeader(name)
+      else res.setHeader(name, value)
 
   // auth.t27.ai holds the refresh cookie, so nothing a person uploaded may be
   // served from it (src/auth/refresh-cookie.ts authHostRefuses).
@@ -9041,6 +9057,17 @@ const server = createServer(async (req, res) => {
       res.writeHead(out.status, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(out.body ?? {}))
     }
+    return
+  }
+
+  // The course helper chat: free model only, its own windows and daily cap.
+  if ((req.url?.split('?')[0] || '') === CHAT_ROUTE) {
+    const out = await handleChat(req, {
+      // t27-plumbing: a small body, a short read; a larger or slower one is a bad request
+      readBody: r => readBody(r as any, CHAT_BODY_MAX, 10_000),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
     return
   }
 
