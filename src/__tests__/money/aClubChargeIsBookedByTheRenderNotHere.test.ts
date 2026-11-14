@@ -147,7 +147,7 @@ describe('a club charge', () => {
         key: KEY,
       },
       {
-        url: 'https://vibee-render-production.up.railway.app/api/course/key',
+        url: 'https://t27ai-130-17-9-230.sslip.io/api/course/key',
         method: 'POST',
         key: KEY,
       },

@@ -16,12 +16,12 @@ import { sharedKvClient, type KvClient } from '@/core/session/sessionStore'
 
 /*
  * The render the bot calls. RENDER_BASE_URL points it at any T27OS node (on
- * the Fornex VPS: the ladder unit, http://t27ai-ladder:8080); unset, it is the
- * old address, as in the sibling services.
+ * the Fornex VPS the bot unit sets the ladder's in-network name,
+ * http://t27ai-ladder:8080); unset, it is the VPS host, whose Caddy routes
+ * /api/course/* to the ladder unit.
  */
 const RENDER =
-  process.env.RENDER_BASE_URL ||
-  'https://vibee-render-production.up.railway.app'
+  process.env.RENDER_BASE_URL || 'https://t27ai-130-17-9-230.sslip.io'
 const TIMEOUT_MS = 12_000 // t27-plumbing: an HTTP timeout, not a rule of the ladder
 const SITE = 'https://t27.ai'
 
