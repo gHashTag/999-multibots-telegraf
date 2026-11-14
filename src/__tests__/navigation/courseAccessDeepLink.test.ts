@@ -73,7 +73,7 @@ describe('course deep link', () => {
       }
     )
     expect(seen[0].url).toBe(
-      'https://vibee-render-production.up.railway.app/api/course/key'
+      'https://t27ai-130-17-9-230.sslip.io/api/course/key'
     )
     expect(seen[0].init.headers['X-Api-Key']).toBe('server-key')
     expect(JSON.parse(seen[0].init.body)).toMatchObject({
