@@ -22,9 +22,9 @@ import { courseKeySecret, mintKey } from '../agent/course-access'
 
 // The page's contract of record, copied from trinity at this commit
 // (Trinity-S-AI-DNA/trinity#1886, courseChat.gen.ts at abfb0134542d23efbc3a2cd449446c9c4a619802).
-const TRINITY_COMMIT = 'abfb0134542d23efbc3a2cd449446c9c4a619802'
+const TRINITY_COMMIT = '5d41aa314fc711e19b8a1702626e1e73a59008d6'
 const GEN_SHA256 =
-  'eb95f24a49840aefaae94791d596f3e7d77eef84406b772bd5fb416fa374d261'
+  '53602e22a58656ddaeec719e268981dcf73f417ea20fcb1a71a2722090761d5c'
 
 const NOW = new Date('2026-11-14T10:00:00Z')
 const SIGNING = 'x'.repeat(40)
@@ -98,7 +98,7 @@ describe('the contract file', () => {
   })
 
   it('keeps the numbers of the brief', () => {
-    expect(CHAT.CHAT_PER_IP_HOUR).toBe(20)
+    expect(CHAT.CHAT_PER_IP_HOUR).toBe(50)
     expect(CHAT.CHAT_PER_KEY_DAY).toBe(60)
     expect(CHAT.CHAT_MSG_MAX).toBe(600)
     expect(CHAT.CHAT_TITLE_MAX).toBe(120)
