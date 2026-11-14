@@ -15,10 +15,13 @@ import { sharedKvClient, type KvClient } from '@/core/session/sessionStore'
  */
 
 /*
- * A literal, like every other render call in this service: a URL assembled
- * from the environment reads to the scanner as SSRF, and there is one render.
+ * The render the bot calls. RENDER_BASE_URL points it at any T27OS node (on
+ * the Fornex VPS: the ladder unit, http://t27ai-ladder:8080); unset, it is the
+ * old address, as in the sibling services.
  */
-const RENDER = 'https://vibee-render-production.up.railway.app'
+const RENDER =
+  process.env.RENDER_BASE_URL ||
+  'https://vibee-render-production.up.railway.app'
 const TIMEOUT_MS = 12_000 // t27-plumbing: an HTTP timeout, not a rule of the ladder
 const SITE = 'https://t27.ai'
 
