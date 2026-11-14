@@ -33,14 +33,44 @@ export const CHAT_CLOSE = "Close" satisfies string;
 export const CHAT_WORKING = "The helper is thinking." satisfies string;
 export const CHAT_OFFLINE = "The assistant is offline." satisfies string;
 export const CHAT_OFFLINE_LIMIT = "The assistant is offline for now: the question limit is reached. Try again later." satisfies string;
+export const CHAT_OFFLINE_TURN_LIMIT = "You have reached the turn limit for this lesson. Open the lesson page to start a new conversation." satisfies string;
 export const CHAT_OFFLINE_BAD = "The assistant is offline: this question cannot be sent. Shorten it and try again." satisfies string;
 export const CHAT_OFFLINE_BUSY = "The assistant is busy right now. Try again in a moment." satisfies string;
+export const CHAT_UNANSWERED = "The helper is offline, so your message was not answered. Try again later." satisfies string;
+export const CHAT_UNANSWERED_RU = "ÐÐ¾Ð¼Ð¾ÑÐ½Ð¸Ðº ÑÐµÐ¹ÑÐ°Ñ Ð½Ðµ Ð² ÑÐµÑÐ¸, Ð¿Ð¾ÑÑÐ¾Ð¼Ñ Ð²Ð°ÑÐµ ÑÐ¾Ð¾Ð±ÑÐµÐ½Ð¸Ðµ Ð¾ÑÑÐ°Ð»Ð¾ÑÑ Ð±ÐµÐ· Ð¾ÑÐ²ÐµÑÐ°. ÐÐ¾Ð¿ÑÐ¾Ð±ÑÐ¹ÑÐµ Ð¿Ð¾Ð·Ð¶Ðµ." satisfies string;
+export const CHAT_WAIT_NOTE = "The helper is still answering your last question, so this message was not sent. Ask again in a moment." satisfies string;
+export const CHAT_WAIT_NOTE_RU = "ÐÐ¾Ð¼Ð¾ÑÐ½Ð¸Ðº ÐµÑÑ Ð¾ÑÐ²ÐµÑÐ°ÐµÑ Ð½Ð° Ð¿ÑÐ¾ÑÐ»ÑÐ¹ Ð²Ð¾Ð¿ÑÐ¾Ñ, Ð¿Ð¾ÑÑÐ¾Ð¼Ñ ÑÑÐ¾ ÑÐ¾Ð¾Ð±ÑÐµÐ½Ð¸Ðµ Ð½Ðµ Ð¾ÑÐ¿ÑÐ°Ð²Ð»ÐµÐ½Ð¾. Ð¡Ð¿ÑÐ¾ÑÐ¸ÑÐµ ÐµÑÑ ÑÐ°Ð· ÑÑÑÑ Ð¿Ð¾Ð·Ð¶Ðµ." satisfies string;
+export const ACT_IGNORE = 0 satisfies number;
+export const ACT_SEND = 1 satisfies number;
+export const ACT_REPROBE = 2 satisfies number;
+export const ACT_WAIT = 3 satisfies number;
+export const ACT_LIMIT = 4 satisfies number;
 export const CHAT_PROMPT_HEAD = "You are the course helper on t27.ai for the course \"" satisfies string;
 export const CHAT_PROMPT_LESSON = "\", open at the lesson \"" satisfies string;
+export const CHAT_PROMPT_BODY = "\". Lesson text: \"" satisfies string;
 export const CHAT_PROMPT_TAIL = "\". Answer the reader's question about this course and lesson in at most five short sentences, in the language the reader writes in. If you do not know, say \"I do not know\" and do not guess or invent facts. Never ask for or repeat a key, a token or a password. You have no tools: you cannot run code, open links or remember earlier chats." satisfies string;
+export const CHAT_BODY_MAX = 1500 satisfies number;
 export const CHAT_WIDE_MIN = 1000 satisfies number;
-export const CHAT_CSS = ".course-main:has(.cc){padding-right:360px}.cc{position:fixed;top:84px;right:20px;bottom:20px;width:320px;display:flex;flex-direction:column;background:#000;color:#f2f2f2;border:1px solid #fff;z-index:30;font-family:var(--font)}.cc-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #fff}.cc-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin:0}.cc-x{display:none;background:none;border:0;color:#f2f2f2;font:inherit;cursor:pointer}.cc-hint{font-size:12px;color:#8a8a8a;margin:0;padding:8px 12px 0}.cc-log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}.cc-m{margin:0;padding:8px 10px;border:1px solid #333;white-space:pre-wrap;overflow-wrap:anywhere}.cc-you{border-color:#fff;align-self:flex-end}.cc-off{color:#8a8a8a;border-style:dashed}.cc-form{display:flex;gap:8px;padding:12px;border-top:1px solid #fff}.cc-in{flex:1;min-width:0;min-height:40px;max-height:120px;resize:none;background:#000;color:#f2f2f2;border:1px solid #fff;padding:8px;font:inherit;font-size:16px}.cc-go{background:#fff;color:#000;border:0;padding:0 14px;font:inherit;font-weight:700;cursor:pointer}.cc-go:disabled{background:#8a8a8a;cursor:default}.cc-open{display:none}" satisfies string;
-export const CHAT_CSS_SHEET = "@media (max-width:999px){.course-main:has(.cc){padding-right:20px}.cc{display:none;top:auto;left:0;right:0;bottom:0;width:auto;height:70vh}.cc.is-open{display:flex}.cc-x{display:block}.cc-open{display:block;position:fixed;right:16px;bottom:16px;z-index:30;background:#fff;color:#000;border:0;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer}.cc.is-open ~ .cc-open{display:none}}" satisfies string;
+export const CHAT_GUTTER = 20 satisfies number;
+export const CHAT_DOCK_PAD = 360 satisfies number;
+export const CHAT_COLUMN_MIN = 600 satisfies number;
+export const CHAT_AVATAR = "ghashtag-avatar.jpg" satisfies string;
+export const CHAT_AVATAR_PX = 67 satisfies number;
+export const CHAT_HEAD_AVATAR_PX = 36 satisfies number;
+export const CHAT_TAP_MIN = 44 satisfies number;
+export const CHAT_SHEET_MAX = 520 satisfies number;
+export const CHAT_TABLET_MIN = 600 satisfies number;
+export const CHAT_LANDSCAPE_MAX_H = 480 satisfies number;
+export const CHAT_CSS = ".course-main:has(.cc){padding-right:360px}.cc{position:fixed;top:84px;right:20px;bottom:20px;width:320px;display:flex;flex-direction:column;background:#000;color:#f2f2f2;border:1px solid #fff;z-index:30;font-family:var(--font)}.cc-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #fff}.cc-av{display:block;flex:none;width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #fff}.cc-title{flex:1;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin:0}.cc-x{display:none;background:none;border:0;color:#f2f2f2;font:inherit;cursor:pointer}.cc-hint{font-size:12px;color:#8a8a8a;margin:0;padding:8px 12px 0}.cc-log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}.cc-m{margin:0;padding:8px 10px;border:1px solid #333;white-space:pre-wrap;overflow-wrap:anywhere}.cc-you{border-color:#fff;align-self:flex-end}.cc-off{color:#8a8a8a;border-style:dashed}.cc-form{display:flex;gap:8px;padding:12px;border-top:1px solid #fff}.cc-in{flex:1;min-width:0;min-height:44px;max-height:120px;resize:none;background:#000;color:#f2f2f2;border:1px solid #fff;padding:8px;font:inherit;font-size:16px}.cc-go{background:#fff;color:#000;border:0;padding:0 14px;min-width:44px;min-height:44px;font:inherit;font-weight:700;cursor:pointer}.cc-go:disabled{background:#8a8a8a;cursor:default}.cc-open{display:none}" satisfies string;
+export const CHAT_CSS_SHEET = "@media (max-width:999px){.course-main:has(.cc){--cc-o:clamp(44px,13.4vw,67px);--cc-gap:16px;padding-right:20px;padding-bottom:calc(var(--cc-o) + 2 * var(--cc-gap) + env(safe-area-inset-bottom,0px))}.cc{--cc-at:calc(100% - var(--cc-gap) - var(--cc-o) / 2 - env(safe-area-inset-right,0px)) calc(100% - var(--cc-gap) - var(--cc-o) / 2 - env(safe-area-inset-bottom,0px));top:auto;left:0;right:0;bottom:0;width:auto;height:70vh;height:70dvh;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);visibility:hidden;pointer-events:none;opacity:0;clip-path:circle(calc(var(--cc-o) / 2) at var(--cc-at))}.cc.is-open{visibility:visible;pointer-events:auto;opacity:1;clip-path:circle(150% at var(--cc-at))}.cc-x{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px}.cc-form{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}.cc-open{display:block;position:fixed;right:calc(var(--cc-gap) + env(safe-area-inset-right,0px));bottom:calc(var(--cc-gap) + env(safe-area-inset-bottom,0px));z-index:31;width:var(--cc-o);height:var(--cc-o);padding:0;overflow:hidden;background:#000;border:1px solid #fff;border-radius:50%;cursor:pointer}.cc-open img{display:block;width:100%;height:100%;object-fit:cover}.cc-open:focus-visible{outline:2px solid #fff;outline-offset:3px}}@media (min-width:600px) and (max-width:999px){.cc{left:auto;width:min(100%,520px)}}@media (max-width:999px) and (max-height:480px){.cc{height:calc(100vh - 16px);height:calc(100dvh - 16px)}.cc-hint{display:none}.cc-head{padding:6px 12px}.cc-av{width:28px;height:28px}}" satisfies string;
+export const CHAT_CSS_MOTION = "@media (max-width:999px){.cc{transition:clip-path .38s cubic-bezier(.4,0,.6,1),opacity .2s linear .18s,visibility 0s .38s}.cc.is-open{transition:clip-path .55s cubic-bezier(.22,1,.36,1),opacity .12s linear,visibility 0s}.cc-open{transition:opacity .25s ease .2s,transform .4s cubic-bezier(.34,1.56,.64,1) .2s,visibility 0s}.cc.is-open ~ .cc-open{opacity:0;transform:scale(.5);pointer-events:none;visibility:hidden;transition:opacity .22s ease,transform .3s ease,visibility 0s .3s}.cc-av{opacity:0;transform:scale(.4);transition:opacity .12s linear,transform .2s ease}.cc.is-open .cc-av{opacity:1;transform:none;transition:opacity .25s linear .2s,transform .5s cubic-bezier(.34,1.56,.64,1) .2s}.cc-hint,.cc-log,.cc-form{opacity:0;transform:translateY(12px);transition:opacity .12s linear,transform .2s ease}.cc.is-open .cc-hint,.cc.is-open .cc-log,.cc.is-open .cc-form{opacity:1;transform:none;transition:opacity .35s linear .24s,transform .45s cubic-bezier(.22,1,.36,1) .24s}}@media (prefers-reduced-motion:reduce){.cc,.cc.is-open,.cc-open,.cc.is-open ~ .cc-open,.cc-av,.cc.is-open .cc-av,.cc-hint,.cc-log,.cc-form,.cc.is-open .cc-hint,.cc.is-open .cc-log,.cc.is-open .cc-form{transition:none!important}}" satisfies string;
+export const CHAT_GLASS_ALPHA = 209 satisfies number;
+export const CHAT_GLASS_ALPHA_MIN = 200 satisfies number;
+export const CHAT_GLASS_ALPHA_MAX = 235 satisfies number;
+export const CHAT_GLASS_BLUR_PX = 18 satisfies number;
+export const CHAT_GLASS_BLUR_MIN = 8 satisfies number;
+export const CHAT_GLASS_BLUR_MAX = 40 satisfies number;
+export const CHAT_CSS_GLASS = ".cc{background:#000000d1;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-color:#ffffff59}.cc-m{border-color:#ffffff33}.cc-you{border-color:#fff}.cc-in{background:#00000066}.cc-hint,.cc-off{color:#a3a3a3}@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.cc,.cc-in{background:#000}}@media (prefers-reduced-transparency:reduce){.cc,.cc-in{background:#000;-webkit-backdrop-filter:none;backdrop-filter:none}}" satisfies string;
 // t27c gen-ts: fn chat_enabled was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn same was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn reason_name was not emitted -- this backend lowers declarations, not bodies.
@@ -55,6 +85,9 @@ export const CHAT_CSS_SHEET = "@media (max-width:999px){.course-main:has(.cc){pa
 // t27c gen-ts: fn fallback_allowed was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn client_reason was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn probe_reason was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn unanswered_text was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn send_plan was not emitted -- this backend lowers declarations, not bodies.
+// t27c gen-ts: fn logs_line was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn answer_keep was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn put was not emitted -- this backend lowers declarations, not bodies.
 // t27c gen-ts: fn system_prompt was not emitted -- this backend lowers declarations, not bodies.
@@ -84,10 +117,38 @@ export const CHAT_CSS_SHEET = "@media (max-width:999px){.course-main:has(.cc){pa
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 // t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
+// t27c gen-ts: a TestBlock was not emitted -- it is checked by the compiler, not by the artifact.
 
 // Declaration order, which the spec's own laws depend on.
 export const __STRUCT_ORDER__ = [] as const;
-export const __DECL_ORDER__ = ["CHAT_ROUTE", "CHAT_COURSES", "CHAT_MSG_MAX", "CHAT_TITLE_MAX", "CHAT_ANSWER_MAX", "CHAT_PER_IP_HOUR", "CHAT_PER_KEY_DAY", "CHAT_TIMEOUT_MS", "CHAT_GLOBAL_DAY", "CHAT_TURNS_MAX", "CHAT_PROBE_RETRY_MS", "CHAT_PAID_FALLBACK", "REASON_NONE", "REASON_UNREACHABLE", "REASON_TIMEOUT", "REASON_STATUS", "REASON_EMPTY", "REASON_LIMIT", "REASON_OFF", "REASON_BAD_REQUEST", "REASON_BUSY", "CHAT_TITLE", "CHAT_HINT", "CHAT_PLACEHOLDER", "CHAT_SEND", "CHAT_OPEN", "CHAT_CLOSE", "CHAT_WORKING", "CHAT_OFFLINE", "CHAT_OFFLINE_LIMIT", "CHAT_OFFLINE_BAD", "CHAT_OFFLINE_BUSY", "CHAT_PROMPT_HEAD", "CHAT_PROMPT_LESSON", "CHAT_PROMPT_TAIL", "CHAT_WIDE_MIN", "CHAT_CSS", "CHAT_CSS_SHEET"] as const;
+export const __DECL_ORDER__ = ["CHAT_ROUTE", "CHAT_COURSES", "CHAT_MSG_MAX", "CHAT_TITLE_MAX", "CHAT_ANSWER_MAX", "CHAT_PER_IP_HOUR", "CHAT_PER_KEY_DAY", "CHAT_TIMEOUT_MS", "CHAT_GLOBAL_DAY", "CHAT_TURNS_MAX", "CHAT_PROBE_RETRY_MS", "CHAT_PAID_FALLBACK", "REASON_NONE", "REASON_UNREACHABLE", "REASON_TIMEOUT", "REASON_STATUS", "REASON_EMPTY", "REASON_LIMIT", "REASON_OFF", "REASON_BAD_REQUEST", "REASON_BUSY", "CHAT_TITLE", "CHAT_HINT", "CHAT_PLACEHOLDER", "CHAT_SEND", "CHAT_OPEN", "CHAT_CLOSE", "CHAT_WORKING", "CHAT_OFFLINE", "CHAT_OFFLINE_LIMIT", "CHAT_OFFLINE_TURN_LIMIT", "CHAT_OFFLINE_BAD", "CHAT_OFFLINE_BUSY", "CHAT_UNANSWERED", "CHAT_UNANSWERED_RU", "CHAT_WAIT_NOTE", "CHAT_WAIT_NOTE_RU", "ACT_IGNORE", "ACT_SEND", "ACT_REPROBE", "ACT_WAIT", "ACT_LIMIT", "CHAT_PROMPT_HEAD", "CHAT_PROMPT_LESSON", "CHAT_PROMPT_BODY", "CHAT_PROMPT_TAIL", "CHAT_BODY_MAX", "CHAT_WIDE_MIN", "CHAT_GUTTER", "CHAT_DOCK_PAD", "CHAT_COLUMN_MIN", "CHAT_AVATAR", "CHAT_AVATAR_PX", "CHAT_HEAD_AVATAR_PX", "CHAT_TAP_MIN", "CHAT_SHEET_MAX", "CHAT_TABLET_MIN", "CHAT_LANDSCAPE_MAX_H", "CHAT_CSS", "CHAT_CSS_SHEET", "CHAT_CSS_MOTION", "CHAT_GLASS_ALPHA", "CHAT_GLASS_ALPHA_MIN", "CHAT_GLASS_ALPHA_MAX", "CHAT_GLASS_BLUR_PX", "CHAT_GLASS_BLUR_MIN", "CHAT_GLASS_BLUR_MAX", "CHAT_CSS_GLASS"] as const;
 
 // What this spec holds and this backend did not print. Empty is the whole
 // story most of the time; an entry here is a promise the artifact does not
