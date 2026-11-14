@@ -83,39 +83,58 @@ block and reload. The volume `t27ai-pgdata` keeps the data until
 
 ## Secrets by name
 
-| Name                                | Where                       | Who                                                                                                                           |
-| ----------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `POSTGRES_PASSWORD` (+ user, db)    | `db.env`                    | generated on the VPS, never shown                                                                                             |
-| `DATABASE_URL`                      | render `.env`               | built on the VPS from the above                                                                                               |
-| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env`               | generated on the VPS; changing it kills every issued key                                                                      |
-| `RENDER_API_KEY`                    | render `.env` and `bot.env` | generated on the VPS; the same value on both sides                                                                            |
-| `OWNER_TELEGRAM_ID`                 | render `.env`               | owner                                                                                                                         |
-| `TELEGRAM_BOT_TOKEN`                | render `.env`               | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
-| `BOT_TOKEN_12`                      | `bot.env`                   | owner, from @BotFather, written on the VPS by the owner himself                                                               |
+| Name                                | Where                           | Who                                                                                                                           |
+| ----------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD` (+ user, db)    | `db.env`                        | generated on the VPS, never shown                                                                                             |
+| `DATABASE_URL`                      | render `.env`                   | built on the VPS from the above                                                                                               |
+| `SESSION_SIGNING_KEY` (>= 32 chars) | render `.env`                   | generated on the VPS; changing it kills every issued key                                                                      |
+| `RENDER_API_KEY`                    | render `.env`, `render-key.env` | generated on the VPS; the same value on both sides (the bot's copy is `/opt/t27ai-bot/render-key.env`)                        |
+| `OWNER_TELEGRAM_ID`                 | render `.env`                   | owner                                                                                                                         |
+| `TELEGRAM_BOT_TOKEN`                | render `.env`                   | owner, from @BotFather (the house bot the owner is notified through); optional, a missing one only silences the owner message |
+| `BOT_TOKEN_12`                      | `bot.env`                       | owner, from @BotFather, written on the VPS by the owner himself                                                               |
 
-## Needs the owner (the bot)
+## The bot unit (`t27ai-bot`, @t27ai_bot)
 
-Everything above makes the render, the course key and the CRM touches work.
-The bot process (`t27ai-bot`, the Telegraf monolith, root `Dockerfile`) is
-**not started by this kit** until these are settled:
+The Telegraf monolith (root `Dockerfile`), a third unit beside `t27ai-render`
+(8090) and `t27ai-ladder` (8091). It is installed **disabled** and starts only
+when the owner has written the token. The course door reads
+`RENDER_BASE_URL` since #4075; the unit sets it to the **ladder**
+(`http://t27ai-ladder:8080`), because the render on 8090 has no `/api/course/*`.
 
-- a fresh `BOT_TOKEN_12` from @BotFather (the old tokens answer 401/404); the
-  owner writes it into `bot.env` on the VPS;
-- the monolith's data store: it reads Supabase through Infisical in
-  production and the Railway gateway it used is gone;
-- the one-line change below.
+What is staged on the VPS, none of it started:
 
-## Parked (hand-written TypeScript, not in this PR)
+- `/opt/t27ai-bot/src`: a trimmed `git archive` of main (`src`, `scripts`,
+  `package*.json`, `Dockerfile`, `tsconfig*.json`); image `t27ai-bot:local`,
+  built in the background with the render build's caps
+  (`DOCKER_BUILDKIT=0 nice -n 19 docker build --memory 3g --cpu-quota 200000`);
+- a separate database and role `t27ai_bot` on `t27ai-db` (no superuser, 20
+  connections), created with `docker exec` and no restart or reconfiguration;
+  `DATABASE_URL` lives in `/opt/t27ai-bot/db.env` (0600), the password
+  generated on the VPS and never shown;
+- `/opt/t27ai-bot/render-key.env` (0600): `RENDER_API_KEY`, copied on the VPS
+  from the ladder's `.env`, never shown, so the owner writes no key;
+- `/etc/systemd/system/t27ai-bot.service` (this directory), 1 GB, 1 CPU, 512
+  pids, `127.0.0.1:8092`, health on `/health`.
 
-`src/services/courseAccess.ts` still calls the render at a hard-coded Railway
-host. Its sibling services read `RENDER_BASE_URL` first; the course door needs
-the same line, nothing else:
+The one start command, once `/opt/t27ai-render/bot.env` holds the single line
+`BOT_TOKEN_12=...` (names in `bot.env.example`; the unit refuses to start while
+that line is empty or the file is missing):
 
-```ts
-const RENDER =
-  process.env.RENDER_BASE_URL ||
-  'https://vibee-render-production.up.railway.app'
+```
+systemctl enable --now t27ai-bot
 ```
 
-The site's render address is generated from the course spec in trinity
-(`renderBase`) and is a separate change there.
+Rollback: `systemctl disable --now t27ai-bot`.
+
+### What is not staged
+
+- **The token** (`BOT_TOKEN_12`, fresh from @BotFather): the owner only.
+- **The monolith's data layer.** `@supabase/supabase-js` speaks REST
+  (`/rest/v1`, `/storage/v1`), not SQL: a bare Postgres database is not
+  enough. The Railway gateway (`apps/supabase-gateway`: PostgREST, storage-api,
+  MinIO, an nginx prefix strip) is gone, and the new database is empty (no
+  schema, no data). Until a PostgREST front and the schema are decided, the bot
+  starts and answers `/health`, but every query that reaches the store fails.
+  The course door itself does not need it: it asks the ladder.
+- The site's `renderBase` (trinity spec `course-access.t27`) is a separate
+  change in that repo.
