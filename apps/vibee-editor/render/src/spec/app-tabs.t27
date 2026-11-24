@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/app-tabs.t27 -- every tab of the app, and the tools that serve it at TRI CLAW's one /mcp.
+// Host: 999-multibots-telegraf apps/vibee-editor/render (TRI CLAW, the vibee-render service): the
+// app_tabs tool answers this map, and a test holds that every tool it names is registered.
+// Trace: owner 2026-10-18 (translated): "build the CRM in right away", "find the real CRM and connect
+// everything at app.t27.ai/game/kanban", "and every other tab, so they are joined in the one TRI CLAW
+// MCP". The one service is specs/t27mcp/service.t27 (gHashTag/t27#10484): the t27 tools are mounted
+// into TRI CLAW's registry, so one endpoint now serves the CRM, the board and the t27 corpus. This spec
+// says which of those tools each tab of the app reads, and which tabs still read a REST route no tool
+// serves.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: a map, labelled per link the T27F way. EXACT: the app's own code names the tool, or
+// reads the endpoint the tool reads. SUGGESTED: the tool serves that tab's subject but nobody has
+// traced the tab's code to it. A tab with no link is not hidden: its routes are listed as GAPS, and
+// the HUD views this map does not cover yet are listed as UNMAPPED. Nothing here is a claim that a
+// suggested link is right; it is a claim that the tool exists and is the candidate.
+// v1 (2026-10-18): twelve tabs (the seven destinations of navigation.json, the three board views
+//       beside KANBAN, Keys & XP and the CRM), fifty-one links, fifteen gaps, sixteen unmapped views.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::app_tabs {
+    pub const KIND : str = "automation";
+    pub const ID : str = "app-tabs";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // ---- The door -------------------------------------------------------------------
+    pub const TOOL : str = "app_tabs";  // read: this map, as data, at the one endpoint
+    pub const DOOR : str = "/mcp";  // TRI CLAW's JSON-RPC endpoint (service.t27)
+
+    // ---- The tabs -------------------------------------------------------------------
+    // The seven destinations of render src/navigation.json (ids and routes as written there),
+    // then the board views beside KANBAN (trinity queenHud.ts BOARD_VIEWS, addressed as
+    // ?tab=), then the two screens the rail does not draw: Keys & XP and the CRM.
+    pub const TAB_COUNT : u32 = 12;
+    pub const TAB_KEYS : [12]str = [
+        "hive", "tasks", "map", "factory", "research", "feed",
+        "chat", "browser", "ai", "profile", "keys_xp", "crm"
+    ];
+    pub const TAB_ROUTES : [12]str = [
+        "/game", "/game/kanban", "/game?tab=map", "/game?tab=factory", "/game?tab=research", "/feed",
+        "/agents", "/browser", "/generate/script", "/profile", "/game/account", "/crm"
+    ];
+
+    // ---- Labels (T27F) --------------------------------------------------------------
+    pub const L_EXACT : u32 = 0;
+    pub const L_DERIVED : u32 = 1;
+    pub const L_SUGGESTED : u32 = 2;
+    pub const L_UNKNOWN : u32 = 3;
+    pub const LABEL_NAMES : [4]str = ["exact", "derived", "suggested", "unknown"];
+
+    // ---- Links: tab -> tool ---------------------------------------------------------
+    // Three parallel arrays, one row per link, grouped by tab in TAB_KEYS order.
+    // EXACT rows and where the app names them: tasks reads hive_board (useHiveBoard) and
+    // ball_board (useBallBoard) and the public board t27_game reads; map draws the same board's
+    // columns and cards (MissionMapView); ai calls image_generate and video_generate
+    // (GeneratePanel); profile calls my_balance (useTokenTopUp) and skills_list (ProfileSkills);
+    // the CRM's nine calls are in player lib/crm.ts.
+    pub const LINK_COUNT : u32 = 51;
+    pub const LINK_TAB : [51]u32 = [
+        0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1,
+        2,
+        5, 5, 5, 5, 5, 5,
+        6, 6, 6, 6, 6,
+        7, 7, 7, 7, 7, 7, 7,
+        8, 8, 8, 8, 8, 8, 8,
+        9, 9, 9, 9, 9, 9,
+        11, 11, 11, 11, 11, 11, 11, 11, 11
+    ];
+    pub const LINK_TOOL : [51]str = [
+        "t27_game", "hive_pulse", "hive_events", "hive_queen",
+        "hive_board", "ball_board", "t27_game", "ball_work_push", "ball_link", "t27_issues",
+        "t27_game",
+        "feed_list", "feed_get", "feed_publish", "feed_unpublish", "feed_stats", "feed_analytics",
+        "agent_clients", "agent_avatars_make", "skills_market", "soul_get", "soul_edit",
+        "browser_open", "browser_read", "browser_screenshot", "browser_click", "browser_type",
+        "browser_status", "browser_close_tab",
+        "image_generate", "video_generate", "image_edit", "audio_generate", "lipsync_generate",
+        "voice_clone_speak", "reel_render",
+        "my_balance", "skills_list", "whoami", "my_assets", "my_renders", "tokens_invoice",
+        "crm_clients", "crm_client_profile", "crm_client_timeline", "crm_groups", "crm_client_group",
+        "crm_waiting", "crm_overview", "crm_revenue", "crm_touch"
+    ];
+    pub const LINK_LABEL : [51]u32 = [
+        2, 2, 2, 2,
+        0, 0, 0, 2, 2, 2,
+        0,
+        2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2,
+        0, 0, 2, 2, 2, 2, 2,
+        0, 0, 2, 2, 2, 2,
+        0, 0, 0, 0, 0, 0, 0, 0, 0
+    ];
+
+    // ---- Gaps: a tab's route that no tool serves --------------------------------------
+    // Each is a REST route the tab reads (render src or the Queen service) with no tool behind
+    // it at /mcp. A gap closes by adding a tool and a link, never by dropping the row.
+    pub const GAP_COUNT : u32 = 15;
+    pub const GAP_TAB : [15]u32 = [1, 1, 1, 1, 3, 4, 5, 6, 6, 8, 9, 9, 9, 9, 10];
+    pub const GAP_ROUTE : [15]str = [
+        "/api/card-status", "/api/card-move", "/api/card-work", "/api/agent/history/live",
+        "/queen/public-hardware", "/queen/public-research", "/api/feed/pending",
+        "/api/agents/acceptance", "/api/agents/packages/status", "/api/voices",
+        "/api/tri/wallet", "/api/tg/connect/status", "/api/social/meta/status", "/api/clone/status",
+        "/api/hive/keys"
+    ];
+    // The factory's source is not traced: public-hardware is the candidate, so UNKNOWN.
+    pub const GAP_LABEL : [15]u32 = [0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    // ---- Unmapped: HUD views this map does not cover yet ------------------------------
+    // trinity queenHud.ts HUD_VIEWS, less the board views above. Listed so the map's reach is
+    // stated, not implied; each leaves this list when it gets a tab row.
+    pub const UNMAPPED_COUNT : u32 = 16;
+    pub const UNMAPPED_VIEWS : [16]str = [
+        "comb", "specs", "skills", "crons", "agents", "functions", "tools", "project",
+        "tri", "passport", "roadmap", "leaderboard", "wars", "token", "providers", "widgets"
+    ];
+
+    // ---- tests ----
+
+    test "twelve tabs, the seven destinations first in navigation order, the CRM last" {
+        assert(TAB_COUNT == 12);
+        assert(TAB_KEYS[0] == "hive");
+        assert(TAB_ROUTES[0] == "/game");
+        assert(TAB_KEYS[1] == "tasks");
+        assert(TAB_ROUTES[1] == "/game/kanban");
+        assert(TAB_KEYS[10] == "keys_xp");
+        assert(TAB_KEYS[11] == "crm");
+        assert(TAB_ROUTES[11] == "/crm");
+    }
+
+    test "the kanban reads the board, the ball and the public board, all three exact" {
+        assert(LINK_TAB[4] == 1);
+        assert(LINK_TOOL[4] == "hive_board");
+        assert(LINK_LABEL[4] == L_EXACT);
+        assert(LINK_TOOL[5] == "ball_board");
+        assert(LINK_LABEL[5] == L_EXACT);
+        assert(LINK_TOOL[6] == "t27_game");
+        assert(LINK_LABEL[6] == L_EXACT);
+    }
+
+    test "the CRM tab is served by the tools the app itself calls" {
+        assert(LINK_TAB[42] == 11);
+        assert(LINK_TOOL[42] == "crm_clients");
+        assert(LINK_TAB[50] == 11);
+        assert(LINK_TOOL[50] == "crm_touch");
+        assert(LINK_LABEL[50] == L_EXACT);
+    }
+
+    test "every link and every gap names a tab that exists, with a label that exists" {
+        var i : u32 = 0;
+        while (i < LINK_COUNT) {
+            assert(LINK_TAB[i] < TAB_COUNT);
+            assert(LINK_LABEL[i] <= L_UNKNOWN);
+            i += 1;
+        }
+        var g : u32 = 0;
+        while (g < GAP_COUNT) {
+            assert(GAP_TAB[g] < TAB_COUNT);
+            assert(GAP_LABEL[g] <= L_UNKNOWN);
+            g += 1;
+        }
+    }
+
+    test "the research view and Keys and XP have no tool yet, and say so as gaps" {
+        assert(GAP_TAB[5] == 4);
+        assert(GAP_ROUTE[5] == "/queen/public-research");
+        assert(GAP_TAB[14] == 10);
+        assert(GAP_ROUTE[14] == "/api/hive/keys");
+        assert(GAP_LABEL[4] == L_UNKNOWN);
+    }
+
+    test "the unmapped views are the HUD views with no row" {
+        assert(UNMAPPED_COUNT == 16);
+        assert(UNMAPPED_VIEWS[0] == "comb");
+        assert(UNMAPPED_VIEWS[15] == "widgets");
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

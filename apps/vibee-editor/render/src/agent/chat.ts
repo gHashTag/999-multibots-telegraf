@@ -1495,8 +1495,12 @@ function ownerSideSection(surface?: string): string {
     'agent_avatars_make; с какими клиентами работал агент — agent_clients. ' + // cyrillic-ok: prompt copy
     'Verilog: lint, симуляция тестбенча, синтез — hdl_run (вывод цитируй). ' + // cyrillic-ok: prompt copy
     'Запустить программу (TS/JS) в песочнице и увидеть настоящий вывод — code_run. ' + // cyrillic-ok: prompt copy
-    /* automation/agent-spec-bank.t27: every agent reads the whole spec bank. */
-    'Правило, число или порог проекта — сверяй со спекой .t27: t27_specs (поиск и чтение, бесплатно).' // cyrillic-ok: prompt copy
+    /*
+     * automation/agent-spec-bank.t27: every agent reads the whole spec bank.
+     * The bank's tools are the mounted t27 ones (t27mcp/service.t27).
+     */
+    'Правило, число или порог проекта — сверяй со спекой .t27 (бесплатно): ' + // cyrillic-ok: prompt copy
+    't27_find or t27_specs to search, t27_spec to read one spec.'
   )
 }
 
@@ -1647,7 +1651,11 @@ export function marketplaceAgentPrompt(agentId?: string): string {
       '- ПРОВЕРКА: спек готов, только когда t27c spec-status = IMPLEMENTED или ' + // cyrillic-ok: prompt copy
       'PARTIAL (не NOFN/NOPARSE) и t27c parse-complete дочитал до конца. Нет ' + // cyrillic-ok: prompt copy
       't27c под рукой — так и скажи «не проверял», не выдавай парс за истину. ' + // cyrillic-ok: prompt copy
-      'О себе проект пишет на своём языке (own-language-first), а не в чужом формате.' // cyrillic-ok: prompt copy
+      'О себе проект пишет на своём языке (own-language-first), а не в чужом формате.' + // cyrillic-ok: prompt copy
+      // service.t27 CODER_TOOLS: the t27 tools mounted in this registry.
+      '\n- TOOLS: before writing .t27, find a model with t27_find and t27_examples, ' +
+      'read it with t27_spec; after writing, run t27_check on the whole module and ' +
+      'quote its answer. ok:false is not ready; a module you did not check is "not checked".'
     )
   }
   /*

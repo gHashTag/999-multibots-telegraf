@@ -32,6 +32,17 @@ import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { SPEC_BANK_TOOLS } from './spec-bank-tools'
+import {
+  T27_TOOLS,
+  T27_TURN_TOOLS,
+  admit,
+  homeOf,
+  A_MOUNT,
+  ADMIT_TEXT,
+  H_T27,
+  H_TRI_CLAW,
+} from './t27-tools'
+import { makeAppTabsTool } from './app-tabs-tool'
 import { JOB_TOOLS } from './job-tools'
 import { COURSE_OUTREACH_TOOLS } from './course-outreach-tool'
 import { MAIL_TOOLS } from './mail-tools'
@@ -4754,6 +4765,30 @@ TOOLS.push(...HDL_TOOLS)
 TOOLS.push(...CODE_TOOLS)
 
 /*
+ * ONE SERVICE WITH THE t27 MCP (specs/t27mcp/service.t27, gHashTag/t27#10484).
+ *
+ * Every tool this registry offers goes through the spec's admit() first. A
+ * name the t27 module owns (t27_*, t27f_*) is refused here and served by the
+ * mounted t27 tool instead: today that is the spec bank's own t27_specs, whose
+ * search moves to t27_find/t27_specs and whose read moves to t27_spec. Then the
+ * t27 tools the spec mounts join the registry (t27-tools.ts).
+ */
+for (let i = TOOLS.length - 1; i >= 0; i -= 1) {
+  const answer = admit(TOOLS[i].name, H_TRI_CLAW)
+  if (answer !== A_MOUNT) {
+    console.warn(`[agent] ${TOOLS[i].name}: ${ADMIT_TEXT[answer]}`)
+    TOOLS.splice(i, 1)
+  }
+}
+TOOLS.push(...T27_TOOLS)
+/*
+ * The app's tabs and the tools above that serve each one
+ * (specs/automation/app-tabs.t27): one answer for "which tool reads the CRM,
+ * the kanban, the feed", read against this registry when it is called.
+ */
+TOOLS.push(makeAppTabsTool(name => TOOLS.some(t => t.name === name)))
+
+/*
  * NO TOOL IS REGISTERED TWICE.
  *
  * This line exists because it already happened. Two branches each added
@@ -4994,7 +5029,11 @@ export function toOpenAITools(
   deny?: ReadonlySet<string>
 ) {
   const chosen = toolsForProvider(p, TOOLS).filter(
-    t => !deny?.has(t.name) && !DIRECT_CALL_ONLY.has(t.name)
+    t =>
+      !deny?.has(t.name) &&
+      !DIRECT_CALL_ONLY.has(t.name) &&
+      // From the t27 home a turn sees only T27_TURN_TOOLS (t27-tools.ts).
+      (homeOf(t.name) !== H_T27 || T27_TURN_TOOLS.has(t.name))
   )
   if (p?.compact && !compactWarned) {
     compactWarned = true
