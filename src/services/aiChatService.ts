@@ -12,6 +12,7 @@ import {
   loadHistory,
   getUserContext,
 } from '@/services/chatMemoryService'
+import { replicateLive } from '@/core/replicate/replicateLive'
 import { listSkills } from '@/services/skillManager'
 
 export interface ChatMessage {
@@ -87,14 +88,20 @@ export async function chatWithAI(
   model?: string,
   opts?: { telegramId?: string; botName?: string }
 ): Promise<string> {
-  // Use Replicate for chat (pay-per-use, always has balance)
-  const replicateToken = process.env.REPLICATE_API_TOKEN
-  if (replicateToken) {
-    return await chatViaReplicate(messages, replicateToken, model)
-  }
-
-  // Fallback: DeepSeek → OpenAI → OpenRouter
+  /*
+   * z.ai FIRST. The flash models are free (owner, 2026-10-04), while Replicate
+   * is pay-per-use and answers "re-enable your account" the moment billing
+   * lapses -- which silently killed every business DM reply (2026-10-11).
+   * Replicate stays only as the last resort when no other key exists.
+   */
   const providers = [
+    {
+      key: process.env.GLM_API_KEY,
+      url: (process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4')
+        .replace(/\/+$/, '')
+        .replace(/\/chat\/completions$/, ''),
+      name: 'zai',
+    },
     {
       key: process.env.DEEPSEEK_API_KEY,
       url: 'https://api.deepseek.com/v1',
@@ -108,7 +115,13 @@ export async function chatWithAI(
     },
   ]
   const provider = providers.find(p => p.key)
-  if (!provider) throw new Error('No AI API key found')
+  if (!provider) {
+    const replicateToken = process.env.REPLICATE_API_TOKEN
+    if (replicateToken && replicateLive()) {
+      return await chatViaReplicate(messages, replicateToken, model)
+    }
+    throw new Error('No AI API key found')
+  }
 
   const apiKey = provider.key!
   const baseURL = provider.url
@@ -116,8 +129,16 @@ export async function chatWithAI(
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
 
   const defaultModel =
-    provider.name === 'deepseek' ? 'deepseek-chat' : AI_CHAT_MODELS.gpt4.id
-  const modelId = model || defaultModel
+    provider.name === 'zai'
+      ? process.env.GLM_MODEL || 'glm-4.7-flash'
+      : provider.name === 'deepseek'
+        ? 'deepseek-chat'
+        : AI_CHAT_MODELS.gpt4.id
+  // A caller's OpenAI-style model id means nothing to z.ai / DeepSeek.
+  const modelId =
+    provider.name === 'zai' || provider.name === 'deepseek'
+      ? defaultModel
+      : model || defaultModel
   const tid = opts?.telegramId ?? ''
   const bot = opts?.botName ?? 'default'
 
