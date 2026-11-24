@@ -1,0 +1,72 @@
+[
+  {
+    "name": "an empty request is accepted",
+    "from": "return bytes > 0 && bytes <= REQUEST_MAX_BYTES;",
+    "to": "return bytes <= REQUEST_MAX_BYTES;"
+  },
+  {
+    "name": "the call rate admits the excluded boundary",
+    "from": "return calls_in_window < RATE_MAX_CALLS;",
+    "to": "return calls_in_window <= RATE_MAX_CALLS;"
+  },
+  {
+    "name": "the stream count admits one more",
+    "from": "return in_flight < MAX_IN_FLIGHT;",
+    "to": "return in_flight <= MAX_IN_FLIGHT;"
+  },
+  {
+    "name": "a signed subject is not needed to spend",
+    "from": "return via_session && allowed && subject_valid;",
+    "to": "return via_session && allowed;"
+  },
+  {
+    "name": "a session is not needed to spend",
+    "from": "return via_session && allowed && subject_valid;",
+    "to": "return allowed && subject_valid;"
+  },
+  {
+    "name": "an OpenAI-protocol provider is served as Anthropic",
+    "from": "return provider == \"zai\";",
+    "to": "return provider == \"zai\" || provider == \"nvidia\";"
+  },
+  {
+    "name": "a disabled key is usable",
+    "from": "return enabled && speaks_anthropic(provider);",
+    "to": "return speaks_anthropic(provider);"
+  },
+  {
+    "name": "the pick leaves the list",
+    "from": "return turn % usable;",
+    "to": "return turn;"
+  },
+  {
+    "name": "a refused stored key reaches the client as 401",
+    "from": "if upstream == 402 || upstream == 429 || upstream == 529 {\n            return upstream;",
+    "to": "if upstream == 401 || upstream == 402 || upstream == 429 || upstream == 529 {\n            return upstream;"
+  },
+  {
+    "name": "a 3xx is a success",
+    "from": "if upstream >= 200 && upstream < 300 {",
+    "to": "if upstream >= 200 && upstream <= 300 {"
+  },
+  {
+    "name": "the flag accepts true",
+    "from": "return value == \"on\";",
+    "to": "return value == \"on\" || value == \"true\";"
+  },
+  {
+    "name": "the Queen's conflict passes through as a provider answer",
+    "from": "if answered == 404 || answered == 413 {",
+    "to": "if answered == 404 || answered == 409 || answered == 413 {"
+  },
+  {
+    "name": "a retry-after of any length passes",
+    "from": "chars <= RETRY_AFTER_MAX_CHARS && digits_only",
+    "to": "chars <= 100 && digits_only"
+  },
+  {
+    "name": "a refused key is an authentication error",
+    "from": "if status == 401 {\n            return \"authentication_error\";",
+    "to": "if status == 401 {\n            return \"api_error\";"
+  }
+]

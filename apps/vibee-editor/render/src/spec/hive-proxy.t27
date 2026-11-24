@@ -1,0 +1,392 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/automation/hive-proxy.t27 -- the proxy that lets a signed-in person's client spend the
+// provider keys that person stored in the hive, over the Anthropic Messages protocol.
+// Host: 999-multibots-telegraf apps/vibee-editor/render/src/hive/proxy-route.ts (session, caps,
+//       the key pick, the stream back) and, in the Queen (gHashTag/trios, trios/agent-server),
+//       apps/server/src/api/routes/queen-contributor-proxy.ts (opens ONE sealed key for ONE call).
+//       The Queen's own constants are in queen-contributor-keys.t27 (v3).
+// Trace: gHashTag/999-multibots-telegraf#4024; gHashTag/t27#10782 (the T27 OS KEYS tab).
+// Generated: t27c gen-ts supplies the constants; scripts/t27-logic.mjs compiles the fn bodies.
+// Claim status: decision contract. It says who may spend which key and what a client is told.
+//       That the provider answers, and how fast, is live evidence this file does not hold.
+// Why: owner, 2026-10-20 -- "we had 70 bees working on keys, where are they? connect them all",
+//       and "set up key orchestration like the tool Free Claude Code": Claude Code, pointed at
+//       this route, spends the same keys the Queen's bees spend, with the same owner rule.
+// WHO. Only a full app session (Authorization: Bearer, the 600 s access token) names an owner,
+//       telegram:<id>, exactly as /api/hive/keys does. Telegram initData, a delegated agent key,
+//       a game token and the server key never spend a person's key. A body, a header or a query
+//       never chooses the owner, a key id or an upstream URL.
+// WHICH KEY. Among the owner's keys that are enabled and whose provider speaks the Anthropic
+//       protocol (zai today), one per call in turn (pick_index). An upstream 429 reaches the client
+//       unchanged, and the client's own retry lands on the next key: that is the failover, with no
+//       second pass inside the proxy. A person whose only enabled keys are nvidia (the OpenAI
+//       protocol, which needs translation, see the provider transform spec) is told so, not guessed at.
+// WHICH MODEL. The model of the chosen key, which the owner chose for that provider in the KEYS
+//       tab ("one model for all keys of a provider", hive-contributor-keys v2). The model a client
+//       names (claude-sonnet-...) is replaced. No tier table is invented here.
+// WHAT THE CLIENT IS TOLD. A provider answer 2xx streams through byte for byte. A provider
+//       refusal is never echoed: its body can carry a credential. The client gets an
+//       Anthropic-shaped error whose status and type come from reply_status and reply_type, with
+//       a stable code. 402, 429 and 529 keep their number. A 401 or 403 means the STORED key is
+//       refused, not the session, so it reaches the client as 502 api_error and never as
+//       authentication_error (which would send Claude Code to a login that cannot help).
+// THE TOKEN. The 600 s access token is the only credential this route takes. A native client
+//       renews it through POST /api/auth/refresh as it already does for every other route; a
+//       separate long-lived proxy token would be a second credential that spends money, so this
+//       spec does not mint one.
+// v1 (2026-10-20): the route, the caps, the pick, the status table.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module automation::hive_proxy {
+    pub const KIND : str = "automation";
+    pub const ID : str = "hive-proxy";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const ROUTE : str = "/api/hive/proxy/v1/messages";
+    pub const FLAG_ENV : str = "HIVE_PROXY";
+    pub const REQUEST_MAX_BYTES : u32 = 4194304;
+    pub const RATE_WINDOW_MS : u32 = 60000;
+    pub const RATE_MAX_CALLS : u32 = 120;
+    pub const MAX_IN_FLIGHT : u32 = 8;
+    pub const BUSY_RETRY_SECONDS : u32 = 10;
+    pub const RETRY_AFTER_MAX_CHARS : u32 = 6;
+    pub const KEYS_TIMEOUT_MS : u32 = 10000;
+    pub const STREAM_TIMEOUT_MS : u32 = 600000;
+    pub const QUEEN_KEYS_PATH : str = "/queen/contributor-keys/proxy/keys";
+    pub const QUEEN_CALL_PREFIX : str = "/queen/contributor-keys/proxy/";
+    pub const QUEEN_CALL_SUFFIX : str = "/messages";
+    pub const UPSTREAM_HEADER : str = "x-hive-upstream-status";
+    pub const CODE_OFF : str = "proxy_disabled";
+    pub const CODE_NO_KEY : str = "no_enabled_key";
+    pub const CODE_NEEDS_TRANSLATION : str = "provider_needs_translation";
+    pub const CODE_TOO_LARGE : str = "request_too_large";
+    pub const CODE_RATE : str = "rate_limited";
+    pub const CODE_BUSY : str = "too_many_in_flight";
+    pub const CODE_QUEEN_DOWN : str = "queen_unavailable";
+    pub const CODE_AUTH : str = "authentication_required";
+    pub const CODE_BAD_BODY : str = "invalid_body";
+    pub const CODE_JSON : str = "json_required";
+    pub const CODE_METHOD : str = "method_not_allowed";
+    pub const CODE_NOT_CONFIGURED : str = "not_configured";
+
+    fn flag_on(value: str) -> bool {
+        return value == "on";
+    }
+
+    fn may_spend(via_session: bool, allowed: bool, subject_valid: bool) -> bool {
+        return via_session && allowed && subject_valid;
+    }
+
+    fn request_fits(bytes: u32) -> bool {
+        return bytes > 0 && bytes <= REQUEST_MAX_BYTES;
+    }
+
+    fn rate_allows(calls_in_window: u32) -> bool {
+        return calls_in_window < RATE_MAX_CALLS;
+    }
+
+    fn may_start(in_flight: u32) -> bool {
+        return in_flight < MAX_IN_FLIGHT;
+    }
+
+    fn speaks_anthropic(provider: str) -> bool {
+        return provider == "zai";
+    }
+
+    fn key_usable(enabled: bool, provider: str) -> bool {
+        return enabled && speaks_anthropic(provider);
+    }
+
+    fn pick_index(usable: u32, turn: u32) -> u32 {
+        if usable == 0 {
+            return 0;
+        }
+        return turn % usable;
+    }
+
+    fn no_key_code(any_enabled: bool) -> str {
+        if any_enabled {
+            return CODE_NEEDS_TRANSLATION;
+        }
+        return CODE_NO_KEY;
+    }
+
+    fn reply_status(upstream: u16) -> u16 {
+        if upstream >= 200 && upstream < 300 {
+            return upstream;
+        }
+        if upstream == 400 || upstream == 413 || upstream == 422 {
+            return upstream;
+        }
+        if upstream == 402 || upstream == 429 || upstream == 529 {
+            return upstream;
+        }
+        return 502;
+    }
+
+    fn reply_type(upstream: u16) -> str {
+        if upstream == 400 || upstream == 422 {
+            return "invalid_request_error";
+        }
+        if upstream == 413 {
+            return "request_too_large";
+        }
+        if upstream == 402 {
+            return "billing_error";
+        }
+        if upstream == 429 {
+            return "rate_limit_error";
+        }
+        if upstream == 529 {
+            return "overloaded_error";
+        }
+        return "api_error";
+    }
+
+    fn reply_code(upstream: u16) -> str {
+        if upstream == 400 || upstream == 422 {
+            return "upstream_rejected_request";
+        }
+        if upstream == 413 {
+            return CODE_TOO_LARGE;
+        }
+        if upstream == 402 {
+            return "upstream_payment_required";
+        }
+        if upstream == 429 {
+            return "upstream_rate_limited";
+        }
+        if upstream == 529 {
+            return "upstream_overloaded";
+        }
+        if upstream == 401 || upstream == 403 {
+            return "upstream_key_rejected";
+        }
+        return "upstream_unavailable";
+    }
+
+    fn own_type(status: u16) -> str {
+        if status == 401 {
+            return "authentication_error";
+        }
+        if status == 404 {
+            return "not_found_error";
+        }
+        if status == 400 || status == 405 || status == 415 {
+            return "invalid_request_error";
+        }
+        if status == 413 {
+            return "request_too_large";
+        }
+        if status == 429 {
+            return "rate_limit_error";
+        }
+        return "api_error";
+    }
+
+    fn queen_status(answered: u16) -> u16 {
+        if answered == 404 || answered == 413 {
+            return answered;
+        }
+        return 502;
+    }
+
+    fn queen_code(answered: u16) -> str {
+        if answered == 404 {
+            return CODE_NO_KEY;
+        }
+        if answered == 413 {
+            return CODE_TOO_LARGE;
+        }
+        return CODE_QUEEN_DOWN;
+    }
+
+    fn retry_after_ok(chars: u32, digits_only: bool) -> bool {
+        return chars > 0 && chars <= RETRY_AFTER_MAX_CHARS && digits_only;
+    }
+
+    fn stream_outlasts(stream_ms: u32, keys_ms: u32) -> bool {
+        return stream_ms > keys_ms && keys_ms > 0;
+    }
+
+    fn same_version(declared: u8, noted: u8) -> bool {
+        return declared == noted;
+    }
+
+    test "the proxy is off unless the flag says on" {
+        assert(flag_on("on"));
+        assert(!flag_on(""));
+        assert(!flag_on("off"));
+        assert(!flag_on("true"));
+        assert(!flag_on("1"));
+        assert(!flag_on("ON"));
+    }
+
+    test "only a full app session with a valid subject may spend a key" {
+        assert(may_spend(true, true, true));
+        assert(!may_spend(false, true, true));
+        assert(!may_spend(true, false, true));
+        assert(!may_spend(true, true, false));
+    }
+
+    test "a request is bounded and never empty" {
+        assert(!request_fits(0));
+        assert(request_fits(1));
+        assert(request_fits(4194304));
+        assert(!request_fits(4194305));
+        assert(REQUEST_MAX_BYTES == 4194304);
+    }
+
+    test "a person has a call rate and a stream count, both strict upper bounds" {
+        assert(rate_allows(0));
+        assert(rate_allows(119));
+        assert(!rate_allows(120));
+        assert(!rate_allows(121));
+        assert(may_start(0));
+        assert(may_start(7));
+        assert(!may_start(8));
+        assert(!may_start(9));
+        assert(RATE_WINDOW_MS == 60000);
+    }
+
+    test "only a provider that speaks the Anthropic protocol can serve a call" {
+        assert(speaks_anthropic("zai"));
+        assert(!speaks_anthropic("nvidia"));
+        assert(!speaks_anthropic("openai"));
+        assert(!speaks_anthropic("Zai"));
+        assert(!speaks_anthropic(""));
+    }
+
+    test "a key is usable when it is enabled and its provider speaks the protocol" {
+        assert(key_usable(true, "zai"));
+        assert(!key_usable(false, "zai"));
+        assert(!key_usable(true, "nvidia"));
+        assert(!key_usable(false, "nvidia"));
+    }
+
+    test "the pick walks the usable keys in turn and never leaves the list" {
+        assert(pick_index(3, 0) == 0);
+        assert(pick_index(3, 1) == 1);
+        assert(pick_index(3, 2) == 2);
+        assert(pick_index(3, 3) == 0);
+        assert(pick_index(3, 301) == 1);
+        assert(pick_index(1, 0) == 0);
+        assert(pick_index(1, 7) == 0);
+        assert(pick_index(0, 5) == 0);
+        assert(pick_index(2, 4294967295) == 1);
+    }
+
+    test "no usable key is told apart from keys that only need translation" {
+        assert(no_key_code(false) == CODE_NO_KEY);
+        assert(no_key_code(true) == CODE_NEEDS_TRANSLATION);
+        assert(CODE_NO_KEY == "no_enabled_key");
+        assert(CODE_NEEDS_TRANSLATION == "provider_needs_translation");
+    }
+
+    test "an upstream answer reaches the client as the table says" {
+        assert(reply_status(200) == 200);
+        assert(reply_status(299) == 299);
+        assert(reply_status(400) == 400);
+        assert(reply_status(413) == 413);
+        assert(reply_status(422) == 422);
+        assert(reply_status(402) == 402);
+        assert(reply_status(429) == 429);
+        assert(reply_status(529) == 529);
+        assert(reply_status(300) == 502);
+        assert(reply_status(404) == 502);
+        assert(reply_status(500) == 502);
+        assert(reply_status(503) == 502);
+        assert(reply_status(504) == 502);
+        assert(reply_status(0) == 502);
+    }
+
+    test "a refused stored key is never an authentication error to the client" {
+        assert(reply_status(401) == 502);
+        assert(reply_status(403) == 502);
+        assert(reply_type(401) != "authentication_error");
+        assert(reply_type(403) != "authentication_error");
+        assert(reply_type(401) == "api_error");
+        assert(reply_code(401) == "upstream_key_rejected");
+        assert(reply_code(403) == "upstream_key_rejected");
+    }
+
+    test "every upstream refusal has an Anthropic error type and a stable code" {
+        assert(reply_type(400) == "invalid_request_error");
+        assert(reply_type(422) == "invalid_request_error");
+        assert(reply_type(413) == "request_too_large");
+        assert(reply_type(402) == "billing_error");
+        assert(reply_type(429) == "rate_limit_error");
+        assert(reply_type(529) == "overloaded_error");
+        assert(reply_type(500) == "api_error");
+        assert(reply_code(400) == "upstream_rejected_request");
+        assert(reply_code(402) == "upstream_payment_required");
+        assert(reply_code(429) == "upstream_rate_limited");
+        assert(reply_code(529) == "upstream_overloaded");
+        assert(reply_code(500) == "upstream_unavailable");
+        assert(reply_code(404) == "upstream_unavailable");
+    }
+
+    test "the proxy's own refusals carry an Anthropic error type by their status" {
+        assert(own_type(401) == "authentication_error");
+        assert(own_type(404) == "not_found_error");
+        assert(own_type(400) == "invalid_request_error");
+        assert(own_type(405) == "invalid_request_error");
+        assert(own_type(415) == "invalid_request_error");
+        assert(own_type(413) == "request_too_large");
+        assert(own_type(429) == "rate_limit_error");
+        assert(own_type(502) == "api_error");
+        assert(own_type(503) == "api_error");
+        assert(CODE_AUTH == "authentication_required");
+        assert(CODE_BAD_BODY == "invalid_body");
+        assert(CODE_JSON == "json_required");
+        assert(CODE_METHOD == "method_not_allowed");
+        assert(CODE_NOT_CONFIGURED == "not_configured");
+        assert(CODE_OFF == "proxy_disabled");
+        assert(CODE_RATE == "rate_limited");
+        assert(CODE_BUSY == "too_many_in_flight");
+    }
+
+    test "the Queen's own refusals are told by their kind and never as a provider answer" {
+        assert(queen_status(404) == 404);
+        assert(queen_status(413) == 413);
+        assert(queen_status(409) == 502);
+        assert(queen_status(429) == 502);
+        assert(queen_status(503) == 502);
+        assert(queen_code(404) == CODE_NO_KEY);
+        assert(queen_code(413) == CODE_TOO_LARGE);
+        assert(queen_code(503) == CODE_QUEEN_DOWN);
+        assert(queen_code(409) == "queen_unavailable");
+    }
+
+    test "a retry-after is a short run of digits" {
+        assert(retry_after_ok(1, true));
+        assert(retry_after_ok(6, true));
+        assert(!retry_after_ok(0, true));
+        assert(!retry_after_ok(7, true));
+        assert(!retry_after_ok(3, false));
+    }
+
+    test "the route and the Queen's two doors are fixed paths" {
+        assert(ROUTE == "/api/hive/proxy/v1/messages");
+        assert(QUEEN_KEYS_PATH == "/queen/contributor-keys/proxy/keys");
+        assert(QUEEN_CALL_PREFIX == "/queen/contributor-keys/proxy/");
+        assert(QUEEN_CALL_SUFFIX == "/messages");
+        assert(UPSTREAM_HEADER == "x-hive-upstream-status");
+        assert(FLAG_ENV == "HIVE_PROXY");
+    }
+
+    test "a stream outlasts a key listing and a key listing is short" {
+        assert(stream_outlasts(STREAM_TIMEOUT_MS, KEYS_TIMEOUT_MS));
+        assert(stream_outlasts(600000, 10000));
+        assert(!stream_outlasts(10000, 10000));
+        assert(!stream_outlasts(10000, 0));
+        assert(stream_outlasts(STREAM_TIMEOUT_MS, BUSY_RETRY_SECONDS));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(same_version(VERSION, 1));
+        assert(!same_version(VERSION, 2));
+    }
+}
+// phi^2 + 1/phi^2 = 3 | TRINITY
