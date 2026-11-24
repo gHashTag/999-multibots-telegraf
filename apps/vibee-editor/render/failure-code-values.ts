@@ -11,8 +11,8 @@
  *     and the variable was not;
  *   - a value Prettier moved to the next line, `code:\n  reason`.
  * Now the code literals of the value are FOUND, and every name -- or literal
- * that is not a plain 'lower_snake' code -- the value can evaluate to is
- * OPAQUE, so a contract can say which references it trusts.
+ * that is not a plain 'lower_snake' code, digits allowed -- the value can
+ * evaluate to is OPAQUE, so a contract can say which references it trusts.
  * A ternary's condition is not a value, so only its branches are read.
  *
  * Test-only: imported by the contracts, never by the server.
@@ -20,7 +20,8 @@
 const QUOTED = /'([a-z_]+)'/g
 /** Any string literal, so one that is not a code can be named, not dropped. */
 const LITERAL = /'[^'\n]*'|"[^"\n]*"|`[^`\n]*`/g
-const CODE = /^'[a-z_]+'$/
+/** Digits occur in real codes ('t27_scope'); anything wider stays opaque. */
+const CODE = /^'[a-z0-9_]+'$/
 const NOT_A_VALUE = new Set([
   'null',
   'undefined',

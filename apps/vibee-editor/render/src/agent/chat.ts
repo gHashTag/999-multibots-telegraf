@@ -1500,7 +1500,8 @@ function ownerSideSection(surface?: string): string {
      * The bank's tools are the mounted t27 ones (t27mcp/service.t27).
      */
     'Правило, число или порог проекта — сверяй со спекой .t27 (бесплатно): ' + // cyrillic-ok: prompt copy
-    't27_find or t27_specs to search, t27_spec to read one spec.'
+    't27_find or t27_specs to search, t27_spec to read one spec, ' +
+    't27f_view to draw a still of the demo reel.'
   )
 }
 

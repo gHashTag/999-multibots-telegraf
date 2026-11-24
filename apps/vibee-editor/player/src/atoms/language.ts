@@ -370,6 +370,7 @@ const en: Translations = {
     'the request was damaged on the way — try again',
   'crm.error.code.unknown_method': 'the server did not understand the request',
   'crm.error.code.editorial_scope': 'this key may not open the CRM',
+  'crm.error.code.t27_scope': 'this tool is outside the t27 scope of this key',
   'crm.error.code.game_token_scope':
     'the game sign-in does not open the CRM — open the app from Telegram',
   'sendCard.previewBroken':
@@ -3501,6 +3502,7 @@ const ru: Translations = {
     'запрос испортился по дороге — попробуйте ещё раз',
   'crm.error.code.unknown_method': 'сервер не понял запрос',
   'crm.error.code.editorial_scope': 'этим ключом CRM не открыть',
+  'crm.error.code.t27_scope': 'этот инструмент вне t27-области этого ключа',
   'crm.error.code.game_token_scope':
     'вход из игры не открывает CRM — откройте приложение из Telegram',
   'sendCard.previewBroken':

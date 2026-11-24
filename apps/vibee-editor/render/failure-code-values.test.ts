@@ -13,6 +13,13 @@ describe('codeValues', () => {
     })
   })
 
+  it('reads a digit code', () => {
+    expect(codeValues("a({ code: 't27_scope' })")).toEqual({
+      found: ['t27_scope'],
+      opaque: [],
+    })
+  })
+
   it('reads both branches of a ternary, not its condition', () => {
     expect(
       codeValues("a({ code: emptyFrom.length ? 'no_answer' : 'model_failed' })")
