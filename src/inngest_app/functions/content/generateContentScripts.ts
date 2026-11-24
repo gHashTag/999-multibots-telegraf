@@ -6,11 +6,14 @@ import { supabase } from '@/core/supabase'
 import OpenAI from 'openai'
 
 // Validation schema for input data
-const generateContentScriptsSchema = z.object({
+export const generateContentScriptsSchema = z.object({
   reel_id: z.string().min(1, 'Reel ID is required'),
   ig_reel_url: z.string().url('Valid URL is required').optional(),
   project_id: z.number().int().positive('Project ID must be positive'),
-  openai_api_key: z.string().optional(),
+  // openai_api_key used to be accepted here and preferred over the env. A
+  // key in an event payload is stored with the event and shown in the Inngest
+  // UI and traces, so the field is gone: zod strips it if a sender still
+  // includes it, and the key comes from OPENAI_API_KEY inside the step.
 })
 
 export type GenerateContentScriptsInput = z.infer<
@@ -95,7 +98,7 @@ export const generateContentScripts = inngest.createFunction(
 
     // Step 3: Transcribe audio using OpenAI Whisper
     const transcript = await step.run('transcribe-audio', async () => {
-      const apiKey = input.openai_api_key || process.env.OPENAI_API_KEY
+      const apiKey = process.env.OPENAI_API_KEY
       if (!apiKey) {
         throw new Error('OpenAI API key is required')
       }
@@ -104,7 +107,7 @@ export const generateContentScripts = inngest.createFunction(
 
     // Step 4: Generate 3 alternative scripts using GPT-4
     const scripts = await step.run('generate-scripts', async () => {
-      const apiKey = input.openai_api_key || process.env.OPENAI_API_KEY
+      const apiKey = process.env.OPENAI_API_KEY
       if (!apiKey) {
         throw new Error('OpenAI API key is required')
       }
