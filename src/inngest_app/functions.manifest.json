@@ -494,7 +494,8 @@
         "validate-input",
         "check-permissions",
         "fetch-users",
-        "send-messages",
+        "send-batch-${firstId}",
+        "pause-after-${firstId}",
         "analyze-results"
       ],
       "retries": 3,
@@ -511,7 +512,8 @@
         "file corrected: '(empty)' -> 'src/inngest_app/functions/broadcast/broadcastMessage.ts'",
         "steps re-extracted from code: [] -> ['validate-input', 'check-permissions', 'fetch-users', 'send-messages', 'analyze-results']",
         "retries: None -> 3 (null = SDK default)",
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "2026-09-17: send-messages split into send-batch-${firstId} steps of 25 recipients with pause-after-${firstId} sleeps between them; concurrency 1 per bot_name; the service receives the batch as recipients and waits out Telegram 429 retry_after instead of failing the batch. Spec: t27 specs/functions/broadcast-message-send.t27"
       ]
     },
     {

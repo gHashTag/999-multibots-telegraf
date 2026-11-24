@@ -23,6 +23,39 @@ export interface BroadcastOptions {
   postLink?: string // Ссылка на пост для типа 'post_link'
   videoFileId?: string // ID видео файла для типа 'video'
   textEn?: string // Текст на английском
+  // Pre-resolved recipients (one batch). When set, sendToAllUsers does not
+  // query the users table and sends to exactly these rows; the caller owns
+  // the split into batches and the pauses between them.
+  recipients?: BroadcastRecipient[]
+}
+
+export interface BroadcastRecipient {
+  telegram_id: string | number
+  bot_name: string
+  language_code?: string | null
+}
+
+// Batch size for one send-batch step; Telegram allows ~30 messages per
+// second bot-wide, so 25 per step with a pause between steps stays under it.
+export const BROADCAST_BATCH_SIZE = 25
+
+export function splitIntoBatches<T>(
+  items: T[],
+  size = BROADCAST_BATCH_SIZE
+): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size))
+  return out
+}
+
+// Telegram 429 carries parameters.retry_after (seconds). Returns it capped,
+// or null when the error is not a flood wait.
+export function floodWaitSeconds(err: any, cap = 60): number | null {
+  const code = err?.response?.error_code
+  if (code !== 429) return null
+  const ra = Number(err?.response?.parameters?.retry_after)
+  return Math.min(Number.isFinite(ra) && ra > 0 ? ra : 1, cap)
 }
 
 export interface FetchUsersOptions {
@@ -167,6 +200,7 @@ export const broadcastService = {
       postLink,
       videoFileId,
       textEn,
+      recipients,
     } = options
 
     // Строгая проверка наличия bot_name
@@ -223,7 +257,14 @@ export const broadcastService = {
     let users = []
 
     // Если режим тестирования, используем только ID отправителя или указанный тестовый ID
-    if (test_mode) {
+    if (recipients) {
+      // The caller already resolved the audience (fetch-users step) and
+      // hands over one batch; sending to anyone else here would leak past
+      // the batch boundary the Inngest steps are built on.
+      users = test_mode
+        ? recipients
+        : recipients.filter(r => r.bot_name === bot_name)
+    } else if (test_mode) {
       const testId = test_telegram_id || sender_telegram_id || '144022504'
 
       // Если указан bot_name, используем его, иначе получаем из базы
@@ -470,6 +511,22 @@ export const broadcastService = {
               }
             )
           } catch (err: any) {
+            const waitSec = floodWaitSeconds(err)
+            if (waitSec !== null) {
+              // Flood wait: Telegram names the pause. Wait it out once and
+              // let the loop continue with the next recipient; this one is
+              // counted as an error rather than retried, so a re-run of the
+              // batch step cannot double-send to those already served.
+              logger.warn(
+                `⏳ Telegram 429 for ${user.telegram_id}: waiting ${waitSec}s`,
+                {
+                  description: `Flood wait ${waitSec}s after 429`,
+                  telegram_id: user.telegram_id,
+                  bot_name: user.bot_name,
+                }
+              )
+              await new Promise(r => setTimeout(r, waitSec * 1000))
+            }
             errorCount++
             logger.error(`❌ Ошибка при отправке сообщения:`, {
               description: `Error sending message`,
