@@ -18,7 +18,7 @@ import { isDev } from '@/config'
  *
  * Answering "did this person actually pay" needs an INDEPENDENT channel --
  * Robokassa's OpStateExt, called with the merchant credentials. That tool now
- * exists: scripts/robokassa-reconcile.cjs, or `tri сверка`. It reads both
+ * exists: scripts/robokassa-reconcile.cjs, or `tri reconcile`. It reads both
  * sides and writes to neither, and it refuses to run without
  * ROBOKASSA_PASSWORD_2 rather than reporting an empty list.
  *

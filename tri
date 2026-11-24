@@ -10,19 +10,19 @@
 # старые скрипты, а УРОКИ, ставшие исполнимыми. Каждый записан в скилле словами
 # и каждый стоил цикла:
 #
-#   tri кто     ← «признак живого маршрута — его собственное сообщение,
-#                  а не статус 401». Стоило четырёх циклов.
-#   tri в-tsc   ← «ноль ошибок означал „не проверено“, а не „верно“».
-#   tri жив     ← «три правки легли туда, что никто не рендерит».
-#   tri мутация ← «зелёная мутация — это отчёт о дыре в покрытии».
-#   tri выложен ← «мерж не равен выкладке», и сравнивать надо ПОСЛЕ fetch,
-#                  иначе ворота дают ложную тревогу.
+#   tri who      ← «признак живого маршрута — его собственное сообщение,
+#                   а не статус 401». Стоило четырёх циклов.
+#   tri in-tsc   ← «ноль ошибок означал „не проверено“, а не „верно“».
+#   tri alive    ← «три правки легли туда, что никто не рендерит».
+#   tri mutate   ← «зелёная мутация — это отчёт о дыре в покрытии».
+#   tri deployed ← «мерж не равен выкладке», и сравнивать надо ПОСЛЕ fetch,
+#                   иначе ворота дают ложную тревогу.
 #
 # Записанное словами надо вспомнить. Команду — набрать. Разница решает.
 #
-# ИМЕНА. Подкоманды по-русски: их читает человек. Переменные и функции —
-# латиницей, потому что кириллица в имени переменной bash даёт
-# «command not found» без объяснения причины. Оплачено дважды.
+# NAMES. Commands are English only (owner, 2026-10-11). Variables and
+# functions are Latin too: a Cyrillic bash variable name fails with
+# "command not found" and no reason given. Paid for twice.
 
 set -uo pipefail
 
@@ -288,11 +288,11 @@ CHECKS THAT EACH COST A CYCLE
         because only the second is a defect. Default sizes include 1087x430,
         the short frame the game gives the embedded player.
 
-  tri reachable-check | tri достижимо-проверка
+  tri reachable-check
         Renders one clear button and one deliberately covered button and
         demands exactly one finding. A ruler that can only pass is not a ruler.
 
-  tri player-deploy [--check] | tri выкатка-плеера
+  tri player-deploy [--check]
         Redeploy app.t27.ai and WAIT for the served bundle hash to change.
         Merging the player deploys nothing on its own: the vibee-editor service
         builds from the root railway.toml, which does not watch
@@ -301,22 +301,22 @@ CHECKS THAT EACH COST A CYCLE
         signal, so it is read before and polled after. --check only prints what
         is live right now.
 
-  tri ratchets | tri линейки
+  tri ratchets
         Run every gated safety-class ratchet in one shot, by exit code
         (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
         each class + its file. The loop's fast pre/post-work safety check.
 
-  tri guards | tri стражи
+  tri guards
         Run the loop-fable invariant ratchets (guards.mjs) as one exit-code
         run -- the per-iteration regression check after syncing main. Each
         loop-fable fix pins its bug here (33 and counting). --list shows files.
 
-  tri ratchet-audit | tri аудит-линеек
+  tri ratchet-audit
         Meta-check the guards: does each STRUCTURAL ratchet have a self-check
         (detector can fire) and a floor (fails loud if the target is gutted)?
         A ratchet that can only pass is a false ruler. Behavioral tests exempt.
 
-  tri fn-liveness | tri живость-функций
+  tri fn-liveness
         The complement of ratchet-audit for BEHAVIORAL ratchets: is the fn each
         one imports+calls still LIVE (referenced by >=1 production file outside
         its def)? A 0 is a "ratchet on a dead twin" (the #1572 class) -- a
@@ -330,24 +330,24 @@ CHECKS THAT EACH COST A CYCLE
         --self-check runs offline. Non-zero is never a pass.
         --self-check proves the predicate against known truth first.
 
-  tri timeouts | tri таймауты
+  tri timeouts
         List axios calls with no timeout (default is infinite), split
         likely-LIVE vs likely-DEAD. Triage, not fix-all: bound only the ones on
         a live CHARGED path whose refund fires solely on a throw (a silent hang
         there is charged-not-delivered). Most others are non-charged/dead.
 
-  tri inflight | tri блокировка
+  tri inflight
         List scene .action handlers that reach a charge primitive but set no
         *InProgress guard -- a double-tap can re-enter and double-charge (the
         iter204 aiPhotoshop-upscale class). Triage: a hit may sit behind a
         shared guarded choke fn or not be double-tappable. Read each.
 
-  tri leaks | tri утечки
+  tri leaks
         List files that saveFileLocally() but never unlink -- a per-call
         temp-file leak (the iter206 fluxKontextPro class). Triage: a hit may
         deliver via the file (clean up after) or via a remote url (pure waste).
 
-  tri replay | tri повтор
+  tri replay
         Inventory of paid .action BUTTON handlers + the guard each has against a
         stale-persistent-button replay (upscale_image #1551, ai_photoshop_-
         upscale_last #1553, upscale_neurophoto_image (iter213)). Shows CONSUME- /
@@ -355,19 +355,19 @@ CHECKS THAT EACH COST A CYCLE
         does NOT stop a LATER re-tap; a handler is safe if its target changes
         each tap. Read each flagged handler.
 
-  tri mint | tri минт
+  tri mint
         Inventory of every credit call (MONEY_INCOME balance mutation) + the
         protection its enclosing fn carries: REFUND / TRANSFER / SIGNED / CAS /
         ADMIN / IDEMPOTENT / SETTLEMENT. A credit with NONE is a mint suspect.
         Triage, not a gate: the guard may live in the caller/router. Read each.
 
-  tri stepjump | tri шаг
+  tri stepjump
         Inventory of ctx.wizard.selectStep sites + the selectStep(N)+next()
         off-by-one that SKIPS Step N (next = selectStep(cursor+1)). Broke the
         veed-fabric resume (#1565); ai-reels twin is owner (charge step). Fix:
         selectStep(N) + direct-invoke steps[cursor](ctx). Triage, not a gate.
 
-  tri charge | tri заряд
+  tri charge
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
         gap (#1372) / UNCLASSIFIED. Non-zero exit on any unclassified scene.
@@ -462,7 +462,7 @@ CHECKS THAT EACH COST A CYCLE
         first, and compares. Ground truth it is pinned against: 3 lines survive
         either way, 4000 lines come back as 1960.
 
-  tri failures | tri потери
+  tri failures
         What the seller is LOSING, counted from the hive journal in one read.
 
         The journal has held this answer for weeks and nobody asked it this way:
@@ -489,7 +489,7 @@ CHECKS THAT EACH COST A CYCLE
         Thresholds live in split-reel.t27 (FACE_OFF_CENTER_MAX_PCT,
         HEADROOM_MIN_PCT). Exit 0 clean, 1 defects, 2 not measured.
 
-  tri voice [--runs N] | tri голос
+  tri voice [--runs N]
         The voice mode end to end: status, warm-up, a fixed phrase spoken in
         Russian and English by OUR engine, and each heard back by OUR whisper
         N times (default 3). The MEDIAN is the verdict -- one sample lied by
@@ -502,7 +502,7 @@ CHECKS THAT EACH COST A CYCLE
         Every call goes over ONE kept-alive connection, as in the browser;
         the handshake and the warm round trip are printed on their own line.
 
-  tri filler | tri пауза
+  tri filler
         The phrases said while the agent thinks ("Let me see.", "Still
         working on it.", voice.filler.* in the player's dictionary), each
         synthesised once as the player does, against the lead it has: the
@@ -513,14 +513,14 @@ CHECKS THAT EACH COST A CYCLE
         speakDeadlineMs is a warning (exit 2). Also part of tri voice.
         Needs the same key as tri voice.
 
-  tri road | tri дорога
+  tri road
         Just that road line: which Railway edge answered, what a new
         connection costs (DNS + TCP/TLS), and the warm round trip every call
         still pays (median of 5 empty status calls). Over 0.4 s warm is SLOW
         (exit 2). On 2026-10-02: edge sin1, render in sfo, ~250-290 ms warm.
         No key needed.
 
-  tri turn | tri ход [--live | --record | --audio file ...] [phrase ...]
+  tri turn [--live | --record | --audio file ...] [phrase ...]
         Whether the words of a pause end the turn (player/src/lib/voice/
         turnEnd.ts): a phrase stopping on "and", "to", "uh", "и", "на" or a
         comma gets HANGING_TURN_MS of silence, anything else END_OF_TURN_MS.
@@ -533,7 +533,7 @@ CHECKS THAT EACH COST A CYCLE
         five cut off), saves them under ~/.cache/tri/turn-voice/<lang> and
         runs --audio on them. Interactive; macOS asks for the mic first.
 
-  tri words | tri слова [--lang=ru|en] [phrase ...]
+  tri words [--lang=ru|en] [phrase ...]
         Are product words (reels, lipsync, neurophoto, Vibee...) heard as
         said? Our mouth speaks, our ears hear through the live road, with
         the render's fix-ups (render/src/voice/hotwords.ts) applied. XX = a
@@ -541,7 +541,7 @@ CHECKS THAT EACH COST A CYCLE
         "two alphabets" = a Latin letter inside a Russian word. Exit 1 on
         any XX. Needs the agent key.
 
-  tri vad | tri шум [--legacy | --ios] [file.wav ...]
+  tri vad [--legacy | --ios] [file.wav ...]
         The mic's voice-activity gate (player/src/lib/voice/vad.ts) run tick
         by tick over recordings, as the session runs it. With no files it
         makes its own battery (say + ffmpeg anoisesrc, 48 kHz mono): ru/en
@@ -558,7 +558,7 @@ CHECKS THAT EACH COST A CYCLE
         done-*, cut-* (the last two get 1.5 s of quiet: Enter stops them).
         No key, no network.
 
-  tri loop | tri виток
+  tri loop
         Where the last loop cycle stopped, before this one starts: dirty tree,
         gates or pushes running IN THIS TREE, this branch's PR, and the newest
         player/render deploys, and the player's lint ratchet (a push that
@@ -566,7 +566,7 @@ CHECKS THAT EACH COST A CYCLE
         work in flight, continue it; a FAILED deploy on main blocks every
         later merge of that service.
 
-  tri ears [status|deploy] [ru|en|mouth|all] | tri уши   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
+  tri ears [status|deploy] [ru|en|mouth|all]   (tri gigaam = tri ears ru, tri mouth = tri ears mouth)
         The fast ears of voice mode, one image (deployment/gigaam) as two
         services: gigaam hears Russian (GigaAM v3, ~0.15 s a phrase), parakeet
         hears English (Parakeet TDT v2 int8, ~0.3 s), where whisper takes 2-3 s.
@@ -577,7 +577,7 @@ CHECKS THAT EACH COST A CYCLE
         (deployment/mouth, ~0.3 s an English phrase where speaches took
         1.2-1.7 s); it ships the same way.
 
-  tri pay [--invoice] | tri оплата
+  tri pay [--invoice]
         Can a client pay RIGHT NOW, rail by rail.
 
         Answering this by hand cost an hour on 2026-09-17, and none of it was
@@ -596,7 +596,7 @@ CHECKS THAT EACH COST A CYCLE
         `--invoice` also mints one real invoice, which writes a row, so it is
         opt-in rather than part of the check.
 
-  tri clone [id] | tri клон
+  tri clone [id]
         Which pieces of a person's digital clone exist: a voice of their own,
         a face to render from.
 
@@ -633,7 +633,7 @@ CHECKS THAT EACH COST A CYCLE
         scripts/test-gate.mjs. rc 0 pass, 1 refused or conflict, 2 usage.
         --keep leaves the worktree for a look.
 
-  tri deploys [--logs] | tri выкладки
+  tri deploys [--logs]
         Is the player on app.t27.ai what main says it is? The serving
         commit, every later main commit that touches the image with its
         deploy status, and for a FAILED build: the failing tests, tsc
@@ -646,7 +646,7 @@ CHECKS THAT EACH COST A CYCLE
         release(board) PR marked current or stale. rc 0 shipped, 1 behind,
         2 unknown. A reviewer agent merges the release PR, not its author.
 
-  tri readers [--gate | --run FILE...] | tri читатели
+  tri readers [--gate | --run FILE...]
         Tests that read source as TEXT, and the paths they still believe in.
 
         `vitest related` follows the IMPORT graph, and reading a file with fs
@@ -668,7 +668,7 @@ CHECKS THAT EACH COST A CYCLE
         promise: only running the test says whether the string it looks for is
         still in there.
 
-  tri flaky <test-file> [--times N] | tri шумит
+  tri flaky <test-file> [--times N]
         Is this test broken, or does it just not make up its mind.
 
         A push was refused on 2026-09-17, the same gate run twice more on the
@@ -683,7 +683,7 @@ CHECKS THAT EACH COST A CYCLE
         Exit code: 0 stable, 1 flaky or broken, 2 the runner never started.
         Passing four times in five is not passing -- it is a coin.
 
-  tri deploy-config [service ...] | tri конфиг-деплоя
+  tri deploy-config [service ...]
         Does each Railway service read ITS OWN railway.toml, and did a merge get
         stuck because of it.
 
@@ -705,7 +705,7 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
-  tri watches [--limit N] | tri сторожа
+  tri watches [--limit N]
         Are the money watches alive, and when did each last look.
 
         Two watches ask whether somebody paid and was never credited: TON
@@ -724,7 +724,7 @@ CHECKS THAT EACH COST A CYCLE
         and needs a key only the owner holds. A tool that only somebody else
         can run is a tool that does not run.
 
-  tri ton-pending | tri тон-зависшие
+  tri ton-pending
         Did TON arrive that nobody ever credited.
 
         The TON channel credits on a BUTTON: the person sends the coins with
@@ -742,7 +742,7 @@ CHECKS THAT EACH COST A CYCLE
         An invoice older than the chain window read is reported as "not an
         answer", never as unpaid. Credits nobody: that is the owner's call.
 
-  tri replicas [service ...] | tri реплики
+  tri replicas [service ...]
         How many processes are actually running.
 
         Every mechanism that stops a double charge is per-process: the scenes'
@@ -759,7 +759,7 @@ CHECKS THAT EACH COST A CYCLE
         Exit: 0 one process, 1 more than one, 2 Railway unreadable -- never a
         green answer from no data.
 
-  tri map [--undocumented] [<substring>] | tri карта
+  tri map [--undocumented] [<substring>]
         Every command tri dispatches, read out of tri itself.
 
         101 commands are dispatched; this help text describes 53. The other 48
@@ -773,7 +773,7 @@ CHECKS THAT EACH COST A CYCLE
         is marked with *; `--undocumented` shows only those, and a substring
         searches names and summaries.
 
-  tri money [--all] | tri деньги
+  tri money [--all]
 
         Which money calls throw their answer away.
 
@@ -794,7 +794,7 @@ CHECKS THAT EACH COST A CYCLE
         Exit: 0 nothing live discards its answer, 1 something does, 2 the
         source tree could not be read.
 
-  tri clock [--hours N] [--limit N] | tri часы
+  tri clock [--hours N] [--limit N]
         Is the seller's clock beating, and what can this even tell us.
 
         crm-proactive-sweep ticks every 30 minutes, but the journal records
@@ -812,7 +812,7 @@ CHECKS THAT EACH COST A CYCLE
         nothing. That is the Inngest run list, and its key is the owner's.
         Exit: 0 beating, 1 silent past the alarm, 2 could not look.
 
-  tri ship -m "..." [--branch <name>] [--all] | tri отправить
+  tri ship -m "..." [--branch <name>] [--all]
         Commit and push, and name the step that did NOT happen.
 
         2026-09-18: a commit was refused by the no-cyrillic gate; the refusal
@@ -829,7 +829,7 @@ CHECKS THAT EACH COST A CYCLE
         It refuses to commit on main and never merges: landing is a separate
         decision. Exit: 0 shipped, 1 a step did not happen, 2 nothing to ship.
 
-  tri upstream [--all] | tri откуда
+  tri upstream [--all]
         Which remote branch does each local branch pull from, and does it still
         exist.
 
@@ -848,7 +848,7 @@ CHECKS THAT EACH COST A CYCLE
         leftovers; --all lists every one. Exit: 0 fine, 1 a branch that matters
         is misconfigured, 2 not a repository.
 
-  tri signin [--limit N] | tri вход
+  tri signin [--limit N]
         Did the sign-in code reach anybody, and where did it stop.
 
         Owner, 2026-09-17: "why does the code not reach the user?" The journal
@@ -1051,27 +1051,27 @@ AGENT TOOLS ON THE RENDER
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
-  tri кнопки [--json]     rendered callback ids against every catcher, both ways
-  tri адреса [--gate]     URLs we build on our own host against routes we serve
-  tri способы [--gate]    payment methods that take money against ones that can credit it
-  tri ушедшие [--detail]  people who once paid and stopped -- the only segment that
+  tri buttons [--json]    rendered callback ids against every catcher, both ways
+  tri urls [--gate]       URLs we build on our own host against routes we serve
+  tri methods [--gate]    payment methods that take money against ones that can credit it
+  tri lapsed [--detail]   people who once paid and stopped -- the only segment that
                           has already answered the hard question (reads, sends nothing)
-  tri первый-визит        where a first visit ends: the two cohorts read APART,
+  tri first-visit         where a first visit ends: the two cohorts read APART,
                           because the imported one continues BETTER and an average
                           over both describes nobody
-  tri учёт [--gate]       invariants of the ledger itself: a credit recorded twice, a
+  tri ledger [--gate]     invariants of the ledger itself: a credit recorded twice, a
                           negative amount, a charge of zero, a credit nothing can
                           deduplicate. Reads rows, not code; --gate fails only on a
                           violation inside the window (LEDGER_SINCE, default this year)
-  tri витрина <f.html>    re-measure what the owner dashboard CLAIMS against the ledger;
+  tri dashboard <f.html>  re-measure what the owner dashboard CLAIMS against the ledger;
                           the claimed values are read from the artifact, never hardcoded
-  tri сверка              who actually paid, among the invoices we still call PENDING
+  tri reconcile           who actually paid, among the invoices we still call PENDING
                           (independent channel: Robokassa OpStateExt, read-only,
                           credits nobody -- needs ROBOKASSA_PASSWORD_2)
-  tri воронка             is anybody using this? generations and charges by month
-  tri платежи [--gate|--detail]    top-ups pressed and never credited; --gate reds on fresh ones
-  tri события             the dark segment: arrival to payment, step by step
-  tri ключи [--gate]      ask each provider whether the key still works, not whether it is set
+  tri funnel              is anybody using this? generations and charges by month
+  tri stuck [--gate|--detail]  top-ups pressed and never credited; --gate reds on fresh ones
+  tri events              the dark segment: arrival to payment, step by step
+  tri keys [--gate]       ask each provider whether the key still works, not whether it is set
                           (needs a railway-linked checkout, not a worktree)
   tri help
 СПРАВКА
@@ -1446,7 +1446,7 @@ cmd_diverged() {
 # COLORS_INIT, но вместе с ним вернётся и шум.
 # ─────────────────────────────────────────────────────────────────────────
 
-# Шаблоны вынесены в переменные, потому что «tri цвета проверка» гоняет
+# Шаблоны вынесены в переменные, потому что «tri colors check» гоняет
 # ИМЕННО ИХ на встроенном образце. Копия разошлась бы с оригиналом на первой
 # же правке, и самопроверка стала бы проверять не то, что работает.
 COLORS_SIZE='\.system\(size:[[:space:]]*(CGFloat\()?[0-9]'
@@ -1512,7 +1512,7 @@ let s = Text("x").redacted(reason: .placeholder)                // EXPECT-MISS
 }
 
 cmd_colors() {
-  if [ "${1:-}" = "проверка" ]; then colors_selftest; return $?; fi
+  if [ "${1:-}" = "check" ]; then colors_selftest; return $?; fi
 
   local dir="${1:-$ROOT/apps/vibee-ios/Vibee}"
   [ -d "$dir" ] || { bad "нет каталога $dir"; return 1; }
@@ -6620,7 +6620,7 @@ cmd_unguarded() {
   # охране, это другой сторож. Оставшиеся — в области корневого прогона и
   # действительно вне снимка; вот их и надо читать.
   #
-  # Прогона нет, только текст. Точное пофайловое сравнение имён — tri в-гейте.
+  # Прогона нет, только текст. Точное пофайловое сравнение имён — tri in-gate.
   local snap="${1:-$ROOT/.test-baseline.txt}"
   [ -f "$snap" ] || { bad "снимок не найден: $snap"; return 2; }
 
@@ -6781,10 +6781,10 @@ cmd_disk() {
     if printf '%s\n' "$held" | grep -q -- "$base"; then
       skip "жива (открыт дескриптор), пропуск: $sz  $base"
     elif [ -n "$(find "$d" -maxdepth 0 -mtime +1 2>/dev/null)" ]; then
-      if [ "$mode" = "reap" ] || [ "$mode" = "чисти" ]; then
+      if [ "$mode" = "reap" ]; then
         rm -rf "$d" 2>/dev/null && good "освобождено $sz  $base"
       else
-        warn "мёртвая, к возврату: $sz  $base   (запусти: tri диск чисти)"
+        warn "мёртвая, к возврату: $sz  $base   (запусти: tri disk reap)"
       fi
     else
       skip "свежая (<суток), пропуск: $sz  $base"
@@ -6844,7 +6844,7 @@ cmd_player_deploy () {
   return 1
 }
 
-action="${1:-помощь}"
+action="${1:-help}"
 # THE SHIFT IS WHY SUBCOMMANDS FORWARD "$@" AND NOT "${@:2}".
 #
 # After it, $1 is already the first argument AFTER the subcommand, so "${@:2}"
@@ -8060,70 +8060,68 @@ sys.exit(5 if d["status"] in ("BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED",
 }
 
 case "$action" in
-  # English is the primary name; the Russian one stays as an alias because loop
-  # scripts, skills and the journal already call it. Renaming without the alias
-  # would break work that already exists -- the exact thing this loop guards
-  # against.
-  who|кто)             cmd_who "$@" ;;
-  in-tsc|в-tsc)        cmd_in_tsc "$@" ;;
-  alive|жив)           cmd_alive "$@" ;;
-  mutate|мутация)      cmd_mutate "$@" ;;
-  secrets-on-disk|на-диске) cmd_secrets "$@" ;;
-  deployed|выложен)    cmd_deployed ;;
-  diverged|разошлись)  cmd_diverged ;;
-  worktree|дерево)    cmd_worktree "$@" ;;
+  # Command names are English only (owner, 2026-10-11): the Russian aliases
+  # were removed and every caller in the repo was rewritten to the English name.
+  who)                 cmd_who "$@" ;;
+  in-tsc)              cmd_in_tsc "$@" ;;
+  alive)               cmd_alive "$@" ;;
+  mutate)              cmd_mutate "$@" ;;
+  secrets-on-disk)     cmd_secrets "$@" ;;
+  deployed)            cmd_deployed ;;
+  diverged)            cmd_diverged ;;
+  worktree)            cmd_worktree "$@" ;;
   deps)               cmd_deps "$@" ;;
-  hooks|хуки)         cmd_hooks "$@" ;;
-  price|цена)         cmd_price "$@" ;;
-  money-base|база)     cmd_money_base "$@" ;;
-  batch-refunds|возвраты) cmd_batch_refunds ;;
-  idempotency-keys|ключи) cmd_idempotency_keys ;;
-  wired|подключён)    cmd_wired "$@" ;;
-  charge|заряд)       cmd_charge ;;
-  cyrillic|кириллица) cmd_cyrillic "$@" ;;
-  turn-log|лог-хода)  cmd_turn_log "$@" ;;
-  truncates|обрезка) cmd_truncates "$@" ;;
-  failures|потери)    cmd_failures "$@" ;;
-  signin|вход)       cmd_signin "$@" ;;
-  upstream|откуда)   cmd_upstream "$@" ;;
-  ship|отправить)    cmd_ship "$@" ;;
-  clock|часы)        cmd_clock "$@" ;;
-  money|деньги)      cmd_money "$@" ;;
-  map|карта)         cmd_map "$@" ;;
-  replicas|реплики)  cmd_replicas "$@" ;;
-  watches|сторожа)   cmd_watches "$@" ;;
-  pay|оплата)        cmd_pay "$@" ;;
-  readers|читатели)  cmd_readers "$@" ;;
+  hooks)               cmd_hooks "$@" ;;
+  price)               cmd_price "$@" ;;
+  money-base)          cmd_money_base "$@" ;;
+  batch-refunds)       cmd_batch_refunds ;;
+  idempotency-keys)    cmd_idempotency_keys ;;
+  wired)               cmd_wired "$@" ;;
+  charge)              cmd_charge ;;
+  cyrillic)            cmd_cyrillic "$@" ;;
+  turn-log)            cmd_turn_log "$@" ;;
+  truncates)           cmd_truncates "$@" ;;
+  failures)            cmd_failures "$@" ;;
+  signin)              cmd_signin "$@" ;;
+  upstream)            cmd_upstream "$@" ;;
+  ship)                cmd_ship "$@" ;;
+  clock)               cmd_clock "$@" ;;
+  money)               cmd_money "$@" ;;
+  map)                 cmd_map "$@" ;;
+  replicas)            cmd_replicas "$@" ;;
+  watches)             cmd_watches "$@" ;;
+  pay)                 cmd_pay "$@" ;;
+  readers)             cmd_readers "$@" ;;
   gen-refusal)       cmd_gen_refusal "$@" ;;
   pr-billing)        cmd_pr_billing "$@" ;;
   premerge)          cmd_premerge "$@" ;;
-  deploys|выкладки)  cmd_deploys "$@" ;;
+  deploys)             cmd_deploys "$@" ;;
   board)             cmd_board "$@" ;;
-  flaky|шумит)       cmd_flaky "$@" ;;
-  clone|клон)        cmd_clone "$@" ;;
-  deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
-  ratchets|линейки)   cmd_ratchets ;;
-  guards|стражи)      cmd_guards "$@" ;;
-  ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
+  flaky)               cmd_flaky "$@" ;;
+  clone)               cmd_clone "$@" ;;
+  deploy-config)       cmd_deploy_config "$@" ;;
+  ratchets)            cmd_ratchets ;;
+  guards)              cmd_guards "$@" ;;
+  ratchet-audit)       cmd_ratchet_audit "$@" ;;
   ton-verify)         cmd_ton_verify "$@" ;;
-  fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
-  timeouts|таймауты)  cmd_timeouts "$@" ;;
-  inflight|блокировка) cmd_inflight "$@" ;;
-  leaks|утечки)        cmd_leaks "$@" ;;
-  replay|повтор)       cmd_replay "$@" ;;
-  mint|минт)           cmd_mint "$@" ;;
-  stepjump|шаг)        cmd_stepjump "$@" ;;
-  sweep|развёртка)  cmd_sweep "$@" ;;
-  buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "$@" ;;
-  urls|адреса)         node "$ROOT/scripts/url-reachability.cjs" "$@" ;;
+  fn-liveness)         cmd_fn_liveness "$@" ;;
+  timeouts)            cmd_timeouts "$@" ;;
+  inflight)            cmd_inflight "$@" ;;
+  leaks)               cmd_leaks "$@" ;;
+  replay)              cmd_replay "$@" ;;
+  mint)                cmd_mint "$@" ;;
+  stepjump)            cmd_stepjump "$@" ;;
+  sweep)               cmd_sweep "$@" ;;
+  buttons)             node "$ROOT/scripts/button-census.cjs" "$@" ;;
+  urls)                node "$ROOT/scripts/url-reachability.cjs" "$@" ;;
   # THE OTHER HALF OF `buttons`. That census asks whether a button has a
   # handler; this one asks whether a finger can reach it. Both were needed:
   # a probe once reported 11 of 11 TRI controls working while nobody could
   # press one, because it called element.click() instead of hit-testing.
-  reachable|достижимо) node "$ROOT/scripts/reachability-live.mjs" "$@" ;;
-  reachable-check|достижимо-проверка) node "$ROOT/scripts/reachability-live.mjs" --self-check ;;
-  player-deploy|выкатка-плеера) cmd_player_deploy "$@" ;;
-  methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "$@" ;;
+  reachable)           node "$ROOT/scripts/reachability-live.mjs" "$@" ;;
+  reachable-check)     node "$ROOT/scripts/reachability-live.mjs" --self-check ;;
+  player-deploy)       cmd_player_deploy "$@" ;;
+  methods)             node "$ROOT/scripts/payment-method-census.cjs" "$@" ;;
   # Runs under the service environment, like its neighbours `stuck` and
   # `funnel`: it needs MERCHANT_LOGIN, ROBOKASSA_PASSWORD_2 and the Supabase
   # pair, all of which live on the service and none of which are on a laptop.
@@ -8134,129 +8132,129 @@ case "$action" in
   # a person sends TON with the invoice id in the comment and presses "check
   # payment". Nothing else ever looks, so coins can sit on the chain against a
   # PENDING row for ever. Read-only; credits nobody.
-  ton-pending|тон-зависшие) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
-  reconcile|сверка)   railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
-  lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
-  ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
-  first-visit|первый-визит) node "$ROOT/scripts/first-visit.cjs" "$@" ;;
-  dashboard|витрина)   node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
-  funnel|воронка)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
-  stuck|платежи)      railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
-  events|события)     railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
-  keys|ключи-провайдеров) railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
-  colors|цвета)        cmd_colors "$@" ;;
+  ton-pending)         railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
+  reconcile)           railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
+  lapsed)              node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
+  ledger)              node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
+  first-visit)         node "$ROOT/scripts/first-visit.cjs" "$@" ;;
+  dashboard)           node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
+  funnel)              railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
+  stuck)               railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
+  events)              railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
+  keys)                railway run --project "$RAIL_PROJECT" --environment "$RAIL_ENV" -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;
+  colors)              cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
-  gate|ворота)         cmd_gate ;;
-  real|живая)          cmd_real "$@" ;;
-  iphone|айфон)        cmd_iphone "$@" ;;   # cyrillic-ok: alias, like its neighbours
+  gate)                cmd_gate ;;
+  real)                cmd_real "$@" ;;
+  iphone)              cmd_iphone "$@" ;;
   mcp)                 cmd_mcp "$@" ;;
   # A case word (doctor, tidy, share-check...) lives in bin/tri; this one is
   # only the health line. It used to swallow the word and answer rc 0, so
   # `./tri browser doctor` read nothing and looked green (2026-10-03).
-  browser|браузер)     if [ $# -gt 0 ]; then exec "$ROOT/bin/tri" browser "$@"; else cmd_browser; fi ;;
-  voice|голос)         cmd_voice "$@" ;;
-  road|дорога)         V_ROAD_ONLY=1 cmd_voice "$@" ;;
-  vad|шум)             cmd_vad "$@" ;;
-  turn|ход)            cmd_turn "$@" ;;  # cyrillic-ok: alias, like its neighbours
-  words|слова)         cmd_words "$@" ;;  # cyrillic-ok: alias, like its neighbours
-  filler|пауза)        V_FILLER=1 cmd_voice --runs 1 ;;   # cyrillic-ok: alias, like its neighbours   # cyrillic-ok: alias, like its neighbours
-  ears|уши)            cmd_ears "$@" ;;     # cyrillic-ok: alias, like its neighbours
-  mouth|рот)           cmd_ears "$@" mouth ;;  # cyrillic-ok: the voice's mouth, cycle 6
-  gigaam|гигаам)       cmd_ears "$@" ru ;;  # cyrillic-ok: the name it had in voice-loop-3
-  loop|виток)          cmd_loop ;;
-  heal|исцели)         cmd_heal ;;
-  card|карточка)       cmd_card "$@" ;;
-  card-check|карточка-проверка) cmd_card_check "$@" ;;
+  browser)             if [ $# -gt 0 ]; then exec "$ROOT/bin/tri" browser "$@"; else cmd_browser; fi ;;
+  voice)               cmd_voice "$@" ;;
+  road)                V_ROAD_ONLY=1 cmd_voice "$@" ;;
+  vad)                 cmd_vad "$@" ;;
+  turn)                cmd_turn "$@" ;;
+  words)               cmd_words "$@" ;;
+  filler)              V_FILLER=1 cmd_voice --runs 1 ;;
+  ears)                cmd_ears "$@" ;;
+  mouth)               cmd_ears "$@" mouth ;;
+  gigaam)              cmd_ears "$@" ru ;;
+  loop)                cmd_loop ;;
+  heal)                cmd_heal ;;
+  card)                cmd_card "$@" ;;
+  card-check)          cmd_card_check "$@" ;;
   card-drift) cmd_card_drift "$@" ;;
   hive-nightly) cmd_hive_nightly "$@" ;;
-  browser-check|браузер-проверка) cmd_browser_selfcheck ;;
-  saw|увидел)          cmd_saw "$@" ;;
-  journal|журнал)      cmd_journal "$@" ;;
-  logins|входы)        cmd_logins ;;
-  pod|под)             cmd_pod ;;
-  lesson|опыт)         cmd_lesson "$@" ;;
-  lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
-  unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
-  disk|диск)           cmd_disk "$@" ;;
-  in-gate|в-гейте)     cmd_in_gate "$@" ;;
-  in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
-  why-red|почему-красный) cmd_why_red "$@" ;;
-  why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
-  wt|деревья)      cmd_wt "$@" ;;
-  trust|доверие)      cmd_trust "$@" ;;
-  trust-all|доверие-всем)  cmd_trust_all "$@" ;;
-  timers|таймеры)      cmd_timers "$@" ;;
-  optional|необязательные)      cmd_optional "$@" ;;
-  event-sinks|стоки)   cmd_events "$@" ;;   # both former aliases were taken 19 lines above: unreachable
-  shell|оболочка)      cmd_shell "$@" ;;
-  twins|двойники)      cmd_twins "$@" ;;
-  splits|расхождения)  cmd_splits "$@" ;;
-  fallbacks|запасные)  cmd_fallbacks "$@" ;;
-  refunds|возвраты-список) cmd_refunds "$@" ;;   # the short alias belongs to batch-refunds above
-  registries|реестры)  cmd_registries "$@" ;;
-  worktrees|деревья-список) cmd_worktrees "$@" ;;   # the short alias belongs to wt above
-  cache|кэш)  cmd_cache "$@" ;;
-  skips|пропуски)  cmd_skips "$@" ;;
-  silent-reds|тихие-красные)  cmd_silent_reds "$@" ;;
-  window-width|ширина-окна)  cmd_window_width "$@" ;;
-  scopes|области)  cmd_scopes "$@" ;;
-  charge-timing|момент-списания)  cmd_charge_timing "$@" ;;
-  credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
-  mock-imports|импорты-моков)  cmd_mock_imports "$@" ;;
-  mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
-  checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
-  blind-probes|слепые-пробы)  cmd_blind_probes "$@" ;;
-  falsify|опровержимость)  cmd_falsify "$@" ;;
-  owner-check|очередь-сверка)  cmd_owner_check "$@" ;;
-  error-or-empty|ошибка-или-пусто)  cmd_error_or_empty "$@" ;;
-  money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
-  money-ratchets|реестр-ратчетов)  cmd_money_ratchets "$@" ;;
-  floors|пороги)  cmd_floors "$@" ;;
-  can-deliver|могу)  cmd_can_deliver "$@" ;;
-  neg-controls|контроли)  cmd_neg_controls "$@" ;;
-  gate-liveness|живость-гейтов)  cmd_gate_liveness "$@" ;;
-  gate-liveness-check|живость-проверка) ( cd "$ROOT" && node scripts/gate-liveness.cjs --self-check ) ;;
-  neg-controls-check|контроли-проверка) ( cd "$ROOT" && node scripts/negative-controls.cjs --self-check ) ;;
-  comment-math|считалки)  cmd_comment_math "$@" ;;
-  comment-math-check|считалки-проверка) ( cd "$ROOT" && node scripts/comment-math.cjs --self-check ) ;;
-  untracked|невидимые)  cmd_untracked "$@" ;;
-  credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
-  matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
-  money-writers|писатели-денег)  cmd_money_writers "$@" ;;
-  secrets-audit|секреты)  cmd_secrets_audit "$@" ;;
-  dead-exports|мёртвые)      cmd_dead_exports "$@" ;;
-  dupes|дубли)      cmd_dupes "$@" ;;
-  dupes-check|дубли-проверка) cmd_dupes_selfcheck ;;
-  already|есть)     cmd_already "$@" ;;
-  already-check|есть-проверка) ( cd "$ROOT" && node scripts/already.cjs --self-check ) ;;
-  probes|искатели)  cmd_probes ;;
-  probes-check|искатели-проверка) cmd_probes_selfcheck ;;
-  net|сеть)          cmd_net ;;
-  net-check|сеть-проверка) cmd_net_selfcheck ;;
-  skipped|выключены)  cmd_skipped "$@" ;;
-  skipped-check|выключены-проверка) cmd_skipped_selfcheck ;;
-  unguarded|без-охраны) cmd_unguarded "$@" ;;
-  unguarded-check|без-охраны-проверка) cmd_unguarded_selfcheck ;;
-  scan|скан)           node "$TOOLS/anomalies.mjs" ;;
+  browser-check)       cmd_browser_selfcheck ;;
+  saw)                 cmd_saw "$@" ;;
+  journal)             cmd_journal "$@" ;;
+  logins)              cmd_logins ;;
+  pod)                 cmd_pod ;;
+  lesson)              cmd_lesson "$@" ;;
+  lock)                bash "$TOOLS/guard.sh" acquire ;;
+  unlock)              bash "$TOOLS/guard.sh" release ;;
+  disk)                cmd_disk "$@" ;;
+  in-gate)             cmd_in_gate "$@" ;;
+  in-gate-check)       cmd_in_gate_selfcheck ;;
+  why-red)             cmd_why_red "$@" ;;
+  why-red-check)       cmd_why_red_selfcheck ;;
+  wt)                  cmd_wt "$@" ;;
+  trust)               cmd_trust "$@" ;;
+  trust-all)           cmd_trust_all "$@" ;;
+  timers)              cmd_timers "$@" ;;
+  optional)            cmd_optional "$@" ;;
+  event-sinks)         cmd_events "$@" ;;
+  shell)               cmd_shell "$@" ;;
+  twins)               cmd_twins "$@" ;;
+  splits)              cmd_splits "$@" ;;
+  fallbacks)           cmd_fallbacks "$@" ;;
+  refunds)             cmd_refunds "$@" ;;
+  registries)          cmd_registries "$@" ;;
+  worktrees)           cmd_worktrees "$@" ;;
+  cache)               cmd_cache "$@" ;;
+  skips)               cmd_skips "$@" ;;
+  silent-reds)         cmd_silent_reds "$@" ;;
+  window-width)        cmd_window_width "$@" ;;
+  scopes)              cmd_scopes "$@" ;;
+  charge-timing)       cmd_charge_timing "$@" ;;
+  credit-guards)       cmd_credit_guards "$@" ;;
+  mock-imports)        cmd_mock_imports "$@" ;;
+  mask-diff)           cmd_mask_diff "$@" ;;
+  checks-of-checks)    cmd_checks_of_checks "$@" ;;
+  blind-probes)        cmd_blind_probes "$@" ;;
+  falsify)             cmd_falsify "$@" ;;
+  owner-check)         cmd_owner_check "$@" ;;
+  error-or-empty)      cmd_error_or_empty "$@" ;;
+  money-invariants)    cmd_money_invariants "$@" ;;
+  money-ratchets)      cmd_money_ratchets "$@" ;;
+  floors)              cmd_floors "$@" ;;
+  can-deliver)         cmd_can_deliver "$@" ;;
+  neg-controls)        cmd_neg_controls "$@" ;;
+  gate-liveness)       cmd_gate_liveness "$@" ;;
+  gate-liveness-check) ( cd "$ROOT" && node scripts/gate-liveness.cjs --self-check ) ;;
+  neg-controls-check)  ( cd "$ROOT" && node scripts/negative-controls.cjs --self-check ) ;;
+  comment-math)        cmd_comment_math "$@" ;;
+  comment-math-check)  ( cd "$ROOT" && node scripts/comment-math.cjs --self-check ) ;;
+  untracked)           cmd_untracked "$@" ;;
+  credit-sites)        cmd_credit_sites "$@" ;;
+  matcher-forms)       cmd_matcher_forms "$@" ;;
+  money-writers)       cmd_money_writers "$@" ;;
+  secrets-audit)       cmd_secrets_audit "$@" ;;
+  dead-exports)        cmd_dead_exports "$@" ;;
+  dupes)               cmd_dupes "$@" ;;
+  dupes-check)         cmd_dupes_selfcheck ;;
+  already)             cmd_already "$@" ;;
+  already-check)       ( cd "$ROOT" && node scripts/already.cjs --self-check ) ;;
+  probes)              cmd_probes ;;
+  probes-check)        cmd_probes_selfcheck ;;
+  net)                 cmd_net ;;
+  net-check)           cmd_net_selfcheck ;;
+  skipped)             cmd_skipped "$@" ;;
+  skipped-check)       cmd_skipped_selfcheck ;;
+  unguarded)           cmd_unguarded "$@" ;;
+  unguarded-check)     cmd_unguarded_selfcheck ;;
+  scan)                node "$TOOLS/anomalies.mjs" ;;
   # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
-  # the subcommand road is broken in exactly the documented spot: help promises
-  # `tri colors check`, the code matches only `проверка`, and the English form
-  # falls through to the directory argument and answers "нет каталога check".
-  # A verb that cannot be mistyped into silence is worth the extra dispatch line.
-  scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
+  # the subcommand road (`tri colors check`) once matched only a Russian word,
+  # and the English form fell through to the directory argument and answered
+  # "no such directory: check". A verb that cannot be mistyped into silence is
+  # worth the extra dispatch line.
+  scan-check)          node "$TOOLS/anomalies-selftest.mjs" ;;
   # Does every `tri X` in shipped source name a real command? Static, offline,
   # sibling to scan/scan-check. refs-check is a top-level verb for the same
   # reason scan-check is: a verb cannot be mistyped into silence.
-  refs|ссылки)          node "$TOOLS/tri-refs.mjs" ;;
-  refs-check|ссылки-проверка) node "$TOOLS/tri-refs-selftest.mjs" ;;
+  refs)                node "$TOOLS/tri-refs.mjs" ;;
+  refs-check)          node "$TOOLS/tri-refs-selftest.mjs" ;;
   # Four census/audit scripts that already read this tree accurately but had no
   # human-facing verb -- each header promised a `tri X` that resolved to nothing.
   # Wiring them is the fix `tri refs` asks for: build the command, don't excuse
   # the reference. `--json` and other flags pass straight through.
-  money-map|деньги-карта)     ( cd "$ROOT" && node "$TOOLS/money-map.mjs" "$@" ) ;;
-  repo-hygiene|гигиена)       ( cd "$ROOT" && node "$TOOLS/repo-hygiene-audit.mjs" "$@" ) ;;
-  rpc-audit|rpc-аудит)        ( cd "$ROOT" && node "$TOOLS/rpc-audit.mjs" "$@" ) ;;
-  single-telegram|один-телеграм) ( cd "$ROOT" && node "$TOOLS/single-telegram-audit.mjs" "$@" ) ;;
+  money-map)           ( cd "$ROOT" && node "$TOOLS/money-map.mjs" "$@" ) ;;
+  repo-hygiene)        ( cd "$ROOT" && node "$TOOLS/repo-hygiene-audit.mjs" "$@" ) ;;
+  rpc-audit)           ( cd "$ROOT" && node "$TOOLS/rpc-audit.mjs" "$@" ) ;;
+  single-telegram)     ( cd "$ROOT" && node "$TOOLS/single-telegram-audit.mjs" "$@" ) ;;
   # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and
@@ -8266,14 +8264,14 @@ case "$action" in
   # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
   # how it came to show only my end-of-cycle prose. --quick skips the merge gate
   # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.
-  panel|панель)        node "$TOOLS/collect-status.mjs" --quick >/dev/null 2>&1
+  panel)               node "$TOOLS/collect-status.mjs" --quick >/dev/null 2>&1
                        node "$TOOLS/dashboard.mjs" ;;
-  status|замер)        node "$TOOLS/collect-status.mjs" ;;
-  tests|тесты)         bash "$TOOLS/test-all.sh" ;;
-  routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;
-  health|здоровье)     curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
-  factory|фабрика)     factory_fact ;;
-  help|помощь|-h|--help) usage ;;
+  status)              node "$TOOLS/collect-status.mjs" ;;
+  tests)               bash "$TOOLS/test-all.sh" ;;
+  routes)              node "$TOOLS/check-routes.mjs" ;;
+  health)              curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
+  factory)             factory_fact ;;
+  help|-h|--help)      usage ;;
   # THE OTHER tri. bin/tri is the loop tooling -- crm-source, hive, feed,
   # crm-waiting, crm-pitch and thirty more -- and for four cycles it was
   # reachable only by its full path: this file knew nothing of it, and every

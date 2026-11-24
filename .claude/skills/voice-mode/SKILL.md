@@ -23,13 +23,13 @@ the fallback, speaches TTS (Kokoro for en, Piper voices for ru) for the mouth.
 ## Quick diagnosis
 
 ```bash
-./tri loop     # tri виток: in-flight work, this branch's PR, last deploys
-./tri voice    # tri голос: status, warm, speak ru/en, hear them back, times
-./tri ears     # tri уши: gigaam (ru) + parakeet (en) + mouth deploys, render routing
-./tri turn     # tri ход: does a phrase end the turn (850 ms) or hang (2500 ms); --live
+./tri loop     # in-flight work, this branch's PR, last deploys
+./tri voice    # status, warm, speak ru/en, hear them back, times
+./tri ears     # gigaam (ru) + parakeet (en) + mouth deploys, render routing
+./tri turn     # does a phrase end the turn (850 ms) or hang (2500 ms); --live
 ./tri turn --audio done-*.wav cut-*.wav   # the ears' voice verdict on REAL recordings
 ./tri turn --record   # record those phrases yourself (mic), then the same verdict
-./tri words    # tri слова: product words heard as said (reels, lipsync...); exit 1 = XX
+./tri words    # product words heard as said (reels, lipsync...); exit 1 = XX
 ```
 
 `tri voice` needs a person's key in `$AGENT_KEY` (render `AGENT_KEYS`, first
@@ -485,7 +485,7 @@ runs dry while the answer is unfinished (phase `thinking`):
 - `resumeHeld()` drops a filler at the head of the queue: after a barge-in
   that was noise, the answer resumes, not "Let me see." again.
 
-`tri filler` (`tri пауза`): synthesises every phrase once through
+`tri filler`: synthesises every phrase once through
 `/api/voice/speak` and compares it with its lead (moment minus prepare).
 Exit 2 = a phrase is LATE, 1 = a phrase failed.
 
