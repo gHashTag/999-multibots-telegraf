@@ -1782,9 +1782,10 @@ If not, continue on your own and click the "I myself" button`
       }
 
       /*
-       * THE PERSON'S LANGUAGE FOR EVERYTHING BELOW: the line, the buttons, the
-       * fallback prompt and the apology when even that fails. What they wrote
-       * wins when it is plainly Russian (agentFallback.ts, replyInRussian).
+       * THE BOT'S LANGUAGE FOR EVERYTHING BELOW: the line, the buttons, the
+       * fallback prompt and the apology when even that fails. The bot speaks
+       * English only (owner, 2026-11-25): the message language never
+       * overrides the display language (agentFallback.ts, replyInRussian).
        */
       const replyRu = replyInRussian(text, isRussianFromState(ctx))
       // The app button in private chats only (Telegram rejects web_app
