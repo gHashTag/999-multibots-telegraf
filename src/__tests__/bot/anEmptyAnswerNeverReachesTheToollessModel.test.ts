@@ -344,10 +344,12 @@ describe('an unreachable agent', () => {
     }>
     const system = messages[0]
     expect(system.role).toBe('system')
-    // A Russian speaker on a bot that takes rubles: the top-up chooser draws
-    // the rubles key for them, so the prompt may name it (shouldShowRubles).
-    expect(system.content).toBe(fallback.fallbackSystemPrompt(true, true))
-    expect(system.content).toContain('рублями')
+    // The bot speaks English only (owner, 2026-11-25): the middleware pins the
+    // display language to en, so shouldShowRubles is false and the prompt
+    // never names rubles, even for a Cyrillic writer. The prompt language
+    // itself still mirrors the person's message (replyInRussian), hence isRu.
+    expect(system.content).toBe(fallback.fallbackSystemPrompt(true, false))
+    expect(system.content).not.toContain('рублями')
     expect(system.content).toContain('/club')
     // The service list that produced "Instagram analytics" does not travel,
     // although this environment, like production, has no Instagram key.
