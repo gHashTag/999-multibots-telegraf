@@ -1,20 +1,21 @@
 /**
  * 🎬 КОНФИГУРАЦИЯ TELEGRAM MINI APP (VIBEE видеоредактор)
  *
- * Мини-апп задеплоен как сервис `vibee-editor` в Railway-проекте 999.
- * Исходники: apps/vibee-editor.
+ * The mini app is served from the owner's VPS: https://app.t27.ai/
+ * (Caddy fronts the player SPA; deploy notes:
+ * apps/vibee-editor/render/deploy/vps). Sources: apps/vibee-editor.
  */
 
 import { Markup } from 'telegraf'
 import type { KeyboardButton } from 'telegraf/types'
 
 /**
- * URL мини-аппа. Переопределяется через VIBEE_EDITOR_URL,
- * чтобы можно было указать staging или кастомный домен без пересборки.
+ * The mini app URL: the target of the chat-menu button and every web_app
+ * door. Overridable via VIBEE_EDITOR_URL to point at staging or another
+ * domain without a rebuild.
  */
 export const MINI_APP_URL =
-  process.env.VIBEE_EDITOR_URL ||
-  'https://vibee-editor-production.up.railway.app'
+  process.env.VIBEE_EDITOR_URL || 'https://app.t27.ai/'
 
 export const MINI_APP_BUTTON = {
   id: 'videoEditor',
@@ -37,8 +38,11 @@ export function canShowMiniAppButton(chatType?: string): boolean {
  * the table is the only list; an unknown value silently lands on the feed.
  */
 export function buildMiniAppUrl(startParam?: string): string {
+  // MINI_APP_URL may end with a slash (the production default does); strip
+  // trailing slashes before joining so the deeplink never carries '//?'.
   if (!startParam) return MINI_APP_URL
-  return `${MINI_APP_URL}/?tgWebAppStartParam=${encodeURIComponent(startParam)}`
+  const base = MINI_APP_URL.replace(/\/+$/, '')
+  return `${base}/?tgWebAppStartParam=${encodeURIComponent(startParam)}`
 }
 
 /**

@@ -4,7 +4,7 @@
  * Owner, 2026-09-22: "make it a rule that links open inside Telegram --
  * without Telegram they do not open, so they do not work".
  *
- * The app (app.t27.ai, the same bundle as vibee-editor-production on Railway)
+ * The app (app.t27.ai, served by Caddy on the owner's VPS)
  * knows who is looking only from Telegram's signed launch data (initData). A
  * plain https link opened in the phone's browser carries none, so the person
  * meets the "Telegram signature required" wall or an empty screen -- a link
@@ -153,6 +153,10 @@ export function splitStartSource(payload: string | null | undefined): {
 /**
  * The hosts that serve the app. Anything the model or a template writes with
  * one of these hosts is a link that only works inside Telegram.
+ *
+ * The retired Railway host stays in the list on purpose: it serves 404 now,
+ * so a raw link to it is dead for a person, and the safety net keeps
+ * rewriting it in-Telegram instead of letting it through.
  */
 export const APP_HOSTS: readonly string[] = [
   'app.t27.ai',

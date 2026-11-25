@@ -106,6 +106,30 @@ describe('конфигурация мини-аппа осталась рабоч
     expect(MINI_APP_URL).toMatch(/^https:\/\//)
   })
 
+  it('default host is app.t27.ai, the VPS front', () => {
+    /*
+     * Order FIX_MINI_APP_ON_VPS, 2026-11-25: the old default
+     * vibee-editor-production.up.railway.app answers 404, while the VPS
+     * front app.t27.ai serves the SPA. The button must never fall back to
+     * the dead Railway host, so the host itself is pinned here, not just
+     * "some https URL".
+     */
+    expect(new URL(MINI_APP_URL).host).toBe('app.t27.ai')
+  })
+
+  it('a trailing-slash base still joins exactly one slash', () => {
+    /*
+     * The production default ends with '/', so a naive template join would
+     * build 'https://app.t27.ai//?tgWebAppStartParam=...'. A double slash
+     * still resolves, but it breaks strict normalization and path-based
+     * caches; the URL parser keeps '//' in pathname, so this pins the join.
+     */
+    const u = new URL(buildMiniAppUrl('feed'))
+    expect(u.host).toBe('app.t27.ai')
+    expect(u.pathname).toBe('/')
+    expect(u.searchParams.get('tgWebAppStartParam')).toBe('feed')
+  })
+
   it('диплинк добавляет start_param', () => {
     const u = buildMiniAppUrl('abc')
     expect(u).toContain(MINI_APP_URL)
@@ -133,7 +157,7 @@ describe('конфигурация мини-аппа осталась рабоч
      * app opens on the wrong route.
      */
     expect(buildMiniAppUrl('a b&c')).toBe(
-      `${MINI_APP_URL}/?tgWebAppStartParam=a%20b%26c`
+      `${MINI_APP_URL.replace(/\/+$/, '')}/?tgWebAppStartParam=a%20b%26c`
     )
   })
 
