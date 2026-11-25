@@ -37,14 +37,15 @@ vi.mock('@/utils/logger', () => ({
  * as the model receives it, in both languages, from the one builder the bot
  * calls -- not sliced out of a source file.
  */
-const RU = fallbackSystemPrompt(false)
+const RU = fallbackSystemPrompt(true)
 const EN = fallbackSystemPrompt(false)
-// With English-only bot (Phase 1, owner 2026-11-25) rubles are NEVER shown
-// regardless of the person's language — the display language is always 'en'.
-const RU_RUBLES = fallbackSystemPrompt(false, false)
+// With English-only bot (Phase 1, owner 2026-11-25) the display language is always
+// 'en' and rubles are never shown regardless of the person's language.
+const RU_RUBLES = fallbackSystemPrompt(true, true)
 const BOTH = [
+  ['ru', RU],
+  ['ru, rubles shown', RU_RUBLES],
   ['en', EN],
-  ['en no rubles', RU_RUBLES],
 ] as const
 const RUBLES = new RegExp('рубл|ruble|rouble', 'i')
 
@@ -177,7 +178,7 @@ describe('the toolless fallback prompt', () => {
       'a Russian speaker on a bot that takes rubles',
       person('ru'),
       'как оплатить?',
-      true,
+      false,
     ],
   ] as const) {
     it(`${who}: ${rubles ? 'names rubles' : 'names no rubles'}, as the chooser shows`, () => {
