@@ -47,7 +47,7 @@ const BOTH = [
   ['ru, rubles shown', RU_RUBLES],
   ['en', EN],
 ] as const
-const RUBLES = new RegExp('рубл', 'i')
+const RUBLES = new RegExp('рубл|ruble(s)?', 'i')
 
 // Built from strings: the Cyrillic gate allows Cyrillic in literals only.
 // Up to three words may stand between the noun and the negation: review of
