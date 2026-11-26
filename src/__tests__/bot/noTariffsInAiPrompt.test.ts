@@ -142,11 +142,20 @@ describe('the toolless fallback prompt', () => {
     expect(RU_RUBLES).toMatch(RUBLES)
   })
 
-  /** A context shaped like the real one: the language lives in ctx.state. */
+  /**
+   * A context shaped like the real one AFTER languageMiddleware has run. The
+   * middleware (Phase 1 English-only, owner 2026-11-25) resolves the person's
+   * stored language from the database, logs it, and hands every call site the
+   * display language 'en'. So `from.language_code` keeps the person's stored
+   * language -- the honest record of who they are -- while `state.userLanguage`,
+   * the one value every helper reads, is always 'en'. A test that copied the
+   * stored language into state would model the pre-middleware context and lie
+   * about what the bot actually answers.
+   */
   const person = (language: 'ru' | 'en', bot = 'neuro_blogger_bot') =>
     ({
       from: { id: 900000141, language_code: language },
-      state: { userLanguage: language },
+      state: { userLanguage: 'en' },
       botInfo: { username: bot },
       scene: { current: undefined },
     }) as never
