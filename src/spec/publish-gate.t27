@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/publish-gate.t27 -- the fail-closed publish contour of the reels MCP V2.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-27, order REELS_MCP_PUBLISH_V2: build the publish contour, but the
+// deed stays gated -- no send without the owner GO flag, the provider key from the
+// environment only, an actually executed render, and the explicit confirm. Any absent
+// piece collapses to "blocked"; nothing publishes by default, and no key value ever
+// enters a file, a log or a report.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. can_publish is true in exactly one vector: GO given and
+// true, key configured, render found and executed, confirm given and true. blocked_stage
+// names the first missing piece so the glue answers one honest rejection reason instead
+// of a generic failure: 0 publishable, 1 owner-go-required, 2 provider-key-missing,
+// 3 render-not-executed, 4 confirm-missing. The owner GO dominates: without it the
+// stage is 1 no matter what else is present.
+// v1 (2026-11-27): first frame, vectors from the REELS_MCP_PUBLISH_V2 order.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::publish_gate {
+    pub const KIND : str = "reels";
+    pub const ID : str = "publish-gate";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // An absent GO flag collapses to false, same law as the confirm gate.
+    pub const GO_DEFAULT : bool = false;
+
+    // Stage codes answered by blocked_stage.
+    pub const STAGE_PUBLISHABLE : u8 = 0;
+    pub const STAGE_OWNER_GO_REQUIRED : u8 = 1;
+    pub const STAGE_PROVIDER_KEY_MISSING : u8 = 2;
+    pub const STAGE_RENDER_NOT_EXECUTED : u8 = 3;
+    pub const STAGE_CONFIRM_MISSING : u8 = 4;
+
+    pub fn go_flag(go_given: bool, go_value: bool) -> bool {
+        if (go_given) {
+            return go_value;
+        }
+        return GO_DEFAULT;
+    }
+
+    pub fn armed(go_given: bool, go_value: bool, key_configured: bool) -> bool {
+        return go_flag(go_given, go_value) and key_configured;
+    }
+
+    pub fn render_ready(render_found: bool, render_executed: bool) -> bool {
+        return render_found and render_executed;
+    }
+
+    pub fn can_publish(
+        go_given: bool,
+        go_value: bool,
+        key_configured: bool,
+        render_found: bool,
+        render_executed: bool,
+        confirm_given: bool,
+        confirm_value: bool,
+    ) -> bool {
+        return armed(go_given, go_value, key_configured)
+            and render_ready(render_found, render_executed)
+            and confirm_given
+            and confirm_value;
+    }
+
+    pub fn blocked_stage(
+        go_given: bool,
+        go_value: bool,
+        key_configured: bool,
+        render_found: bool,
+        render_executed: bool,
+        confirm_given: bool,
+        confirm_value: bool,
+    ) -> u8 {
+        if (!go_flag(go_given, go_value)) {
+            return STAGE_OWNER_GO_REQUIRED;
+        }
+        if (!key_configured) {
+            return STAGE_PROVIDER_KEY_MISSING;
+        }
+        if (!render_ready(render_found, render_executed)) {
+            return STAGE_RENDER_NOT_EXECUTED;
+        }
+        if (!confirm_given or !confirm_value) {
+            return STAGE_CONFIRM_MISSING;
+        }
+        return STAGE_PUBLISHABLE;
+    }
+
+    test "an absent GO flag collapses to false" {
+        assert(!go_flag(false, true));
+        assert(!go_flag(false, false));
+        assert(go_flag(true, true));
+        assert(!go_flag(true, false));
+    }
+
+    test "armed needs both the owner GO and the provider key" {
+        assert(!armed(true, true, false));
+        assert(!armed(true, false, true));
+        assert(!armed(false, true, true));
+        assert(armed(true, true, true));
+    }
+
+    test "a render counts as ready only when found and actually executed" {
+        assert(!render_ready(false, true));
+        assert(!render_ready(true, false));
+        assert(!render_ready(false, false));
+        assert(render_ready(true, true));
+    }
+
+    test "publish happens in exactly one vector and every missing piece blocks it" {
+        assert(can_publish(true, true, true, true, true, true, true));
+        assert(!can_publish(false, true, true, true, true, true, true));
+        assert(!can_publish(true, false, true, true, true, true, true));
+        assert(!can_publish(true, true, false, true, true, true, true));
+        assert(!can_publish(true, true, true, false, true, true, true));
+        assert(!can_publish(true, true, true, true, false, true, true));
+        assert(!can_publish(true, true, true, true, true, false, true));
+        assert(!can_publish(true, true, true, true, true, true, false));
+        assert(!can_publish(false, false, false, false, false, false, false));
+    }
+
+    test "blocked_stage names the first missing piece, owner GO first" {
+        assert(blocked_stage(true, true, true, true, true, true, true) == STAGE_PUBLISHABLE);
+        assert(blocked_stage(false, false, false, false, false, false, false) == STAGE_OWNER_GO_REQUIRED);
+        assert(blocked_stage(false, true, true, true, true, true, true) == STAGE_OWNER_GO_REQUIRED);
+        assert(blocked_stage(true, true, false, true, true, true, true) == STAGE_PROVIDER_KEY_MISSING);
+        assert(blocked_stage(true, true, true, false, true, true, true) == STAGE_RENDER_NOT_EXECUTED);
+        assert(blocked_stage(true, true, true, true, false, true, true) == STAGE_RENDER_NOT_EXECUTED);
+        assert(blocked_stage(true, true, true, true, true, false, true) == STAGE_CONFIRM_MISSING);
+        assert(blocked_stage(true, true, true, true, true, true, false) == STAGE_CONFIRM_MISSING);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
