@@ -1,9 +1,12 @@
 // End-to-end smoke for the reels MCP V1 server over real stdio.
 // Usage: node scripts/reels-mcp-smoke.mjs <path-to-server-js-or-ts-runner> [command]
 // Default command is node; pass "bun" to run the TypeScript source directly.
-// The publish assertions are the law: reels_publish must answer its dry-run
-// body without confirm, and must stay BLOCKED with confirm, with or without
-// a syntactically valid API key. Any UNEXPECTED line fails the smoke.
+// The publish assertions are the V2 law (spec port/reels/publish-gate.t27):
+// reels_publish answers a gate decision and takes NO external action — every
+// missing piece (owner GO, env provider key, executed render, confirm) yields a
+// structured blocked body naming that piece first; with all pieces present it
+// reports the gate OPEN and still publishes nothing. Any UNEXPECTED line fails
+// the smoke.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { existsSync, mkdtempSync } from 'node:fs'
@@ -127,26 +130,35 @@ await withServer({}, async client => {
     exec.manifest_path
   )
 
-  const pub1 = parse(
+  // ---- V2 publish gate (spec port/reels/publish-gate.t27) ----
+  // Missing pieces answer structured blocked bodies, owner GO first.
+  const pub0 = parse(
     await client.callTool({
       name: 'reels_publish',
       arguments: { render_id: exec.render_id },
     })
   )
   check(
-    'publish: no confirm answers the dry-run body',
-    pub1.dry_run === true && pub1.blocked === undefined
+    'publish: no GO answers owner-approval-required (stage 1)',
+    pub0.blocked === true &&
+      pub0.stage === 1 &&
+      pub0.stage_name === 'owner-approval-required' &&
+      pub0.published === false,
+    pub0.reason
   )
 
   const pub2 = parse(
     await client.callTool({
       name: 'reels_publish',
-      arguments: { render_id: exec.render_id, confirm: true },
+      arguments: { render_id: exec.render_id, go: true, confirm: true },
     })
   )
   check(
-    'publish: confirm=true stays BLOCKED',
-    pub2.blocked === true && pub2.stage === 'owner-approval-required',
+    'publish: GO without env key answers provider-key-missing (stage 2)',
+    pub2.blocked === true &&
+      pub2.stage === 2 &&
+      pub2.stage_name === 'provider-key-missing' &&
+      pub2.published === false,
     pub2.reason
   )
 
@@ -231,6 +243,83 @@ await withServer(
     )
   }
 )
+
+// Third server instance WITH a provider key in the environment: the gate can
+// now reach stages 3, 4 and the OPEN stage. The value is constructed, not a
+// literal — a smoke key, never a credential.
+await withServer({ TRIOS_API_KEY: `trios_${'k'.repeat(32)}` }, async client => {
+  const brief = parse(
+    await client.callTool({
+      name: 'reels_brief',
+      arguments: { topic: 'publish gate stages', seconds: 10 },
+    })
+  )
+  const sb = parse(
+    await client.callTool({
+      name: 'reels_storyboard',
+      arguments: { brief_id: brief.brief_id },
+    })
+  )
+  const exec = parse(
+    await client.callTool({
+      name: 'reels_render',
+      arguments: {
+        storyboard_id: sb.storyboard_id,
+        dry_run: false,
+        confirm: true,
+      },
+    })
+  )
+  check(
+    'gate server: render executed with key configured',
+    exec.executed === true && existsSync(exec.manifest_path)
+  )
+
+  const pub3 = parse(
+    await client.callTool({
+      name: 'reels_publish',
+      arguments: { render_id: 'no-such-render', go: true, confirm: true },
+    })
+  )
+  check(
+    'publish: GO+key without an executed render answers render-not-executed (stage 3)',
+    pub3.blocked === true &&
+      pub3.stage === 3 &&
+      pub3.stage_name === 'render-not-executed' &&
+      pub3.published === false,
+    pub3.reason
+  )
+
+  const pub4 = parse(
+    await client.callTool({
+      name: 'reels_publish',
+      arguments: { render_id: exec.render_id, go: true },
+    })
+  )
+  check(
+    'publish: GO+key+render without confirm answers confirm-missing (stage 4)',
+    pub4.blocked === true &&
+      pub4.stage === 4 &&
+      pub4.stage_name === 'confirm-missing' &&
+      pub4.published === false,
+    pub4.reason
+  )
+
+  const pubOpen = parse(
+    await client.callTool({
+      name: 'reels_publish',
+      arguments: { render_id: exec.render_id, go: true, confirm: true },
+    })
+  )
+  check(
+    'publish: all pieces present answers the gate OPEN and still publishes nothing',
+    pubOpen.blocked === false &&
+      pubOpen.stage === 0 &&
+      pubOpen.stage_name === 'publishable' &&
+      pubOpen.published === false,
+    pubOpen.reason
+  )
+})
 
 console.log(failures === 0 ? 'SMOKE PASS' : `SMOKE FAIL (${failures})`)
 process.exit(failures === 0 ? 0 : 1)

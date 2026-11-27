@@ -23,6 +23,8 @@ import * as apiKeyLogic from '../spec/api-key-gate.logic'
 import * as termsLogic from '../spec/forbidden-terms.logic'
 import * as BREAKER from '../spec/circuit-breaker.gen'
 import * as KEY from '../spec/api-key-gate.gen'
+import * as PUBLISH from '../spec/publish-gate.gen'
+import * as publishLogic from '../spec/publish-gate.logic'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -361,39 +363,71 @@ export function createReelsServer(): Server {
   }
 
   const reelsPublish = (args: Record<string, unknown>): ToolResult => {
+    // V2 publish contour, spec port/reels/publish-gate.t27. The gate decision
+    // comes from the spec's blockedStage; the glue only gathers the inputs:
+    // an explicit GO arg pair, provider-key PRESENCE in the environment (the
+    // value is never read, logged or echoed), the render record's executed
+    // flag and an explicit confirm. Every missing piece answers a structured
+    // blocked body; the happy path asserts the gating decision and takes NO
+    // external action — a real publish needs a separate explicit owner GO.
+    const goGiven = args['go'] !== undefined
+    const goValue = argBool(args, 'go') === true
+    const keyConfigured = Boolean(process.env[KEY.API_KEY_ENV_NAME])
     const render_id = argString(args, 'render_id') ?? ''
-    const confirm = argBool(args, 'confirm')
     const api_key = argString(args, 'api_key')
+    const confirm = argBool(args, 'confirm')
     const gate = gateRequest(api_key)
     if (gate) return text({ rejected: gate }, true)
     const render = renders.get(render_id)
-    if (!render || !render.executed) {
-      return text(
-        {
-          rejected: `unknown or unexecuted render_id ${render_id}; call reels_render first`,
-        },
-        true
-      )
+    const stage = publishLogic.blockedStage(
+      goGiven,
+      goValue,
+      keyConfigured,
+      render !== undefined,
+      render !== undefined ? render.executed : false,
+      confirm !== undefined,
+      confirm === true
+    )
+    // t27-plumbing: stage-code → transport label map; the decision is the spec's.
+    const stageLabels: Record<number, string> = {
+      [PUBLISH.STAGE_PUBLISHABLE]: 'publishable',
+      [PUBLISH.STAGE_OWNER_GO_REQUIRED]: 'owner-approval-required',
+      [PUBLISH.STAGE_PROVIDER_KEY_MISSING]: 'provider-key-missing',
+      [PUBLISH.STAGE_RENDER_NOT_EXECUTED]: 'render-not-executed',
+      [PUBLISH.STAGE_CONFIRM_MISSING]: 'confirm-missing',
     }
-    const confirmGiven = confirm !== undefined
-    const confirmed = confirmLogic.confirmed(confirmGiven, confirm === true)
-    if (confirmLogic.returnsDryRunBody(true, confirmGiven, confirmed)) {
+    const specTag = `${BRIEF.ID} v${BRIEF.VERSION}`
+    if (stage === PUBLISH.STAGE_PUBLISHABLE) {
       return text({
-        dry_run: true,
-        publish: 'would be attempted, but V1 has no publish target',
+        blocked: false,
+        stage,
+        stage_name: stageLabels[stage],
+        published: false,
         render_id,
-        confirm_given: confirmGiven,
+        reason:
+          'publish gate OPEN: GO, provider key, executed render and confirm are all present; ' +
+          'V2 stops here — no external API is called and nothing was published',
+        spec: specTag,
       })
     }
-    // The publish boundary: even a confirmed call is refused in V1 because
-    // the owner has not opened the publication gate and no keys exist.
+    const reasons: Record<number, string> = {
+      [PUBLISH.STAGE_OWNER_GO_REQUIRED]:
+        'publish is BLOCKED: owner GO flag absent or false; the gate needs "go": true',
+      [PUBLISH.STAGE_PROVIDER_KEY_MISSING]: `publish is BLOCKED: provider key not configured; set ${KEY.API_KEY_ENV_NAME} in the environment`,
+      [PUBLISH.STAGE_RENDER_NOT_EXECUTED]:
+        'publish is BLOCKED: render not found or not executed; run reels_render with dry_run:false and confirm:true first',
+      [PUBLISH.STAGE_CONFIRM_MISSING]:
+        'publish is BLOCKED: confirm field absent or false; the gate needs "confirm": true',
+    }
     return text({
       blocked: true,
-      stage: 'owner-approval-required',
+      stage,
+      stage_name: stageLabels[stage],
+      published: false,
       render_id,
       reason:
-        'publish is BLOCKED in V1: owner approval required and no external API keys are configured; nothing was published',
-      spec: `${BRIEF.ID} v${BRIEF.VERSION}`,
+        reasons[stage] ?? 'publish is BLOCKED: a required piece is missing',
+      spec: specTag,
     })
   }
 
@@ -496,10 +530,13 @@ export function createReelsServer(): Server {
       name: 'reels_publish',
       title: 'Reels publish',
       description:
-        'Publish a rendered reel. BLOCKED in V1 by owner decision (2026-11-26): no publish ' +
-        'target is configured, no external API keys exist in V1, and publication happens only ' +
-        'after an explicit owner GO. Without a confirm field the tool answers its dry-run body ' +
-        'instead of acting; even with confirm=true it stays blocked and says why.',
+        'Publish contour V2 (spec port/reels/publish-gate.t27), still fail-closed: the tool ' +
+        'answers a gate decision and takes NO external action in V2 — a real publish needs a ' +
+        'separate explicit owner GO. The gate needs ALL of: "go": true (owner GO flag), ' +
+        `${KEY.API_KEY_ENV_NAME} present in the environment, a render_id from an EXECUTED ` +
+        'reels_render call, and "confirm": true. The answer names the first missing piece ' +
+        '(stage: owner GO first, then provider key, then render, then confirm); when every ' +
+        'piece is present it reports the gate OPEN and still publishes nothing.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -507,9 +544,14 @@ export function createReelsServer(): Server {
             type: 'string',
             description: 'render_id returned by reels_render',
           },
+          go: {
+            type: 'boolean',
+            description:
+              'owner GO for this publish call; absent or false keeps the gate closed',
+          },
           confirm: {
             type: 'boolean',
-            description: 'absent means false: answer the dry-run body',
+            description: 'absent means false: the gate answers confirm-missing',
           },
           api_key: {
             type: 'string',
