@@ -19,6 +19,14 @@
       "headers": {
         "X-Agent-Key": "${VIBEE_AGENT_KEY:-}"
       }
+    },
+    "reels": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "src/reels-mcp/main.ts"],
+      "env": {
+        "REELS_RUN_DIR": "${REELS_RUN_DIR:-}"
+      }
     }
   }
 }

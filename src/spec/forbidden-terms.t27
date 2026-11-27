@@ -1,0 +1,154 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/forbidden-terms.t27 -- the forbidden-terms audit of reels text.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1 + trios migration R10: every text the reels
+// tools hand out or accept is audited before it moves. Audit source: trios crates/
+// trios-mcp-rag/src/main.rs:61-70 (tool_audit()): the hardcoded list is
+//   ["63 tok/s/W", "tok/s/W", "compete with nvidia", "vasilev-pellis constants",
+//    "claude", "rollback"]
+// and the audit is a CASE-INSENSITIVE "contains" over all chapter text; an answer is
+// clean only when NONE of the terms appears in it.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. Matching folds ASCII A-Z to a-z and scans bytes; a
+// zero-length term never matches and a term longer than the text never matches.
+// v1 (2026-11-26): first frame; terms and text cross the wasm boundary as str.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::forbidden_terms {
+    pub const KIND : str = "reels";
+    pub const ID : str = "forbidden-terms";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const TERM_TOK_FULL : str = "63 tok/s/W";
+    pub const TERM_TOK : str = "tok/s/W";
+    pub const TERM_NVIDIA : str = "compete with nvidia";
+    pub const TERM_VASILEV : str = "vasilev-pellis constants";
+    pub const TERM_CLAUDE : str = "claude";
+    pub const TERM_ROLLBACK : str = "rollback";
+
+    // Case-insensitive fold: ASCII uppercase A-Z (65..90) maps to lowercase.
+    pub fn fold(c: u8) -> u8 {
+        if (c >= 65 and c <= 90) {
+            return c + 32;
+        }
+        return c;
+    }
+
+    // Case-insensitive substring containment of term inside text.
+    // A zero-length term never matches; a term longer than the text never matches.
+    pub fn contains(text: str, term: str) -> bool {
+        if term.len == 0 or term.len > text.len {
+            return false;
+        }
+        var start : u32 = 0;
+        var found : bool = false;
+        while !found and start + term.len <= text.len {
+            var j : u32 = 0;
+            var ok : bool = true;
+            while ok and j < term.len {
+                if fold(text[start + j]) != fold(term[j]) {
+                    ok = false;
+                }
+                j = j + 1;
+            }
+            if ok {
+                found = true;
+            }
+            start = start + 1;
+        }
+        return found;
+    }
+
+    pub fn hits_tok_full(text: str) -> bool {
+        return contains(text, TERM_TOK_FULL);
+    }
+
+    pub fn hits_tok(text: str) -> bool {
+        return contains(text, TERM_TOK);
+    }
+
+    pub fn hits_nvidia(text: str) -> bool {
+        return contains(text, TERM_NVIDIA);
+    }
+
+    pub fn hits_vasilev(text: str) -> bool {
+        return contains(text, TERM_VASILEV);
+    }
+
+    pub fn hits_claude(text: str) -> bool {
+        return contains(text, TERM_CLAUDE);
+    }
+
+    pub fn hits_rollback(text: str) -> bool {
+        return contains(text, TERM_ROLLBACK);
+    }
+
+    // The decision: an answer may ship only when it hits NO term.
+    pub fn chapter_is_clean(text: str) -> bool {
+        if (hits_tok_full(text)) {
+            return false;
+        }
+        if (hits_tok(text)) {
+            return false;
+        }
+        if (hits_nvidia(text)) {
+            return false;
+        }
+        if (hits_vasilev(text)) {
+            return false;
+        }
+        if (hits_claude(text)) {
+            return false;
+        }
+        if (hits_rollback(text)) {
+            return false;
+        }
+        return true;
+    }
+
+    pub const TXT_HIT_CLAUDE : str = "ask CLAUDE about chips";
+    pub const TXT_HIT_ROLLBACK : str = "deployment rollback is manual";
+    pub const TXT_CLEAN : str = "the guide covers pacing and framing";
+    pub const TXT_TRICKY : str = "tokens per watt efficiency";
+
+    test "the fold maps uppercase ASCII and keeps the rest" {
+        assert(fold(67) == 99);
+        assert(fold(69) == 101);
+        assert(fold(97) == 97);
+        assert(fold(47) == 47);
+        assert(fold(48) == 48);
+    }
+
+    test "contains matches case-insensitively with clean edges" {
+        assert(contains(TXT_HIT_CLAUDE, TERM_CLAUDE));
+        assert(!contains(TXT_CLEAN, TERM_CLAUDE));
+        assert(!contains(TXT_CLEAN, ""));
+        assert(!contains(TXT_CLEAN, TERM_VASILEV));
+        assert(!contains(TXT_TRICKY, TERM_TOK));
+        assert(contains(TXT_HIT_ROLLBACK, TERM_ROLLBACK));
+    }
+
+    test "term hits are case-insensitive substrings" {
+        assert(hits_claude(TXT_HIT_CLAUDE));
+        assert(!hits_claude(TXT_CLEAN));
+        assert(hits_rollback(TXT_HIT_ROLLBACK));
+        assert(!hits_tok(TXT_TRICKY));
+        assert(!hits_tok_full(TXT_TRICKY));
+        assert(!hits_nvidia(TXT_CLEAN));
+        assert(!hits_vasilev(TXT_CLEAN));
+    }
+
+    test "a clean chapter passes and a hit fails the audit" {
+        assert(chapter_is_clean(TXT_CLEAN));
+        assert(chapter_is_clean(TXT_TRICKY));
+        assert(!chapter_is_clean(TXT_HIT_CLAUDE));
+        assert(!chapter_is_clean(TXT_HIT_ROLLBACK));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

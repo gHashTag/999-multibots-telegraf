@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/api-key-gate.t27 -- the API-key gate of the reels MCP server.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1 + migration rule R22: a request passes only
+// with a configured, non-empty key that matches the expected prefix and length. Audit
+// source: trios crates/trios-server/src/security.rs:56-96 -- bearer auth reads the
+// TRIOS_API_KEY environment variable by NAME; an empty value currently means dev
+// allow-all (security.rs:71-73, fail-open) and this spec replaces that with fail-closed.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. Exempt paths stay open; an unconfigured or empty key is
+// refused; a configured key must match the prefix and sit inside the length bounds.
+// LABELED DEFAULTS chosen by this spec (the audit provides none): expected prefix
+// "trios_", minimum key length 24, maximum 128. The key VALUE is never embedded
+// anywhere: it is read at runtime from the environment variable named below.
+// v1 (2026-11-26): first frame; keys cross the wasm boundary as str.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::api_key_gate {
+    pub const KIND : str = "reels";
+    pub const ID : str = "api-key-gate";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const API_KEY_ENV_NAME : str = "TRIOS_API_KEY";
+    pub const KEY_PREFIX : str = "trios_";
+    pub const MIN_KEY_LEN : u32 = 24;
+    pub const MAX_KEY_LEN : u32 = 128;
+
+    // The key must start with the expected prefix.
+    pub fn has_prefix(key: str) -> bool {
+        var i : u32 = 0;
+        var ok : bool = true;
+        while ok and i < KEY_PREFIX.len {
+            if i >= key.len or key[i] != KEY_PREFIX[i] {
+                ok = false;
+            }
+            i = i + 1;
+        }
+        return ok;
+    }
+
+    // The key length must sit inside the configured bounds.
+    pub fn length_ok(key_len: u32) -> bool {
+        return (key_len >= MIN_KEY_LEN) and (key_len <= MAX_KEY_LEN);
+    }
+
+    // The full gate: exempt paths pass, an unconfigured or empty key is
+    // refused (fail-closed), a configured key must match prefix and length.
+    pub fn allows(key_configured: bool, key: str, path_exempt: bool) -> bool {
+        if (path_exempt) {
+            return true;
+        }
+        if (!key_configured) {
+            return false;
+        }
+        if (key.len == 0) {
+            return false;
+        }
+        return has_prefix(key) and length_ok(key.len);
+    }
+
+    pub const KEY_GOOD : str = "trios_0123456789abcdef0123456789abcdef";
+    pub const KEY_SHORT : str = "trios_abc";
+    pub const KEY_WRONG_PREFIX : str = "zz-0123456789abcdef0123456789abcdef";
+
+    test "the key must start with the expected prefix" {
+        assert(has_prefix(KEY_GOOD));
+        assert(has_prefix(KEY_SHORT));
+        assert(!has_prefix(KEY_WRONG_PREFIX));
+        assert(!has_prefix("tr"));
+    }
+
+    test "length bounds reject short and empty keys" {
+        assert(length_ok(38));
+        assert(length_ok(24));
+        assert(length_ok(128));
+        assert(!length_ok(9));
+        assert(!length_ok(0));
+        assert(!length_ok(23));
+    }
+
+    test "the gate fails closed without a configured key" {
+        assert(!allows(false, KEY_GOOD, false));
+        assert(!allows(true, "", false));
+    }
+
+    test "the gate accepts only valid keys on guarded paths" {
+        assert(allows(true, KEY_GOOD, false));
+        assert(!allows(true, KEY_SHORT, false));
+        assert(!allows(true, KEY_WRONG_PREFIX, false));
+    }
+
+    test "exempt paths stay open" {
+        assert(allows(true, KEY_GOOD, true));
+        assert(allows(false, KEY_GOOD, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

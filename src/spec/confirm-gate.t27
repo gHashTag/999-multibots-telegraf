@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/confirm-gate.t27 -- the confirm gate of the reels MCP tools.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1: reels_publish stays BLOCKED by default and
+// needs explicit owner approval; no automatic publication in V1. Audit source: trios
+// bridge-server.ts:1488-1499 (confirm: z.boolean().default(false), "Requires confirm=true;
+// returns dry-run SQL otherwise").
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. The absent confirm field collapses to false; a destructive
+// tool executes only with an explicit true confirm, and without it the tool answers its
+// dry-run body instead of doing the deed.
+// v1 (2026-11-26): first frame, vectors from the publish-boundary decision. The
+// read-only executes vectors were corrected the same day: a non-destructive call
+// never "executes", so executes(false, ..) is pinned to false by its binding test.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::confirm_gate {
+    pub const KIND : str = "reels";
+    pub const ID : str = "confirm-gate";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    // A tool call that carries no confirm field at all is the same as confirm = false.
+    pub const CONFIRM_DEFAULT : bool = false;
+
+    pub fn confirmed(confirm_given: bool, confirm_value: bool) -> bool {
+        if (confirm_given) {
+            return confirm_value;
+        }
+        return CONFIRM_DEFAULT;
+    }
+
+    pub fn executes(is_destructive: bool, confirm_given: bool, confirm_value: bool) -> bool {
+        return is_destructive and confirmed(confirm_given, confirm_value);
+    }
+
+    pub fn returns_dry_run_body(is_destructive: bool, confirm_given: bool, confirm_value: bool) -> bool {
+        return is_destructive and !confirmed(confirm_given, confirm_value);
+    }
+
+    test "an absent confirm field collapses to false" {
+        assert(!confirmed(false, true));
+        assert(!confirmed(false, false));
+        assert(confirmed(true, true));
+        assert(!confirmed(true, false));
+    }
+
+    test "a destructive tool needs the explicit confirm, a read-only one never waits" {
+        assert(!executes(true, false, true));
+        assert(!executes(true, true, false));
+        assert(executes(true, true, true));
+        assert(!executes(false, false, false));
+        assert(!executes(false, true, false));
+    }
+
+    test "an unconfirmed destructive call answers its dry-run body" {
+        assert(returns_dry_run_body(true, false, true));
+        assert(returns_dry_run_body(true, true, false));
+        assert(!returns_dry_run_body(true, true, true));
+        assert(!returns_dry_run_body(false, false, false));
+        assert(!returns_dry_run_body(false, true, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

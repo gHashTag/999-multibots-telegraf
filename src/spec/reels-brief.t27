@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/reels-brief.t27 -- the shape numbers of a reels brief.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1: every reels number lives in a spec, so the
+// t27-only guard keeps the glue from growing its own thresholds. V1 works on short-form
+// reels: 5..60 seconds, one scene per 5 seconds, clamped to 2..6 scenes.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. reels_brief rejects seconds outside the window, counts
+// scenes by rounding up to the next 5-second slice, clamps the count into 2..6, splits
+// the reel into whole-millisecond per-scene durations (zero scenes fail closed to zero),
+// and no rendered reel may outlive the window.
+// v1 (2026-11-26): first frame, numbers chosen for short-form reels in V1.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::reels_brief {
+    pub const KIND : str = "reels";
+    pub const ID : str = "reels-brief";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const SECONDS_MIN : u32 = 5;
+    pub const SECONDS_MAX : u32 = 60;
+    pub const SECONDS_PER_SCENE : u32 = 5;
+    pub const SCENE_MIN : u32 = 2;
+    pub const SCENE_MAX : u32 = 6;
+    pub const MS_PER_SECOND : u32 = 1000;
+
+    pub fn seconds_ok(seconds: u32) -> bool {
+        return seconds >= SECONDS_MIN and seconds <= SECONDS_MAX;
+    }
+
+    pub fn scene_count(seconds: u32) -> u32 {
+        let raw : u32 = (seconds + SECONDS_PER_SCENE - 1) / SECONDS_PER_SCENE;
+        if (raw < SCENE_MIN) {
+            return SCENE_MIN;
+        }
+        if (raw > SCENE_MAX) {
+            return SCENE_MAX;
+        }
+        return raw;
+    }
+
+    pub fn per_scene_ms(seconds: u32, scenes: u32) -> u32 {
+        if (scenes == 0) {
+            return 0;
+        }
+        return (seconds * MS_PER_SECOND) / scenes;
+    }
+
+    pub fn duration_ok(total_ms: u32) -> bool {
+        if (total_ms == 0) {
+            return false;
+        }
+        return total_ms <= SECONDS_MAX * MS_PER_SECOND;
+    }
+
+    test "a brief keeps its seconds inside the working window" {
+        assert(seconds_ok(5));
+        assert(seconds_ok(60));
+        assert(!seconds_ok(4));
+        assert(!seconds_ok(61));
+    }
+
+    test "scene count grows with seconds and stays between two and six" {
+        assert(scene_count(5) == 2);
+        assert(scene_count(10) == 2);
+        assert(scene_count(15) == 3);
+        assert(scene_count(30) == 6);
+        assert(scene_count(31) == 6);
+        assert(scene_count(60) == 6);
+    }
+
+    test "per-scene duration divides the reel and a zero-scene brief fails closed" {
+        assert(per_scene_ms(15, 3) == 5000);
+        assert(per_scene_ms(10, 2) == 5000);
+        assert(per_scene_ms(60, 6) == 10000);
+        assert(per_scene_ms(15, 0) == 0);
+    }
+
+    test "a rendered reel never outlives the window" {
+        assert(duration_ok(15000));
+        assert(duration_ok(60000));
+        assert(!duration_ok(60001));
+        assert(!duration_ok(0));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

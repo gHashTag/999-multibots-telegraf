@@ -29,6 +29,14 @@ const STANDALONE = new Set([
   // the bot boots never reaches @modelcontextprotocol/sdk and the outage this
   // ratchet was written for cannot happen through this file.
   'src/inngest_app/mcp-rest-proxy.ts',
+  // The reels MCP V1 server, started only by client configs (project .mcp.json,
+  // the user's Cursor mcp.json, the Harness profile bundle) as `bun run
+  // src/reels-mcp/main.ts`; it connects a stdio transport and refuses to run
+  // inside the bot process. `server.ts` is its only module and is imported by
+  // nothing else in `src` (checked by the test below), so the bot's boot graph
+  // never reaches @modelcontextprotocol/sdk.
+  'src/reels-mcp/main.ts', // reels MCP stdio entry, started by client configs only
+  'src/reels-mcp/server.ts', // only importer is main.ts above
 ])
 
 const BUILTINS = new Set([
