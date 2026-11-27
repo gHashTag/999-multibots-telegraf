@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/dry-run-gate.t27 -- the dry-run gate of the reels MCP write tools.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1: no automatic publication; a write lands only
+// when the call is explicitly not a dry run AND carries the confirm token. Audit source:
+// trios bridge-server.ts:1837-1890 (dry_run: z.boolean().optional() while descriptions
+// promise "Dry-run by default" -- the schema must carry the promise the text makes).
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. An absent dry_run field means the call stays a dry run
+// (fail-safe), so a careless client can never trigger a real write by omission.
+// v1 (2026-11-26): first frame, vectors from the publish-boundary decision.
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::dry_run_gate {
+    pub const KIND : str = "reels";
+    pub const ID : str = "dry-run-gate";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub fn effective_dry_run(dry_run_given: bool, dry_run_value: bool) -> bool {
+        if (dry_run_given) {
+            return dry_run_value;
+        }
+        return true;
+    }
+
+    pub fn may_execute(dry_run: bool, confirm_present: bool) -> bool {
+        return !dry_run and confirm_present;
+    }
+
+    test "an absent dry_run field leaves the call a dry run" {
+        assert(effective_dry_run(false, true));
+        assert(effective_dry_run(false, false));
+        assert(!effective_dry_run(true, false));
+        assert(!effective_dry_run(true, true));
+    }
+
+    test "a write executes only when it is no dry run and carries the confirm" {
+        assert(!may_execute(true, true));
+        assert(!may_execute(true, false));
+        assert(!may_execute(false, false));
+        assert(may_execute(false, true));
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY

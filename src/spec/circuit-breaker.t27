@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: Apache-2.0
+// specs/port/reels/circuit-breaker.t27 -- the circuit breaker of the reels MCP server.
+// Host: 999-multibots-telegraf src/reels-mcp/server.ts (thin glue over <id>.logic.ts).
+// Trace: owner 2026-11-26, order REELS_MCP_V1: the server must fail fast and honestly when
+// an upstream keeps failing. Audit source: trios apps/trios-mcp-bridge/src/
+// circuit-breaker.ts:28-29 (failureThreshold 3, cooldownMs 10000) and clients/
+// trios-rag-client.ts:27-30 (same values), transitions at circuit-breaker.ts:33-95.
+// Generated: t27c gen-ts; vendored spec and generated constants in src/spec/.
+// Claim status: tool contract. Closed opens after 3 consecutive failures; open turns
+// half-open after the full 10000 ms cooldown; a half-open success closes, a failure
+// reopens; a call while open is refused with the remaining cooldown as retry-after.
+// v1 (2026-11-26): first frame; milliseconds live in u32 (the wasm boundary lowers u32).
+// phi^2 + 1/phi^2 = 3 | TRINITY
+
+module reels::circuit_breaker {
+    pub const KIND : str = "reels";
+    pub const ID : str = "circuit-breaker";
+    pub const REPO : str = "999-multibots-telegraf";
+    pub const VERSION : u8 = 1;
+
+    pub const STATE_CLOSED : u8 = 0;
+    pub const STATE_OPEN : u8 = 1;
+    pub const STATE_HALF_OPEN : u8 = 2;
+
+    pub const FAILURE_THRESHOLD : u32 = 3;
+    pub const COOLDOWN_MS : u32 = 10000;
+
+    pub fn opens(consecutive_failures: u32) -> bool {
+        return consecutive_failures >= FAILURE_THRESHOLD;
+    }
+
+    pub fn can_probe(open_ms: u32) -> bool {
+        return open_ms >= COOLDOWN_MS;
+    }
+
+    pub fn retry_after(open_ms: u32) -> u32 {
+        if (open_ms >= COOLDOWN_MS) {
+            return 0;
+        }
+        return COOLDOWN_MS - open_ms;
+    }
+
+    pub fn next_state(state: u8, probe_success: bool, consecutive_failures: u32, open_ms: u32) -> u8 {
+        if (state == STATE_CLOSED) {
+            if (opens(consecutive_failures)) {
+                return STATE_OPEN;
+            }
+            return STATE_CLOSED;
+        }
+        if (state == STATE_OPEN) {
+            if (can_probe(open_ms)) {
+                return STATE_HALF_OPEN;
+            }
+            return STATE_OPEN;
+        }
+        if (probe_success) {
+            return STATE_CLOSED;
+        }
+        return STATE_OPEN;
+    }
+
+    test "the breaker opens at the threshold and not below it" {
+        assert(opens(3));
+        assert(opens(4));
+        assert(!opens(2));
+        assert(!opens(0));
+    }
+
+    test "a probe is allowed only after the full cooldown" {
+        assert(can_probe(10000));
+        assert(can_probe(12000));
+        assert(!can_probe(9999));
+        assert(!can_probe(0));
+    }
+
+    test "retry_after is the remaining cooldown, zero means probe now" {
+        assert(retry_after(0) == 10000);
+        assert(retry_after(2500) == 7500);
+        assert(retry_after(9999) == 1);
+        assert(retry_after(10000) == 0);
+        assert(retry_after(12000) == 0);
+    }
+
+    test "closed opens on the third consecutive failure only" {
+        assert(next_state(STATE_CLOSED, true, 2, 0) == STATE_CLOSED);
+        assert(next_state(STATE_CLOSED, true, 3, 0) == STATE_OPEN);
+        assert(next_state(STATE_CLOSED, false, 1, 0) == STATE_CLOSED);
+    }
+
+    test "open turns half-open after the cooldown and not before" {
+        assert(next_state(STATE_OPEN, true, 0, 9999) == STATE_OPEN);
+        assert(next_state(STATE_OPEN, false, 0, 10000) == STATE_HALF_OPEN);
+        assert(next_state(STATE_OPEN, true, 0, 10000) == STATE_HALF_OPEN);
+    }
+
+    test "half-open success closes the breaker, a failure reopens it" {
+        assert(next_state(STATE_HALF_OPEN, true, 0, 0) == STATE_CLOSED);
+        assert(next_state(STATE_HALF_OPEN, false, 0, 0) == STATE_OPEN);
+    }
+
+    test "VERSION says what the header's last note says" {
+        assert(VERSION == 1);
+    }
+}
+
+// phi^2 + 1/phi^2 = 3 | TRINITY
