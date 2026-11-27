@@ -230,7 +230,11 @@ const EARNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   },
   {
     id: 'human',
-    re: /(не могу|не получилось|не удалось|ошибк|сбой|не уверен|непонятно|\berror\b|\bfailed\b|went wrong|not sure)/i, // cyrillic-ok: the words an answer uses
+    // "couldn't" belongs here, not to `can`: the miss line ("I couldn't
+    // answer this time...") promises a button below, and the bot speaks
+    // English only now -- the English words must earn it like the Russian
+    // ones did (не получилось).
+    re: /(не могу|не получилось|не удалось|ошибк|сбой|не уверен|непонятно|\berror\b|\bfailed\b|went wrong|not sure|\bcouldn'?t\b)/i, // cyrillic-ok: the words an answer uses
   },
 ]
 

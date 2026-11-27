@@ -71,13 +71,16 @@ describe('which way the agent missed', () => {
   })
 })
 
-describe('the reply language follows the person', () => {
-  it('a Cyrillic line is answered in Russian whatever the profile says', () => {
-    expect(replyInRussian('сделай рилс', false)).toBe(true)
+describe('the reply language follows the bot, never the message', () => {
+  it('the bot speaks English only: a Cyrillic line does not win the language', () => {
+    // Owner, 2026-11-25: the mirror is retired. Whatever the person writes,
+    // the language is the one the bot keeps for them (the middleware pins
+    // it to en) -- the Cyrillic branch of the old replyInRussian is gone.
+    expect(replyInRussian('сделай рилс', false)).toBe(false)
     expect(replyInRussian('сделай рилс', true)).toBe(true)
   })
 
-  it('a bare link is not a language: the profile decides', () => {
+  it('a bare link is not a language: the language the bot keeps decides', () => {
     const link = 'https://www.instagram.com/p/abc/'
     expect(replyInRussian(link, true)).toBe(true)
     expect(replyInRussian(link, false)).toBe(false)

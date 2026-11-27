@@ -305,8 +305,8 @@ describe('the agent turn in the bot chat runs off the loop', () => {
     expect(await laneNotices.sendShutdownNotices(unfinished)).toBe(1)
     const told = textsTo(USER)
     expect(told).toHaveLength(1)
-    expect(told[0]).toMatch(/перезапускался/) // cyrillic-ok: matches UI text
-    expect(told[0]).toMatch(/ещё раз/) // cyrillic-ok: matches UI text
+    expect(told[0]).toMatch(/restarted in the middle/)
+    expect(told[0]).toMatch(/send your message again/)
 
     // Once the turn does end, its notice is let go: nothing to tell.
     asks[0].answer('План готов.')

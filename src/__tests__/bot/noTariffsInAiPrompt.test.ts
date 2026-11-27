@@ -39,15 +39,15 @@ vi.mock('@/utils/logger', () => ({
  */
 const RU = fallbackSystemPrompt(true)
 const EN = fallbackSystemPrompt(false)
-// The Russian prompt for somebody the top-up chooser shows rubles to: every
-// guard below holds for it too.
+// With English-only bot (Phase 1, owner 2026-11-25) the display language is always
+// 'en' and rubles are never shown regardless of the person's language.
 const RU_RUBLES = fallbackSystemPrompt(true, true)
 const BOTH = [
   ['ru', RU],
   ['ru, rubles shown', RU_RUBLES],
   ['en', EN],
 ] as const
-const RUBLES = new RegExp('рубл|ruble|rouble', 'i')
+const RUBLES = new RegExp('рубл|ruble(s)?', 'i')
 
 // Built from strings: the Cyrillic gate allows Cyrillic in literals only.
 // Up to three words may stand between the noun and the negation: review of
@@ -142,11 +142,20 @@ describe('the toolless fallback prompt', () => {
     expect(RU_RUBLES).toMatch(RUBLES)
   })
 
-  /** A context shaped like the real one: the language lives in ctx.state. */
+  /**
+   * A context shaped like the real one AFTER languageMiddleware has run. The
+   * middleware (Phase 1 English-only, owner 2026-11-25) resolves the person's
+   * stored language from the database, logs it, and hands every call site the
+   * display language 'en'. So `from.language_code` keeps the person's stored
+   * language -- the honest record of who they are -- while `state.userLanguage`,
+   * the one value every helper reads, is always 'en'. A test that copied the
+   * stored language into state would model the pre-middleware context and lie
+   * about what the bot actually answers.
+   */
   const person = (language: 'ru' | 'en', bot = 'neuro_blogger_bot') =>
     ({
       from: { id: 900000141, language_code: language },
-      state: { userLanguage: language },
+      state: { userLanguage: 'en' },
       botInfo: { username: bot },
       scene: { current: undefined },
     }) as never
@@ -178,7 +187,7 @@ describe('the toolless fallback prompt', () => {
       'a Russian speaker on a bot that takes rubles',
       person('ru'),
       'как оплатить?',
-      true,
+      false,
     ],
   ] as const) {
     it(`${who}: ${rubles ? 'names rubles' : 'names no rubles'}, as the chooser shows`, () => {

@@ -188,7 +188,7 @@ const ndjson = (...events: unknown[]) =>
   })
 
 describe('an empty agent answer', () => {
-  it('never reaches the toolless model; one honest line in Russian, under the standard buttons', async () => {
+  it('never reaches the toolless model; one honest line in English, under the standard buttons', async () => {
     const USER = 900000071
     cannedAnswer = async () => ({
       текст: '', // cyrillic-ok: field of the agent answer
@@ -199,8 +199,10 @@ describe('an empty agent answer', () => {
     expect(chatWithAI).not.toHaveBeenCalled()
     const out = sent(USER)
     expect(out).toHaveLength(1)
-    expect(out[0].payload.text).toBe(fallback.honestMissLine(true, false))
-    expect(out[0].payload.text).toMatch(CYRILLIC)
+    // The bot speaks English only (owner, 2026-11-25): even a Cyrillic
+    // writer with a Cyrillic-profile row gets the English line.
+    expect(out[0].payload.text).toBe(fallback.honestMissLine(false, false))
+    expect(out[0].payload.text).not.toMatch(CYRILLIC)
     /*
      * ONE BUTTON, AND IT IS THE RIGHT ONE. Since 24.09.2026 buttons follow
      * the substance of the answer, so this line -- "I couldn't answer this
@@ -214,7 +216,7 @@ describe('an empty agent answer', () => {
     // a private chat outside any tab names none, so the base one.
     expect(recordTurns).toHaveBeenCalledWith(
       String(USER),
-      [{ role: 'assistant', content: fallback.honestMissLine(true, false) }],
+      [{ role: 'assistant', content: fallback.honestMissLine(false, false) }],
       'bot',
       {}
     )
@@ -232,15 +234,17 @@ describe('an empty agent answer', () => {
     expect(out[0].payload.text).not.toMatch(CYRILLIC)
   }, 60_000)
 
-  it('answers a Russian line in Russian even when the profile says English', async () => {
+  it('answers a Russian line in English: the message language never wins', async () => {
     // The production shape: a Russian line, and the bot answered in English.
+    // Owner, 2026-11-25: the Cyrillic mirror is retired -- whatever the
+    // person writes, the reply is the display language, English.
     const USER = 900000073
     cannedAnswer = async () => ({ текст: '' }) // cyrillic-ok: field of the agent answer
     await turn(USER, 'сделай что-нибудь с этой ссылкой', 'en')
 
-    expect(sent(USER)[0].payload.text).toBe(
-      fallback.honestMissLine(true, false)
-    )
+    const line = sent(USER)[0].payload.text
+    expect(line).toBe(fallback.honestMissLine(false, false))
+    expect(line).not.toMatch(CYRILLIC)
   }, 60_000)
 
   it('after a paid tool, does not invite a repeat that would pay twice', async () => {
@@ -250,8 +254,8 @@ describe('an empty agent answer', () => {
 
     expect(chatWithAI).not.toHaveBeenCalled()
     const line = sent(USER)[0].payload.text
-    expect(line).toBe(fallback.honestMissLine(true, true))
-    expect(line).not.toBe(fallback.honestMissLine(true, false))
+    expect(line).toBe(fallback.honestMissLine(false, true))
+    expect(line).not.toBe(fallback.honestMissLine(false, false))
   }, 60_000)
 
   it('an answer made only of button markers has no words: the line, not silence', async () => {
@@ -267,7 +271,7 @@ describe('an empty agent answer', () => {
     expect(chatWithAI).not.toHaveBeenCalled()
     const out = sent(USER)
     expect(out).toHaveLength(1)
-    expect(out[0].payload.text).toBe(fallback.honestMissLine(true, false))
+    expect(out[0].payload.text).toBe(fallback.honestMissLine(false, false))
   }, 60_000)
 
   it('a draft card with no words is the answer: no apology under it, no fallback', async () => {
@@ -289,8 +293,8 @@ describe('an empty agent answer', () => {
     const texts = sent(USER).map(s => String(s.payload.text))
     expect(texts).toHaveLength(1)
     expect(texts[0]).toContain('Hello from the draft')
-    expect(texts).not.toContain(fallback.honestMissLine(true, false))
-    expect(texts).not.toContain(fallback.honestMissLine(true, true))
+    expect(texts).not.toContain(fallback.honestMissLine(false, false))
+    expect(texts).not.toContain(fallback.honestMissLine(false, true))
   }, 60_000)
 })
 
@@ -314,7 +318,8 @@ describe('a failure the render reports in its own stream', () => {
     expect(chatWithAI).not.toHaveBeenCalled()
     const out = sent(USER)
     expect(out).toHaveLength(1)
-    expect(out[0].payload.text).toBe(fallback.honestMissLine(true, false))
+    expect(out[0].payload.text).toBe(fallback.honestMissLine(false, false))
+    expect(out[0].payload.text).not.toMatch(CYRILLIC)
   }, 60_000)
 })
 
@@ -344,10 +349,13 @@ describe('an unreachable agent', () => {
     }>
     const system = messages[0]
     expect(system.role).toBe('system')
-    // A Russian speaker on a bot that takes rubles: the top-up chooser draws
-    // the rubles key for them, so the prompt may name it (shouldShowRubles).
-    expect(system.content).toBe(fallback.fallbackSystemPrompt(true, true))
-    expect(system.content).toContain('рублями')
+    // The bot speaks English only (owner, 2026-11-25): the display language is
+    // pinned to en and the message language never overrides it (the Cyrillic
+    // mirror is retired), so this Cyrillic writer gets the English prompt.
+    // shouldShowRubles follows the display language -- the prompt names no
+    // rubles at all; the whole prompt stays free of Cyrillic.
+    expect(system.content).toBe(fallback.fallbackSystemPrompt(false, false))
+    expect(system.content).not.toMatch(/[\u0400-\u04FF]/)
     expect(system.content).toContain('/club')
     // The service list that produced "Instagram analytics" does not travel,
     // although this environment, like production, has no Instagram key.

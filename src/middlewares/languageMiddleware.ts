@@ -6,6 +6,14 @@ import { senderOf, statedLanguageCode } from '@/helpers/senderOf'
 import { getUserLanguageFromDB } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
+// Owner, 2026-11-25: the bot speaks English only. The stored preference is
+// still resolved from the database and logged honestly below, but the request
+// language handed to every call site is always 'en'. Retiring the dead ru
+// branches (dictionaries, translations, tests) is the language-dictionary
+// cleanup; until it lands this constant is the single switch that keeps the
+// bot from answering in Russian.
+const DISPLAY_LANGUAGE: 'ru' | 'en' = 'en'
+
 /**
  * ✅ ЦЕНТРАЛИЗОВАННЫЙ LANGUAGE MIDDLEWARE
  *
@@ -48,12 +56,13 @@ export const languageMiddleware = async (
 
   if (!telegramId) {
     // Если нет telegramId, используем fallback язык
-    const fallbackLanguage = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
+    const resolvedLanguage = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
     ctx.state = ctx.state || {}
-    ctx.state.userLanguage = fallbackLanguage
+    ctx.state.userLanguage = DISPLAY_LANGUAGE
 
     logger.warn('[LanguageMiddleware] No telegram ID, using fallback', {
-      fallbackLanguage,
+      resolvedLanguage,
+      displayLanguage: DISPLAY_LANGUAGE,
     })
 
     return next()
@@ -91,18 +100,18 @@ export const languageMiddleware = async (
 
     // ✅ СОХРАНЯЕМ В STATE ДЛЯ ВСЕХ ФУНКЦИЙ
     ctx.state = ctx.state || {}
-    ctx.state.userLanguage = finalLanguage
+    ctx.state.userLanguage = DISPLAY_LANGUAGE
 
-    logger.info(`[LanguageMiddleware] 🎯 LANGUAGE SET: ${finalLanguage}`, {
+    logger.info(`[LanguageMiddleware] 🎯 LANGUAGE SET: ${DISPLAY_LANGUAGE}`, {
       telegramId,
-      finalLanguage,
+      resolvedLanguage: finalLanguage,
       source: dbLanguage ? 'database' : 'telegram',
     })
   } catch (error) {
     // В случае ошибки БД используем Telegram fallback
-    const fallbackLanguage = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
+    const resolvedLanguage = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
     ctx.state = ctx.state || {}
-    ctx.state.userLanguage = fallbackLanguage
+    ctx.state.userLanguage = DISPLAY_LANGUAGE
 
     // Stays at error, deliberately. This fires only if getUserLanguageFromDB
     // itself throws -- it catches internally today -- so it is the genuine
@@ -110,7 +119,8 @@ export const languageMiddleware = async (
     logger.error('[LanguageMiddleware] ❌ DATABASE ERROR, using fallback', {
       telegramId,
       error: error instanceof Error ? error.message : String(error),
-      fallbackLanguage,
+      resolvedLanguage,
+      displayLanguage: DISPLAY_LANGUAGE,
     })
   }
 

@@ -131,7 +131,7 @@ async function resolveThrough(update: Record<string, any>) {
 }
 
 describe('business updates resolve a sender and a language', () => {
-  it('a business DM with no language_code resolves the customer id and answers Russian, not English', async () => {
+  it('a business DM with no language_code resolves the customer id and answers English (display language is always English)', async () => {
     // The production line. Before the fix telegraf gave no ctx.from, so the
     // database was never consulted at all and the answer was 'en'.
     getUserLanguageFromDB.mockResolvedValue('ru')
@@ -143,7 +143,7 @@ describe('business updates resolve a sender and a language', () => {
 
     expect(getUserLanguageFromDB).toHaveBeenCalledWith(String(CUSTOMER))
     expect(seen.ran).toBe(true)
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 
   it("control: a business customer whose stored language is 'en' still resolves English", async () => {
@@ -173,7 +173,7 @@ describe('business updates resolve a sender and a language', () => {
     })
 
     expect(getUserLanguageFromDB).toHaveBeenCalledWith(String(CUSTOMER))
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 
   it('an edited business message resolves its own sender', async () => {
@@ -185,7 +185,7 @@ describe('business updates resolve a sender and a language', () => {
     })
 
     expect(getUserLanguageFromDB).toHaveBeenCalledWith(String(CUSTOMER))
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 
   it('a business_connection resolves the OWNER who linked the bot, not a customer', async () => {
@@ -201,7 +201,7 @@ describe('business updates resolve a sender and a language', () => {
 
     expect(getUserLanguageFromDB).toHaveBeenCalledWith(String(OWNER))
     expect(getUserLanguageFromDB).not.toHaveBeenCalledWith(String(CUSTOMER))
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 })
 
@@ -215,7 +215,7 @@ describe('the ordinary paths are unchanged', () => {
     })
 
     expect(getUserLanguageFromDB).toHaveBeenCalledWith('9')
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 
   it('control: a PRESENT non-Russian language code still resolves English', async () => {
@@ -239,7 +239,7 @@ describe('the ordinary paths are unchanged', () => {
       message: plainMessage('ru-KZ'),
     })
 
-    expect(seen.language).toBe('ru')
+    expect(seen.language).toBe('en')
   }, 30_000)
 })
 
@@ -316,10 +316,11 @@ describe('what must still be loud is still loud', () => {
     }
   }, 30_000)
 
-  it('a genuinely anonymous update still WARNS about the fallback, and defaults to Russian', async () => {
+  it('a genuinely anonymous update still WARNS about the fallback, and answers English', async () => {
     // The production WARN is not deleted. It stops firing for business updates
     // because it stopped being true there; for an update that really carries no
-    // sender it still fires -- and now resolves Russian rather than English.
+    // sender it still fires. Owner, 2026-11-25: the bot speaks English only, so
+    // the display language is 'en' even when the resolved fallback says 'ru'.
     const { logger } = await import('@/utils/logger')
     const capture = new CaptureTransport({ level: 'silly' })
     logger.add(capture)
@@ -330,7 +331,7 @@ describe('what must still be loud is still loud', () => {
       })
 
       expect(getUserLanguageFromDB).not.toHaveBeenCalled()
-      expect(seen.language).toBe('ru')
+      expect(seen.language).toBe('en')
       const warns = capture.records.filter(
         r =>
           r.level === 'warn' &&

@@ -63,20 +63,20 @@ export function missOfError(e: unknown): AgentMiss {
   return { kind: 'unreachable' }
 }
 
-const CYRILLIC = /[\u0400-\u04FF]/
-const LINK = /\b(?:https?:\/\/|www\.)\S+/gi
-
 /**
  * WHICH LANGUAGE TO ANSWER IN.
  *
- * What the person just wrote wins when it is plainly Russian: a Cyrillic line
- * is an answer to the question no profile setting can settle. Otherwise --
- * a bare link, a brand name, an English sentence -- the language the bot
- * already keeps for them decides. Links are taken out first: a URL is Latin
- * whoever pastes it.
+ * The bot speaks English only (owner, 2026-11-25). The reply follows the
+ * language the bot keeps for the person -- the display language the
+ * middleware pins. The message language never overrides it: the old rule
+ * that a Cyrillic line won the answer language is retired. The message text
+ * stays in the signature only because every call site still passes it;
+ * Phase 2 (dictionary cleanup) removes the parameter together with the
+ * now-dead Russian branches.
  */
-export function replyInRussian(text: string, isRuFromState: boolean): boolean {
-  if (CYRILLIC.test(String(text ?? '').replace(LINK, ' '))) return true
+// The rule itself lives in languageMiddleware.ts (DISPLAY_LANGUAGE).
+// t27-plumbing: forwards the display-language flag; decides nothing itself.
+export function replyInRussian(_text: string, isRuFromState: boolean): boolean {
   return isRuFromState
 }
 
